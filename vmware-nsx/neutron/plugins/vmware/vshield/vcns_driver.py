@@ -1,3 +1,5 @@
+# vim: tabstop=4 shiftwidth=4 softtabstop=4
+#
 # Copyright 2013 VMware, Inc
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -35,15 +37,15 @@ class VcnsDriver(edge_appliance_driver.EdgeApplianceDriver,
         super(VcnsDriver, self).__init__()
 
         self.callbacks = callbacks
-        self.vcns_uri = cfg.CONF.vcns.manager_uri
-        self.vcns_user = cfg.CONF.vcns.user
-        self.vcns_passwd = cfg.CONF.vcns.password
-        self.datacenter_moid = cfg.CONF.vcns.datacenter_moid
-        self.deployment_container_id = cfg.CONF.vcns.deployment_container_id
-        self.resource_pool_id = cfg.CONF.vcns.resource_pool_id
-        self.datastore_id = cfg.CONF.vcns.datastore_id
-        self.external_network = cfg.CONF.vcns.external_network
-        interval = cfg.CONF.vcns.task_status_check_interval
+        self.vcns_uri = cfg.CONF.nsxv.manager_uri
+        self.vcns_user = cfg.CONF.nsxv.user
+        self.vcns_passwd = cfg.CONF.nsxv.password
+        self.datacenter_moid = cfg.CONF.nsxv.datacenter_moid
+        self.deployment_container_id = cfg.CONF.nsxv.deployment_container_id
+        self.resource_pool_id = cfg.CONF.nsxv.resource_pool_id
+        self.datastore_id = cfg.CONF.nsxv.datastore_id
+        self.external_network = cfg.CONF.nsxv.external_network
+        interval = cfg.CONF.nsxv.task_status_check_interval
         self.task_manager = tasks.TaskManager(interval)
         self.task_manager.start()
         self.vcns = vcns.Vcns(self.vcns_uri, self.vcns_user, self.vcns_passwd)
