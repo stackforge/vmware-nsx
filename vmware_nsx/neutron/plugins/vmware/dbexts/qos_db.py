@@ -25,7 +25,7 @@ from neutron.db import models_v2
 from neutron.i18n import _LI
 from neutron.openstack.common import log
 from neutron.openstack.common import uuidutils
-from neutron.plugins.vmware.extensions import qos
+from vmware_nsx.neutron.plugins.vmware.extensions import qos
 
 
 LOG = log.getLogger(__name__)
