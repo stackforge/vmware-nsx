@@ -15,8 +15,10 @@
 #    under the License.
 
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, String
+from sqlalchemy import orm
 
+from neutron.db import l3_db
 from neutron.db import model_base
 
 
@@ -35,10 +37,12 @@ class TzNetworkBinding(model_base.BASEV2):
                         primary_key=True)
     # 'flat', 'vlan', stt' or 'gre'
     binding_type = Column(Enum('flat', 'vlan', 'stt', 'gre', 'l3_ext',
+                               'portgroup',
                                name='tz_network_bindings_binding_type'),
                           nullable=False, primary_key=True)
-    phy_uuid = Column(String(36), primary_key=True, default='')
-    vlan_id = Column(Integer, primary_key=True, autoincrement=False, default=0)
+    phy_uuid = Column(String(36), primary_key=True, nullable=True)
+    vlan_id = Column(Integer, primary_key=True, nullable=True,
+                     autoincrement=False)
 
     def __init__(self, network_id, binding_type, phy_uuid, vlan_id):
         self.network_id = network_id
@@ -80,6 +84,45 @@ class NeutronNsxSecurityGroupMapping(model_base.BASEV2):
     nsx_id = Column(String(36), primary_key=True)
 
 
+class NeutronNsxSectionMapping(model_base.BASEV2):
+    """Backend mappings for Neutron Rule Sections.
+
+    This class maps a neutron security group identifier to the corresponding
+    NSX layer 3 and layer 2 sections.
+    """
+
+    __tablename__ = 'neutron_nsx_section_mappings'
+    neutron_id = Column(String(36),
+                        ForeignKey('securitygroups.id', ondelete="CASCADE"),
+                        primary_key=True)
+    ip_section_id = Column(String(100))
+    mac_section_id = Column(String(100))
+
+
+class NeutronNsxRuleMapping(model_base.BASEV2):
+    """Backend mappings for Neutron Rule Sections.
+
+    This class maps a neutron security group identifier to the corresponding
+    NSX layer 3 and layer 2 sections.
+    """
+
+    __tablename__ = 'neutron_nsx_rule_mappings'
+    neutron_id = Column(String(36),
+                        ForeignKey('securitygrouprules.id',
+                                   ondelete="CASCADE"),
+                        primary_key=True)
+    nsx_rule_id = Column(String(36), primary_key=True)
+
+
+class NeutronNsxPortVnicMapping(model_base.BASEV2):
+    """Maps neutron port to NSXv VM Vnic Id."""
+    __tablename__ = 'neutron_nsx_port_vnic_mappings'
+    neutron_id = Column(String(36),
+                        ForeignKey('ports.id', ondelete="CASCADE"),
+                        primary_key=True)
+    nsx_id = Column(String(42), primary_key=True)
+
+
 class NeutronNsxPortMapping(model_base.BASEV2):
     """Represents the mapping between neutron and nsx port uuids."""
 
@@ -88,7 +131,7 @@ class NeutronNsxPortMapping(model_base.BASEV2):
                         ForeignKey('ports.id', ondelete="CASCADE"),
                         primary_key=True)
     nsx_switch_id = Column(String(36))
-    nsx_port_id = Column(String(36), nullable=False)
+    nsx_port_id = Column(String(36))
 
     def __init__(self, neutron_id, nsx_switch_id, nsx_port_id):
         self.neutron_id = neutron_id
@@ -115,3 +158,18 @@ class MultiProviderNetworks(model_base.BASEV2):
 
     def __init__(self, network_id):
         self.network_id = network_id
+
+
+class NSXRouterExtAttributes(model_base.BASEV2):
+    """Router attributes managed by NSX plugin extensions."""
+    router_id = Column(String(36),
+                       ForeignKey('routers.id', ondelete="CASCADE"),
+                       primary_key=True)
+    distributed = Column(Boolean, default=False, nullable=False)
+    service_router = Column(Boolean, default=False, nullable=False)
+    # Add a relationship to the Router model in order to instruct
+    # SQLAlchemy to eagerly load this association
+    router = orm.relationship(
+        l3_db.Router,
+        backref=orm.backref("nsx_attributes", lazy='joined',
+                            uselist=False, cascade='delete'))

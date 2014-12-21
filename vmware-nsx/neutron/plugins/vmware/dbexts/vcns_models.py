@@ -19,6 +19,8 @@ import sqlalchemy as sa
 
 from neutron.db import model_base
 from neutron.db import models_v2
+from neutron.plugins.vmware.vshield.common import (
+    constants as vcns_const)
 
 
 class VcnsRouterBinding(model_base.BASEV2, models_v2.HasStatusDescription):
@@ -34,7 +36,13 @@ class VcnsRouterBinding(model_base.BASEV2, models_v2.HasStatusDescription):
     edge_id = sa.Column(sa.String(16),
                         nullable=True)
     lswitch_id = sa.Column(sa.String(36),
-                           nullable=False)
+                           nullable=True)
+    appliance_size = sa.Column(sa.Enum(vcns_const.COMPACT,
+                                       vcns_const.LARGE,
+                                       vcns_const.XLARGE,
+                                       vcns_const.QUADLARGE))
+    edge_type = sa.Column(sa.Enum(vcns_const.SERVICE_EDGE,
+                                  vcns_const.VDR_EDGE))
 
 
 #
@@ -46,8 +54,7 @@ class VcnsEdgeFirewallRuleBinding(model_base.BASEV2):
     __tablename__ = 'vcns_firewall_rule_bindings'
 
     rule_id = sa.Column(sa.String(36),
-                        # TODO(dougw) unbreak this link
-                        #sa.ForeignKey("firewall_rules.id"),
+                        sa.ForeignKey("firewall_rules.id"),
                         primary_key=True)
     edge_id = sa.Column(sa.String(36), primary_key=True)
     rule_vseid = sa.Column(sa.String(36))
@@ -59,8 +66,7 @@ class VcnsEdgePoolBinding(model_base.BASEV2):
     __tablename__ = 'vcns_edge_pool_bindings'
 
     pool_id = sa.Column(sa.String(36),
-                        # TODO(dougw) unbreak this link
-                        #sa.ForeignKey("pools.id", ondelete="CASCADE"),
+                        sa.ForeignKey("pools.id", ondelete="CASCADE"),
                         primary_key=True)
     edge_id = sa.Column(sa.String(36), primary_key=True)
     pool_vseid = sa.Column(sa.String(36))
@@ -72,8 +78,7 @@ class VcnsEdgeVipBinding(model_base.BASEV2):
     __tablename__ = 'vcns_edge_vip_bindings'
 
     vip_id = sa.Column(sa.String(36),
-                       # TODO(dougw) unbreak this link
-                       #sa.ForeignKey("vips.id", ondelete="CASCADE"),
+                       sa.ForeignKey("vips.id", ondelete="CASCADE"),
                        primary_key=True)
     edge_id = sa.Column(sa.String(36))
     vip_vseid = sa.Column(sa.String(36))
@@ -86,9 +91,56 @@ class VcnsEdgeMonitorBinding(model_base.BASEV2):
     __tablename__ = 'vcns_edge_monitor_bindings'
 
     monitor_id = sa.Column(sa.String(36),
-                           # TODO(dougw) unbreak this link
-                           #sa.ForeignKey("healthmonitors.id",
-                           #              ondelete="CASCADE"),
+                           sa.ForeignKey("healthmonitors.id",
+                                         ondelete="CASCADE"),
                            primary_key=True)
     edge_id = sa.Column(sa.String(36), primary_key=True)
     monitor_vseid = sa.Column(sa.String(36))
+
+
+class EdgeVnicBinding(model_base.BASEV2):
+    """Represents mapping between vShield Edge vnic and neutron netowrk."""
+
+    __tablename__ = 'edge_vnic_bindings'
+
+    # every edge has at most 10 availiable vnics for network mapping
+    edge_id = sa.Column(sa.String(36),
+                        primary_key=True)
+    vnic_index = sa.Column(sa.Integer(),
+                           primary_key=True)
+    tunnel_index = sa.Column(sa.Integer(),
+                             primary_key=True)
+    network_id = sa.Column(sa.String(36),
+                           nullable=True)
+
+
+class EdgeDhcpStaticBinding(model_base.BASEV2):
+    """Represents mapping between mac addr and bindingId."""
+
+    __tablename__ = 'edge_dhcp_static_bindings'
+
+    edge_id = sa.Column(sa.String(36), primary_key=True)
+    mac_address = sa.Column(sa.String(32), primary_key=True)
+    binding_id = sa.Column(sa.String(36), nullable=False)
+
+
+class NsxvInternalNetworks(model_base.BASEV2):
+    """Represents internal networks between NSXV plugin elements."""
+
+    __tablename__ = 'nsxv_internal_networks'
+
+    network_purpose = sa.Column(
+        sa.Enum(vcns_const.InternalEdgePurposes.INTER_EDGE_PURPOSE),
+        primary_key=True)
+    network_id = sa.Column(sa.String(36), nullable=False)
+
+
+class NsxvInternalEdges(model_base.BASEV2):
+    """Represents internal Edge appliances for NSXV plugin operations."""
+
+    __tablename__ = 'nsxv_internal_edges'
+
+    ext_ip_address = sa.Column(sa.String(64), primary_key=True)
+    router_id = sa.Column(sa.String(36), nullable=False)
+    purpose = sa.Column(
+        sa.Enum(vcns_const.InternalEdgePurposes.INTER_EDGE_PURPOSE))
