@@ -1,6 +1,5 @@
-# Copyright 2014 VMware, Inc.
+# Copyright 2013 VMware, Inc.  All rights reserved.
 #
-# All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -15,8 +14,16 @@
 #    under the License.
 #
 
-from neutron.plugins.vmware.plugins import base
-from vmware_nsx.neutron.plugins.vmware.plugins import nsx_v
+from vmware_nsx.neutron.plugins.vmware.dbexts import nsxrouter
+from vmware_nsx.neutron.plugins.vmware.extensions import (
+    distributedrouter as dist_rtr)
 
-NsxPlugin = base.NsxPluginV2
-NsxVPlugin = nsx_v.NsxVPluginV2
+
+class DistributedRouter_mixin(nsxrouter.NsxRouterMixin):
+    """Mixin class to enable distributed router support."""
+
+    nsx_attributes = (
+        nsxrouter.NsxRouterMixin.nsx_attributes + [{
+            'name': dist_rtr.DISTRIBUTED,
+            'default': False
+        }])
