@@ -35,10 +35,12 @@ class TzNetworkBinding(model_base.BASEV2):
                         primary_key=True)
     # 'flat', 'vlan', stt' or 'gre'
     binding_type = Column(Enum('flat', 'vlan', 'stt', 'gre', 'l3_ext',
+                               'portgroup',
                                name='tz_network_bindings_binding_type'),
                           nullable=False, primary_key=True)
-    phy_uuid = Column(String(36), primary_key=True, default='')
-    vlan_id = Column(Integer, primary_key=True, autoincrement=False, default=0)
+    phy_uuid = Column(String(36), primary_key=True, nullable=True)
+    vlan_id = Column(Integer, primary_key=True, nullable=True,
+                     autoincrement=False)
 
     def __init__(self, network_id, binding_type, phy_uuid, vlan_id):
         self.network_id = network_id
@@ -88,7 +90,7 @@ class NeutronNsxPortMapping(model_base.BASEV2):
                         ForeignKey('ports.id', ondelete="CASCADE"),
                         primary_key=True)
     nsx_switch_id = Column(String(36))
-    nsx_port_id = Column(String(36), nullable=False)
+    nsx_port_id = Column(String(36))
 
     def __init__(self, neutron_id, nsx_switch_id, nsx_port_id):
         self.neutron_id = neutron_id

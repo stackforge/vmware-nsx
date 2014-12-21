@@ -23,7 +23,7 @@ from sqlalchemy import String
 
 from neutron.db import models_v2
 from neutron.openstack.common import log as logging
-from neutron.plugins.vmware.common import exceptions as p_exc
+from vmware_nsx.neutron.plugins.vmware.common import exceptions as p_exc
 
 
 LOG = logging.getLogger(__name__)

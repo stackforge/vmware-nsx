@@ -24,7 +24,7 @@ from neutron.db import model_base
 from neutron.db import models_v2
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
-from neutron.plugins.vmware.extensions import networkgw
+from vmware_nsx.neutron.plugins.vmware.extensions import networkgw
 
 
 LOG = logging.getLogger(__name__)

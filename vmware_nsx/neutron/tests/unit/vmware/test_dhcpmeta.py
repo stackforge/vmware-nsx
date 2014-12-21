@@ -20,16 +20,16 @@ from oslo.config import cfg
 from neutron.common import constants as n_consts
 from neutron.common import exceptions as n_exc
 from neutron import context
-from neutron.plugins.vmware.api_client import exception
-from neutron.plugins.vmware.common import exceptions as p_exc
-from neutron.plugins.vmware.dbexts import lsn_db
-from neutron.plugins.vmware.dhcp_meta import constants
-from neutron.plugins.vmware.dhcp_meta import lsnmanager as lsn_man
-from neutron.plugins.vmware.dhcp_meta import migration as mig_man
-from neutron.plugins.vmware.dhcp_meta import nsx
-from neutron.plugins.vmware.dhcp_meta import rpc
 from neutron.tests import base
 from neutron.tests.unit import testlib_api
+from vmware_nsx.neutron.plugins.vmware.api_client import exception
+from vmware_nsx.neutron.plugins.vmware.common import exceptions as p_exc
+from vmware_nsx.neutron.plugins.vmware.dbexts import lsn_db
+from vmware_nsx.neutron.plugins.vmware.dhcp_meta import constants
+from vmware_nsx.neutron.plugins.vmware.dhcp_meta import lsnmanager as lsn_man
+from vmware_nsx.neutron.plugins.vmware.dhcp_meta import migration as mig_man
+from vmware_nsx.neutron.plugins.vmware.dhcp_meta import nsx
+from vmware_nsx.neutron.plugins.vmware.dhcp_meta import rpc
 
 
 class DhcpMetadataBuilderTestCase(base.BaseTestCase):
