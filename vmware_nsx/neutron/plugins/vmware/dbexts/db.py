@@ -20,8 +20,8 @@ from sqlalchemy.orm import exc
 
 import neutron.db.api as db
 from neutron.openstack.common import log as logging
-from neutron.plugins.vmware.dbexts import models
-from neutron.plugins.vmware.dbexts import networkgw_db
+from vmware_nsx.neutron.plugins.vmware.dbexts import models
+from vmware_nsx.neutron.plugins.vmware.dbexts import networkgw_db
 
 LOG = logging.getLogger(__name__)
 
@@ -197,3 +197,62 @@ def is_multiprovider_network(session, network_id):
         return bool(
             session.query(models.MultiProviderNetworks).filter_by(
                 network_id=network_id).first())
+
+
+def add_neutron_nsx_section_mapping(session, neutron_id, ip_section_id,
+                                    mac_section_id=None):
+    with session.begin(subtransactions=True):
+        mapping = models.NeutronNsxSectionMapping(
+            neutron_id=neutron_id, ip_section_id=ip_section_id,
+            mac_section_id=mac_section_id)
+        session.add(mapping)
+        return mapping
+
+
+def add_neutron_nsx_rule_mapping(session, neutron_id, nsx_rule_id):
+    with session.begin(subtransactions=True):
+        mapping = models.NeutronNsxRuleMapping(neutron_id=neutron_id,
+                                               nsx_rule_id=nsx_rule_id)
+        session.add(mapping)
+        return mapping
+
+
+def add_neutron_nsx_port_vnic_mapping(session, neutron_id, nsx_id):
+    with session.begin(subtransactions=True):
+        mapping = models.NeutronNsxPortVnicMapping(
+            neutron_id=neutron_id, nsx_id=nsx_id)
+        session.add(mapping)
+        return mapping
+
+
+def get_nsx_section(session, neutron_id):
+    try:
+        mapping = (session.query(models.NeutronNsxSectionMapping).
+                   filter_by(neutron_id=neutron_id).
+                   one())
+        return mapping
+    except exc.NoResultFound:
+        LOG.debug("NSX identifiers for neutron security group %s not yet "
+                  "stored in Neutron DB", neutron_id)
+
+
+def get_nsx_rule_id(session, neutron_id):
+    try:
+        mapping = (session.query(models.NeutronNsxRuleMapping).
+                   filter_by(neutron_id=neutron_id).
+                   one())
+        return mapping['nsx_rule_id']
+    except exc.NoResultFound:
+        LOG.debug("NSX identifiers for neutron rule %s not yet "
+                  "stored in Neutron DB", neutron_id)
+
+
+def get_nsx_vnic_id(session, neutron_id):
+    try:
+        mapping = (session.query(models.NeutronNsxPortVnicMapping).
+                   filter_by(neutron_id=neutron_id).
+                   one())
+        return mapping['nsx_id']
+    except exc.NoResultFound:
+        LOG.debug("NSX identifiers for neutron port %s not yet "
+                  "stored in Neutron DB", neutron_id)

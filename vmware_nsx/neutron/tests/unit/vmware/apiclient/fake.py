@@ -17,7 +17,7 @@ import six.moves.urllib.parse as urlparse
 
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
-from neutron.plugins.vmware.api_client import exception as api_exc
+from vmware_nsx.neutron.plugins.vmware.api_client import exception as api_exc
 
 
 LOG = logging.getLogger(__name__)
