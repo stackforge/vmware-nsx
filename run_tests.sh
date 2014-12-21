@@ -114,7 +114,7 @@ function run_tests {
     if [ "$testopts" = "" ] && [ "$testargs" = "" ]; then
       # Default to running all tests if specific test is not
       # provided.
-      testargs="discover ./neutron/tests"
+      testargs="discover ./vmware-nsx/neutron/tests"
     fi
     ${wrapper} python -m testtools.run $testopts $testargs
 
