@@ -17,7 +17,7 @@ import copy
 from oslo.serialization import jsonutils
 
 from neutron.openstack.common import uuidutils
-from neutron.plugins.vmware.vshield.common import exceptions
+from vmware_nsx.neutron.plugins.vmware.vshield.common import exceptions
 
 
 class FakeVcns(object):
