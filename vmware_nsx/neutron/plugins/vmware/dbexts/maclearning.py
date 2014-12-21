@@ -22,7 +22,7 @@ from neutron.db import db_base_plugin_v2
 from neutron.db import model_base
 from neutron.db import models_v2
 from neutron.openstack.common import log as logging
-from neutron.plugins.vmware.extensions import maclearning as mac
+from vmware_nsx.neutron.plugins.vmware.extensions import maclearning as mac
 
 LOG = logging.getLogger(__name__)
 
