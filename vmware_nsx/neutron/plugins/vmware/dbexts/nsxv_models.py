@@ -181,3 +181,22 @@ class NsxvTzNetworkBinding(model_base.BASEV2):
                                                   self.binding_type,
                                                   self.phy_uuid,
                                                   self.vlan_id)
+
+
+class NeutronNsxPortIndexMapping(model_base.BASEV2):
+    """Associates attached Neutron ports with the instance VNic index."""
+
+    __tablename__ = 'neutron_nsx_port_index_mappings'
+    port_id = sa.Column(sa.String(36),
+                        sa.ForeignKey('ports.id', ondelete="CASCADE"),
+                        primary_key=True)
+    device_id = sa.Column(sa.String(255), nullable=False)
+    index = sa.Column(sa.Integer, nullable=False)
+    __table_args__ = (sa.UniqueConstraint(device_id, index),)
+
+    # Add a relationship to the Port model in order to instruct SQLAlchemy to
+    # eagerly read port vnic-index
+    port = orm.relationship(
+        models_v2.Port,
+        backref=orm.backref("vnic_index", lazy='joined',
+                            uselist=False, cascade='delete'))
