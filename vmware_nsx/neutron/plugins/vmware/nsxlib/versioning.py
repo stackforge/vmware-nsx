@@ -15,7 +15,7 @@
 
 import inspect
 
-from vmware_nsx.neutron.plugins.vmware.api_client import exception
+from neutron.plugins.vmware.api_client import exception
 
 DEFAULT_VERSION = -1
 
