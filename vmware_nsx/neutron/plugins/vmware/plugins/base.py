@@ -55,20 +55,20 @@ from neutron.i18n import _LE, _LI, _LW
 from neutron.openstack.common import lockutils
 from neutron.openstack.common import log as logging
 from neutron.plugins.common import constants as plugin_const
+from neutron.plugins.vmware.api_client import exception as api_exc
+from neutron.plugins.vmware.common import exceptions as nsx_exc
+from neutron.plugins.vmware.dbexts import maclearning as mac_db
+from neutron.plugins.vmware.dbexts import networkgw_db
+from neutron.plugins.vmware.dbexts import qos_db
+from neutron.plugins.vmware.extensions import maclearning as mac_ext
 from vmware_nsx.neutron.plugins import vmware
-from vmware_nsx.neutron.plugins.vmware.api_client import exception as api_exc
 from vmware_nsx.neutron.plugins.vmware.common import config  # noqa
-from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.common import nsx_utils
 from vmware_nsx.neutron.plugins.vmware.common import securitygroups as sg_utils
 from vmware_nsx.neutron.plugins.vmware.common import sync
 from vmware_nsx.neutron.plugins.vmware.common import utils as c_utils
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
-from vmware_nsx.neutron.plugins.vmware.dbexts import maclearning as mac_db
-from vmware_nsx.neutron.plugins.vmware.dbexts import networkgw_db
-from vmware_nsx.neutron.plugins.vmware.dbexts import qos_db
 from vmware_nsx.neutron.plugins.vmware import dhcpmeta_modes
-from vmware_nsx.neutron.plugins.vmware.extensions import maclearning as mac_ext
 from vmware_nsx.neutron.plugins.vmware.extensions import networkgw
 from vmware_nsx.neutron.plugins.vmware.extensions import qos
 from vmware_nsx.neutron.plugins.vmware.nsxlib import l2gateway as l2gwlib

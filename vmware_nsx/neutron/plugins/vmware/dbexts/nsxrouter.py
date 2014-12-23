@@ -16,7 +16,7 @@
 from neutron.db import db_base_plugin_v2
 from neutron.extensions import l3
 from neutron.openstack.common import log as logging
-from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_models
+from neutron.plugins.vmware.dbexts import nsxv_models
 
 LOG = logging.getLogger(__name__)
 
