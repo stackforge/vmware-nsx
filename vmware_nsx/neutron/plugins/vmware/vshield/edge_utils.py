@@ -24,6 +24,7 @@ from neutron.i18n import _LE, _LW
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
 from neutron.plugins.common import constants as plugin_const
+from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
 from vmware_nsx.neutron.plugins.vmware.vshield.common import (
@@ -31,6 +32,7 @@ from vmware_nsx.neutron.plugins.vmware.vshield.common import (
 from vmware_nsx.neutron.plugins.vmware.vshield.tasks import (
     constants as task_const)
 from vmware_nsx.neutron.plugins.vmware.vshield.tasks import tasks
+
 
 LOG = logging.getLogger(__name__)
 
@@ -55,7 +57,7 @@ def parse_backup_edge_pool_opt():
                     'allowed': vcns_const.ALLOWED_EDGE_TYPES})
             LOG.error(msg)
             raise n_exc.Invalid(msg)
-        edge_size = edge_size or vcns_const.LARGE
+        edge_size = edge_size or nsxv_constants.LARGE
         if edge_size not in vcns_const.ALLOWED_EDGE_SIZES:
             msg = (_("edge size '%(edge_size)s' is not allowed, "
                      "allowed types: %(allowed)s") %
@@ -97,8 +99,8 @@ class EdgeManager(object):
         self._check_backup_edge_pools()
 
     def _deploy_edge(self, context, lrouter,
-                     lswitch=None, appliance_size=vcns_const.LARGE,
-                     edge_type=vcns_const.SERVICE_EDGE):
+                     lswitch=None, appliance_size=nsxv_constants.LARGE,
+                     edge_type=nsxv_constants.SERVICE_EDGE):
         """Create an edge for logical router support."""
         router_id = lrouter['id']
         # deploy edge
@@ -113,12 +115,12 @@ class EdgeManager(object):
             lrouter['id'], lrouter['name'], internal_network=None,
             jobdata=jobdata, wait_for_exec=True,
             appliance_size=appliance_size,
-            dist=(edge_type == vcns_const.VDR_EDGE))
+            dist=(edge_type == nsxv_constants.VDR_EDGE))
         return task
 
     def _deploy_backup_edges(self, context, num,
-                             appliance_size=vcns_const.LARGE,
-                             edge_type=vcns_const.SERVICE_EDGE):
+                             appliance_size=nsxv_constants.LARGE,
+                             edge_type=nsxv_constants.SERVICE_EDGE):
         """Asynchronously deploy edges to populate edge pool."""
         router_ids = [(vcns_const.BACKUP_ROUTER_PREFIX +
                        _uuid())[:vcns_const.EDGE_NAME_LEN]
@@ -150,7 +152,7 @@ class EdgeManager(object):
         self.nsxv_manager.delete_edge(
             router_binding['router_id'], router_binding['edge_id'],
             jobdata=jobdata,
-            dist=(router_binding['edge_type'] == vcns_const.VDR_EDGE))
+            dist=(router_binding['edge_type'] == nsxv_constants.VDR_EDGE))
 
     def _delete_backup_edges(self, context, backup_router_bindings, num):
         with context.session.begin(subtransactions=True):
@@ -167,7 +169,7 @@ class EdgeManager(object):
             }
             self.nsxv_manager.delete_edge(
                 binding['router_id'], binding['edge_id'], jobdata=jobdata,
-                dist=(binding['edge_type'] == vcns_const.VDR_EDGE))
+                dist=(binding['edge_type'] == nsxv_constants.VDR_EDGE))
 
     def _clean_all_error_edge_bindings(self, context):
         router_bindings = nsxv_db.get_nsxv_router_bindings(context.session)
@@ -178,8 +180,8 @@ class EdgeManager(object):
                 self._delete_edge(context, binding)
 
     def _get_backup_edge_bindings(self, context,
-                                  appliance_size=vcns_const.LARGE,
-                                  edge_type=vcns_const.SERVICE_EDGE):
+                                  appliance_size=nsxv_constants.LARGE,
+                                  edge_type=nsxv_constants.SERVICE_EDGE):
         router_bindings = nsxv_db.get_nsxv_router_bindings(context.session)
         return [router_binding for router_binding in router_bindings
                 if router_binding[
@@ -208,8 +210,8 @@ class EdgeManager(object):
     def _check_backup_edge_pool(self,
                                 minimum_pooled_edges,
                                 maximum_pooled_edges,
-                                appliance_size=vcns_const.LARGE,
-                                edge_type=vcns_const.SERVICE_EDGE):
+                                appliance_size=nsxv_constants.LARGE,
+                                edge_type=nsxv_constants.SERVICE_EDGE):
         """Check edge pool's status and return one available edge for use."""
         admin_ctx = q_context.get_admin_context()
         backup_router_bindings = self._get_backup_edge_bindings(
@@ -232,8 +234,8 @@ class EdgeManager(object):
             return False
 
     def _get_available_router_binding(self, context,
-                                      appliance_size=vcns_const.LARGE,
-                                      edge_type=vcns_const.SERVICE_EDGE):
+                                      appliance_size=nsxv_constants.LARGE,
+                                      edge_type=nsxv_constants.SERVICE_EDGE):
         backup_router_bindings = self._get_backup_edge_bindings(
             context, appliance_size=appliance_size, edge_type=edge_type)
         for router_binding in backup_router_bindings:
@@ -363,11 +365,12 @@ class EdgeManager(object):
                                            address_groups=iface_list)
 
     def _allocate_edge_appliance(self, context, resource_id, name,
-                                 appliance_size=vcns_const.LARGE,
+                                 appliance_size=nsxv_constants.LARGE,
                                  dist=False):
         """Try to allocate one avaliable edge from pool."""
 
-        edge_type = vcns_const.VDR_EDGE if dist else vcns_const.SERVICE_EDGE
+        edge_type = (nsxv_constants.VDR_EDGE if dist else
+                     nsxv_constants.SERVICE_EDGE)
         lrouter = {'id': resource_id,
                    'name': name}
         edge_pool_range = self.edge_pool_dicts[edge_type].get(appliance_size)
@@ -444,7 +447,7 @@ class EdgeManager(object):
             LOG.warning(_LW("router binding for router: %s "
                             "not found"), router_id)
             return
-        dist = (binding['edge_type'] == vcns_const.VDR_EDGE)
+        dist = (binding['edge_type'] == nsxv_constants.VDR_EDGE)
         edge_pool_range = self.edge_pool_dicts[binding['edge_type']].get(
             binding['appliance_size'])
         if edge_pool_range is None:
@@ -1318,20 +1321,21 @@ class NsxVCallbacks(object):
     def _create_rule_id_mapping(
         self, context, edge_id, firewall, vcns_fw):
         for rule in vcns_fw['firewallRules']['firewallRules']:
-            index = rule['ruleTag'] - 1
-            #TODO(linb):a simple filter of the retrieved rules which may be
-            #created by other operations unintentionally
-            if index < len(firewall['firewall_rule_list']):
-                rule_vseid = rule['ruleId']
-                rule_id = firewall['firewall_rule_list'][index].get('id')
-                if rule_id:
-                    map_info = {
-                        'rule_id': rule_id,
-                        'rule_vseid': rule_vseid,
-                        'edge_id': edge_id
-                    }
-                    nsxv_db.add_nsxv_edge_firewallrule_binding(
-                        context.session, map_info)
+            if rule.get('ruleTag'):
+                index = rule['ruleTag'] - 1
+                #TODO(linb):a simple filter of the retrieved rules which may be
+                #created by other operations unintentionally
+                if index < len(firewall['firewall_rule_list']):
+                    rule_vseid = rule['ruleId']
+                    rule_id = firewall['firewall_rule_list'][index].get('id')
+                    if rule_id:
+                        map_info = {
+                            'rule_id': rule_id,
+                            'rule_vseid': rule_vseid,
+                            'edge_id': edge_id
+                        }
+                        nsxv_db.add_nsxv_edge_firewallrule_binding(
+                            context.session, map_info)
 
     def firewall_update_result(self, task):
         LOG.debug("firewall_update_result %d", task.status)

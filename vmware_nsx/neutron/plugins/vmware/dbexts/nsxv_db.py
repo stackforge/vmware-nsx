@@ -22,15 +22,17 @@ import neutron.db.api as db
 from neutron.i18n import _, _LE
 from neutron.openstack.common import log as logging
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
+from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_models
 from vmware_nsx.neutron.plugins.vmware.vshield.common import constants
+
 
 LOG = logging.getLogger(__name__)
 
 
 def add_nsxv_router_binding(session, router_id, vse_id, lswitch_id, status,
-                            appliance_size=constants.LARGE,
-                            edge_type=constants.SERVICE_EDGE):
+                            appliance_size=nsxv_constants.LARGE,
+                            edge_type=nsxv_constants.SERVICE_EDGE):
     with session.begin(subtransactions=True):
         binding = nsxv_models.NsxvRouterBinding(
             router_id=router_id,
@@ -386,3 +388,48 @@ def get_network_bindings_by_vlanid(session, vlan_id):
     return (session.query(nsxv_models.NsxvTzNetworkBinding).
             filter_by(vlan_id=vlan_id).
             all())
+
+
+#
+# Edge Firewall binding methods
+#
+def add_nsxv_edge_firewallrule_binding(session, map_info):
+    with session.begin(subtransactions=True):
+        binding = nsxv_models.NsxvEdgeFirewallRuleBinding(
+            rule_id=map_info['rule_id'],
+            rule_vseid=map_info['rule_vseid'],
+            edge_id=map_info['edge_id'])
+        session.add(binding)
+        return binding
+
+
+def delete_nsxv_edge_firewallrule_binding(session, id):
+    with session.begin(subtransactions=True):
+        if not (session.query(nsxv_models.NsxvEdgeFirewallRuleBinding).
+                filter_by(rule_id=id).delete()):
+            msg = _("Rule Resource binding with id:%s not found!") % id
+            raise nsx_exc.NsxPluginException(err_msg=msg)
+
+
+def get_nsxv_edge_firewallrule_binding(session, id, edge_id):
+    with session.begin(subtransactions=True):
+        return (session.query(nsxv_models.NsxvEdgeFirewallRuleBinding).
+                filter_by(rule_id=id, edge_id=edge_id).first())
+
+
+def get_nsxv_edge_firewallrule_binding_by_vseid(
+        session, edge_id, rule_vseid):
+    with session.begin(subtransactions=True):
+        try:
+            return (session.query(nsxv_models.NsxvEdgeFirewallRuleBinding).
+                    filter_by(edge_id=edge_id, rule_vseid=rule_vseid).one())
+        except exc.NoResultFound:
+            msg = _("Rule Resource binding not found!")
+            raise nsx_exc.NsxPluginException(err_msg=msg)
+
+
+def cleanup_nsxv_edge_firewallrule_binding(session, edge_id):
+    with session.begin(subtransactions=True):
+        session.query(
+            nsxv_models.NsxvEdgeFirewallRuleBinding).filter_by(
+                edge_id=edge_id).delete()
