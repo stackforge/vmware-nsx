@@ -1480,10 +1480,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     context, router, router_id=plr_id)
 
     def disassociate_floatingips(self, context, port_id):
+        router_id = None
         try:
             fip_qry = context.session.query(l3_db.FloatingIP)
-            fip_db = fip_qry.filter_by(fixed_port_id=port_id).one()
-            router_id = fip_db.router_id
+            fip_db = fip_qry.filter_by(fixed_port_id=port_id)
+            for fip in fip_db:
+                if fip.router_id:
+                    router_id = fip.router_id
+                    break
         except sa_exc.NoResultFound:
             router_id = None
         super(NsxVPluginV2, self).disassociate_floatingips(context, port_id)
