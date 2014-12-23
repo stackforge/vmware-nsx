@@ -23,6 +23,7 @@ from oslo.utils import excutils
 from neutron.i18n import _LE, _LI, _LW
 from neutron.openstack.common import log as logging
 from vmware_nsx.neutron.plugins.vmware.common import utils
+from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.vshield.common import constants
 from vmware_nsx.neutron.plugins.vmware.vshield.common import exceptions
 from vmware_nsx.neutron.plugins.vmware.vshield.tasks import (
@@ -432,7 +433,7 @@ class EdgeApplianceDriver(object):
 
     def deploy_edge(self, resource_id, name, internal_network, jobdata=None,
                     dist=False, wait_for_exec=False, loadbalancer_enable=True,
-                    appliance_size=constants.LARGE):
+                    appliance_size=nsxv_constants.LARGE):
         task_name = 'deploying-%s' % name
         edge_name = name
         edge = self._assemble_edge(
@@ -486,7 +487,7 @@ class EdgeApplianceDriver(object):
 
     def update_edge(self, router_id, edge_id, name, internal_network,
                     jobdata=None, dist=False, loadbalancer_enable=True,
-                    appliance_size=constants.LARGE):
+                    appliance_size=nsxv_constants.LARGE):
         """Update edge name."""
         task_name = 'update-%s' % name
         edge_name = name

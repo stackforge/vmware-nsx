@@ -21,7 +21,7 @@ from sqlalchemy import orm
 from neutron.db import l3_db
 from neutron.db import model_base
 from neutron.db import models_v2
-from vmware_nsx.neutron.plugins.vmware.vshield.common import constants
+from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_constants
 
 
 class NsxvRouterBinding(model_base.BASEV2, models_v2.HasStatusDescription):
@@ -38,12 +38,12 @@ class NsxvRouterBinding(model_base.BASEV2, models_v2.HasStatusDescription):
                         nullable=True)
     lswitch_id = sa.Column(sa.String(36),
                            nullable=True)
-    appliance_size = sa.Column(sa.Enum(constants.COMPACT,
-                                       constants.LARGE,
-                                       constants.XLARGE,
-                                       constants.QUADLARGE))
-    edge_type = sa.Column(sa.Enum(constants.SERVICE_EDGE,
-                                  constants.VDR_EDGE))
+    appliance_size = sa.Column(sa.Enum(nsxv_constants.COMPACT,
+                                       nsxv_constants.LARGE,
+                                       nsxv_constants.XLARGE,
+                                       nsxv_constants.QUADLARGE))
+    edge_type = sa.Column(sa.Enum(nsxv_constants.SERVICE_EDGE,
+                                  nsxv_constants.VDR_EDGE))
 
 
 class NsxvEdgeVnicBinding(model_base.BASEV2):
@@ -78,7 +78,7 @@ class NsxvInternalNetworks(model_base.BASEV2):
     __tablename__ = 'nsxv_internal_networks'
 
     network_purpose = sa.Column(
-        sa.Enum(constants.InternalEdgePurposes.INTER_EDGE_PURPOSE),
+        sa.Enum(nsxv_constants.InternalEdgePurposes.INTER_EDGE_PURPOSE),
         primary_key=True)
     network_id = sa.Column(sa.String(36), nullable=False)
 
@@ -91,7 +91,7 @@ class NsxvInternalEdges(model_base.BASEV2):
     ext_ip_address = sa.Column(sa.String(64), primary_key=True)
     router_id = sa.Column(sa.String(36), nullable=False)
     purpose = sa.Column(
-        sa.Enum(constants.InternalEdgePurposes.INTER_EDGE_PURPOSE))
+        sa.Enum(nsxv_constants.InternalEdgePurposes.INTER_EDGE_PURPOSE))
 
 
 class NsxvSectionMapping(model_base.BASEV2):
@@ -181,3 +181,33 @@ class NsxvTzNetworkBinding(model_base.BASEV2):
                                                   self.binding_type,
                                                   self.phy_uuid,
                                                   self.vlan_id)
+
+
+class NsxvPortIndexMapping(model_base.BASEV2):
+    """Associates attached Neutron ports with the instance VNic index."""
+
+    __tablename__ = 'nsxv_port_index_mappings'
+    port_id = sa.Column(sa.String(36),
+                        sa.ForeignKey('ports.id', ondelete="CASCADE"),
+                        primary_key=True)
+    device_id = sa.Column(sa.String(255), nullable=False)
+    index = sa.Column(sa.Integer, nullable=False)
+    __table_args__ = (sa.UniqueConstraint(device_id, index),)
+
+    # Add a relationship to the Port model in order to instruct SQLAlchemy to
+    # eagerly read port vnic-index
+    port = orm.relationship(
+        models_v2.Port,
+        backref=orm.backref("vnic_index", lazy='joined',
+                            uselist=False, cascade='delete'))
+
+
+class NsxvEdgeFirewallRuleBinding(model_base.BASEV2):
+    """1:1 mapping between firewall rule and edge firewall rule_id."""
+
+    __tablename__ = 'nsxv_firewall_rule_bindings'
+
+    rule_id = sa.Column(sa.String(36),
+                        primary_key=True)
+    edge_id = sa.Column(sa.String(36), primary_key=True)
+    rule_vseid = sa.Column(sa.String(36))
