@@ -1318,20 +1318,21 @@ class NsxVCallbacks(object):
     def _create_rule_id_mapping(
         self, context, edge_id, firewall, vcns_fw):
         for rule in vcns_fw['firewallRules']['firewallRules']:
-            index = rule['ruleTag'] - 1
-            #TODO(linb):a simple filter of the retrieved rules which may be
-            #created by other operations unintentionally
-            if index < len(firewall['firewall_rule_list']):
-                rule_vseid = rule['ruleId']
-                rule_id = firewall['firewall_rule_list'][index].get('id')
-                if rule_id:
-                    map_info = {
-                        'rule_id': rule_id,
-                        'rule_vseid': rule_vseid,
-                        'edge_id': edge_id
-                    }
-                    nsxv_db.add_nsxv_edge_firewallrule_binding(
-                        context.session, map_info)
+            if rule.get('ruleTag'):
+                index = rule['ruleTag'] - 1
+                #TODO(linb):a simple filter of the retrieved rules which may be
+                #created by other operations unintentionally
+                if index < len(firewall['firewall_rule_list']):
+                    rule_vseid = rule['ruleId']
+                    rule_id = firewall['firewall_rule_list'][index].get('id')
+                    if rule_id:
+                        map_info = {
+                            'rule_id': rule_id,
+                            'rule_vseid': rule_vseid,
+                            'edge_id': edge_id
+                        }
+                        nsxv_db.add_nsxv_edge_firewallrule_binding(
+                            context.session, map_info)
 
     def firewall_update_result(self, task):
         LOG.debug("firewall_update_result %d", task.status)
