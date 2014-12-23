@@ -21,6 +21,7 @@ from neutron.api.v2 import attributes as attr
 from neutron.common import constants
 from neutron import context as neutron_context
 from neutron.openstack.common import log as logging
+from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
 from vmware_nsx.neutron.plugins.vmware.vshield import (
     nsxv_loadbalancer as nsxv_lb)
@@ -84,7 +85,7 @@ class NsxVMetadataProxyHandler:
 
         net_list = nsxv_db.get_nsxv_internal_network(
             self.context.session,
-            vcns_const.InternalEdgePurposes.INTER_EDGE_PURPOSE)
+            nsxv_constants.InternalEdgePurposes.INTER_EDGE_PURPOSE)
 
         if net_list:
             internal_net = net_list[0]['network_id']
@@ -102,7 +103,7 @@ class NsxVMetadataProxyHandler:
         try:
             nsxv_db.create_nsxv_internal_network(
                 self.context.session,
-                vcns_const.InternalEdgePurposes.INTER_EDGE_PURPOSE,
+                nsxv_constants.InternalEdgePurposes.INTER_EDGE_PURPOSE,
                 internal_net)
         except db_exc.DBDuplicateEntry:
             # We may have a race condition, where another Neutron instance
@@ -118,7 +119,7 @@ class NsxVMetadataProxyHandler:
 
         rtr_list = nsxv_db.get_nsxv_internal_edges_by_purpose(
             self.context.session,
-            vcns_const.InternalEdgePurposes.INTER_EDGE_PURPOSE)
+            nsxv_constants.InternalEdgePurposes.INTER_EDGE_PURPOSE)
 
         for rtr in rtr_list:
             rtr_id = rtr['router_id']
@@ -211,7 +212,7 @@ class NsxVMetadataProxyHandler:
                 nsxv_db.create_nsxv_internal_edge(
                     self.context.session,
                     rtr_ip,
-                    vcns_const.InternalEdgePurposes.INTER_EDGE_PURPOSE,
+                    nsxv_constants.InternalEdgePurposes.INTER_EDGE_PURPOSE,
                     rtr_id)
             except db_exc.DBDuplicateEntry:
                 self.nsxv_plugin.delete_router(self.context, rtr_id)
