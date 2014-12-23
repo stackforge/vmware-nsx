@@ -16,9 +16,9 @@
 from sqlalchemy import orm
 
 from neutron import context
+from neutron.plugins.vmware.common import exceptions as p_exc
+from neutron.plugins.vmware.dbexts import lsn_db
 from neutron.tests.unit import testlib_api
-from vmware_nsx.neutron.plugins.vmware.common import exceptions as p_exc
-from vmware_nsx.neutron.plugins.vmware.dbexts import lsn_db
 
 
 class LSNTestCase(testlib_api.SqlTestCase):

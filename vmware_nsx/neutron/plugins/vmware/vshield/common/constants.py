@@ -15,6 +15,9 @@
 
 from oslo.config import cfg
 
+from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
+
+
 EDGE_ID = 'edge_id'
 ROUTER_ID = 'router_id'
 DHCP_EDGE_PREFIX = 'dhcp-'
@@ -48,21 +51,18 @@ VCNS_ERROR_CODE_EDGE_NOT_RUNNING = 10013
 SUFFIX_LENGTH = 8
 
 #Edge size
-COMPACT = 'compact'
-LARGE = 'large'
-XLARGE = 'xlarge'
-QUADLARGE = 'quadlarge'
-
 SERVICE_SIZE_MAPPING = {
-    'router': LARGE,
-    'dhcp': COMPACT
+    'router': nsxv_constants.LARGE,
+    'dhcp': nsxv_constants.COMPACT
 }
-ALLOWED_EDGE_SIZES = (COMPACT, LARGE, XLARGE, QUADLARGE)
+ALLOWED_EDGE_SIZES = (nsxv_constants.COMPACT,
+                      nsxv_constants.LARGE,
+                      nsxv_constants.XLARGE,
+                      nsxv_constants.QUADLARGE)
 
 #Edge type
-SERVICE_EDGE = 'service'
-VDR_EDGE = 'vdr'
-ALLOWED_EDGE_TYPES = (SERVICE_EDGE, VDR_EDGE)
+ALLOWED_EDGE_TYPES = (nsxv_constants.SERVICE_EDGE,
+                      nsxv_constants.VDR_EDGE)
 
 
 # router status by number

@@ -17,7 +17,7 @@ import logging
 from oslo.config import cfg
 
 from neutron.i18n import _LW
-from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
+from neutron.plugins.vmware.common import exceptions as nsx_exc
 
 LOG = logging.getLogger(__name__)
 
@@ -221,7 +221,7 @@ nsxv_opts = [
                        'and default is large.')),
     cfg.IntOpt('retries',
                default=10,
-               help=_('Maximum number of API retries.')),
+               help=_('Maximum number of API retries on endpoint.')),
     cfg.StrOpt('mgt_net_moid',
                help=_('Network ID for management network connectivity')),
     cfg.ListOpt('mgt_net_proxy_ips',

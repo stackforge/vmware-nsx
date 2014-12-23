@@ -21,8 +21,8 @@ from neutron.common import constants
 from neutron.common import exceptions as exception
 from neutron.i18n import _LE, _LI, _LW
 from neutron.openstack.common import log
-from vmware_nsx.neutron.plugins.vmware.api_client import exception as api_exc
-from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
+from neutron.plugins.vmware.api_client import exception as api_exc
+from neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware import nsxlib
 
@@ -147,8 +147,8 @@ def update_lswitch(cluster, lswitch_id, display_name,
     try:
         return nsxlib.do_request(HTTP_PUT, uri, jsonutils.dumps(lswitch_obj),
                                  cluster=cluster)
-    except exception.NotFound:
-        LOG.exception(_LE("Network not found."))
+    except exception.NotFound as e:
+        LOG.error(_LE("Network not found, Error: %s"), str(e))
         raise exception.NetworkNotFound(net_id=lswitch_id)
 
 
@@ -162,8 +162,8 @@ def delete_networks(cluster, net_id, lswitch_ids):
         path = "/ws.v1/lswitch/%s" % ls_id
         try:
             nsxlib.do_request(HTTP_DELETE, path, cluster=cluster)
-        except exception.NotFound:
-            LOG.exception(_LE("Network not found."))
+        except exception.NotFound as e:
+            LOG.error(_LE("Network not found, Error: %s"), str(e))
             raise exception.NetworkNotFound(net_id=ls_id)
 
 
@@ -185,8 +185,8 @@ def delete_port(cluster, switch, port):
     uri = "/ws.v1/lswitch/" + switch + "/lport/" + port
     try:
         nsxlib.do_request(HTTP_DELETE, uri, cluster=cluster)
-    except exception.NotFound:
-        LOG.exception(_LE("Port or Network not found"))
+    except exception.NotFound as e:
+        LOG.error(_LE("Port or Network not found, Error: %s"), str(e))
         raise exception.PortNotFoundOnNetwork(
             net_id=switch, port_id=port)
     except api_exc.NsxApiException:
@@ -295,8 +295,8 @@ def get_port(cluster, network, port, relations=None):
         uri += "relations=%s" % relations
     try:
         return nsxlib.do_request(HTTP_GET, uri, cluster=cluster)
-    except exception.NotFound:
-        LOG.exception(_LE("Port or Network not found."))
+    except exception.NotFound as e:
+        LOG.error(_LE("Port or Network not found, Error: %s"), str(e))
         raise exception.PortNotFoundOnNetwork(
             port_id=port, net_id=network)
 
@@ -326,8 +326,8 @@ def update_port(cluster, lswitch_uuid, lport_uuid, neutron_port_id, tenant_id,
                   "on logical switch %(uuid)s",
                   {'result': result['uuid'], 'uuid': lswitch_uuid})
         return result
-    except exception.NotFound:
-        LOG.exception(_LE("Port or Network not found."))
+    except exception.NotFound as e:
+        LOG.error(_LE("Port or Network not found, Error: %s"), str(e))
         raise exception.PortNotFoundOnNetwork(
             port_id=lport_uuid, net_id=lswitch_uuid)
 
@@ -368,8 +368,8 @@ def get_port_status(cluster, lswitch_id, port_id):
         r = nsxlib.do_request(HTTP_GET,
                               "/ws.v1/lswitch/%s/lport/%s/status" %
                               (lswitch_id, port_id), cluster=cluster)
-    except exception.NotFound:
-        LOG.exception(_LE("Port not found."))
+    except exception.NotFound as e:
+        LOG.error(_LE("Port not found, Error: %s"), str(e))
         raise exception.PortNotFoundOnNetwork(
             port_id=port_id, net_id=lswitch_id)
     if r['link_status_up'] is True:

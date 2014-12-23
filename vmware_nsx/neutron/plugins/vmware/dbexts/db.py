@@ -20,8 +20,8 @@ from sqlalchemy.orm import exc
 
 import neutron.db.api as db
 from neutron.openstack.common import log as logging
-from vmware_nsx.neutron.plugins.vmware.dbexts import models
-from vmware_nsx.neutron.plugins.vmware.dbexts import networkgw_db
+from neutron.plugins.vmware.dbexts import models
+from neutron.plugins.vmware.dbexts import networkgw_db
 
 LOG = logging.getLogger(__name__)
 
