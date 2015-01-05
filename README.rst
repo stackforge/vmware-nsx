@@ -1,7 +1,17 @@
 Welcome!
 ========
 
-You have come across the VMware-NSX family of driver for Neutron.
+You have come across the repository hosting VMware NSX plugins for
+OpenStack Neutron.
+
+How to use this repository
+===========================
+
+The NSX-mh (multi-hypervisor) plugin
+=====================================
+
+The NSX-v plugin
+=====================================
 
 External Resources:
 ===================
