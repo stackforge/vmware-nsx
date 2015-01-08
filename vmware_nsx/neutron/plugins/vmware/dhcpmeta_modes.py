@@ -26,6 +26,7 @@ from neutron.common import rpc as n_rpc
 from neutron.common import topics
 from neutron.db import agents_db
 from neutron.i18n import _LW
+from neutron.openstack.common import lockutils
 from neutron.openstack.common import log as logging
 from neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.common import config
@@ -37,6 +38,15 @@ from vmware_nsx.neutron.plugins.vmware.dhcp_meta import rpc as nsx_rpc
 from vmware_nsx.neutron.plugins.vmware.extensions import lsn
 
 LOG = logging.getLogger(__name__)
+
+
+class SynchronizedDhcpRpcCallback(dhcp_rpc.DhcpRpcCallback):
+    """DHCP RPC callbakcs synchronized with VMware NSX plugin mutexes."""
+
+    @lockutils.synchronized('vmware', 'neutron-')
+    def create_dhcp_port(self, context, **kwargs):
+        return super(SynchronizedDhcpRpcCallback, self).create_dhcp_port(
+            context, **kwargs)
 
 
 class DhcpMetadataAccess(object):

@@ -604,6 +604,7 @@ class NsxSynchronizer():
         # If the plugin has been destroyed, stop the LoopingCall
         if not self._plugin:
             raise loopingcall.LoopingCallDone()
+        LOG.warn("#### THE SYNC THREAD IS RUNNING!!!!!")
         start = timeutils.utcnow()
         # Reset page cursor variables if necessary
         if sp.current_chunk == 0:
