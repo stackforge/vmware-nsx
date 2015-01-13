@@ -22,6 +22,7 @@ import netaddr
 from oslo.config import cfg
 from oslo.db import exception as db_exc
 from oslo_utils import excutils
+from oslo_vmware.network.nsx.nsxv.objects import loadbalancer as nsxv_lb
 
 from neutron.api.v2 import attributes as attr
 from neutron.common import constants
@@ -30,8 +31,6 @@ from neutron.openstack.common import log as logging
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsxv_exc
 from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
-from vmware_nsx.neutron.plugins.vmware.vshield import (
-    nsxv_loadbalancer as nsxv_lb)
 from vmware_nsx.neutron.plugins.vmware.vshield.common import (
     constants as vcns_const)
 from vmware_nsx.neutron.plugins.vmware.vshield import edge_utils

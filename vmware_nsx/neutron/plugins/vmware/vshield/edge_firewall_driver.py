@@ -13,14 +13,13 @@
 #    under the License.
 
 from oslo.utils import excutils
+from oslo_vmware.network.nsx.nsxv.common import exceptions as nsxv_exc
 
 from neutron.db import db_base_plugin_v2
 from neutron.i18n import _, _LE
 from neutron.openstack.common import log as logging
 from neutron.plugins.common import constants
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
-from vmware_nsx.neutron.plugins.vmware.vshield.common import (
-    exceptions as vcns_exc)
 from vmware_nsx.neutron.plugins.vmware.vshield.tasks import (
     constants as task_const)
 from vmware_nsx.neutron.plugins.vmware.vshield.tasks import tasks
@@ -42,7 +41,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
             return VSE_FWAAS_DENY
         else:
             msg = _("Invalid action value %s in a firewall rule") % action
-            raise vcns_exc.VcnsBadRequest(resource='firewall_rule', msg=msg)
+            raise nsxv_exc.NsxvBadRequest(resource='firewall_rule', msg=msg)
 
     def _restore_firewall_action(self, action):
         if action == VSE_FWAAS_ALLOW:
@@ -52,7 +51,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
         else:
             msg = (_("Invalid action value %s in "
                      "a vshield firewall rule") % action)
-            raise vcns_exc.VcnsBadRequest(resource='firewall_rule', msg=msg)
+            raise nsxv_exc.NsxvBadRequest(resource='firewall_rule', msg=msg)
 
     def _get_port_range_from_min_max_ports(self, min_port, max_port):
         if not min_port:
@@ -200,7 +199,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
     def _get_firewall(self, context, edge_id):
         try:
             return self.vcns.get_firewall(edge_id)[1]
-        except vcns_exc.VcnsApiException as e:
+        except nsxv_exc.NsxvApiException as e:
             LOG.exception(_LE("Failed to get firewall with edge "
                               "id: %s"), edge_id)
             raise e
@@ -222,13 +221,13 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
         if rule_map is None:
             msg = _("No rule id:%s found in the edge_firewall_binding") % id
             LOG.error(msg)
-            raise vcns_exc.VcnsNotFound(
+            raise nsxv_exc.NsxvNotFound(
                 resource='vcns_firewall_rule_bindings', msg=msg)
         vcns_rule_id = rule_map.rule_vseid
         try:
             response = self.vcns.get_firewall_rule(
                 edge_id, vcns_rule_id)[1]
-        except vcns_exc.VcnsApiException as e:
+        except nsxv_exc.NsxvApiException as e:
             LOG.exception(_LE("Failed to get firewall rule: %(rule_id)s "
                               "with edge_id: %(edge_id)s"), {
                                 'rule_id': id,
@@ -244,7 +243,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
         fw_req = self._convert_firewall(context, firewall)
         try:
             self.vcns.update_firewall(edge_id, fw_req)
-        except vcns_exc.VcnsApiException as e:
+        except nsxv_exc.NsxvApiException as e:
             LOG.exception(_LE("Failed to update firewall "
                               "with edge_id: %s"), edge_id)
             raise e
@@ -256,7 +255,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
     def delete_firewall(self, context, edge_id):
         try:
             self.vcns.delete_firewall(edge_id)
-        except vcns_exc.VcnsApiException as e:
+        except nsxv_exc.NsxvApiException as e:
             LOG.exception(_LE("Failed to delete firewall "
                               "with edge_id:%s"), edge_id)
             raise e
@@ -270,7 +269,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
         fwr_req = self._convert_firewall_rule(context, firewall_rule)
         try:
             self.vcns.update_firewall_rule(edge_id, vcns_rule_id, fwr_req)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to update firewall rule: "
                                   "%(rule_id)s "
@@ -284,7 +283,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
         vcns_rule_id = rule_map.rule_vseid
         try:
             self.vcns.delete_firewall_rule(edge_id, vcns_rule_id)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to delete firewall rule: "
                                   "%(rule_id)s "
@@ -302,7 +301,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
         try:
             header = self.vcns.add_firewall_rule_above(
                 edge_id, ref_vcns_rule_id, fwr_req)[0]
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to add firewall rule above: "
                                   "%(rule_id)s with edge_id: %(edge_id)s"),
@@ -330,7 +329,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
             try:
                 header = self.vcns.add_firewall_rule_above(
                     edge_id, int(ref_vcns_rule_id), fwr_req)[0]
-            except vcns_exc.VcnsApiException:
+            except nsxv_exc.NsxvApiException:
                 with excutils.save_and_reraise_exception():
                     LOG.exception(_LE("Failed to add firewall rule above: "
                                       "%(rule_id)s with edge_id: %(edge_id)s"),
@@ -341,7 +340,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
             try:
                 header = self.vcns.add_firewall_rule(
                     edge_id, fwr_req)[0]
-            except vcns_exc.VcnsApiException:
+            except nsxv_exc.NsxvApiException:
                 with excutils.save_and_reraise_exception():
                     LOG.exception(_LE("Failed to append a firewall rule"
                                       "with edge_id: %s"), edge_id)
@@ -366,7 +365,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
         else:
             msg = _("Can't execute insert rule operation "
                     "without reference rule_id")
-            raise vcns_exc.VcnsBadRequest(resource='firewall_rule', msg=msg)
+            raise nsxv_exc.NsxvBadRequest(resource='firewall_rule', msg=msg)
 
     def _asyn_update_firewall(self, task):
         edge_id = task.userdata['edge_id']
@@ -374,7 +373,7 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
         context = task.userdata['jobdata']['context']
         try:
             self.vcns.update_firewall(edge_id, config)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to update firewall "
                                   "with edge_id: %s"), edge_id)
