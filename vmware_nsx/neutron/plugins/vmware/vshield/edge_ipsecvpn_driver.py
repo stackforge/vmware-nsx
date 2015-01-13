@@ -13,11 +13,10 @@
 #    under the License.
 
 from oslo.utils import excutils
+from oslo_vmware.network.nsx.nsxv.common import exceptions as nsxv_exc
 
 from neutron.i18n import _LE, _LW
 from neutron.openstack.common import log as logging
-from vmware_nsx.neutron.plugins.vmware.vshield.common import (
-    exceptions as vcns_exc)
 
 LOG = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class EdgeIPsecVpnDriver():
                     "supported on vshield Edge!"
                     ) % ikepolicy['ike_version']
             LOG.warning(msg)
-            raise vcns_exc.VcnsBadRequest(resource='ikepolicy',
+            raise nsxv_exc.NsxvBadRequest(resource='ikepolicy',
                                           msg=msg)
 
         # In VSE, Phase 1 and Phase 2 share the same encryption_algorithm
@@ -75,7 +74,7 @@ class EdgeIPsecVpnDriver():
                     "'aes-128' and 'aes-256' are supported on VSE right now."
                     ) % ipsecpolicy['encryption_algorithm']
             LOG.warning(msg)
-            raise vcns_exc.VcnsBadRequest(resource='ipsecpolicy',
+            raise nsxv_exc.NsxvBadRequest(resource='ipsecpolicy',
                                           msg=msg)
 
         # Check whether pfs is allowed.
@@ -83,7 +82,7 @@ class EdgeIPsecVpnDriver():
             msg = _("Unsupported pfs: %s! 'group2' and 'group5' "
                     "are supported on VSE right now.") % ipsecpolicy['pfs']
             LOG.warning(msg)
-            raise vcns_exc.VcnsBadRequest(resource='ipsecpolicy',
+            raise nsxv_exc.NsxvBadRequest(resource='ipsecpolicy',
                                           msg=msg)
 
         # Check whether transform protocol is allowed.
@@ -92,7 +91,7 @@ class EdgeIPsecVpnDriver():
                     "by default on VSE right now."
                     ) % ipsecpolicy['transform_protocol']
             LOG.warning(msg)
-            raise vcns_exc.VcnsBadRequest(resource='ipsecpolicy',
+            raise nsxv_exc.NsxvBadRequest(resource='ipsecpolicy',
                                           msg=msg)
 
         # Check whether encapsulation mode is allowed.
@@ -101,7 +100,7 @@ class EdgeIPsecVpnDriver():
                     "supported by default on VSE right now."
                     ) % ipsecpolicy['encapsulation_mode']
             LOG.warning(msg)
-            raise vcns_exc.VcnsBadRequest(resource='ipsecpolicy',
+            raise nsxv_exc.NsxvBadRequest(resource='ipsecpolicy',
                                           msg=msg)
 
     def _convert_ipsec_site(self, site, enablePfs=True):
@@ -133,7 +132,7 @@ class EdgeIPsecVpnDriver():
         ipsec_config['sites'] = {'sites': vse_sites}
         try:
             self.vcns.update_ipsec_config(edge_id, ipsec_config)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to update ipsec vpn "
                                   "configuration with edge_id: %s"),
@@ -142,9 +141,9 @@ class EdgeIPsecVpnDriver():
     def delete_ipsec_config(self, edge_id):
         try:
             self.vcns.delete_ipsec_config(edge_id)
-        except vcns_exc.ResourceNotFound:
+        except nsxv_exc.ResourceNotFound:
             LOG.warning(_LW("IPsec config not found on edge: %s"), edge_id)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to delete ipsec vpn configuration "
                                   "with edge_id: %s"), edge_id)
