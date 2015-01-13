@@ -24,7 +24,7 @@ from vmware_nsx.neutron.plugins.vmware.vshield.tasks import (
 from vmware_nsx.neutron.plugins.vmware.vshield.tasks import tasks as ts
 from vmware_nsx.neutron.plugins.vmware.vshield import vcns_driver
 from vmware_nsx.neutron.tests.unit import vmware
-from vmware_nsx.neutron.tests.unit.vmware.vshield import fake_vcns
+from vmware_nsx.neutron.tests.unit.vmware.vshield import fake_nsxv_api
 
 VCNS_CONFIG_FILE = vmware.get_fake_conf("vcns.ini.test")
 
@@ -315,7 +315,7 @@ class VcnsDriverTestCase(base.BaseTestCase):
 
         self.config_parse(args=['--config-file', VCNS_CONFIG_FILE])
 
-        self.fc = fake_vcns.FakeVcns()
+        self.fc = fake_nsxv_api.FakeNsxvApi()
         self.mock_vcns = mock.patch(vmware.VCNS_NAME, autospec=True)
         self.vcns_patch()
 
