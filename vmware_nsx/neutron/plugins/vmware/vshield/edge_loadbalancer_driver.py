@@ -13,14 +13,13 @@
 #    under the License.
 
 from oslo.utils import excutils
+from oslo_vmware.network.nsx.nsxv.common import exceptions as nsxv_exc
 
 from neutron.i18n import _LE
 from neutron.openstack.common import log as logging
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
 from vmware_nsx.neutron.plugins.vmware.vshield.common import (
     constants as vcns_const)
-from vmware_nsx.neutron.plugins.vmware.vshield.common import (
-    exceptions as vcns_exc)
 try:
     from neutron_lbaas.services.loadbalancer import constants as lb_constants
 except Exception:
@@ -157,7 +156,7 @@ class EdgeLbDriver():
                 msg = (_("Invalid %(protocol)s persistence method: %(type)s") %
                        {'protocol': protocol,
                         'type': sess_persist['type']})
-                raise vcns_exc.VcnsBadRequest(resource='sess_persist', msg=msg)
+                raise nsxv_exc.NsxvBadRequest(resource='sess_persist', msg=msg)
             persistence = {
                 'method': SESSION_PERSISTENCE_METHOD_MAP.get(
                     sess_persist['type'])}
@@ -178,7 +177,7 @@ class EdgeLbDriver():
         try:
             header, response = self.vcns.create_app_profile(
                 edge_id, app_profile)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to create app profile on edge: %s"),
                               edge_id)
@@ -189,7 +188,7 @@ class EdgeLbDriver():
         try:
             header, response = self.vcns.create_vip(
                 edge_id, vip_new)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to create vip on vshield edge: %s"),
                               edge_id)
@@ -214,7 +213,7 @@ class EdgeLbDriver():
                    'id': id,
                    'edge_id': vip_binding[vcns_const.EDGE_ID]})
             LOG.error(msg)
-            raise vcns_exc.VcnsNotFound(
+            raise nsxv_exc.NsxvNotFound(
                 resource='router_service_binding', msg=msg)
         return vip_binding
 
@@ -224,7 +223,7 @@ class EdgeLbDriver():
         vip_vseid = vip_binding['vip_vseid']
         try:
             response = self.vcns.get_vip(edge_id, vip_vseid)[1]
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to get vip on edge"))
         return self._restore_lb_vip(context, edge_id, response)
@@ -241,7 +240,7 @@ class EdgeLbDriver():
             try:
                 self.vcns.update_app_profile(
                     edge_id, app_profileid, app_profile)
-            except vcns_exc.VcnsApiException:
+            except nsxv_exc.NsxvApiException:
                 with excutils.save_and_reraise_exception():
                     LOG.exception(_LE("Failed to update app profile on "
                                       "edge: %s"), edge_id)
@@ -249,7 +248,7 @@ class EdgeLbDriver():
         vip_new = self._convert_lb_vip(context, edge_id, vip, app_profileid)
         try:
             self.vcns.update_vip(edge_id, vip_vseid, vip_new)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to update vip on edge: %s"), edge_id)
 
@@ -261,17 +260,17 @@ class EdgeLbDriver():
 
         try:
             self.vcns.delete_vip(edge_id, vip_vseid)
-        except vcns_exc.ResourceNotFound:
+        except nsxv_exc.ResourceNotFound:
             LOG.exception(_LE("vip not found on edge: %s"), edge_id)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to delete vip on edge: %s"), edge_id)
 
         try:
             self.vcns.delete_app_profile(edge_id, app_profileid)
-        except vcns_exc.ResourceNotFound:
+        except nsxv_exc.ResourceNotFound:
             LOG.exception(_LE("app profile not found on edge: %s"), edge_id)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to delete app profile on edge: %s"),
                               edge_id)
@@ -282,7 +281,7 @@ class EdgeLbDriver():
         pool_new = self._convert_lb_pool(context, edge_id, pool, members)
         try:
             header = self.vcns.create_pool(edge_id, pool_new)[0]
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to create pool"))
 
@@ -304,12 +303,12 @@ class EdgeLbDriver():
             msg = (_("pool_binding not found with id: %(id)s "
                      "edge_id: %(edge_id)s") % {'id': id, 'edge_id': edge_id})
             LOG.error(msg)
-            raise vcns_exc.VcnsNotFound(
+            raise nsxv_exc.NsxvNotFound(
                 resource='router_service_binding', msg=msg)
         pool_vseid = pool_binding['pool_vseid']
         try:
             response = self.vcns.get_pool(edge_id, pool_vseid)[1]
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to get pool on edge"))
         return self._restore_lb_pool(context, edge_id, response)
@@ -321,7 +320,7 @@ class EdgeLbDriver():
         pool_new = self._convert_lb_pool(context, edge_id, pool, members)
         try:
             self.vcns.update_pool(edge_id, pool_vseid, pool_new)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to update pool"))
 
@@ -331,7 +330,7 @@ class EdgeLbDriver():
         pool_vseid = pool_binding['pool_vseid']
         try:
             self.vcns.delete_pool(edge_id, pool_vseid)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to delete pool"))
         nsxv_db.delete_vcns_edge_pool_binding(
@@ -341,7 +340,7 @@ class EdgeLbDriver():
         monitor_new = self._convert_lb_monitor(context, health_monitor)
         try:
             header = self.vcns.create_health_monitor(edge_id, monitor_new)[0]
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to create monitor on edge: %s"),
                               edge_id)
@@ -364,12 +363,12 @@ class EdgeLbDriver():
             msg = (_("monitor_binding not found with id: %(id)s "
                      "edge_id: %(edge_id)s") % {'id': id, 'edge_id': edge_id})
             LOG.error(msg)
-            raise vcns_exc.VcnsNotFound(
+            raise nsxv_exc.NsxvNotFound(
                 resource='router_service_binding', msg=msg)
         monitor_vseid = monitor_binding['monitor_vseid']
         try:
             response = self.vcns.get_health_monitor(edge_id, monitor_vseid)[1]
-        except vcns_exc.VcnsApiException as e:
+        except nsxv_exc.NsxvApiException as e:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to get monitor on edge: %s"),
                               e.response)
@@ -386,7 +385,7 @@ class EdgeLbDriver():
         try:
             self.vcns.update_health_monitor(
                 edge_id, monitor_vseid, monitor_new)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to update monitor on edge: %s"),
                               edge_id)
@@ -397,7 +396,7 @@ class EdgeLbDriver():
         monitor_vseid = monitor_binding['monitor_vseid']
         try:
             self.vcns.delete_health_monitor(edge_id, monitor_vseid)
-        except vcns_exc.VcnsApiException:
+        except nsxv_exc.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to delete monitor"))
         nsxv_db.delete_vcns_edge_monitor_binding(

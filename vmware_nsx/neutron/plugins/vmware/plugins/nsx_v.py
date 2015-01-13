@@ -19,6 +19,7 @@ import netaddr
 from oslo.config import cfg
 from oslo.utils import excutils
 from oslo_concurrency import lockutils
+from oslo_vmware.network.nsx.nsxv.common import exceptions as nsxv_exc
 from sqlalchemy.orm import exc as sa_exc
 
 from neutron.api import extensions as neutron_extensions
@@ -36,7 +37,6 @@ from neutron.db import l3_gwmode_db
 from neutron.db import models_v2
 from neutron.db import portbindings_db
 from neutron.db import portsecurity_db
-from neutron.db import quota_db  # noqa
 from neutron.db import securitygroups_db
 from neutron.extensions import external_net as ext_net_extn
 from neutron.extensions import l3
@@ -64,8 +64,6 @@ from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
 from vmware_nsx.neutron.plugins.vmware.dbexts import vnic_index_db
 from vmware_nsx.neutron.plugins.vmware.plugins import managers
 from vmware_nsx.neutron.plugins.vmware.plugins import nsx_v_md_proxy
-from vmware_nsx.neutron.plugins.vmware.vshield.common import (
-    exceptions as vsh_exc)
 from vmware_nsx.neutron.plugins.vmware.vshield import edge_utils
 from vmware_nsx.neutron.plugins.vmware.vshield import securitygroup_utils
 from vmware_nsx.neutron.plugins.vmware.vshield import vcns_driver
@@ -219,7 +217,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 try:
                     self.nsx_v.vcns.create_section(
                         'ip', self.nsx_sg_utils.to_xml_string(section))
-                except vsh_exc.RequestBad as e:
+                except nsxv_exc.RequestBad as e:
                     # Section already exists, log-it and return
                     LOG.debug("Could not create NSX fw section for cluster"
                               " %s: %s", cluster_moid, e.response)
