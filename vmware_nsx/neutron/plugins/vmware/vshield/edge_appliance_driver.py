@@ -19,13 +19,13 @@ import time
 from oslo.config import cfg
 from oslo.serialization import jsonutils
 from oslo.utils import excutils
+from oslo.vmware.network.nsx.nsxv.common import exceptions
 
 from neutron.i18n import _LE, _LI, _LW
 from neutron.openstack.common import log as logging
 from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware.vshield.common import constants
-from vmware_nsx.neutron.plugins.vmware.vshield.common import exceptions
 from vmware_nsx.neutron.plugins.vmware.vshield.tasks import (
     constants as task_constants)
 from vmware_nsx.neutron.plugins.vmware.vshield.tasks import tasks
@@ -184,7 +184,7 @@ class EdgeApplianceDriver(object):
             response = self.vcns.get_edge_status(edge_id)[1]
             status_level = self._edge_status_to_level(
                 response['edgeStatus'])
-        except exceptions.VcnsApiException as e:
+        except exceptions.NsxvApiException as e:
             LOG.exception(_LE("VCNS: Failed to get edge status:\n%s"),
                           e.response)
             status_level = constants.RouterStatus.ROUTER_STATUS_ERROR
@@ -213,7 +213,7 @@ class EdgeApplianceDriver(object):
         # get vnic interface address groups
         try:
             return self.vcns.query_interface(edge_id, vnic_index)
-        except exceptions.VcnsApiException:
+        except exceptions.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("NSXv: Failed to query vnic %s"), vnic_index)
 
@@ -282,7 +282,7 @@ class EdgeApplianceDriver(object):
         try:
             header, response = self.vcns.update_vdr_internal_interface(
                 edge_id, index, interface_req)
-        except exceptions.VcnsApiException:
+        except exceptions.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to update vdr interface on edge: "
                                   "%s"), edge_id)
@@ -292,7 +292,7 @@ class EdgeApplianceDriver(object):
         try:
             header, response = self.vcns.delete_vdr_internal_interface(
                 edge_id, interface_index)
-        except exceptions.VcnsApiException:
+        except exceptions.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to delete vdr interface on edge: "
                                   "%s"),
@@ -304,7 +304,7 @@ class EdgeApplianceDriver(object):
         LOG.debug("start deleting vnic %s", vnic_index)
         try:
             self.vcns.delete_interface(edge_id, vnic_index)
-        except exceptions.VcnsApiException:
+        except exceptions.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to delete vnic %(vnic_index)s: "
                                   "on edge %(edge_id)s"),
@@ -343,7 +343,7 @@ class EdgeApplianceDriver(object):
             LOG.debug("VCNS: deploying edge %s", edge_id)
             userdata['edge_id'] = edge_id
             status = task_constants.TaskStatus.PENDING
-        except exceptions.VcnsApiException:
+        except exceptions.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("NSXv: deploy edge failed."))
 
@@ -361,7 +361,7 @@ class EdgeApplianceDriver(object):
                 status = task_constants.TaskStatus.COMPLETED
             else:
                 status = task_constants.TaskStatus.ERROR
-        except exceptions.VcnsApiException as e:
+        except exceptions.NsxvApiException as e:
             LOG.exception(_LE("VCNS: Edge %s status query failed."), edge_id)
             raise e
         except Exception as e:
@@ -397,7 +397,7 @@ class EdgeApplianceDriver(object):
         try:
             self.vcns.update_edge(edge_id, request)
             status = task_constants.TaskStatus.COMPLETED
-        except exceptions.VcnsApiException as e:
+        except exceptions.NsxvApiException as e:
             LOG.error(_LE("Failed to update edge: %s"),
                       e.response)
             status = task_constants.TaskStatus.ERROR
@@ -413,7 +413,7 @@ class EdgeApplianceDriver(object):
                 self.vcns.delete_edge(edge_id)
             except exceptions.ResourceNotFound:
                 pass
-            except exceptions.VcnsApiException as e:
+            except exceptions.NsxvApiException as e:
                 LOG.exception(_LE("VCNS: Failed to delete %(edge_id)s:\n"
                                   "%(response)s"),
                               {'edge_id': edge_id, 'response': e.response})
@@ -427,7 +427,7 @@ class EdgeApplianceDriver(object):
     def _get_edges(self):
         try:
             return self.vcns.get_edges()[1]
-        except exceptions.VcnsApiException as e:
+        except exceptions.NsxvApiException as e:
             LOG.exception(_LE("VCNS: Failed to get edges:\n%s"), e.response)
             raise e
 
@@ -569,7 +569,7 @@ class EdgeApplianceDriver(object):
     def get_nat_config(self, edge_id):
         try:
             return self.vcns.get_nat_config(edge_id)[1]
-        except exceptions.VcnsApiException as e:
+        except exceptions.NsxvApiException as e:
             LOG.exception(_LE("VCNS: Failed to get nat config:\n%s"),
                           e.response)
             raise e
@@ -593,7 +593,7 @@ class EdgeApplianceDriver(object):
         try:
             self.vcns.update_nat_config(edge_id, nat)
             status = task_constants.TaskStatus.COMPLETED
-        except exceptions.VcnsApiException as e:
+        except exceptions.NsxvApiException as e:
             LOG.exception(_LE("VCNS: Failed to create snat rule:\n%s"),
                           e.response)
             status = task_constants.TaskStatus.ERROR
@@ -635,7 +635,7 @@ class EdgeApplianceDriver(object):
                 rule_id = nat_rule['ruleId']
                 try:
                     self.vcns.delete_nat_rule(edge_id, rule_id)
-                except exceptions.VcnsApiException as e:
+                except exceptions.NsxvApiException as e:
                     LOG.exception(_LE("VCNS: Failed to delete snat rule:\n"
                                       "%s"), e.response)
                     status = task_constants.TaskStatus.ERROR
@@ -718,7 +718,7 @@ class EdgeApplianceDriver(object):
         try:
             self.vcns.update_nat_config(edge_id, nat)
             status = task_constants.TaskStatus.COMPLETED
-        except exceptions.VcnsApiException as e:
+        except exceptions.NsxvApiException as e:
             LOG.exception(_LE("VCNS: Failed to create snat rule:\n%s"),
                           e.response)
             status = task_constants.TaskStatus.ERROR
@@ -820,7 +820,7 @@ class EdgeApplianceDriver(object):
         try:
             self.vcns.update_routes(edge_id, request)
             status = task_constants.TaskStatus.COMPLETED
-        except exceptions.VcnsApiException as e:
+        except exceptions.NsxvApiException as e:
             LOG.exception(_LE("VCNS: Failed to update routes:\n%s"),
                           e.response)
             status = task_constants.TaskStatus.ERROR
@@ -873,7 +873,7 @@ class EdgeApplianceDriver(object):
         try:
             header, response = self.vcns.get_loadbalancer_config(
                 edge_id)
-        except exceptions.VcnsApiException:
+        except exceptions.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to get service config"))
         return response
@@ -885,7 +885,7 @@ class EdgeApplianceDriver(object):
             config['enabled'] = True
         try:
             self.vcns.enable_service_loadbalancer(edge_id, config)
-        except exceptions.VcnsApiException:
+        except exceptions.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to enable loadbalancer "
                                   "service config"))
@@ -893,7 +893,7 @@ class EdgeApplianceDriver(object):
     def _delete_port_group(self, task):
         try:
             header, response = self.vcns.get_edge_id(task.userdata['job_id'])
-        except exceptions.VcnsApiException:
+        except exceptions.NsxvApiException:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("NSXv: Failed to get job for %s"),
                           task.userdata)

@@ -16,23 +16,23 @@
 
 import os
 
+from oslo.vmware.network.nsx.nsxv.api import api as nsxv_api
+from oslo.vmware.network.nsx.nsxv.api import api_helper as nsxv_api_helper
+
 from vmware_nsx.neutron.plugins.vmware.api_client import client as nsx_client
 from vmware_nsx.neutron.plugins.vmware.api_client import eventlet_client
 from vmware_nsx.neutron.plugins.vmware import extensions
 import vmware_nsx.neutron.plugins.vmware.plugin as neutron_plugin
-from vmware_nsx.neutron.plugins.vmware.vshield.common import (
-    VcnsApiClient as vcnsapi)
 from vmware_nsx.neutron.plugins.vmware.vshield import edge_utils
-from vmware_nsx.neutron.plugins.vmware.vshield import vcns
 import vmware_nsx.neutron.plugins.vmware.vshield.vcns_driver as vcnsdriver
 
 
 plugin = neutron_plugin.NsxPlugin
 api_client = nsx_client.NsxApiClient
 evt_client = eventlet_client.EventletApiClient
-vcns_class = vcns.Vcns
-vcns_driver = vcnsdriver.VcnsDriver
-vcns_api_helper = vcnsapi.VcnsApiHelper
+nsxv_class = nsxv_api.NsxvApi
+nsxv_driver = vcnsdriver.VcnsDriver
+api_helper = nsxv_api_helper.NsxvApiHelper
 edge_manage_class = edge_utils.EdgeManager
 
 STUBS_PATH = os.path.join(os.path.dirname(__file__), 'etc')
@@ -40,9 +40,9 @@ NSXEXT_PATH = os.path.dirname(extensions.__file__)
 NSXAPI_NAME = '%s.%s' % (api_client.__module__, api_client.__name__)
 PLUGIN_NAME = '%s.%s' % (plugin.__module__, plugin.__name__)
 CLIENT_NAME = '%s.%s' % (evt_client.__module__, evt_client.__name__)
-VCNS_NAME = '%s.%s' % (vcns_class.__module__, vcns_class.__name__)
-VCNS_DRIVER_NAME = '%s.%s' % (vcns_driver.__module__, vcns_driver.__name__)
-VCNSAPI_NAME = '%s.%s' % (vcns_api_helper.__module__, vcns_api_helper.__name__)
+VCNS_NAME = '%s.%s' % (nsxv_class.__module__, nsxv_class.__name__)
+VCNS_DRIVER_NAME = '%s.%s' % (nsxv_driver.__module__, nsxv_driver.__name__)
+VCNSAPI_NAME = '%s.%s' % (api_helper.__module__, api_helper.__name__)
 EDGE_MANAGE_NAME = '%s.%s' % (edge_manage_class.__module__,
                               edge_manage_class.__name__)
 

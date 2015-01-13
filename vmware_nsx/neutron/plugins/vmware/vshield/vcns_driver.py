@@ -15,13 +15,13 @@
 #    under the License.
 
 from oslo.config import cfg
+from oslo.vmware.network.nsx.nsxv.api import api as nsxv_api
 
 from neutron.openstack.common import log as logging
 from vmware_nsx.neutron.plugins.vmware.common import config  # noqa
 from vmware_nsx.neutron.plugins.vmware.vshield import edge_appliance_driver
 from vmware_nsx.neutron.plugins.vmware.vshield import edge_firewall_driver
 from vmware_nsx.neutron.plugins.vmware.vshield.tasks import tasks
-from vmware_nsx.neutron.plugins.vmware.vshield import vcns
 
 LOG = logging.getLogger(__name__)
 
@@ -44,4 +44,8 @@ class VcnsDriver(edge_appliance_driver.EdgeApplianceDriver,
         interval = cfg.CONF.nsxv.task_status_check_interval
         self.task_manager = tasks.TaskManager(interval)
         self.task_manager.start()
-        self.vcns = vcns.Vcns(self.vcns_uri, self.vcns_user, self.vcns_passwd)
+        self.vcns = nsxv_api.NsxvApi(
+            self.vcns_uri,
+            self.vcns_user,
+            self.vcns_passwd,
+            cfg.CONF.nsxv.retries)
