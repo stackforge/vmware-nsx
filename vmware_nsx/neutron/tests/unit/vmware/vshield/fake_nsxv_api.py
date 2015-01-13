@@ -13,17 +13,17 @@
 #    under the License.
 
 import copy
-
-from oslo.serialization import jsonutils as json
 import xml.etree.ElementTree as ET
 
+from oslo.serialization import jsonutils as json
+
 from neutron.openstack.common import uuidutils
-from vmware_nsx.neutron.plugins.vmware.vshield.common import exceptions
+from oslo_vmware.network.nsx.nsxv.common import exceptions
 
 SECTION_LOCATION_HEADER = '/api/4.0/firewall/globalroot-0/config/%s/%s'
 
 
-class FakeVcns(object):
+class FakeNsxvApi(object):
 
     errors = {
         303: exceptions.ResourceRedirect,
@@ -759,7 +759,7 @@ class FakeVcns(object):
         if status in self.errors:
             cls = self.errors[status]
         else:
-            cls = exceptions.VcnsApiException
+            cls = exceptions.NsxvApiException
         raise cls(
             status=status, header=header, uri='fake_url', response=response)
 
