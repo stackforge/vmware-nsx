@@ -50,7 +50,7 @@ from vmware_nsx.neutron.plugins.vmware.vshield.common import (
 from vmware_nsx.neutron.plugins.vmware.vshield import edge_utils
 from vmware_nsx.neutron.tests.unit import vmware
 from vmware_nsx.neutron.tests.unit.vmware.extensions import test_vnic_index
-from vmware_nsx.neutron.tests.unit.vmware.vshield import fake_vcns
+from vmware_nsx.neutron.tests.unit.vmware.vshield import fake_nsxv_api
 
 PLUGIN_NAME = 'vmware_nsx.neutron.plugins.vmware.plugin.NsxVPlugin'
 
@@ -94,7 +94,7 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
             vmware.get_fake_conf('nsx.ini.test')]
         mock_vcns = mock.patch(vmware.VCNS_NAME, autospec=True)
         mock_vcns_instance = mock_vcns.start()
-        self.fc2 = fake_vcns.FakeVcns()
+        self.fc2 = fake_nsxv_api.FakeNsxvApi()
         mock_vcns_instance.return_value = self.fc2
         edge_utils.query_dhcp_service_config = mock.Mock(return_value=[])
         self.mock_create_dhcp_service = mock.patch("%s.%s" % (
@@ -1447,7 +1447,7 @@ class NsxVSecurityGroupsTestCase(ext_sg.SecurityGroupDBTestCase):
             vmware.get_fake_conf('nsx.ini.test')]
         mock_vcns = mock.patch(vmware.VCNS_NAME, autospec=True)
         mock_vcns_instance = mock_vcns.start()
-        self.fc2 = fake_vcns.FakeVcns()
+        self.fc2 = fake_nsxv_api.FakeNsxvApi()
         mock_vcns_instance.return_value = self.fc2
         edge_utils.query_dhcp_service_config = mock.Mock(return_value=[])
         mock_create_dhcp_service = mock.patch("%s.%s" % (
