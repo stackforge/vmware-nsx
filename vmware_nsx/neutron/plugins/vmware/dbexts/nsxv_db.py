@@ -53,7 +53,6 @@ def get_nsxv_router_binding(session, router_id):
 
 
 def get_nsxv_router_binding_by_edge(session, edge_id):
-    with session.begin(subtransactions=True):
         return (session.query(nsxv_models.NsxvRouterBinding).
                 filter_by(edge_id=edge_id).first())
 
