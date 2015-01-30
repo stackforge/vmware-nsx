@@ -144,10 +144,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                  {'name': 'ICMPv6 neighbor protocol for Security Groups',
                   'action': 'allow',
                   'services': [('58', None, '135', None),
-                               ('58', None, '136', None)]},
-                 {'name': 'Block All',
-                  'action': 'deny',
-                  'services': []}]
+                               ('58', None, '136', None)]}]
 
         rule_list = []
         for cluster_moid in cfg.CONF.nsxv.cluster_moid:
@@ -1602,6 +1599,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     _r, _n = self._create_nsx_rule(context, rule, nsx_sg_id)
                     nsx_rules.append(_r)
 
+                default_blocking_rule = self.nsx_sg_utils.get_rule_config(
+                    nsx_sg_id, 'Block All', 'deny')
+                nsx_rules.append(default_blocking_rule)
+
                 section_name = ('SG Section: %(name)s (%(id)s)'
                                 % new_security_group)
                 section = self.nsx_sg_utils.get_section_with_rules(
@@ -1619,6 +1620,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
                 # Parse the rule id pairs and save in db
                 rule_pairs = self.nsx_sg_utils.get_rule_id_pair_from_section(c)
+                # Don't write the default blocking rule into the database
+                rule_pairs = rule_pairs[:-1]
                 for pair in rule_pairs:
                     _nsx_id = pair.get('nsx_id')  # nsx_rule_id
                     _neutron_id = pair.get('neutron_id')  # neutron_rule_id
