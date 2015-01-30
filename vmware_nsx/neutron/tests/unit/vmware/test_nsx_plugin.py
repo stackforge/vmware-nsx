@@ -51,9 +51,12 @@ from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.common import sync
 from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
+from vmware_nsx.neutron.plugins.vmware.dvs import dvs
+from vmware_nsx.neutron.plugins.vmware.dvs import dvs_utils
 from vmware_nsx.neutron.plugins.vmware import nsxlib
 from vmware_nsx.neutron.tests.unit import vmware
 from vmware_nsx.neutron.tests.unit.vmware.apiclient import fake
+from vmware_nsx.neutron.tests.unit.vmware import test_dvs
 
 LOG = log.getLogger(__name__)
 
@@ -1247,3 +1250,123 @@ class NeutronNsxOutOfSync(NsxPluginV2TestCase,
             sec_group['security_group']['id'])
         res = req.get_response(self.ext_api)
         self.assertEqual(res.status_int, 204)
+
+
+class NeutronSimpleDvsTest(NsxPluginV2TestCase):
+
+    @mock.patch.object(dvs_utils, 'dvs_create_session',
+                       return_value=test_dvs.fake_session())
+    @mock.patch.object(dvs.DvsManager, '_get_dvs_moref',
+                       return_value='dvs-moref')
+    def setUp(self, mock_moref, mock_session):
+        # Ensure that NSX is disabled
+        cfg.CONF.set_override('nsx_user', None)
+        cfg.CONF.set_override('nsx_password', None)
+        # Ensure that DVS is enabled
+        cfg.CONF.set_override('host_ip', 'fake_ip', group='dvs')
+        cfg.CONF.set_override('host_username', 'fake_user', group='dvs')
+        cfg.CONF.set_override('host_password', 'fake_password', group='dvs')
+        cfg.CONF.set_override('dvs_name', 'fake_dvs', group='dvs')
+        super(NeutronSimpleDvsTest, self).setUp()
+        self._plugin = manager.NeutronManager.get_plugin()
+        self.assertFalse(self._plugin.nsx_enabled)
+        self.assertTrue(self._plugin.dvs_enabled)
+
+    def _create_and_delete_dvs_network(self, network_type='flat', vlan_tag=0):
+        params = {'provider:network_type': network_type,
+                  'provider:physical_network': 'dvs',
+                  'provider:segmentation_id': vlan_tag}
+        params['arg_list'] = tuple(params.keys())
+        with contextlib.nested(
+            mock.patch.object(self._plugin._dvs, 'add_port_group'),
+            mock.patch.object(self._plugin._dvs, 'delete_port_group')
+        ) as (mock_add, mock_delete):
+            with self.network(**params) as network:
+                ctx = context.get_admin_context()
+                id = network['network']['id']
+                dvs_id = '%s-%s' % (network['network']['name'], id)
+                self.assertEqual('dvs',
+                                 self._plugin._network_type_cache.get(id))
+                binding = nsx_db.get_network_bindings(ctx.session, id)
+                self.assertIsNotNone(binding)
+                self.assertEqual('dvs', binding[0].phy_uuid)
+                if network_type == 'flat':
+                    self.assertEqual('flat', binding[0].binding_type)
+                    self.assertEqual(0, binding[0].vlan_id)
+                elif network_type == 'vlan':
+                    self.assertEqual('vlan', binding[0].binding_type)
+                    self.assertEqual(vlan_tag, binding[0].vlan_id)
+                else:
+                    self.fail()
+            mock_add.assert_called_once_with(dvs_id, vlan_tag)
+            mock_delete.assert_called_once_with(dvs_id)
+        self.assertIsNone(self._plugin._network_type_cache.get(id))
+
+    def test_create_and_delete_dvs_network_tag(self):
+        self._create_and_delete_dvs_network(network_type='vlan', vlan_tag=7)
+
+    def test_create_and_delete_dvs_network_flat(self):
+        self._create_and_delete_dvs_network()
+
+    def test_create_and_delete_dvs_port(self):
+        params = {'provider:network_type': 'vlan',
+                  'provider:physical_network': 'dvs',
+                  'provider:segmentation_id': 7}
+        params['arg_list'] = tuple(params.keys())
+        with contextlib.nested(
+            mock.patch.object(self._plugin._dvs, 'add_port_group'),
+            mock.patch.object(self._plugin._dvs, 'delete_port_group')
+        ) as (mock_add, mock_delete):
+            with self.network(**params) as network:
+                with self.subnet(network) as subnet:
+                    with self.port(subnet) as port:
+                        self.assertEqual('dvs',
+                                         port['port'][portbindings.VIF_TYPE])
+                        port_status = port['port']['status']
+                        self.assertEqual(port_status, 'ACTIVE')
+
+    def test_create_router_only_dvs_backend(self):
+        data = {'router': {'tenant_id': 'whatever'}}
+        data['router']['name'] = 'router1'
+        data['router']['external_gateway_info'] = {'network_id': 'whatever'}
+        self.assertRaises(nsx_exc.NsxPluginException,
+                          self._plugin.create_router,
+                          context.get_admin_context(),
+                          data)
+
+    def test_router_add_interface_fails_with_dvs_backend(self):
+        fake_interface_info = {'subnet_id': 'whatever'}
+        fake_subnet = {'id': 'whatever',
+                       'network_id': 'whatever'}
+
+        mock_get_subnet = mock.patch(
+            'neutron.db.db_base_plugin_v2.NeutronDbPluginV2._get_subnet')
+        mock_get_backend_network = mock.patch(
+            'neutron.plugins.vmware.plugins.base.NsxPluginV2' +
+            '._get_backend_network')
+
+        with mock_get_subnet as m_subnet:
+            m_subnet.return_value = fake_subnet
+            with mock_get_backend_network as m_net_type:
+                m_net_type.return_value = 'dvs'
+                self.assertRaises(ntn_exc.BadRequest,
+                                  self._plugin.add_router_interface,
+                                  context.get_admin_context(),
+                                  'router_id',
+                                  fake_interface_info)
+
+    def test_dvs_get_id(self):
+        id = uuidutils.generate_uuid()
+        net = {'name': '',
+               'id': id}
+        expected = id
+        self.assertEqual(expected, self._plugin._dvs_get_id(net))
+        net = {'name': 'pele',
+               'id': id}
+        expected = '%s-%s' % ('pele', id)
+        self.assertEqual(expected, self._plugin._dvs_get_id(net))
+        name = 'X' * 500
+        net = {'name': name,
+               'id': id}
+        expected = '%s-%s' % (name[:43], id)
+        self.assertEqual(expected, self._plugin._dvs_get_id(net))
