@@ -105,3 +105,7 @@ class LsnMigrationConflict(n_exc.Conflict):
 
 class LsnConfigurationConflict(NsxPluginException):
     message = _("Configuration conflict on Logical Service Node %(lsn_id)s")
+
+
+class DvsNotFound(n_exc.NotFound):
+    message = _('Unable to find DVS %(dvs)s')
