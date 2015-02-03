@@ -49,7 +49,6 @@ from neutron.i18n import _LE, _LW
 from neutron.openstack.common import log as logging
 from neutron.openstack.common import uuidutils
 from neutron.plugins.vmware.common import exceptions as nsx_exc
-from neutron.plugins.vmware.dbexts import networkgw_db
 from neutron.plugins.vmware.extensions import (
      advancedserviceproviders as subnet_md)
 from neutron.plugins.vmware.extensions import (
@@ -81,7 +80,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                    external_net_db.External_net_db_mixin,
                    extraroute_db.ExtraRoute_db_mixin,
                    l3_gwmode_db.L3_NAT_db_mixin,
-                   networkgw_db.NetworkGatewayMixin,
                    portbindings_db.PortBindingMixin,
                    portsecurity_db.PortSecurityDbMixin,
                    securitygroups_db.SecurityGroupDbMixin,
