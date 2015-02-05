@@ -941,6 +941,35 @@ class FakeVcns(object):
             headers = {'status': 200}
         return (headers, response)
 
+    def create_spoofguard_policy(self, enforcement_point, name, enable):
+        policy = {'name': name,
+                  'enforcement_point': enforcement_point,
+                  'operationMode': 'MANUAL' if enable else 'DISABLE'}
+        policy_id = len(self._spoofguard_policies)
+        self._spoofguard_policies.append(policy)
+        return None, policy_id
+
+    def update_spoofguard_policy(self, policy_id,
+                                 enforcement_point, name, enable):
+        policy = {'name': name,
+                  'enforcement_point': enforcement_point,
+                  'operationMode': 'MANUAL' if enable else 'DISABLE'}
+        self._spoofguard_policies[int(policy_id)] = policy
+        return None, ''
+
+    def delete_spoofguard_policy(self, policy_id):
+        self._spoofguard_policies[int(policy_id)] = {}
+
+    def approve_assigned_addresses(self, policy_id,
+                                   vnic_id, mac_addr, addresses):
+        pass
+
+    def publish_assigned_addresses(self, policy_id):
+        pass
+
+    def inactivate_vnic_assigned_addresses(self, policy_id, vnic_id):
+        pass
+
     def reset_all(self):
         self._jobs.clear()
         self._edges.clear()

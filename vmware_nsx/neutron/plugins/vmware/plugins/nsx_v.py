@@ -1855,6 +1855,26 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
 
         return ret
 
+    def _remove_vnic_from_spoofguard_policy(self, session, net_id, vnic_id):
+        policy_id = nsxv_db.get_spoofguard_policy_id(session, net_id)
+        try:
+            self.nsx_v.vcns.inactivate_vnic_assigned_addresses(policy_id,
+                                                               vnic_id)
+        except Exception:
+            LOG.debug("Failed to remove vnic %(vnic_id)s "
+                      "from spoofguard policy %(policy_id)s",
+                      {'vnic_id': vnic_id,
+                       'policy_id': policy_id})
+
+    def _update_vnic_assigned_addresses(self, session, port, vnic_id):
+        sg_policy_id = nsxv_db.get_spoofguard_policy_id(
+            session, port['network_id'])
+        mac_addr = port['mac_address']
+        approved_addrs = [addr['ip_address'] for addr in port['fixed_ips']]
+        self.nsx_v.vcns.approve_assigned_addresses(
+            sg_policy_id, vnic_id, mac_addr, approved_addrs)
+        self.nsx_v.vcns.publish_assigned_addresses(sg_policy_id)
+
     def _is_compute_port(self, port):
         try:
             if (port['device_id'] and uuidutils.is_uuid_like(port['device_id'])

@@ -14,6 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import functools
 import time
 
 from oslo.config import cfg
@@ -59,6 +60,24 @@ DHCP_SERVICE = "dhcp/config"
 DHCP_BINDING_RESOURCE = "bindings"
 
 
+def retry_upon_exception(exception, delay=0.5, max_delay=2):
+    def retry_decorator(f):
+        @functools.wraps(f)
+        def retry_wrapper(*args, **kwargs):
+            retries = max(cfg.CONF.nsxv.retries, 1)
+            for attempt in range(1, retries + 1):
+                try:
+                    return f(*args, **kwargs)
+                except exception as e:
+                    if attempt == retries:
+                        LOG.info("NSXv: API called failed")
+                        raise e
+                    tts = (2 ** (attempt - 1)) * delay
+                    time.sleep(min(tts, max_delay))
+        return retry_wrapper
+    return retry_decorator
+
+
 class Vcns(object):
 
     def __init__(self, address, user, password):
@@ -84,6 +103,10 @@ class Vcns(object):
                 if attempt == retries:
                     raise e
             LOG.info(_LI('NSXv: conflict on request. Trying again.'))
+    @retry_upon_exception(exceptions.ServiceConflict)
+    def _client_request(self, client, method, uri,
+                        params, headers, encodeParams):
+        return client(method, uri, params, headers, encodeParams)
 
     def do_request(self, method, uri, params=None, format='json', **kwargs):
         LOG.debug("VcnsApiHelper('%(method)s', '%(uri)s', '%(body)s')", {
@@ -523,6 +546,70 @@ class Vcns(object):
         uri = '%s/%s/members/%s' % (SECURITYGROUP_PREFIX,
                                     security_group_id, member_id)
         return self.do_request(HTTP_DELETE, uri, format='xml', decode=False)
+
+    @retry_upon_exception(exceptions.RequestBad)
+    def create_spoofguard_policy(self, enforcement_point, name, enable):
+        uri = '%s/policies/' % SPOOFGUARD_PREFIX
+
+        body = {'spoofguardPolicy':
+                {'name': name,
+                 'operationMode': 'MANUAL' if enable else 'DISABLE',
+                 'enforcementPoint':
+                 {'id': enforcement_point,
+                  'type': enforcement_point.split('-')[0]},
+                 'allowLocalIPs': 'true'}}
+        return self.do_request(HTTP_POST, uri, body,
+                               format='xml', encode=True, decode=False)
+
+    @retry_upon_exception(exceptions.RequestBad)
+    def update_spoofguard_policy(self, policy_id,
+                                 enforcement_point, name, enable):
+        update_uri = '%s/policies/%s' % (SPOOFGUARD_PREFIX, policy_id)
+        publish_uri = '%s/%s?action=publish' % (SPOOFGUARD_PREFIX, policy_id)
+
+        body = {'spoofguardPolicy':
+                {'policyId': policy_id,
+                 'name': name,
+                 'operationMode': 'MANUAL' if enable else 'DISABLE',
+                 'enforcementPoint':
+                 {'id': enforcement_point,
+                  'type': enforcement_point.split('-')[0]},
+                 'allowLocalIPs': 'true'}}
+
+        self.do_request(HTTP_PUT, update_uri, body,
+                        format='xml', encode=True, decode=False)
+        return self.do_request(HTTP_POST, publish_uri, decode=False)
+
+    @retry_upon_exception(exceptions.RequestBad)
+    def delete_spoofguard_policy(self, policy_id):
+        uri = '%s/policies/%s' % (SPOOFGUARD_PREFIX, policy_id)
+        return self.do_request(HTTP_DELETE, uri, decode=False)
+
+    @retry_upon_exception(exceptions.RequestBad)
+    def approve_assigned_addresses(self, policy_id,
+                                   vnic_id, mac_addr, addresses):
+        uri = '%s/%s' % (SPOOFGUARD_PREFIX, policy_id)
+        addresses = [{'ipAddress': ip_addr} for ip_addr in addresses]
+        body = {'spoofguardList':
+                {'spoofguard':
+                 {'id': vnic_id,
+                  'vnicUuid': vnic_id,
+                  'approvedIpAddress': addresses,
+                  'approvedMacAddress': mac_addr,
+                  'publishedIpAddress': addresses,
+                  'publishedMacAddress': mac_addr}}}
+
+        return self.do_request(HTTP_POST, '%s?action=approve' % uri,
+                               body, format='xml', decode=False)
+
+    @retry_upon_exception(exceptions.VcnsApiException)
+    def publish_assigned_addresses(self, policy_id):
+        uri = '%s/%s' % (SPOOFGUARD_PREFIX, policy_id)
+        return self.do_request(HTTP_POST, '%s?action=publish' % uri,
+                               decode=False)
+
+    def inactivate_vnic_assigned_addresses(self, policy_id, vnic_id):
+        return self.approve_assigned_addresses(policy_id, vnic_id, '', [])
 
     def _build_uri_path(self, edge_id,
                         service,
