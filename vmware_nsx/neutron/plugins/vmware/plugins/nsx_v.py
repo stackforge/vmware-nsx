@@ -128,6 +128,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         self.dvs_id = cfg.CONF.nsxv.dvs_id
         self.nsx_sg_utils = securitygroup_utils.NsxSecurityGroupUtils(
             self.nsx_v)
+        self.sg_container_id = self._create_security_group_container()
         self._validate_config()
         self._create_cluster_default_fw_rules()
 
@@ -140,6 +141,17 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             nsx_v_md_proxy.NsxVMetadataProxyHandler(self)
             if has_metadata_cfg else None)
 
+    def _create_security_group_container(self):
+        name = "OpenStack Security Group container"
+        container_id = self.nsx_v.vcns.get_security_group_id(name)
+        if not container_id:
+            description = ("OpenStack Security Group Container, "
+                           "managed by Neutron nsx-v plugin.")
+            container = {"securitygroup": {"name": name,
+                                           "description": description}}
+            h, container_id = self.nsx_v.vcns.create_security_group(container)
+        return container_id
+
     def _create_cluster_default_fw_rules(self):
         # default cluster rules
         rules = [{'name': 'Default DHCP rule for OS Security Groups',
@@ -149,10 +161,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                  {'name': 'ICMPv6 neighbor protocol for Security Groups',
                   'action': 'allow',
                   'services': [('58', None, '135', None),
-                               ('58', None, '136', None)]},
-                 {'name': 'Block All',
-                  'action': 'deny',
-                  'services': []}]
+                               ('58', None, '136', None)]}]
 
         rule_list = []
         for cluster_moid in cfg.CONF.nsxv.cluster_moid:
@@ -161,6 +170,10 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                     cluster_moid, rule['name'], rule['action'],
                     'ClusterComputeResource', services=rule['services'])
                 rule_list.append(rule_config)
+
+        block_rule = self.nsx_sg_utils.get_rule_config(
+            self.sg_container_id, 'Block All', 'deny')
+        rule_list.append(block_rule)
 
         if rule_list:
             section_name = 'OS Cluster Security Group section'
@@ -1659,6 +1672,10 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                     LOG.debug('rules %s-%s', _nsx_id, _neutron_id)
                     nsxv_db.add_neutron_nsx_rule_mapping(
                         context.session, _neutron_id, _nsx_id)
+
+                # Add this Security Group to the Security Groups container
+                self._add_member_to_security_group(self.sg_container_id,
+                                                   nsx_sg_id)
 
         except Exception:
             with excutils.save_and_reraise_exception():
