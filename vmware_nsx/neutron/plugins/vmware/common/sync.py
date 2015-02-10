@@ -199,6 +199,7 @@ def _start_loopingcall(min_chunk_size, state_sync_interval, func):
     state_synchronizer = loopingcall.DynamicLoopingCall(
         func, sp=SyncParameters(min_chunk_size))
     state_synchronizer.start(
+        initial_delay=30,
         periodic_interval_max=state_sync_interval)
     return state_synchronizer
 
