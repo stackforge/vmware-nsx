@@ -254,7 +254,7 @@ class VSMClient(object):
         for spg in policies:
             print "\nDeleting spoofguard policy %s (%s) ..." % (spg['name'],
                                                                 spg['policyId'])
-            endpoint = '/services/spoofguard/%s' % spg['policyId']
+            endpoint = '/services/spoofguard/policies/%s' % spg['policyId']
             response = self.delete(endpoint=endpoint)
             print "Response code: %s" % response.status_code
 
