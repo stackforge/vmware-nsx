@@ -1,0 +1,79 @@
+# Copyright 2015 OpenStack Foundation
+# All Rights Reserved
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
+#
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
+
+import json
+
+from oslo_config import cfg
+import requests
+from requests.auth import HTTPBasicAuth
+
+
+def _get_controller():
+    # For now only work with one controller
+    controller = cfg.CONF.transformers.nsx_controllers[0]
+    return "https://" + controller
+
+
+def create_logical_switch(display_name, transport_zone_id,
+                          replication_mode="MTEP", admin_state="UP"):
+
+    controller = _get_controller()
+    url = controller + "/api/v1/logical-switches"
+    headers = {'Content-Type': 'application/json'}
+    body = {'transport_zone_id': transport_zone_id,
+            'replication_mode': replication_mode,
+            'admin_state': admin_state,
+            'display_name': display_name}
+
+    # XXXX error handling
+    result = requests.post(url, auth=HTTPBasicAuth('admin', 'default'),
+                           verify=False, headers=headers,
+                           data=json.dumps(body))
+    return result.json()
+
+
+def delete_logical_switch(lswitch_id):
+    controller = _get_controller()
+    url = controller + "/api/v1/logical-switches/%s/" % lswitch_id
+    headers = {'Content-Type': 'application/json'}
+    requests.delete(url, auth=HTTPBasicAuth('admin', 'default'),
+                    verify=False, headers=headers)
+
+
+def create_logical_port(id, lswitch_id, vif_uuid, attachment_type="VIF",
+                        admin_state="UP"):
+
+    controller = _get_controller()
+    url = controller + "/api/v1/logical-ports"
+    headers = {'Content-Type': 'application/json'}
+    body = {'logical_switch_id': lswitch_id,
+            'id': id,
+            'attachment': {"attachment_type": attachment_type,
+                           "id": vif_uuid},
+            'admin_state': admin_state}
+
+    # XXXX error handling
+    result = requests.post(url, auth=HTTPBasicAuth('admin', 'default'),
+                           verify=False, headers=headers,
+                           data=json.dumps(body))
+    return result.json()
+
+
+def delete_logical_port(logical_port):
+    controller = _get_controller()
+    url = controller + "/api/v1/logical-ports/%s" % logical_port
+    headers = {'Content-Type': 'application/json'}
+    requests.delete(url, auth=HTTPBasicAuth('admin', 'default'),
+                    verify=False, headers=headers)
