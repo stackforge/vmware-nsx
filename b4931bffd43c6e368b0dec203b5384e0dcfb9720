@@ -1,0 +1,10 @@
+Verified+2: Jenkins
+Code-Review+1: Armando Migliaccio <armamig@gmail.com>
+Code-Review+2: garyk <gkotton@vmware.com>
+Workflow+1: garyk <gkotton@vmware.com>
+Verified+1: VMware NSX CI
+Submitted-by: Jenkins
+Submitted-at: Tue, 03 Mar 2015 11:01:30 +0000
+Reviewed-on: https://review.openstack.org/159613
+Project: stackforge/vmware-nsx
+Branch: refs/heads/master
