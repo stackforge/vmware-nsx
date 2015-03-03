@@ -77,3 +77,20 @@ def delete_logical_port(logical_port):
     headers = {'Content-Type': 'application/json'}
     requests.delete(url, auth=auth.HTTPBasicAuth('admin', 'default'),
                     verify=False, headers=headers)
+
+
+def create_logical_router(display_name, router_id, router_type):
+    controller = _get_controller()
+    url = controller + "/api/v1/logical-routers"
+    headers = {'Content-Type': 'application/json'}
+    body = {'id': router_id,
+            'display_name': display_name,
+            'router_type': router_type}
+
+    # XXXX error handling
+    result = requests.post(url, auth=auth.HTTPBasicAuth('admin', 'default'),
+                           verify=False, headers=headers,
+                           data=json.dumps(body))
+
+    print result
+    return result.json()

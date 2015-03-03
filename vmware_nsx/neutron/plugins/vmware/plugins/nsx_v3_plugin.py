@@ -23,6 +23,7 @@ from neutron.common import rpc as n_rpc
 from neutron.common import topics
 from neutron.db import agentschedulers_db
 from neutron.db import db_base_plugin_v2
+from neutron.db import l3_db
 from neutron.openstack.common import log as logging
 
 
@@ -34,15 +35,17 @@ LOG = logging.getLogger(__name__)
 
 
 class NSXv3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
+                  l3_db.L3_NAT_dbonly_mixin,
                   agentschedulers_db.DhcpAgentSchedulerDbMixin):
 
     __native_bulk_support = True
     __native_pagination_support = True
     __native_sorting_support = True
 
-    _supported_extension_aliases = ["quotas",
+    supported_extension_aliases = ["quotas",
                                     "dhcp_agent_scheduler",
-                                    "agent"]
+                                    "agent",
+                                    "router"]
 
     def __init__(self):
         super(NSXv3Plugin, self).__init__()
@@ -105,9 +108,13 @@ class NSXv3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                                                     port)
 
     def create_router(self, context, router):
-        # TODO(arosen) - call to backend
         router = super(NSXv3Plugin, self).create_router(context,
                                                         router)
+        nsx_v3_lib.create_logical_router(
+            display_name=router['name'],
+            router_id=router['id'],
+            router_type="TIER0")
+
         return router
 
     def delete_router(self, context, router_id):
