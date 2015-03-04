@@ -23,7 +23,7 @@ from vmware_nsx.neutron.plugins.vmware.common import utils as nsx_utils
 from vmware_nsx.neutron.plugins.vmware import nsxlib
 from vmware_nsx.neutron.plugins.vmware.nsxlib import l2gateway as l2gwlib
 from vmware_nsx.neutron.plugins.vmware.nsxlib import switch as switchlib
-from vmware_nsx.neutron.tests.unit.vmware.nsxlib import base
+from vmware_nsx.tests.unit.nsx_mh.nsxlib import base
 
 _uuid = test_api_v2._uuid
 

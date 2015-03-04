@@ -25,8 +25,8 @@ from neutron.tests.unit import test_extensions
 
 from vmware_nsx.neutron.plugins.vmware.dbexts import qos_db
 from vmware_nsx.neutron.plugins.vmware import nsxlib
-from vmware_nsx.neutron.tests.unit import vmware
-from vmware_nsx.neutron.tests.unit.vmware import test_nsx_plugin
+from vmware_nsx.tests import unit as vmware
+from vmware_nsx.tests.unit.nsx_mh import test_plugin
 
 
 class QoSTestExtensionManager(object):
@@ -41,7 +41,7 @@ class QoSTestExtensionManager(object):
         return []
 
 
-class TestQoSQueue(test_nsx_plugin.NsxPluginV2TestCase):
+class TestQoSQueue(test_plugin.NsxPluginV2TestCase):
 
     def setUp(self, plugin=None):
         cfg.CONF.set_override('api_extensions_path', vmware.NSXEXT_PATH)

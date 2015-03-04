@@ -23,8 +23,8 @@ from vmware_nsx.neutron.plugins.vmware.api_client import exception
 from vmware_nsx.neutron.plugins.vmware.api_client import version
 from vmware_nsx.neutron.plugins.vmware.common import config  # noqa
 from vmware_nsx.neutron.plugins.vmware import nsx_cluster as cluster
-from vmware_nsx.neutron.tests.unit import vmware
-from vmware_nsx.neutron.tests.unit.vmware.apiclient import fake
+from vmware_nsx.tests import unit as vmware
+from vmware_nsx.tests.unit.nsx_mh.apiclient import fake
 
 _uuid = test_api_v2._uuid
 

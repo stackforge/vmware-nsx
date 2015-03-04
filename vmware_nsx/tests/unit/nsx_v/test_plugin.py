@@ -52,11 +52,9 @@ from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
 from vmware_nsx.neutron.plugins.vmware.vshield.common import (
     constants as vcns_const)
 from vmware_nsx.neutron.plugins.vmware.vshield import edge_utils
-from vmware_nsx.neutron.tests.unit import vmware
-from vmware_nsx.neutron.tests.unit.vmware.extensions import test_vnic_index
-from vmware_nsx.neutron.tests.unit.vmware.vshield import fake_vcns
-
-PLUGIN_NAME = 'vmware_nsx.neutron.plugins.vmware.plugin.NsxVPlugin'
+from vmware_nsx.tests import unit as vmware
+from vmware_nsx.tests.unit.extensions import test_vnic_index
+from vmware_nsx.tests.unit.nsx_v.vshield import fake_vcns
 
 _uuid = uuidutils.generate_uuid
 
@@ -91,7 +89,7 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
         return network_req.get_response(self.api)
 
     def setUp(self,
-              plugin=PLUGIN_NAME,
+              plugin=vmware.NSX_V_PLUGIN_NAME,
               ext_mgr=None,
               service_plugins=None):
         test_lib.test_config['config_files'] = [
@@ -443,7 +441,8 @@ class TestPortsV2(NsxVPluginV2TestCase,
         instance with existing port.
         """
         with self.port() as port:
-            with mock.patch(PLUGIN_NAME + '._create_dhcp_static_binding') as (
+            with mock.patch(vmware.NSX_V_PLUGIN_NAME +
+                            '._create_dhcp_static_binding') as (
                     _create_dhcp_static_binding_mock):
                 update = {'port': {'device_owner'}}
                 self.new_update_request('ports',
@@ -909,7 +908,7 @@ class TestSubnetsV2(NsxVPluginV2TestCase,
                     test_plugin.TestSubnetsV2):
 
     def setUp(self,
-              plugin=PLUGIN_NAME,
+              plugin=vmware.NSX_V_PLUGIN_NAME,
               ext_mgr=None,
               service_plugins=None):
         super(TestSubnetsV2, self).setUp()
@@ -1066,7 +1065,8 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxVPluginV2TestCase):
     def _restore_l3_attribute_map(self):
         l3.RESOURCE_ATTRIBUTE_MAP = self._l3_attribute_map_bk
 
-    def setUp(self, plugin=PLUGIN_NAME, ext_mgr=None, service_plugins=None):
+    def setUp(self, plugin=vmware.NSX_V_PLUGIN_NAME,
+              ext_mgr=None, service_plugins=None):
         self._l3_attribute_map_bk = {}
         for item in l3.RESOURCE_ATTRIBUTE_MAP:
             self._l3_attribute_map_bk[item] = (
@@ -1365,7 +1365,7 @@ class TestExclusiveRouterTestCase(L3NatTest,
 
     @contextlib.contextmanager
     def _mock_edge_router_update_with_exception(self):
-        nsx_router_update = PLUGIN_NAME + '._update_edge_router'
+        nsx_router_update = vmware.NSX_V_PLUGIN_NAME + '._update_edge_router'
         with mock.patch(nsx_router_update) as update_edge:
             update_edge.side_effect = object()
             yield update_edge
@@ -1471,7 +1471,7 @@ class ExtGwModeTestCase(NsxVPluginV2TestCase,
 
 class NsxVSecurityGroupsTestCase(ext_sg.SecurityGroupDBTestCase):
     def setUp(self,
-              plugin=PLUGIN_NAME,
+              plugin=vmware.NSX_V_PLUGIN_NAME,
               ext_mgr=None,
               service_plugins=None):
         test_lib.test_config['config_files'] = [
@@ -1660,7 +1660,7 @@ class TestNSXvAllowedAddressPairs(test_addr_pair.TestAllowedAddressPairs,
 
 class TestNSXPortSecurity(test_psec.TestPortSecurity,
                           NsxVPluginV2TestCase):
-    def setUp(self, plugin=PLUGIN_NAME):
+    def setUp(self, plugin=vmware.NSX_V_PLUGIN_NAME):
         super(TestNSXPortSecurity, self).setUp(plugin=plugin)
 
     def test_create_port_fails_with_secgroup_and_port_security_false(self):

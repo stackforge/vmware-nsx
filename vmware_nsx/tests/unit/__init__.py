@@ -27,7 +27,8 @@ from vmware_nsx.neutron.plugins.vmware.vshield import vcns
 import vmware_nsx.neutron.plugins.vmware.vshield.vcns_driver as vcnsdriver
 
 
-plugin = neutron_plugin.NsxPlugin
+nsx_mh_plugin = neutron_plugin.NsxPlugin
+nsx_v_plugin = neutron_plugin.NsxVPlugin
 api_client = nsx_client.NsxApiClient
 evt_client = eventlet_client.EventletApiClient
 vcns_class = vcns.Vcns
@@ -38,7 +39,10 @@ edge_manage_class = edge_utils.EdgeManager
 STUBS_PATH = os.path.join(os.path.dirname(__file__), 'etc')
 NSXEXT_PATH = os.path.dirname(extensions.__file__)
 NSXAPI_NAME = '%s.%s' % (api_client.__module__, api_client.__name__)
-PLUGIN_NAME = '%s.%s' % (plugin.__module__, plugin.__name__)
+NSX_MH_PLUGIN_NAME = '%s.%s' % (nsx_mh_plugin.__module__,
+                                nsx_mh_plugin.__name__)
+NSX_V_PLUGIN_NAME = '%s.%s' % (nsx_v_plugin.__module__,
+                               nsx_v_plugin.__name__)
 CLIENT_NAME = '%s.%s' % (evt_client.__module__, evt_client.__name__)
 VCNS_NAME = '%s.%s' % (vcns_class.__module__, vcns_class.__name__)
 VCNS_DRIVER_NAME = '%s.%s' % (vcns_driver.__module__, vcns_driver.__name__)
@@ -51,6 +55,6 @@ def get_fake_conf(filename):
     return os.path.join(STUBS_PATH, filename)
 
 
-def nsx_method(method_name, module_name='nsxlib'):
+def nsx_mh_method(method_name, module_name='nsxlib'):
     return '%s.%s.%s' % ('vmware_nsx.neutron.plugins.vmware', module_name,
                          method_name)

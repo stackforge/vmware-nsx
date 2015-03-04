@@ -21,12 +21,12 @@ from neutron.common import test_lib
 from neutron.tests.unit.openvswitch import test_agent_scheduler as test_base
 from vmware_nsx.neutron.plugins.vmware.common import sync
 from vmware_nsx.neutron.plugins.vmware.dhcp_meta import rpc
-from vmware_nsx.neutron.tests.unit import vmware
-from vmware_nsx.neutron.tests.unit.vmware.apiclient import fake
+from vmware_nsx.tests import unit as vmware
+from vmware_nsx.tests.unit.nsx_mh.apiclient import fake
 
 
 class DhcpAgentNotifierTestCase(test_base.OvsDhcpAgentNotifierTestCase):
-    plugin_str = vmware.PLUGIN_NAME
+    plugin_str = vmware.NSX_MH_PLUGIN_NAME
 
     def setUp(self):
         test_lib.test_config['config_files'] = [

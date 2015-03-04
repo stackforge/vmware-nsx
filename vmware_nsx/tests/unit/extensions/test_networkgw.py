@@ -39,8 +39,8 @@ from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.dbexts import networkgw_db
 from vmware_nsx.neutron.plugins.vmware import nsxlib
 from vmware_nsx.neutron.plugins.vmware.nsxlib import l2gateway as l2gwlib
-from vmware_nsx.neutron.tests.unit import vmware
-from vmware_nsx.neutron.tests.unit.vmware import test_nsx_plugin
+from vmware_nsx.tests import unit as vmware
+from vmware_nsx.tests.unit.nsx_mh import test_plugin
 
 _uuid = test_api_v2._uuid
 _get_path = test_api_v2._get_path
@@ -912,10 +912,10 @@ class NetworkGatewayDbTestCase(test_db_plugin.NeutronDbPluginV2TestCase):
         self.assertIsNone(dev_query.first())
 
 
-class TestNetworkGateway(test_nsx_plugin.NsxPluginV2TestCase,
+class TestNetworkGateway(test_plugin.NsxPluginV2TestCase,
                          NetworkGatewayDbTestCase):
 
-    def setUp(self, plugin=vmware.PLUGIN_NAME, ext_mgr=None):
+    def setUp(self, plugin=vmware.NSX_MH_PLUGIN_NAME, ext_mgr=None):
         cfg.CONF.set_override('api_extensions_path', vmware.NSXEXT_PATH)
         # Mock l2gwlib calls for gateway devices since this resource is not
         # mocked through the fake NSX API client

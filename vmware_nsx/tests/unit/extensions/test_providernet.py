@@ -18,11 +18,12 @@ import webob.exc
 
 from neutron.extensions import multiprovidernet as mpnet
 from neutron.extensions import providernet as pnet
-from vmware_nsx.neutron.tests.unit import vmware
-from vmware_nsx.neutron.tests.unit.vmware import test_nsx_plugin
+
+from vmware_nsx.tests import unit as vmware
+from vmware_nsx.tests.unit.nsx_mh import test_plugin
 
 
-class TestProvidernet(test_nsx_plugin.NsxPluginV2TestCase):
+class TestProvidernet(test_plugin.NsxPluginV2TestCase):
 
     def test_create_delete_provider_network_default_physical_net(self):
         data = {'network': {'name': 'net1',
@@ -61,7 +62,7 @@ class TestProvidernet(test_nsx_plugin.NsxPluginV2TestCase):
         self.assertEqual(net['network'][pnet.PHYSICAL_NETWORK], 'physnet2')
 
 
-class TestMultiProviderNetworks(test_nsx_plugin.NsxPluginV2TestCase):
+class TestMultiProviderNetworks(test_plugin.NsxPluginV2TestCase):
 
     def setUp(self, plugin=None):
         cfg.CONF.set_override('api_extensions_path', vmware.NSXEXT_PATH)

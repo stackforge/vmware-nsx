@@ -23,10 +23,11 @@ from neutron.common import test_lib
 from neutron import context
 from neutron.extensions import agent
 from neutron.tests.unit import test_db_plugin
+
 from vmware_nsx.neutron.plugins.vmware.api_client import version
 from vmware_nsx.neutron.plugins.vmware.common import sync
-from vmware_nsx.neutron.tests.unit import vmware
-from vmware_nsx.neutron.tests.unit.vmware.apiclient import fake
+from vmware_nsx.tests import unit as vmware
+from vmware_nsx.tests.unit.nsx_mh.apiclient import fake
 
 
 class MacLearningExtensionManager(object):
@@ -73,8 +74,8 @@ class MacLearningDBTestCase(test_db_plugin.NeutronDbPluginV2TestCase):
         cfg.CONF.set_override('metadata_mode', None, 'NSX')
         self.addCleanup(self.fc.reset_all)
         self.addCleanup(self.restore_resource_attribute_map)
-        super(MacLearningDBTestCase, self).setUp(plugin=vmware.PLUGIN_NAME,
-                                                 ext_mgr=ext_mgr)
+        super(MacLearningDBTestCase, self).setUp(
+            plugin=vmware.NSX_MH_PLUGIN_NAME, ext_mgr=ext_mgr)
         self.adminContext = context.get_admin_context()
 
     def restore_resource_attribute_map(self):

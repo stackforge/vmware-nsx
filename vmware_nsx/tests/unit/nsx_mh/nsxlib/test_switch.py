@@ -23,7 +23,7 @@ from neutron.tests.unit import test_api_v2
 
 from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware.nsxlib import switch as switchlib
-from vmware_nsx.neutron.tests.unit.vmware.nsxlib import base
+from vmware_nsx.tests.unit.nsx_mh.nsxlib import base
 
 _uuid = test_api_v2._uuid
 

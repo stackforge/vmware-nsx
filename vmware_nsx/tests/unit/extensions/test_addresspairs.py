@@ -15,10 +15,11 @@
 
 from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.tests.unit import test_extension_allowedaddresspairs as ext_pairs
-from vmware_nsx.neutron.tests.unit.vmware import test_nsx_plugin
+
+from vmware_nsx.tests.unit.nsx_mh import test_plugin
 
 
-class TestAllowedAddressPairs(test_nsx_plugin.NsxPluginV2TestCase,
+class TestAllowedAddressPairs(test_plugin.NsxPluginV2TestCase,
                               ext_pairs.TestAllowedAddressPairs):
 
     # TODO(arosen): move to ext_pairs.TestAllowedAddressPairs once all

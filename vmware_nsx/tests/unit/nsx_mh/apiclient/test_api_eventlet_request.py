@@ -26,7 +26,7 @@ from vmware_nsx.neutron.plugins.vmware.api_client import (
     eventlet_client as client)
 from vmware_nsx.neutron.plugins.vmware.api_client import (
     eventlet_request as request)
-from vmware_nsx.neutron.tests.unit import vmware
+from vmware_nsx.tests import unit as vmware
 
 
 LOG = logging.getLogger(__name__)

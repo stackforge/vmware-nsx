@@ -52,8 +52,8 @@ from vmware_nsx.neutron.plugins.vmware.common import sync
 from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
 from vmware_nsx.neutron.plugins.vmware import nsxlib
-from vmware_nsx.neutron.tests.unit import vmware
-from vmware_nsx.neutron.tests.unit.vmware.apiclient import fake
+from vmware_nsx.tests import unit as vmware
+from vmware_nsx.tests.unit.nsx_mh.apiclient import fake
 
 LOG = log.getLogger(__name__)
 
@@ -88,7 +88,7 @@ class NsxPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
         return network_req.get_response(self.api)
 
     def setUp(self,
-              plugin=vmware.PLUGIN_NAME,
+              plugin=vmware.NSX_MH_PLUGIN_NAME,
               ext_mgr=None,
               service_plugins=None):
         test_lib.test_config['config_files'] = [
@@ -370,7 +370,7 @@ class SecurityGroupsTestCase(ext_sg.SecurityGroupDBTestCase):
         patch_sync.start()
 
         instance.return_value.request.side_effect = self.fc.fake_request
-        super(SecurityGroupsTestCase, self).setUp(vmware.PLUGIN_NAME)
+        super(SecurityGroupsTestCase, self).setUp(vmware.NSX_MH_PLUGIN_NAME)
 
 
 class TestSecurityGroup(ext_sg.TestSecurityGroups, SecurityGroupsTestCase):
@@ -448,7 +448,7 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxPluginV2TestCase):
     def _restore_l3_attribute_map(self):
         l3.RESOURCE_ATTRIBUTE_MAP = self._l3_attribute_map_bk
 
-    def setUp(self, plugin=vmware.PLUGIN_NAME, ext_mgr=None,
+    def setUp(self, plugin=vmware.NSX_MH_PLUGIN_NAME, ext_mgr=None,
               service_plugins=None):
         self._l3_attribute_map_bk = {}
         for item in l3.RESOURCE_ATTRIBUTE_MAP:

@@ -23,8 +23,8 @@ from vmware_nsx.neutron.plugins.vmware.vshield.tasks import (
     constants as ts_const)
 from vmware_nsx.neutron.plugins.vmware.vshield.tasks import tasks as ts
 from vmware_nsx.neutron.plugins.vmware.vshield import vcns_driver
-from vmware_nsx.neutron.tests.unit import vmware
-from vmware_nsx.neutron.tests.unit.vmware.vshield import fake_vcns
+from vmware_nsx.tests import unit as vmware
+from vmware_nsx.tests.unit.nsx_v.vshield import fake_vcns
 
 VCNS_CONFIG_FILE = vmware.get_fake_conf("vcns.ini.test")
 

@@ -24,10 +24,10 @@ from neutron.openstack.common import uuidutils
 from neutron.plugins.vmware.extensions import vnicindex as vnicidx
 from neutron.tests.unit import test_db_plugin
 from vmware_nsx.neutron.plugins.vmware.dbexts import vnic_index_db
-from vmware_nsx.neutron.tests.unit import vmware
+from vmware_nsx.tests import unit as vmware
 
 
-DB_PLUGIN_KLASS = ('vmware_nsx.neutron.tests.unit.vmware.extensions.'
+DB_PLUGIN_KLASS = ('vmware_nsx.tests.unit.extensions.'
                    'test_vnic_index.VnicIndexTestPlugin')
 
 _uuid = uuidutils.generate_uuid

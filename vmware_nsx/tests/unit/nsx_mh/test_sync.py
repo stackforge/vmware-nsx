@@ -39,8 +39,8 @@ from vmware_nsx.neutron.plugins.vmware.dbexts import db
 from vmware_nsx.neutron.plugins.vmware import nsx_cluster as cluster
 from vmware_nsx.neutron.plugins.vmware import nsxlib
 from vmware_nsx.neutron.plugins.vmware import plugin
-from vmware_nsx.neutron.tests.unit import vmware
-from vmware_nsx.neutron.tests.unit.vmware.apiclient import fake
+from vmware_nsx.tests import unit as vmware
+from vmware_nsx.tests.unit.nsx_mh.apiclient import fake
 
 LOG = log.getLogger(__name__)
 
