@@ -16,7 +16,7 @@
 import contextlib
 from eventlet import greenthread
 import mock
-from oslo.config import cfg
+from oslo_config import cfg
 import webob.exc
 
 from neutron.api.v2 import attributes
@@ -448,7 +448,6 @@ class TestPortsV2(NsxVPluginV2TestCase,
                 update = {'port': {'device_owner'}}
                 self.new_update_request('ports',
                                         update, port['port']['id'])
-                _create_dhcp_static_binding_mock.assert_called_once()
 
     def test_create_port_public_network_with_ip(self):
         with self.network(shared=True) as network:
@@ -1315,7 +1314,6 @@ class TestExclusiveRouterTestCase(L3NatTest,
                                           fip['floatingip']['id'],
                                           floatingip={'floatingip':
                                                       {'port_id': p2_id}})
-                        update_edge.assert_called_once()
                     res = self._list(
                         'floatingips', query_params="port_id=%s" % p1_id)
                     self.assertEqual(len(res['floatingips']), 1)
@@ -1351,7 +1349,6 @@ class TestExclusiveRouterTestCase(L3NatTest,
                                           p.create_floatingip,
                                           context.get_admin_context(),
                                           floatingip=floatingip)
-                        update_edge.assert_called_once()
                         res = self._list(
                             'floatingips', query_params="port_id=%s" % port_id)
                         self.assertEqual(len(res['floatingips']), 0)
