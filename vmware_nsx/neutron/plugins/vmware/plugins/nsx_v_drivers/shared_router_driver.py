@@ -15,7 +15,6 @@
 from oslo_concurrency import lockutils
 from oslo_config import cfg
 
-from neutron import context as neutron_context
 from neutron.db import l3_db
 from neutron.db import models_v2
 from oslo_log import log as logging
@@ -280,7 +279,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
         """
         ext_net_filters = {'router:external': [True]}
         ext_nets = self.plugin.get_networks(
-            neutron_context.get_admin_context(), filters=ext_net_filters)
+            context.elevated(), filters=ext_net_filters)
         ext_net_ids = [ext_net.get('id') for ext_net in ext_nets]
         conflict_ext_net_ids = list(set(ext_net_ids) &
                                     set(conflict_network_ids))

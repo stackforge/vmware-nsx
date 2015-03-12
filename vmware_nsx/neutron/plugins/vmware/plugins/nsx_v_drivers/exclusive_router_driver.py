@@ -35,11 +35,13 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
 
     def update_router(self, context, router_id, router):
         gw_info = self.plugin._extract_external_gw(context, router,
-                                                   is_extract=False)
+                                                   is_extract=True)
         router_updated = super(nsx_v.NsxVPluginV2, self.plugin).update_router(
             context, router_id, router)
-        # here is used to handle routes which tenant updates.
-        if gw_info is None:
+        if gw_info is not None:
+            self._update_router_gw_info(context, router_id, gw_info)
+        else:
+            # here is used to handle routes which tenant updates.
             router_db = self.plugin._get_router(context, router_id)
             nexthop = self.plugin._get_external_attachment_info(
                 context, router_db)[2]
