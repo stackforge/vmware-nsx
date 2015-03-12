@@ -27,7 +27,7 @@ from neutron.common import rpc as n_rpc
 from neutron.common import topics
 from neutron.db import agents_db
 from neutron.i18n import _LW
-from neutron.openstack.common import log as logging
+from oslo_log import log as logging
 from neutron.plugins.vmware.extensions import lsn
 
 from vmware_nsx.neutron.plugins.vmware.common import config
