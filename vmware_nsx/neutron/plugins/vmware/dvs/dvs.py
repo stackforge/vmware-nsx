@@ -12,12 +12,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_log import log as logging
 from oslo_utils import excutils
 from oslo_vmware import vim_util
 
 from neutron.common import exceptions
 from neutron.i18n import _LE, _LI
-from neutron.openstack.common import log as logging
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.dvs import dvs_utils
 
