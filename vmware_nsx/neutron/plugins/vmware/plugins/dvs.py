@@ -20,7 +20,9 @@ from oslo_utils import excutils
 
 from neutron.api import extensions as neutron_extensions
 from neutron.api.v2 import attributes as attr
+from neutron.common import constants
 from neutron.common import exceptions as n_exc
+from neutron.common import utils
 from neutron.db import agentschedulers_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
 from neutron.db import db_base_plugin_v2
@@ -143,7 +145,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
                 nsx_db.add_network_binding(
                     context.session, new_net['id'],
                     net_data.get(pnet.NETWORK_TYPE),
-                    net_data.get(pnet.PHYSICAL_NETWORK),
+                    'dvs',
                     vlan_tag)
         except Exception:
             with excutils.save_and_reraise_exception():
@@ -157,7 +159,40 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
                                         action='create_network')
         return new_net
 
+    def _validate_network(self, context, net_data):
+        network_type = net_data.get(pnet.NETWORK_TYPE)
+        segmentation_id = net_data.get(pnet.SEGMENTATION_ID)
+        segmentation_id_set = attr.is_attr_set(segmentation_id)
+        if not context.is_admin:
+            err_msg = _("Only and admin can create a DVS provider "
+                        "network")
+            raise n_exc.InvalidInput(error_message=err_msg)
+        err_msg = None
+        if network_type == c_utils.NetworkTypes.FLAT:
+            if segmentation_id_set:
+                err_msg = _("Segmentation ID cannot be specified with "
+                            "flat network type")
+        elif network_type == c_utils.NetworkTypes.VLAN:
+            if not segmentation_id_set:
+                err_msg = _("Segmentation ID must be specified with "
+                            "vlan network type")
+            elif (segmentation_id_set and
+                  not utils.is_valid_vlan_tag(segmentation_id)):
+                err_msg = (_("%(segmentation_id)s out of range "
+                             "(%(min_id)s through %(max_id)s)") %
+                           {'segmentation_id': segmentation_id,
+                            'min_id': constants.MIN_VLAN_TAG,
+                            'max_id': constants.MAX_VLAN_TAG})
+        else:
+            err_msg = (_("%(net_type_param)s %(net_type_value)s not "
+                         "supported") %
+                       {'net_type_param': pnet.NETWORK_TYPE,
+                        'net_type_value': network_type})
+        if err_msg:
+            raise n_exc.InvalidInput(error_message=err_msg)
+
     def create_network(self, context, network):
+        self._validate_network(context, network['network'])
         return self._dvs_create_network(context, network)
 
     def _dvs_delete_network(self, context, id):
