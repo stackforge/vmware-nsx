@@ -17,6 +17,7 @@ import contextlib
 from eventlet import greenthread
 import mock
 from oslo_config import cfg
+from oslo_utils import uuidutils
 import webob.exc
 
 from neutron.api.v2 import attributes
@@ -34,7 +35,6 @@ from neutron.extensions import portsecurity as psec
 from neutron.extensions import providernet as pnet
 from neutron.extensions import securitygroup as secgrp
 from neutron import manager
-from neutron.openstack.common import uuidutils
 from neutron.plugins.vmware.extensions import (
     vnicindex as ext_vnic_idx)
 from neutron.plugins.vmware.extensions import routertype as router_type
