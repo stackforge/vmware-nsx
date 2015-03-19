@@ -234,6 +234,9 @@ class TestPortsV2(NsxPluginV2TestCase,
 
 class TestNetworksV2(test_plugin.TestNetworksV2, NsxPluginV2TestCase):
 
+    def test_create_network_vlan_transparent(self):
+        self.skipTest("Currently no support in plugin for this")
+
     def _test_create_bridge_network(self, vlan_id=0):
         net_type = 'vlan' if vlan_id else 'flat'
         name = 'bridge_net'
@@ -790,7 +793,7 @@ class TestL3NatTestCase(L3NatTest,
 
     def test_metadatata_network_created_with_router_interface_add(self):
         self._metadata_setup()
-        with mock.patch.object(self._plugin_class, 'schedule_network') as f:
+        with mock.patch.object(self._plugin_class, '_schedule_network') as f:
             with self.router() as r:
                 with self.subnet() as s:
                     self._router_interface_action('add',
