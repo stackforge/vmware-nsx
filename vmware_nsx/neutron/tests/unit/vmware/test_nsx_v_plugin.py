@@ -1136,6 +1136,7 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxVPluginV2TestCase):
     def router(self, name=None, admin_state_up=True,
                fmt=None, tenant_id=_uuid(),
                external_gateway_info=None, set_context=False,
+               no_delete=False,
                **kwargs):
         # avoid name duplication of edge
         if not name:
@@ -1144,7 +1145,8 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxVPluginV2TestCase):
                                    admin_state_up, external_gateway_info,
                                    set_context, **kwargs)
         yield router
-        self._delete('routers', router['router']['id'])
+        if not no_delete:
+            self._delete('routers', router['router']['id'])
 
 
 class TestExclusiveRouterTestCase(L3NatTest,
@@ -1484,6 +1486,53 @@ class TestExclusiveRouterTestCase(L3NatTest,
             self._set_net_external(net_id)
             with self.subnet(network=net, enable_dhcp=False):
                 self._make_floatingip(self.fmt, net_id)
+
+    def test_floatingip_multi_external_one_internal(self):
+        with contextlib.nested(self.subnet(cidr="10.0.0.0/24",
+                                           enable_dhcp=False),
+                               self.subnet(cidr="11.0.0.0/24",
+                                           enable_dhcp=False),
+                               self.subnet(cidr="12.0.0.0/24",
+                                           enable_dhcp=False)
+                               ) as (exs1, exs2, ins1):
+            network_ex_id1 = exs1['subnet']['network_id']
+            network_ex_id2 = exs2['subnet']['network_id']
+            self._set_net_external(network_ex_id1)
+            self._set_net_external(network_ex_id2)
+
+            r2i_fixed_ips = [{'ip_address': '12.0.0.2'}]
+            with contextlib.nested(self.router(no_delete=True),
+                                   self.router(no_delete=True),
+                                   self.port(subnet=ins1,
+                                             fixed_ips=r2i_fixed_ips)
+                                   ) as (r1, r2, r2i_port):
+                self._add_external_gateway_to_router(
+                    r1['router']['id'],
+                    network_ex_id1)
+                self._router_interface_action('add', r1['router']['id'],
+                                              ins1['subnet']['id'],
+                                              None)
+                self._add_external_gateway_to_router(
+                    r2['router']['id'],
+                    network_ex_id2)
+                self._router_interface_action('add', r2['router']['id'],
+                                              None,
+                                              r2i_port['port']['id'])
+
+                with self.port(subnet=ins1,
+                               fixed_ips=[{'ip_address': '12.0.0.3'}]
+                               ) as private_port:
+
+                    fp1 = self._make_floatingip(self.fmt, network_ex_id1,
+                                            private_port['port']['id'],
+                                            floating_ip='10.0.0.3')
+                    fp2 = self._make_floatingip(self.fmt, network_ex_id2,
+                                            private_port['port']['id'],
+                                            floating_ip='11.0.0.3')
+                    self.assertEqual(fp1['floatingip']['router_id'],
+                                     r1['router']['id'])
+                    self.assertEqual(fp2['floatingip']['router_id'],
+                                     r2['router']['id'])
 
 
 class ExtGwModeTestCase(NsxVPluginV2TestCase,
