@@ -655,7 +655,7 @@ class EdgeLbDriver(object):
                     LOG.error(_LE('Failed to update member on edge: %s'),
                               pool_mapping['edge_id'])
 
-        self._lb_driver.member_successful(context, member)
+        self._get_lb_plugin()._delete_db_member(context, member['id'])
 
     def create_pool_health_monitor(self, context, health_monitor, pool_id,
                                    pool_mapping, mon_mappings):
