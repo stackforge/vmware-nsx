@@ -1569,6 +1569,10 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
             with self.subnet(network=net, enable_dhcp=False):
                 self._make_floatingip(self.fmt, net_id)
 
+    def test_router_update_gateway_upon_subnet_create_ipv6(self):
+        self.skipTest("The test create a subnet with DHCP enabled "
+                      "on external network")
+
 
 class ExtGwModeTestCase(NsxVPluginV2TestCase,
                         test_ext_gw_mode.ExtGwModeIntTestCase):
@@ -1771,6 +1775,10 @@ class TestVdrTestCase(L3NatTest, L3NatTestCaseBase,
             self._set_net_external(net_id)
             with self.subnet(network=net, enable_dhcp=False):
                 self._make_floatingip(self.fmt, net_id)
+
+    def test_router_update_gateway_upon_subnet_create_ipv6(self):
+        self.skipTest("The test create a subnet with DHCP enabled "
+                      "on an external network.")
 
 
 class TestNSXvAllowedAddressPairs(test_addr_pair.TestAllowedAddressPairs,
