@@ -930,6 +930,25 @@ class TestPortsV2(NsxVPluginV2TestCase,
         self._test_create_port_with_ipv6_subnet_in_fixed_ips(
             addr_mode=constants.DHCPV6_STATEFUL)
 
+    def test_create_router_port_ipv4_and_ipv6_slaac_no_fixed_ips(self):
+        with self.network() as network:
+            # Create an IPv4 and an IPv6 SLAAC subnet on the network
+            with contextlib.nested(
+                self.subnet(network),
+                self.subnet(network,
+                            cidr='2607:f0d0:1002:51::/64',
+                            ip_version=6,
+                            gateway_ip='fe80::1',
+                            ipv6_address_mode=constants.IPV6_SLAAC)):
+                # Create a router port without specifying fixed_ips
+                port = self._make_port(
+                    self.fmt, network['network']['id'],
+                    device_owner=constants.DEVICE_OWNER_ROUTER_INTF)
+                # Router port should only have an IPv4 address
+                fixed_ips = port['port']['fixed_ips']
+                self.assertEqual(1, len(fixed_ips))
+                self.assertEqual('10.0.0.3', fixed_ips[0]['ip_address'])
+
 
 class TestSubnetsV2(NsxVPluginV2TestCase,
                     test_plugin.TestSubnetsV2):
