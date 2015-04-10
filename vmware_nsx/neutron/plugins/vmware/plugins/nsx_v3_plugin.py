@@ -13,7 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import random
 
+import netaddr
 from oslo_config import cfg
 from oslo_log import log
 from oslo_utils import importutils
@@ -27,11 +29,13 @@ from neutron.extensions import l3
 from neutron.extensions import portbindings as pbin
 
 from neutron.common import constants as const
+from neutron.common import exceptions as ntn_exc
 from neutron.common import rpc as n_rpc
 from neutron.common import topics
 from neutron.db import agents_db
 from neutron.db import agentschedulers_db
 from neutron.db import db_base_plugin_v2
+from neutron.db import external_net_db
 from neutron.db import l3_db
 from neutron.db import models_v2
 from neutron.db import portbindings_db
@@ -39,15 +43,21 @@ from neutron.db import securitygroups_db
 
 from vmware_nsx.neutron.plugins.vmware.common import config  # noqa
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
+from vmware_nsx.neutron.plugins.vmware.common import nsx_constants
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
 from vmware_nsx.neutron.plugins.vmware.nsxlib import v3 as nsxlib
-from vmware_nsx.openstack.common._i18n import _LW
+from vmware_nsx.openstack.common._i18n import _LI, _LW
 
 LOG = log.getLogger(__name__)
 
 
+DEVICE_OWNER_NSX_TIER0_ROUTER = "network:nsx_tier0_router"
+db_base_plugin_v2.AUTO_DELETE_PORT_OWNERS.append(DEVICE_OWNER_NSX_TIER0_ROUTER)
+
+
 class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                   securitygroups_db.SecurityGroupDbMixin,
+                  external_net_db.External_net_db_mixin,
                   l3_db.L3_NAT_dbonly_mixin,
                   portbindings_db.PortBindingMixin,
                   agentschedulers_db.DhcpAgentSchedulerDbMixin):
@@ -61,6 +71,7 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
     supported_extension_aliases = ["quotas",
                                    "binding",
                                    "security-group",
+                                   "external-net",
                                    "router"]
 
     def __init__(self):
@@ -91,15 +102,77 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         self.supported_extension_aliases.extend(
             ['agent', 'dhcp_agent_scheduler'])
 
-    def create_network(self, context, network):
-        result = nsxlib.create_logical_switch(
+    def _nsx_create_network(self, network):
+        return nsxlib.create_logical_switch(
             network['network']['name'],
             cfg.CONF.default_tz_uuid)
+
+    def _nsx_setup_external_network(self, context, subnet):
+        # Create a tier0 router
+        lr = nsxlib.create_logical_router(
+            'tier0_rtr_%s' % subnet.get('name', subnet['id']),
+            cfg.CONF.nsx_v3.default_edge_cluster_uuid,
+            tier_0=True)
+        # Add a logical router port on the transit network
+        # NOTE(salv-orlando): I do not know if this is really needed
+        transit_net = netaddr.IPNetwork(
+            cfg.CONF.nsx_v3.external_transit_network)
+        transit_range = netaddr.IPRange(
+            transit_net.first + 1, transit_net.last - 1)
+        random.seed()
+        ip = transit_range[random.randint(0, len(transit_range))]
+        nsxlib.create_logical_router_port(
+            lr['id'], None, nsx_constants.LROUTERPORT_LINK,
+            transit_net.prefixlen, ip)
+        # Create an uplink port on the tier0 router
+        port_info = {'network_id': subnet['network_id'],
+                     'admin_state_up': True,
+                     'device_id': 'meh',
+                     'mac_address': attributes.ATTR_NOT_SPECIFIED,
+                     'name': 'uplink_%s' % subnet.get('name', subnet['id']),
+                     'device_owner': DEVICE_OWNER_NSX_TIER0_ROUTER,
+                     'fixed_ips': [{'subnet_id': subnet['id']}]}
+        neutron_gw_port = self.create_port(
+            context, {'port': port_info})
+        port_id = neutron_gw_port['id']
+        _ls_id, lp_id = nsx_db.get_nsx_switch_and_port_id(
+            context.session, port_id)
+        port_ip = neutron_gw_port['fixed_ips'][0]['ip_address']
+        # FIXME(salv-orlando): cidr_length = 24 is just a hack!
+        nsxlib.create_logical_router_port(
+            lr['id'], lp_id,
+            resource_type=nsx_constants.LROUTERPORT_UPLINK,
+            cidr_length=24,
+            ip_address=port_ip)
+        nsx_db.add_neutron_nsx_subnet_mapping(context.session,
+                                              subnet['id'], lr['id'])
+
+    def _nsx_teardown_external_network(self, context, subnet_id,
+                                       nsx_tier0_router_id):
+        # FIXME(salv-orlando): This operation currently leaves a dangling port
+        # on the external logical switch (but possibly we don't care about it
+        # as we are going to get rid of said logical switch)
+        if not nsx_tier0_router_id:
+            LOG.info(_LI("Tier0 router for subnet %s not found"), subnet_id)
+            return
+        # Remove all logical ports for said router
+        # This should be safe... hopefullyi!
+        lr_ports = nsxlib.get_logical_router_ports(nsx_tier0_router_id)
+        for lr_port in lr_ports:
+            nsxlib.delete_logical_router_port(lr_port['id'])
+        # And finally teardown the tier-0 router
+        nsxlib.delete_logical_router(nsx_tier0_router_id)
+
+    def create_network(self, context, network):
+        result = self._nsx_create_network(network)
+        net_data = network['network']
         network['network']['id'] = result['id']
-        network = super(NsxV3Plugin, self).create_network(context,
-                                                          network)
+        with context.session.begin():
+            new_network = super(NsxV3Plugin, self).create_network(context,
+                                                                  network)
+            self._process_l3_create(context, new_network, net_data)
         # TODO(salv-orlando): Undo logical switch creation on failure
-        return network
+        return new_network
 
     def delete_network(self, context, network_id):
         # First call DB operation for delete network as it will perform
@@ -116,6 +189,35 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         return super(NsxV3Plugin, self).update_network(context, id,
                                                        network)
 
+    def create_subnet(self, context, subnet):
+        subnet = super(NsxV3Plugin, self).create_subnet(context, subnet)
+        # TODO(salv-orlando): Perform error handling for external network
+        # configuration
+        if self._network_is_external(context, subnet['network_id']):
+            # Configure external network for routing
+            self._nsx_setup_external_network(context, subnet)
+
+        return subnet
+
+    def delete_subnet(self, context, subnet_id):
+        # TODO(salv-orlando): Perform error handling for external network
+        # configuration
+        # It's a bit boring having to perform 2 db operations for knowing if
+        # if a subnet is on an external network. We might as well just always
+        # try and find a tier0 router associated with it and do nothing if
+        # the router is not found
+        subnet = self._get_subnet(context, subnet_id)
+        is_subnet_external = self._network_is_external(context,
+                                                       subnet['network_id'])
+        if is_subnet_external:
+            nsx_tier0_router_id = nsx_db.get_nsx_tier0_router_id(
+                context.session, subnet_id)
+        ret_val = super(NsxV3Plugin, self).delete_subnet(context, subnet_id)
+        if is_subnet_external:
+            self._nsx_teardown_external_network(context, subnet_id,
+                                                nsx_tier0_router_id)
+        return ret_val
+
     def create_port(self, context, port):
         # NOTE(salv-orlando): This method currently first performs the backend
         # operation. However it is important to note that this workflow might
@@ -129,12 +231,12 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         # TODO(salv-orlando): Undo logical switch creation on failure
         with context.session.begin():
             neutron_db = super(NsxV3Plugin, self).create_port(context, port)
-            port["port"].update(neutron_db)
+            port['port'].update(neutron_db)
             # TODO(salv-orlando): The logical switch identifier in the mapping
             # object is not necessary anymore.
             nsx_db.add_neutron_nsx_port_mapping(
                 context.session, neutron_db['id'],
-                neutron_db['network_id'], result['id'])
+                port['port']['network_id'], result['id'])
             self._process_portbindings_create_and_update(context,
                                                          port['port'],
                                                          neutron_db)
@@ -198,8 +300,51 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         return ret_val
 
     def update_router(self, context, router_id, router):
-        # TODO(arosen) - call to backend
-        return super(NsxV3Plugin, self).update_router(context, id,
+        router_data = router['router']
+        gw_info = router_data.get('external_gateway_info')
+        if gw_info:
+            # The following DB read will be performed again when updating
+            # gateway info. This is not great, but still better than
+            # creating NSX router here and updating it later
+            network_id = gw_info.get('network_id')
+            if network_id:
+                ext_net = self._get_network(context, network_id)
+                if not ext_net.external:
+                    msg = (_("Network '%s' is not a valid external "
+                             "network") % network_id)
+                    raise ntn_exc.BadRequest(resource='router', msg=msg)
+                if ext_net.subnets:
+                    ext_subnet = ext_net.subnets[0]
+            # Find tier-0 router for ext_subnet
+            nsx_tier0_router_id = nsx_db.get_nsx_tier0_router_id(
+                context.session, ext_subnet['id'])
+            if nsx_tier0_router_id:
+                pass
+            else:
+                # We should probably raise here.
+                LOG.warning(_LW("Unable to find tier0 router for subnet %s."
+                                "Gateway settings will not work."),
+                            ext_subnet['id'])
+            nsx_router_id = nsx_db.get_nsx_router_id(context.session,
+                                                     router_id)
+            # FIXME(salv-orlando): These IP addresses should not be random of
+            # course. We need an IPAM engine, hopefully Neutron will offer one
+            # soon.
+            # Create a link port between tier-1 router for router_id and
+            # tier-0 router
+            transit_net = netaddr.IPNetwork(
+                cfg.CONF.nsx_v3.external_transit_network)
+            transit_range = netaddr.IPRange(
+                transit_net.first + 1, transit_net.last - 1)
+            random.seed()
+            ip = transit_range[random.randint(0, len(transit_range))]
+            nsxlib.create_logical_router_port(
+                nsx_router_id,
+                None,
+                nsx_constants.LROUTERPORT_LINK,
+                transit_net.prefixlen, ip)
+
+        return super(NsxV3Plugin, self).update_router(context, router_id,
                                                       router)
 
     def add_router_interface(self, context, router_id, interface_info):
@@ -221,7 +366,7 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         result = nsxlib.create_logical_router_port(
             logical_router_id=nsx_router_id,
             logical_switch_port_id=nsx_port_id,
-            resource_type="LogicalRouterUpLinkPort",
+            resource_type=nsx_constants.LROUTERPORT_UPLINK,
             cidr_length=24, ip_address=subnet['gateway_ip'])
         interface_info['port_id'] = port['id']
         del interface_info['subnet_id']

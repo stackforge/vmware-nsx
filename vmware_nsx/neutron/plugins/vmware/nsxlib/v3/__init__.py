@@ -142,6 +142,9 @@ def create_logical_router(display_name, edge_cluster_uuid, tier_0=False):
     body = {'edge_cluster_id': edge_cluster_uuid,
             'display_name': display_name,
             'router_type': router_type}
+    if tier_0:
+        body['config'] = {'external_transit_networks':
+                          [cfg.CONF.nsx_v3.external_transit_network]}
     # TODO(salv-orlando): Must handle connection exceptions
     result = requests.post(url, auth=auth.HTTPBasicAuth(user, password),
                            verify=False, headers=headers,
@@ -178,8 +181,18 @@ def delete_logical_router(lrouter_id):
                       "deleting logical router"))
 
 
+def get_logical_router_ports(logical_router_id):
+    controller, user, password = _get_controller_endpoint()
+    url = ("%s/api/v1/logical-router-ports?logical_router_id=%s" %
+           (controller, logical_router_id))
+    headers = {'Content-Type': 'application/json'}
+    result = requests.get(url, auth=auth.HTTPBasicAuth(user, password),
+                          verify=False, headers=headers)
+    return result.json()['results']
+
+
 def create_logical_router_port(logical_router_id,
-                               logical_switch_port_id,
+                               linked_logical_port_id,
                                resource_type,
                                cidr_length,
                                ip_address):
@@ -190,9 +203,13 @@ def create_logical_router_port(logical_router_id,
             'edge_cluster_member_index': [0],
             'logical_router_id': logical_router_id,
             'subnets': [{"prefix_length": cidr_length,
-                         "ip_addresses": [ip_address]}],
-            'linked_logical_switch_port_id': logical_switch_port_id}
-
+                         "ip_addresses": [ip_address]}]}
+    if linked_logical_port_id:
+        if resource_type in (nsx_constants.LROUTERPORT_UPLINK,
+                             nsx_constants.LROUTERPORT_DOWNLINK):
+            body['linked_logical_switch_port_id'] = linked_logical_port_id
+        elif resource_type == nsx_constants.LROUTERPORT_LINK:
+            body['linked_logical_router_port_id'] = linked_logical_port_id
     result = requests.post(url, auth=auth.HTTPBasicAuth(user, password),
                            verify=False, headers=headers,
                            data=jsonutils.dumps(body))
