@@ -48,7 +48,7 @@ def delete_network_bindings(session, network_id):
 def add_network_binding(session, network_id, binding_type, phy_uuid, vlan_id):
     with session.begin(subtransactions=True):
         binding = nsx_models.TzNetworkBinding(network_id, binding_type,
-                                          phy_uuid, vlan_id)
+                                              phy_uuid, vlan_id)
         session.add(binding)
     return binding
 
@@ -57,6 +57,18 @@ def add_neutron_nsx_network_mapping(session, neutron_id, nsx_switch_id):
     with session.begin(subtransactions=True):
         mapping = nsx_models.NeutronNsxNetworkMapping(
             neutron_id=neutron_id, nsx_id=nsx_switch_id)
+        session.add(mapping)
+        return mapping
+
+
+def add_neutron_nsx_subnet_mapping(session, neutron_id, nsx_tier0_rtr_id):
+    """Map a neutron subnet to a NSX tier-0 router.
+
+    This should be invoked only for subnets on external networks.
+    """
+    with session.begin(subtransactions=True):
+        mapping = nsx_models.NeutronNsxSubnetMapping(
+            neutron_id=neutron_id, nsx_id=nsx_tier0_rtr_id)
         session.add(mapping)
         return mapping
 
@@ -130,6 +142,17 @@ def get_nsx_switch_and_port_id(session, neutron_id):
         return None, None
 
 
+def get_nsx_tier0_router_id(session, neutron_id):
+    """Retrieve a mapping between a neutron subnet and a tier-0 router."""
+    try:
+        mapping = (session.query(nsx_models.NeutronNsxSubnetMapping).
+                   filter_by(neutron_id=neutron_id).one())
+        return mapping['nsx_id']
+    except exc.NoResultFound:
+        LOG.debug("NSX identifiers for neutron subnet %s not yet "
+                  "stored in Neutron DB", neutron_id)
+
+
 def get_nsx_router_id(session, neutron_id):
     try:
         mapping = (session.query(nsx_models.NeutronNsxRouterMapping).
@@ -158,6 +181,11 @@ def get_nsx_security_group_id(session, neutron_id):
 
 def _delete_by_neutron_id(session, model, neutron_id):
     return session.query(model).filter_by(neutron_id=neutron_id).delete()
+
+
+def delete_neutron_nsx_subnet_mapping(session, neutron_id):
+    return _delete_by_neutron_id(
+        session, nsx_models.NeutronNsxSubnetMapping, neutron_id)
 
 
 def delete_neutron_nsx_port_mapping(session, neutron_id):

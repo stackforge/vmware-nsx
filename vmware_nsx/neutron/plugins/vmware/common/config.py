@@ -158,6 +158,10 @@ cluster_opts = [
 ]
 
 nsx_v3_opts = [
+    cfg.StrOpt('external_transit_network',
+               help=_('Link local IPv4 network for connecting NSX tier-1 and '
+                      'tier-0 routers'),
+               default='169.254.128.0/17'),
     cfg.StrOpt('default_edge_cluster_uuid',
                help=_("Default edge cluster identifier"))]
 
