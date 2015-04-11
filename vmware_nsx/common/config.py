@@ -396,6 +396,14 @@ nsxv_opts = [
                 help=_('List of nameservers to configure for the DHCP binding '
                        'entries. These will be used if there are no '
                        'nameservers defined on the subnet.')),
+    cfg.BoolOpt('log_security_groups_blocked_traffic',
+                default=False,
+                help=_("Indicates whether distributed-firewall rule for "
+                       "security-groups blocked traffic is logged")),
+    cfg.BoolOpt('log_security_groups_allowed_traffic',
+                default=False,
+                help=_("Indicates whether distributed-firewall "
+                       "security-groups rules are logged")),
 ]
 
 # Register the configuration options
