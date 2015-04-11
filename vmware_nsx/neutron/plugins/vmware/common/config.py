@@ -250,7 +250,11 @@ nsxv_opts = [
     cfg.ListOpt('tenant_router_types',
                 default=['shared', 'distributed', 'exclusive'],
                 help=_("Ordered list of router_types to allocate as tenant "
-                       "routers."))
+                       "routers.")),
+    cfg.BoolOpt('log_security_groups_blocked_traffic',
+                default=False,
+                help=_("Indicates whether distributed-firewall rule for "
+                       "security-groups blocked traffic is logged")),
 ]
 
 # Register the configuration options
