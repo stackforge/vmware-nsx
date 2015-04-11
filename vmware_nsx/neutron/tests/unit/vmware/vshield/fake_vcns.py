@@ -941,7 +941,7 @@ class FakeVcns(object):
         else:
             section_rules = (''.join(self._sections[section_id]['rules'].
                              values()))
-            response = ('<section id="%s"><rules>%s</rules></section>'
+            response = ('<section id="%s">%s</section>'
                         % (section_id, section_rules))
             headers = {'status': 200,
                        'etag': self._sections[section_id]['etag']}
