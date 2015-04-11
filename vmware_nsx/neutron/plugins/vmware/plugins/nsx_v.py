@@ -206,7 +206,8 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 rule_list.append(rule_config)
 
         block_rule = self.nsx_sg_utils.get_rule_config(
-            self.sg_container_id, 'Block All', 'deny')
+            self.sg_container_id, 'Block All', 'deny',
+            logged=cfg.CONF.nsxv.log_security_groups_blocked_traffic)
         rule_list.append(block_rule)
 
         if rule_list:
@@ -1560,8 +1561,12 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             h, nsx_sg_id = self.nsx_v.vcns.create_security_group(sg_dict)
 
             section_name = self.nsx_sg_utils.get_nsx_section_name(nsx_sg_name)
-            nsx_rules = [self._create_nsx_rule(context, rule, nsx_sg_id) for
-                         rule in new_security_group['security_group_rules']]
+            logged = sg_data.get('logged', False)
+            nsx_rules = []
+            for rule in new_security_group['security_group_rules']:
+                nsx_rule = self._create_nsx_rule(
+                    context, rule, nsx_sg_id, logged=logged)
+                nsx_rules.append(nsx_rule)
             section = self.nsx_sg_utils.get_section_with_rules(
                 section_name, nsx_rules)
 
@@ -1605,15 +1610,31 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         section_uri = self._get_section_uri(context.session, id)
         h, c = self.nsx_v.vcns.get_section(section_uri)
         section = self.nsx_sg_utils.parse_section(c)
+        section_needs_update = False
+
+        logged = self.nsx_sg_utils.is_section_logged(section)
 
         sg_data = super(NsxVPluginV2, self).update_security_group(
             context, id, security_group)
+
+        sg_data['logged'] = logged
+
+        # Reflect security-group name or description changes in the backend,
+        # dfw section name needs to be updated as well.
         if set(['name', 'description']) & set(s.keys()):
             nsx_sg_name = self.nsx_sg_utils.get_nsx_sg_name(sg_data)
+            section_name = self.nsx_sg_utils.get_nsx_section_name(nsx_sg_name)
             self.nsx_v.vcns.update_security_group(
                 nsx_sg_id, nsx_sg_name, sg_data['description'])
-            section_name = self.nsx_sg_utils.get_nsx_section_name(nsx_sg_name)
             section.attrib['name'] = section_name
+            section_needs_update = True
+        # If the security-groups rules logging option is change, make the
+        # proper section update in the backend.
+        if s.get('logged', logged) != logged:
+            self.nsx_sg_utils.mark_section_rules_as_logged(
+                section, s['logged'])
+            section_needs_update = True
+        if section_needs_update:
             self.nsx_v.vcns.update_section(
                 section_uri, self.nsx_sg_utils.to_xml_string(section), h)
         return sg_data
@@ -1640,7 +1661,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             with excutils.save_and_reraise_exception():
                 LOG.exception(_("Failed to delete security group"))
 
-    def _create_nsx_rule(self, context, rule, nsx_sg_id=None):
+    def _create_nsx_rule(self, context, rule, nsx_sg_id=None, logged=False):
         src = None
         dest = None
         port = None
@@ -1693,7 +1714,8 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             source=src,
             destination=dest,
             services=services,
-            flags=flags)
+            flags=flags,
+            logged=logged)
         return nsx_rule
 
     def create_security_group_rule(self, context, security_group_rule):
@@ -1710,19 +1732,23 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         nsx_rules = []
 
         self._validate_security_group_rules(context, security_group_rule)
+
+        # Fetching the the dfw section associated with the security-group
+        section_uri = self._get_section_uri(
+            context.session, rule['security_group_id'])
+        _h, _c = self.nsx_v.vcns.get_section(section_uri)
+        section = self.nsx_sg_utils.parse_section(_c)
+        # TBD: querying db the specific configuration for this security group.
+        logged = self.nsx_sg_utils.is_section_logged(section)
+
         # Translating Neutron rules to Nsx DFW rules
         for r in security_group_rule['security_group_rules']:
             rule = r['security_group_rule']
             rule['id'] = uuidutils.generate_uuid()
             ruleids.add(rule['id'])
-            nsx_rules.append(self._create_nsx_rule(context, rule))
+            nsx_rules.append(self._create_nsx_rule(
+                context, rule, logged=logged))
 
-        # Find section uri for the security group, retrieve it and update with
-        # the new rules
-        section_uri = self._get_section_uri(
-            context.session, rule['security_group_id'])
-        _h, _c = self.nsx_v.vcns.get_section(section_uri)
-        section = self.nsx_sg_utils.parse_section(_c)
         self.nsx_sg_utils.extend_section_with_rules(section, nsx_rules)
         h, c = self.nsx_v.vcns.update_section(
             section_uri, self.nsx_sg_utils.to_xml_string(section), _h)

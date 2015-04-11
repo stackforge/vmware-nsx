@@ -56,9 +56,10 @@ class NsxSecurityGroupUtils(object):
     def get_rule_config(self, applied_to_id, name, action='allow',
                         applied_to='SecurityGroup',
                         source=None, destination=None, services=None,
-                        flags=None):
+                        flags=None, logged=False):
         """Helper method to create a nsx rule dict."""
         ruleTag = et.Element('rule')
+        ruleTag.attrib['logged'] = 'true' if logged else 'false'
         nameTag = et.SubElement(ruleTag, 'name')
         nameTag.text = name
         actionTag = et.SubElement(ruleTag, 'action')
@@ -139,3 +140,11 @@ class NsxSecurityGroupUtils(object):
 
     def get_nsx_section_name(self, nsx_sg_name):
         return 'SG Section: %s' % nsx_sg_name
+
+    def is_section_logged(self, section):
+        logged = section.find('rule').attrib.get('logged', 'false')
+        return logged == 'true'
+
+    def mark_section_rules_as_logged(self, section, logged):
+        for rule in section.findall('rule'):
+            rule.attrib['logged'] = 'true' if logged else 'false'
