@@ -131,7 +131,7 @@ def delete_logical_port(logical_port_id):
                       "deleting logical port"))
 
 
-def create_logical_router(display_name, edge_cluster_uuid, tier_0=False):
+def create_logical_router(display_name, edge_cluster_uuid=None, tier_0=False):
     # TODO(salv-orlando): If possible do not manage edge clusters in the main
     # plugin logic.
     router_type = (nsx_constants.ROUTER_TYPE_TIER0 if tier_0 else
@@ -139,9 +139,12 @@ def create_logical_router(display_name, edge_cluster_uuid, tier_0=False):
     controller, user, password = _get_controller_endpoint()
     url = controller + "/api/v1/logical-routers"
     headers = {'Content-Type': 'application/json'}
-    body = {'edge_cluster_id': edge_cluster_uuid,
-            'display_name': display_name,
+    body = {'display_name': display_name,
             'router_type': router_type}
+    # TODO(salv-orlando): raise if tier_0 but no edge_cluster_uuid was
+    # specified
+    if edge_cluster_uuid:
+        body['edge_cluster_id'] = edge_cluster_uuid
     if tier_0:
         body['config'] = {'external_transit_networks':
                           [cfg.CONF.nsx_v3.external_transit_network]}
@@ -152,8 +155,10 @@ def create_logical_router(display_name, edge_cluster_uuid, tier_0=False):
     if result.status_code != requests.codes.created:
         # Do not reveal internal details in the exception message, as it will
         # be user-visible
-        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
-                        "201 response code was expected"), result.status_code)
+        LOG.warning(_LW("The HTTP request returned error code %(code)d, "
+                        "whereas a 201 response code was expected. "
+                        "Error message: %(reason)s"),
+                    {'code': result.status_code, 'reason': result.text})
         raise nsx_exc.NsxPluginException(
             err_msg=_("Unexpected error in backend while "
                       "creating logical router"))
@@ -217,8 +222,10 @@ def create_logical_router_port(logical_router_id,
     if result.status_code != requests.codes.created:
         # Do not reveal internal details in the exception message, as it will
         # be user-visible
-        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
-                        "201 response code was expected"), result.status_code)
+        LOG.warning(_LW("The HTTP request returned error code %(code)d, "
+                        "whereas a 201 response code was expected. "
+                        "Error message: %(reason)s"),
+                    {'code': result.status_code, 'reason': result.text})
         raise nsx_exc.NsxPluginException(
             err_msg=_("Unexpected error in backend while "
                       "creating logical router port"))
