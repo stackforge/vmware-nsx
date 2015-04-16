@@ -231,7 +231,6 @@ class TestPortsV2(NsxPluginV2TestCase,
                     self.assertEqual(webob.exc.HTTPServiceUnavailable.code,
                                      res.status_int)
 
-
 class TestNetworksV2(test_plugin.TestNetworksV2, NsxPluginV2TestCase):
 
     def test_create_network_vlan_transparent(self):
