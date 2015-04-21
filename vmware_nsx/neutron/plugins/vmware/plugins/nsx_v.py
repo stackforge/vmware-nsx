@@ -1183,7 +1183,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
 
     def _extract_external_gw(self, context, router, is_extract=True):
         r = router['router']
-        gw_info = attr.ATTR_NOT_SPECIFIED
+        gw_info = None
         # First extract the gateway info in case of updating
         # gateway before edge is deployed.
         if 'external_gateway_info' in r:

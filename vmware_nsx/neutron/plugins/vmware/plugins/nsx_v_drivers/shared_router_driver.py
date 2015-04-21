@@ -55,7 +55,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                 super(nsx_v.NsxVPluginV2, self.plugin).update_router(
                     context, router_id, router)
             # here is used to handle routes which tenant updates.
-            if gw_info != attr.ATTR_NOT_SPECIFIED:
+            if gw_info is not None or gw_info != attr.ATTR_NOT_SPECIFIED:
                 self._update_router_gw_info(context, router_id, gw_info)
             else:
                 with lockutils.lock(str(edge_id),
