@@ -26,6 +26,7 @@ from oslo_config import cfg
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
 from oslo_utils import excutils
+from oslo_utils import uuidutils
 
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsxv_exc
 from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
@@ -62,11 +63,14 @@ class NsxVMetadataProxyHandler:
         self.proxy_edge_ips = self._get_proxy_edges()
 
     def _create_metadata_internal_network(self, cidr):
+        # Neutron requires a network to have some tenant_id
+        tenant_id = uuidutils.generate_uuid()
+
         net_data = {'network': {'name': 'inter-edge-net',
                                 'admin_state_up': True,
                                 'port_security_enabled': False,
                                 'shared': False,
-                                'tenant_id': None}}
+                                'tenant_id': tenant_id}}
         net = self.nsxv_plugin.create_network(self.context, net_data)
 
         subnet_data = {'subnet':
@@ -79,7 +83,7 @@ class NsxVMetadataProxyHandler:
                         'host_routes': attr.ATTR_NOT_SPECIFIED,
                         'enable_dhcp': False,
                         'network_id': net['id'],
-                        'tenant_id': None}}
+                        'tenant_id': tenant_id}}
 
         subnet = self.nsxv_plugin.create_subnet(
             self.context,
