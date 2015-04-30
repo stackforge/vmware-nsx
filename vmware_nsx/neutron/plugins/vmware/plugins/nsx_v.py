@@ -152,7 +152,13 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                            "managed by Neutron nsx-v plugin.")
             container = {"securitygroup": {"name": name,
                                            "description": description}}
-            h, container_id = self.nsx_v.vcns.create_security_group(container)
+            try:
+                h, container_id = (
+                    self.nsx_v.vcns.create_security_group(container))
+            except vsh_exc.RequestBad as e:
+                container_id = self.nsx_v.vcns.get_security_group_id(name)
+                LOG.debug("Security group container already exists (%s): %s",
+                          container_id, e.response)
         return container_id
 
     def _find_router_driver(self, context, router_id):
@@ -215,11 +221,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             section_id = self.nsx_v.vcns.get_section_id(section_name)
             section = self.nsx_sg_utils.get_section_with_rules(
                 section_name, rule_list)
-            if section_id:
-                section.attrib['id'] = section_id
-                self.nsx_v.vcns.update_section_by_id(
-                    section_id, 'ip', self.nsx_sg_utils.to_xml_string(section))
-            else:
+            if not section_id:
                 try:
                     self.nsx_v.vcns.create_section(
                         'ip', self.nsx_sg_utils.to_xml_string(section))
