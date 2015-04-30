@@ -72,7 +72,7 @@ def create_logical_switch(display_name, transport_zone_id,
 
 def delete_logical_switch(lswitch_id):
     controller, user, password = _get_controller_endpoint()
-    url = controller + "/api/v1/logical-switches/%s/" % lswitch_id
+    url = controller + "/api/v1/logical-switches/%s?detach=true&cascade=true" % lswitch_id
     headers = {'Content-Type': 'application/json'}
     result = requests.delete(url, auth=auth.HTTPBasicAuth(user, password),
                              verify=False, headers=headers)
