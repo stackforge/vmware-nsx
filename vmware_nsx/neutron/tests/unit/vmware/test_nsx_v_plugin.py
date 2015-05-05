@@ -31,6 +31,7 @@ from neutron.extensions import dvr as dist_router
 from neutron.extensions import external_net
 from neutron.extensions import l3
 from neutron.extensions import l3_ext_gw_mode
+from neutron.extensions import extraroute
 from neutron.extensions import portbindings
 from neutron.extensions import portsecurity as psec
 from neutron.extensions import providernet as pnet
@@ -47,6 +48,7 @@ import neutron.tests.unit.extensions.test_l3 as test_l3_plugin
 import neutron.tests.unit.extensions.test_l3_ext_gw_mode as test_ext_gw_mode
 import neutron.tests.unit.extensions.test_portsecurity as test_psec
 import neutron.tests.unit.extensions.test_securitygroup as ext_sg
+import neutron.tests.unit.extensions.test_extraroute as test_ext_route
 from neutron.tests.unit import testlib_api
 
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
@@ -1085,6 +1087,8 @@ class TestL3ExtensionManager(object):
                 dist_router.EXTENDED_ATTRIBUTES_2_0.get(key, {}))
             l3.RESOURCE_ATTRIBUTE_MAP[key].update(
                 router_type.EXTENDED_ATTRIBUTES_2_0.get(key, {}))
+            l3.RESOURCE_ATTRIBUTE_MAP[key].update(
+                extraroute.EXTENDED_ATTRIBUTES_2_0.get(key, {}))
         # Finally add l3 resources to the global attribute map
         attributes.RESOURCE_ATTRIBUTE_MAP.update(
             l3.RESOURCE_ATTRIBUTE_MAP)
@@ -1198,6 +1202,62 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxVPluginV2TestCase):
                                    set_context, **kwargs)
         yield router
 
+    @contextlib.contextmanager
+    def subnet(self, network=None,
+               gateway_ip=attributes.ATTR_NOT_SPECIFIED,
+               cidr='10.0.0.0/24',
+               fmt=None,
+               ip_version=4,
+               allocation_pools=None,
+               enable_dhcp=None,
+               dns_nameservers=None,
+               host_routes=None,
+               shared=None,
+               ipv6_ra_mode=None,
+               ipv6_address_mode=None):
+        # Disable dhcp in case of dhcp port mixing unit test case.
+        if enable_dhcp is None:
+            if ipv6_ra_mode is None and ipv6_address_mode is None:
+                enable_dhcp = False
+            else:
+                enable_dhcp = True
+        with test_plugin.optional_ctx(network, self.network) as network_to_use:
+            subnet = self._make_subnet(fmt or self.fmt,
+                                       network_to_use,
+                                       gateway_ip,
+                                       cidr,
+                                       allocation_pools,
+                                       ip_version,
+                                       enable_dhcp,
+                                       dns_nameservers,
+                                       host_routes,
+                                       shared=shared,
+                                       ipv6_ra_mode=ipv6_ra_mode,
+                                       ipv6_address_mode=ipv6_address_mode)
+            yield subnet
+
+    def _routes_update_prepare(self, router_id, subnet_id,
+                               port_id, routes, skip_add=False,
+                               tenant_id=None):
+        if not skip_add:
+            self._router_interface_action('add', router_id, subnet_id, port_id,
+                                          tenant_id=tenant_id)
+        neutron_context = (context.Context('', tenant_id)
+                           if tenant_id is not None else None)
+        self._update('routers', router_id, {'router': {'routes': routes}},
+                     neutron_context=neutron_context)
+        return self._show('routers', router_id,
+                          neutron_context=neutron_context)
+
+    def _routes_update_cleanup(self, port_id, subnet_id, router_id, routes,
+                               tenant_id=None):
+        neutron_context = (context.Context('', tenant_id)
+                           if tenant_id is not None else None)
+        self._update('routers', router_id, {'router': {'routes': routes}},
+                     neutron_context=neutron_context)
+        self._router_interface_action('remove', router_id, subnet_id, port_id,
+                                      tenant_id=tenant_id)
+
     def _recursive_sort_list(self, lst):
         sorted_list = []
         for ele in lst:
@@ -1227,7 +1287,8 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxVPluginV2TestCase):
                                          'enable_snat': enable_snat}}})
 
 
-class L3NatTestCaseBase(test_l3_plugin.L3NatTestCaseMixin):
+class L3NatTestCaseBase(test_l3_plugin.L3NatTestCaseMixin,
+                        test_ext_route.ExtraRouteDBTestCaseBase):
 
     def test_floatingip_multi_external_one_internal(self):
         with contextlib.nested(self.subnet(cidr="10.0.0.0/24",
@@ -1382,6 +1443,40 @@ class L3NatTestCaseBase(test_l3_plugin.L3NatTestCaseMixin):
                 self._remove_external_gateway_from_router(
                     r1['router']['id'],
                     ext_subnet['subnet']['network_id'])
+
+    @mock.patch.object(edge_utils, "update_routes")
+    def test_route_update_with_multi_routes(self, mock):
+        routes = [{'destination': '135.207.0.0/16',
+                   'nexthop': '10.0.1.3'},
+                  {'destination': '12.0.0.0/8',
+                   'nexthop': '10.0.1.4'},
+                  {'destination': '141.212.0.0/16',
+                   'nexthop': '10.0.1.5'}]
+        with self.router() as r:
+            with self.subnet(cidr='10.0.1.0/24') as s:
+                with self.port(subnet=s) as p:
+                    body = self._routes_update_prepare(r['router']['id'],
+                                                       None, p['port']['id'],
+                                                       routes)
+                    self.assertEqual(sorted(body['router']['routes']),
+                                     sorted(routes))
+                    network_id = s['subnet']['network_id']
+                    exp_routes = [{'destination': '135.207.0.0/16',
+                                   'network_id': network_id,
+                                   'nexthop': '10.0.1.3'},
+                                  {'destination': '12.0.0.0/8',
+                                   'network_id': network_id,
+                                   'nexthop': '10.0.1.4'},
+                                  {'destination': '141.212.0.0/16',
+                                   'network_id': network_id,
+                                   'nexthop': '10.0.1.5'}]
+                    routes = mock.call_args
+                    self.assertEqual(self._recursive_sort_list(routes[0][3]),
+                                     self._recursive_sort_list(exp_routes))
+                    self._routes_update_cleanup(p['port']['id'],
+                                                None, r['router']['id'], [])
+                    routes = mock.call_args
+                    self.assertEqual(routes[0][3], [])
 
 
 class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
@@ -2676,3 +2771,115 @@ class TestSharedRouterTestCase(L3NatTest, L3NatTestCaseBase,
                             context.get_admin_context(), r1['router']['id']))
                     self.assertIn(r2['router']['id'], conflict_router_ids)
                     self.assertEqual(0, len(available_router_ids))
+=======
+    @mock.patch.object(edge_utils, 'update_routes')
+    def test_routes_update_for_multiple_routers(self, mock):
+        routes1 = [{'destination': '135.207.0.0/16',
+                   'nexthop': '10.0.0.3'}]
+        routes2 = [{'destination': '12.0.0.0/8',
+                   'nexthop': '11.0.0.3'}]
+        with contextlib.nested(
+                self.router(),
+                self.router(),
+                self.subnet(cidr='1.0.0.0/24'),
+                self.subnet(cidr='10.0.0.0/24'),
+                self.subnet(cidr='11.0.0.0/24'),
+                ) as (r1, r2, ext_s, s1, s2):
+            self._set_net_external(ext_s['subnet']['network_id'])
+            self._add_external_gateway_to_router(r1['router']['id'],
+                                                 ext_s['subnet']['network_id'])
+            with contextlib.nested(
+                    self.port(subnet=s1),
+                    self.port(subnet=s2)) as (p1, p2):
+                body = self._routes_update_prepare(r1['router']['id'],
+                                                   None, p1['port']['id'],
+                                                   routes1)
+                exp_routes = []
+                exp_routes = [{'destination': '135.207.0.0/16',
+                               'nexthop': '10.0.0.3'}]
+                exp_routes[0]['network_id'] = s1['subnet']['network_id']
+                routes = mock.call_args
+                self.assertEqual(self._recursive_sort_list(routes[0][3]),
+                                 self._recursive_sort_list(exp_routes))
+                self.assertEqual(body['router']['routes'], routes1)
+
+                mock.reset_mock()
+                self._router_interface_action('add', r2['router']['id'],
+                                              None, p2['port']['id'])
+                routes = mock.call_args
+                self.assertEqual(self._recursive_sort_list(routes[0][3]),
+                                 self._recursive_sort_list(exp_routes))
+
+                mock.reset_mock()
+                self._update('routers', r2['router']['id'],
+                            {'router': {'routes': routes2}})
+                routes = mock.call_args
+                exp_routes.append({'destination': '12.0.0.0/8',
+                                   'nexthop': '11.0.0.3',
+                                   'network_id': s2['subnet']['network_id']})
+                self.assertEqual(self._recursive_sort_list(routes[0][3]),
+                                 self._recursive_sort_list(exp_routes))
+                self._routes_update_cleanup(p1['port']['id'],
+                                            None, r1['router']['id'], [])
+                self._routes_update_cleanup(p2['port']['id'],
+                                            None, r2['router']['id'], [])
+            self._remove_external_gateway_from_router(
+                r1['router']['id'], ext_s['subnet']['network_id'])
+
+    @mock.patch.object(edge_utils, 'update_routes')
+    def test_routes_update_for_multiple_routers_with_tenants(self, mock):
+        routes1 = [{'destination': '135.207.0.0/16',
+                   'nexthop': '10.0.0.3'}]
+        routes2 = [{'destination': '12.0.0.0/8',
+                   'nexthop': '11.0.0.3'}]
+        with contextlib.nested(
+                self.router(),
+                self.router(tenant_id='noadmin'),
+                self.subnet(cidr='1.0.0.0/24'),
+                self.subnet(cidr='10.0.0.0/24'),
+                self.subnet(cidr='11.0.0.0/24', tenant_id='noadmin'),
+                ) as (r1, r2, ext_s, s1, s2):
+            self._set_net_external(ext_s['subnet']['network_id'])
+            self._add_external_gateway_to_router(r1['router']['id'],
+                                                 ext_s['subnet']['network_id'])
+            with contextlib.nested(
+                    self.port(subnet=s1),
+                    self.port(subnet=s2, tenant_id='noadmin')) as (p1, p2):
+                body = self._routes_update_prepare(r1['router']['id'],
+                                                   None, p1['port']['id'],
+                                                   routes1)
+                exp_routes = []
+                exp_routes = [{'destination': '135.207.0.0/16',
+                               'nexthop': '10.0.0.3'}]
+                exp_routes[0]['network_id'] = s1['subnet']['network_id']
+                routes = mock.call_args
+                self.assertEqual(self._recursive_sort_list(routes[0][3]),
+                                 self._recursive_sort_list(exp_routes))
+                self.assertEqual(body['router']['routes'], routes1)
+
+                mock.reset_mock()
+                self._router_interface_action('add', r2['router']['id'],
+                                              None, p2['port']['id'],
+                                              tenant_id='noadmin')
+                routes = mock.call_args
+                self.assertEqual(self._recursive_sort_list(routes[0][3]),
+                                 self._recursive_sort_list(exp_routes))
+
+                mock.reset_mock()
+                noadmin_context = context.Context('', 'noadmin')
+                self._update('routers', r2['router']['id'],
+                             {'router': {'routes': routes2}},
+                             neutron_context=noadmin_context)
+                routes = mock.call_args
+                exp_routes.append({'destination': '12.0.0.0/8',
+                                   'nexthop': '11.0.0.3',
+                                   'network_id': s2['subnet']['network_id']})
+                self.assertEqual(self._recursive_sort_list(routes[0][3]),
+                                 self._recursive_sort_list(exp_routes))
+                self._routes_update_cleanup(p1['port']['id'],
+                                            None, r1['router']['id'], [])
+                self._routes_update_cleanup(p2['port']['id'],
+                                            None, r2['router']['id'], [],
+                                            tenant_id='noadmin')
+            self._remove_external_gateway_from_router(
+                r1['router']['id'], ext_s['subnet']['network_id'])
