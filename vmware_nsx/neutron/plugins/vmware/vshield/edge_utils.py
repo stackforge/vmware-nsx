@@ -600,6 +600,35 @@ class EdgeManager(object):
     def delete_lrouter(self, context, router_id, dist=False):
         self._free_edge_appliance(context, router_id)
 
+    def update_dhcp_edge_bindings(self, context, network_id):
+        """Reconfigure the DHCP to the edge."""
+        resource_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
+        edge_binding = nsxv_db.get_nsxv_router_binding(context.session,
+                                                       resource_id)
+        dhcp_binding = nsxv_db.get_edge_vnic_binding(context.session,
+                                                     edge_binding['edge_id'],
+                                                     network_id)
+        if dhcp_binding:
+            edge_id = dhcp_binding['edge_id']
+            with lockutils.lock(str(edge_id),
+                                lock_file_prefix='nsxv-dhcp-config-',
+                                external=True):
+                ports = self.nsxv_plugin.get_ports(
+                    context, filters={'network_id': [network_id]})
+                inst_ports = [port
+                              for port in ports
+                              if port['device_owner'].startswith("compute")]
+                static_bindings = []
+                for port in inst_ports:
+                    static_bindings.extend(
+                        self.nsxv_plugin._create_static_binding(context, port))
+                dhcp_request = {
+                    'featureType': "dhcp_4.0",
+                    'enabled': True,
+                    'staticBindings': {'staticBindings': static_bindings}}
+                self.nsxv_manager.vcns.reconfigure_dhcp_service(
+                    edge_id, dhcp_request)
+
     def update_dhcp_service_config(self, context, edge_id):
         """Reconfigure the DHCP to the edge."""
         # Get all networks attached to the edge
