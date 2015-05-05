@@ -79,6 +79,9 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                                                    is_extract=True)
         super(nsx_v.NsxVPluginV2, self.plugin).update_router(
             context, router_id, router)
+
+        # Ensure routes attributes info will be reloaded.
+        context.session.expire_all()
         if gw_info != attr.ATTR_NOT_SPECIFIED:
             self._update_router_gw_info(context, router_id, gw_info)
         else:
