@@ -33,8 +33,8 @@ dvs_opts = [
                default=10,
                help='The number of times we retry on failures, e.g., '
                     'socket error, etc.'),
-    cfg.StrOpt('dvs_name',
-               help='The name of the preconfigured DVS.'),
+    cfg.StrOpt('dvs_moref',
+               help='The moref of the preconfigured DVS.'),
 ]
 
 CONF = cfg.CONF
@@ -44,7 +44,7 @@ CONF.register_opts(dvs_opts, 'dvs')
 def dvs_is_enabled():
     """Returns the configured DVS status."""
     return bool(CONF.dvs.host_ip and CONF.dvs.host_username and
-                CONF.dvs.host_password and CONF.dvs.dvs_name)
+                CONF.dvs.host_password and CONF.dvs.dvs_moref)
 
 
 def dvs_create_session():
@@ -56,5 +56,5 @@ def dvs_create_session():
                                 port=CONF.dvs.host_port)
 
 
-def dvs_name_get():
-    return CONF.dvs.dvs_name
+def dvs_moref_get():
+    return CONF.dvs.dvs_moref

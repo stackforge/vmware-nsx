@@ -33,7 +33,7 @@ class DvsUtilsTestCase(base.BaseTestCase):
                               group='dvs')
         cfg.CONF.set_override('host_password', 'fake_host_pasword',
                               group='dvs')
-        cfg.CONF.set_override('dvs_name', 'fake_dvs', group='dvs')
+        cfg.CONF.set_override('dvs_moref', 'fake_dvs', group='dvs')
         cfg.CONF.set_override('host_port', '443', group='dvs')
 
     def test_dvs_set(self):
@@ -51,7 +51,7 @@ class DvsUtilsTestCase(base.BaseTestCase):
                                           cfg.CONF.dvs.task_poll_interval,
                                           port=cfg.CONF.dvs.host_port)
 
-    def test_dvs_name_get(self):
-        cfg.CONF.set_override('dvs_name', 'fake-dvs', group='dvs')
+    def test_dvs_moref_get(self):
+        cfg.CONF.set_override('dvs_moref', 'fake-dvs', group='dvs')
         self.assertEqual('fake-dvs',
-                         dvs_utils.dvs_name_get())
+                         dvs_utils.dvs_moref_get())
