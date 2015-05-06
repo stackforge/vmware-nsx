@@ -50,21 +50,10 @@ class DvsTestCase(base.BaseTestCase):
 
     @mock.patch.object(dvs_utils, 'dvs_create_session',
                        return_value=fake_session())
-    @mock.patch.object(dvs.DvsManager, '_get_dvs_moref',
-                       return_value='dvs-moref')
-    def setUp(self, mock_moref, mock_session):
+    def setUp(self, mock_session):
         super(DvsTestCase, self).setUp()
-        cfg.CONF.set_override('dvs_name', 'fake_dvs', group='dvs')
+        cfg.CONF.set_override('dvs_moref', 'fake_dvs', group='dvs')
         self._dvs = dvs.DvsManager()
-        self.assertEqual('dvs-moref', self._dvs._dvs_moref)
-        mock_moref.assert_called_once_with(mock_session.return_value,
-                                           'fake_dvs')
-
-    @mock.patch.object(dvs_utils, 'dvs_create_session',
-                       return_value=fake_session())
-    def test_dvs_not_found(self, mock_session):
-        self.assertRaises(nsx_exc.DvsNotFound,
-                          dvs.DvsManager)
 
     @mock.patch.object(dvs.DvsManager, '_get_port_group_spec',
                        return_value='fake-spec')
@@ -107,9 +96,7 @@ class NeutronSimpleDvsTest(test_plugin.NeutronDbPluginV2TestCase):
 
     @mock.patch.object(dvs_utils, 'dvs_create_session',
                        return_value=fake_session())
-    @mock.patch.object(dvs.DvsManager, '_get_dvs_moref',
-                       return_value='dvs-moref')
-    def setUp(self, mock_moref, mock_session,
+    def setUp(self, mock_session,
               plugin=PLUGIN_NAME,
               ext_mgr=None,
               service_plugins=None):
@@ -117,7 +104,7 @@ class NeutronSimpleDvsTest(test_plugin.NeutronDbPluginV2TestCase):
         cfg.CONF.set_override('host_ip', 'fake_ip', group='dvs')
         cfg.CONF.set_override('host_username', 'fake_user', group='dvs')
         cfg.CONF.set_override('host_password', 'fake_password', group='dvs')
-        cfg.CONF.set_override('dvs_name', 'fake_dvs', group='dvs')
+        cfg.CONF.set_override('dvs_moref', 'fake_dvs', group='dvs')
         super(NeutronSimpleDvsTest, self).setUp(plugin=PLUGIN_NAME)
         self._plugin = manager.NeutronManager.get_plugin()
 
