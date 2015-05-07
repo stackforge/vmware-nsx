@@ -33,6 +33,7 @@ from neutron.plugins.common import constants as plugin_const
 from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
+from vmware_nsx.neutron.plugins.vmware.plugins import nsx_v_md_proxy
 from vmware_nsx.neutron.plugins.vmware.vshield.common import (
     constants as vcns_const)
 from vmware_nsx.neutron.plugins.vmware.vshield.tasks import (
@@ -903,12 +904,7 @@ class EdgeManager(object):
 
             self.plugin.metadata_proxy_handler.configure_router_edge(
                 resource_id, context)
-            fw_rules = {
-                'firewall_rule_list':
-                self.plugin.metadata_proxy_handler.get_router_fw_rules()}
-            update_firewall(
-                self.plugin.nsx_v, context, resource_id, fw_rules,
-                allow_external=False)
+            setup_dhcp_edge_fw_rules(context, self.plugin, resource_id)
 
             self.nsxv_manager.vcns.set_system_control(
                 dhcp_edge_id, RP_FILTER_PROPERTY_OFF)
@@ -1541,6 +1537,22 @@ def check_network_in_use_at_backend(context, network_id):
             return
         LOG.warning(_LW('NSXv: network is still in use at the backend'))
     LOG.error(_LE('NSXv: network is still in use at the backend'))
+
+
+def setup_dhcp_edge_fw_rules(context, plugin, router_id):
+    # application-70, application-327 are ICMP Echo request, ICMPv6 Echo
+    # request application codes
+    rules = [{"name": "ICMPPing",
+              "enabled": True,
+              "action": "accept",
+              "application": {
+                  "applicationId": ["application-70", "application-327"]}}]
+
+    if plugin.metadata_proxy_handler:
+        rules += nsx_v_md_proxy.get_router_fw_rules()
+
+    update_firewall(plugin.nsx_v, context, router_id,
+                    {'firewall_rule_list': rules}, allow_external=False)
 
 
 class NsxVCallbacks(object):

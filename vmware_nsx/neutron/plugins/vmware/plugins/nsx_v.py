@@ -1102,12 +1102,8 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 LOG.debug('Update metadata for resource %s', resource_id)
                 self.metadata_proxy_handler.configure_router_edge(resource_id,
                                                                   context)
-                fw_rules = {
-                    'firewall_rule_list':
-                    self.metadata_proxy_handler.get_router_fw_rules()}
-                edge_utils.update_firewall(
-                    self.nsx_v, context, resource_id, fw_rules,
-                    allow_external=False)
+
+            edge_utils.setup_dhcp_edge_fw_rules(context, self, resource_id)
 
         except Exception:
             with excutils.save_and_reraise_exception():
@@ -1524,7 +1520,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
 
         # If metadata service is enabled, block access to inter-edge network
         if self.metadata_proxy_handler:
-            fake_fw_rules += self.metadata_proxy_handler.get_router_fw_rules()
+            fake_fw_rules += nsx_v_md_proxy.get_router_fw_rules()
 
         dnat_cidrs = [rule['dst'] for rule in dnat_rules]
         if dnat_cidrs:
