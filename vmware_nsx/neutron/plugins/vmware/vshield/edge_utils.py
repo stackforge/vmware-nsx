@@ -852,6 +852,52 @@ class EdgeManager(object):
                                        'vnic_index': vnic_index,
                                        'edge_id': edge_id})
 
+    def configure_dhcp_for_vdr_network(
+            self, context, network_id, vdr_router_id):
+
+        # If network is already attached to a DHCP Edge, detach from it
+        resource_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
+        dhcp_edge_binding = nsxv_db.get_nsxv_router_binding(context.session,
+                                                            resource_id)
+
+        if dhcp_edge_binding:
+            with lockutils.lock('nsx-edge-pool',
+                                lock_file_prefix='edge-bind-',
+                                external=True):
+                edge_id = dhcp_edge_binding['edge_id']
+                with lockutils.lock(str(edge_id),
+                                    lock_file_prefix='nsxv-dhcp-config-',
+                                    external=True):
+                    self.remove_network_from_dhcp_edge(context, network_id,
+                                                       edge_id)
+
+        # Find DHCP Edge which is associated with this VDR
+        vdr_dhcp_binding = nsxv_db.get_vdr_dhcp_binding_by_vdr(
+            context.session, vdr_router_id)
+        if vdr_dhcp_binding:
+            dhcp_edge_id = vdr_dhcp_binding['dhcp_edge_id']
+            self.reuse_existing_dhcp_edge(
+                context, dhcp_edge_id, resource_id, network_id)
+        else:
+            # Attach to DHCP Edge
+            dhcp_edge_id = self.allocate_new_dhcp_edge(
+                context, network_id, resource_id)
+
+            self.plugin.metadata_proxy_handler.configure_router_edge(
+                resource_id, context)
+            self.plugin.setup_dhcp_edge_fw_rules(
+                context, self.plugin, resource_id)
+
+            self.nsxv_manager.vcns.set_system_control(
+                dhcp_edge_id, RP_FILTER_PROPERTY_OFF)
+            nsxv_db.add_vdr_dhcp_binding(context.session, vdr_router_id,
+                                         str(resource_id), dhcp_edge_id)
+
+        address_groups = self.plugin._create_network_dhcp_address_group(
+            context, network_id)
+        self.update_dhcp_edge_service(
+            context, network_id, address_groups=address_groups)
+
     def get_plr_by_tlr_id(self, context, router_id):
         lswitch_id = nsxv_db.get_nsxv_router_binding(
             context.session, router_id).lswitch_id
