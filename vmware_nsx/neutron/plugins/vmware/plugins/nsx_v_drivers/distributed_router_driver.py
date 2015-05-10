@@ -75,6 +75,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
         # TODO(kobi) can't configure metadata service on VDR at present.
 
     def update_router(self, context, router_id, router):
+        r = router['router']
         gw_info = self.plugin._extract_external_gw(context, router,
                                                    is_extract=True)
         super(nsx_v.NsxVPluginV2, self.plugin).update_router(
@@ -87,6 +88,9 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             nexthop = self.plugin._get_external_attachment_info(
                 context, router_db)[2]
             self.update_routes(context, router_id, nexthop)
+        if 'admin_state_up' in r:
+            self.plugin._update_router_admin_state(
+                context, router_id, self.get_type(), r['admin_state_up'])
         return self.plugin.get_router(context, router_id)
 
     def delete_router(self, context, router_id):
@@ -167,9 +171,10 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
         address_groups = self.plugin._get_address_groups(
             context, router_id, network_id)
         try:
-            edge_utils.add_vdr_internal_interface(
-                self.nsx_v, context, router_id,
-                network_id, address_groups)
+            edge_utils.add_vdr_internal_interface(self.nsx_v, context,
+                                                  router_id, network_id,
+                                                  address_groups,
+                                                  router_db.admin_state_up)
         except n_exc.BadRequest:
             with excutils.save_and_reraise_exception():
                 super(nsx_v.NsxVPluginV2, self.plugin).remove_router_interface(
