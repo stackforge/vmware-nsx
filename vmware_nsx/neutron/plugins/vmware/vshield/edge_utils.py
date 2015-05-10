@@ -1302,8 +1302,8 @@ def update_external_interface(
                                   secondary=secondary)
 
 
-def update_internal_interface(
-    nsxv_manager, context, router_id, int_net_id, address_groups):
+def update_internal_interface(nsxv_manager, context, router_id, int_net_id,
+                              address_groups, is_connected=True):
     # Get the pg/wire id of the network id
     mappings = nsx_db.get_nsx_switch_ids(context.session, int_net_id)
     if mappings:
@@ -1326,6 +1326,7 @@ def update_internal_interface(
     nsxv_manager.update_interface(router_id, edge_id,
                                   edge_vnic_binding.vnic_index,
                                   vcns_network_id,
+                                  is_connected=is_connected,
                                   address_groups=address_groups)
 
 

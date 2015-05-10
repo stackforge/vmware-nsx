@@ -115,8 +115,9 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
         network_id = subnet['network_id']
         address_groups = self.plugin._get_address_groups(
             context, router_id, network_id)
-        edge_utils.update_internal_interface(
-            self.nsx_v, context, router_id, network_id, address_groups)
+        edge_utils.update_internal_interface(self.nsx_v, context, router_id,
+                                             network_id, address_groups,
+                                             router_db['admin_state_up'])
         # Update edge's firewall rules to accept subnets flows.
         self.plugin._update_subnets_and_dnat_firewall(context, router_db)
 
