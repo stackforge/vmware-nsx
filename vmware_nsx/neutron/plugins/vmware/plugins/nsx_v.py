@@ -144,6 +144,11 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             nsx_v_md_proxy.NsxVMetadataProxyHandler(self)
             if has_metadata_cfg else None)
 
+        self.is_multi_enabled = self._is_multi_context_enabled()
+        self.is_multi_dhcp_enabled = (
+            cfg.CONF.nsxv.multi_context_dhcp_enabled
+            and not self.metadata_proxy_handler)
+
     def _create_security_group_container(self):
         name = "OpenStack Security Group container"
         container_id = self.nsx_v.vcns.get_security_group_id(name)
@@ -1885,6 +1890,10 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             self.nsx_v.vcns.edges_lock_operation()
         except Exception:
             LOG.info(_LI("Unable to set manager lock operation"))
+
+    def _is_multi_context_enabled(self):
+        # TODO(Bo): send nsxv call to verify whether the feature is enabled.
+        return True
 
     def _validate_config(self):
         if not self.nsx_v.vcns.validate_dvs(cfg.CONF.nsxv.dvs_id):
