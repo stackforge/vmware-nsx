@@ -220,7 +220,7 @@ nsxv_opts = [
                          'vdr:large:4:10'],
                 help=_('Defines edge pool using the format: '
                        '<edge_type>:[edge_size]:<min_edges>:<max_edges>.'
-                       'edge_type: service,vdr. '
+                       'edge_type: service,vdr, multi_context_gateway. '
                        'edge_size: compact, large, xlarge, quadlarge '
                        'and default is large.')),
     cfg.IntOpt('retries',
@@ -247,6 +247,10 @@ nsxv_opts = [
                 default=True,
                 help=_("If True then plugin will use NSXV spoofguard "
                        "component for port-security feature.")),
+    cfg.BoolOpt('multi_context_dhcp_enabled',
+                default=True,
+                help=_("If True then plugin will try to support dhcp by "
+                       "multi context edge at the backend.")),
     cfg.ListOpt('tenant_router_types',
                 default=['shared', 'distributed', 'exclusive'],
                 help=_("Ordered list of router_types to allocate as tenant "
