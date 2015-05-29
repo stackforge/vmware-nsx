@@ -65,7 +65,8 @@ ALLOWED_EDGE_SIZES = (nsxv_constants.COMPACT,
 
 #Edge type
 ALLOWED_EDGE_TYPES = (nsxv_constants.SERVICE_EDGE,
-                      nsxv_constants.VDR_EDGE)
+                      nsxv_constants.VDR_EDGE,
+                      nsxv_constants.MULTI_CONTEXT_EDGE)
 
 
 # router status by number
