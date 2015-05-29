@@ -48,8 +48,13 @@ class EdgeUtilsTestCaseMixin(testlib_api.SqlTestCase):
         task = mock.Mock()
         nsxv_manager_p.return_value = task
         self.nsxv_manager.callbacks = mock.Mock()
+        self.nsxv_manager.external_network = 'fake_external_network'
+        internal_net_obj_p = mock.patch(vmware.INTERNAL_NET_NAME,
+                                        autospec=True)
+        internal_net_obj_p.start()
         self.ctx = context.get_admin_context()
         self.addCleanup(nsxv_manager_p.stop)
+        self.addCleanup(internal_net_obj_p.stop)
 
     def _create_router(self, name='router1'):
         return {'name': name,
@@ -112,7 +117,7 @@ class EdgeDHCPManagerTestCase(EdgeUtilsTestCaseMixin):
         self.nsxv_manager.update_edge.assert_called_once_with(
             resource_id, 'edge-1', resource_name, None,
             appliance_size=vcns_const.SERVICE_SIZE_MAPPING['dhcp'],
-            dist=False)
+            edge_type=nsxv_constants.SERVICE_EDGE)
 
 
 class EdgeUtilsTestCase(EdgeUtilsTestCaseMixin):
@@ -120,10 +125,11 @@ class EdgeUtilsTestCase(EdgeUtilsTestCaseMixin):
     def test_create_lrouter(self):
         lrouter = self._create_router()
         edge_utils.create_lrouter(self.nsxv_manager, self.ctx, lrouter,
-                                  lswitch=None, dist=False)
+                                  lswitch=None,
+                                  edge_type=nsxv_constants.SERVICE_EDGE)
         self.nsxv_manager.deploy_edge.assert_called_once_with(
             lrouter['id'], (lrouter['name'] + '-' + lrouter['id']),
-            internal_network=None, dist=False,
+            internal_network=None, edge_type=nsxv_constants.SERVICE_EDGE,
             jobdata={'router_id': lrouter['id'],
                      'lrouter': lrouter,
                      'lswitch': None,
@@ -146,12 +152,20 @@ class EdgeManagerTestCase(EdgeUtilsTestCaseMixin):
                                        'maximum_pooled_edges': 3},
                 nsxv_constants.COMPACT: {'minimum_pooled_edges': 1,
                                          'maximum_pooled_edges': 3}},
-            nsxv_constants.VDR_EDGE: {}}
+            nsxv_constants.VDR_EDGE: {},
+            nsxv_constants.MULTI_CONTEXT_EDGE: {}}
         self.vdr_edge_pool_dicts = {
             nsxv_constants.SERVICE_EDGE: {},
+            nsxv_constants.MULTI_CONTEXT_EDGE: {},
             nsxv_constants.VDR_EDGE: {
                 nsxv_constants.LARGE: {'minimum_pooled_edges': 1,
                                        'maximum_pooled_edges': 3}}}
+        self.multi_context_edge_pool_dicts = {
+            nsxv_constants.SERVICE_EDGE: {},
+            nsxv_constants.MULTI_CONTEXT_EDGE: {
+                nsxv_constants.LARGE: {'minimum_pooled_edges': 1,
+                                       'maximum_pooled_edges': 3}},
+            nsxv_constants.VDR_EDGE: {}}
 
     def check_edge_active_at_backend(self, edge_id):
         # workaround to let edge_id None pass since we wrapped router binding
@@ -173,13 +187,22 @@ class EdgeManagerTestCase(EdgeUtilsTestCaseMixin):
         edge_pool_dicts = edge_utils.parse_backup_edge_pool_opt()
         expect_edge_pool_dicts = {
             nsxv_constants.SERVICE_EDGE: {},
-            nsxv_constants.VDR_EDGE: {}}
+            nsxv_constants.VDR_EDGE: {},
+            nsxv_constants.MULTI_CONTEXT_EDGE: {}}
         self.assertEqual(expect_edge_pool_dicts, edge_pool_dicts)
 
     def test_backup_edge_pool_with_vdr_conf(self):
         cfg.CONF.set_override('backup_edge_pool', ['vdr::1:3'], 'nsxv')
         edge_pool_dicts = edge_utils.parse_backup_edge_pool_opt()
         expect_edge_pool_dicts = self.vdr_edge_pool_dicts
+        self.assertEqual(expect_edge_pool_dicts, edge_pool_dicts)
+
+    def test_backup_edge_pool_with_multi_context_conf(self):
+        cfg.CONF.set_override('backup_edge_pool',
+                              ['multi_context_gateway::1:3'],
+                              'nsxv')
+        edge_pool_dicts = edge_utils.parse_backup_edge_pool_opt()
+        expect_edge_pool_dicts = self.multi_context_edge_pool_dicts
         self.assertEqual(expect_edge_pool_dicts, edge_pool_dicts)
 
     def test_backup_edge_pool_with_duplicate_conf(self):
@@ -465,6 +488,51 @@ class EdgeManagerTestCase(EdgeUtilsTestCaseMixin):
         for binding in service_bindings:
             self.assertEqual(plugin_const.PENDING_DELETE, binding['status'])
 
+    def test_check_backup_edge_pools_with_multi_context(self):
+        self.edge_manager.edge_pool_dicts = self.multi_context_edge_pool_dicts
+        pool_edges = (self._create_edge_pools(1, 2, 3, 4, 5) +
+                      self._create_edge_pools(
+                          1, 2, 3, 4, 5, size=nsxv_constants.COMPACT) +
+                      self._create_edge_pools(
+                          1, 2, 3, 4, 5,
+                          edge_type=nsxv_constants.MULTI_CONTEXT_EDGE))
+        self._populate_vcns_router_binding(pool_edges)
+        self.edge_manager._check_backup_edge_pools()
+        router_bindings = nsxv_db.get_nsxv_router_bindings(self.ctx.session)
+        expect_multi_context_bindings = self._create_backup_router_bindings(
+            1, 2, 3, 4, 5,
+            error_status=plugin_const.PENDING_DELETE,
+            error_at_backend_status=plugin_const.PENDING_DELETE,
+            edge_type=nsxv_constants.MULTI_CONTEXT_EDGE)
+        multi_context_bindings = [
+            binding
+            for binding in router_bindings
+            if (binding['appliance_size'] == nsxv_constants.LARGE and
+                binding['edge_type'] == nsxv_constants.MULTI_CONTEXT_EDGE)]
+        self._verify_router_bindings(expect_multi_context_bindings,
+                                     multi_context_bindings)
+        service_bindings = [
+            binding
+            for binding in router_bindings
+            if binding['edge_type'] == nsxv_constants.SERVICE_EDGE]
+        for binding in service_bindings:
+            self.assertEqual(plugin_const.PENDING_DELETE, binding['status'])
+
+    def test_check_backup_edge_pools_with_multi_context_with_empty(self):
+        self.edge_manager.edge_pool_dicts = self.multi_context_edge_pool_dicts
+        pool_edges = self._create_edge_pools(
+            0, 0, 0, 0, 0,
+            edge_type=nsxv_constants.MULTI_CONTEXT_EDGE)
+        self._populate_vcns_router_binding(pool_edges)
+        self.edge_manager._check_backup_edge_pools()
+        router_bindings = nsxv_db.get_nsxv_router_bindings(self.ctx.session)
+        multi_context_bindings = [
+            binding
+            for binding in router_bindings
+            if (binding['appliance_size'] == nsxv_constants.LARGE and
+                binding['edge_type'] == nsxv_constants.MULTI_CONTEXT_EDGE)]
+        self.assertEqual(1, len(multi_context_bindings))
+
     def test_allocate_edge_appliance_with_empty(self):
         self.edge_manager._clean_all_error_edge_bindings = mock.Mock()
         self.edge_manager._allocate_edge_appliance(
@@ -485,7 +553,8 @@ class EdgeManagerTestCase(EdgeUtilsTestCaseMixin):
                    nsxv_constants.SERVICE_EDGE + '-edge-' + str(0))
         self.nsxv_manager.update_edge.assert_has_calls(
             [mock.call('fake_id', edge_id, 'fake_name', None,
-                       appliance_size=nsxv_constants.LARGE, dist=False)])
+                       appliance_size=nsxv_constants.LARGE,
+                       edge_type=nsxv_constants.SERVICE_EDGE)])
 
     def test_allocate_compact_edge_appliance_with_default(self):
         self.edge_manager.edge_pool_dicts = self.default_edge_pool_dicts
@@ -502,7 +571,8 @@ class EdgeManagerTestCase(EdgeUtilsTestCaseMixin):
                    nsxv_constants.SERVICE_EDGE + '-edge-' + str(0))
         self.nsxv_manager.update_edge.assert_has_calls(
             [mock.call('fake_id', edge_id, 'fake_name', None,
-                       appliance_size=nsxv_constants.COMPACT, dist=False)])
+                       appliance_size=nsxv_constants.COMPACT,
+                       edge_type=nsxv_constants.SERVICE_EDGE)])
 
     def test_allocate_large_edge_appliance_with_vdr(self):
         self.edge_manager.edge_pool_dicts = self.vdr_edge_pool_dicts
@@ -513,12 +583,33 @@ class EdgeManagerTestCase(EdgeUtilsTestCaseMixin):
                           1, 2, 3, 4, 5, edge_type=nsxv_constants.VDR_EDGE))
         self._populate_vcns_router_binding(pool_edges)
         self.edge_manager._allocate_edge_appliance(
-            self.ctx, 'fake_id', 'fake_name', dist=True)
+            self.ctx, 'fake_id', 'fake_name',
+            edge_type=nsxv_constants.VDR_EDGE)
         edge_id = (EDGE_AVAIL + nsxv_constants.LARGE + '-' +
                    nsxv_constants.VDR_EDGE + '-edge-' + str(0))
         self.nsxv_manager.update_edge.assert_has_calls(
             [mock.call('fake_id', edge_id, 'fake_name', None,
-                       appliance_size=nsxv_constants.LARGE, dist=True)])
+                       appliance_size=nsxv_constants.LARGE,
+                       edge_type=nsxv_constants.VDR_EDGE)])
+
+    def test_allocate_large_edge_appliance_with_multi_context(self):
+        self.edge_manager.edge_pool_dicts = self.multi_context_edge_pool_dicts
+        pool_edges = (self._create_edge_pools(1, 2, 3, 4, 5) +
+                      self._create_edge_pools(
+                          1, 2, 3, 4, 5, size=nsxv_constants.COMPACT) +
+                      self._create_edge_pools(
+                          1, 2, 3, 4, 5,
+                          edge_type=nsxv_constants.MULTI_CONTEXT_EDGE))
+        self._populate_vcns_router_binding(pool_edges)
+        self.edge_manager._allocate_edge_appliance(
+            self.ctx, 'fake_id', 'fake_name',
+            edge_type=nsxv_constants.MULTI_CONTEXT_EDGE)
+        edge_id = (EDGE_AVAIL + nsxv_constants.LARGE + '-' +
+                   nsxv_constants.MULTI_CONTEXT_EDGE + '-edge-' + str(0))
+        self.nsxv_manager.update_edge.assert_has_calls(
+            [mock.call('fake_id', edge_id, 'fake_name', None,
+                       appliance_size=nsxv_constants.LARGE,
+                       edge_type=nsxv_constants.MULTI_CONTEXT_EDGE)])
 
     def test_free_edge_appliance_with_empty(self):
         self.edge_manager._clean_all_error_edge_bindings = mock.Mock()
@@ -537,7 +628,8 @@ class EdgeManagerTestCase(EdgeUtilsTestCaseMixin):
         assert not self.nsxv_manager.delete_edge.called
         self.nsxv_manager.update_edge.assert_has_calls(
             [mock.call('fake_id', mock.ANY, mock.ANY, None,
-                       appliance_size=nsxv_constants.LARGE, dist=False)])
+                       appliance_size=nsxv_constants.LARGE,
+                       edge_type=nsxv_constants.SERVICE_EDGE)])
 
     def test_free_edge_appliance_with_default_with_full(self):
         self.edge_pool_dicts = {

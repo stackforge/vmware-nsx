@@ -17,6 +17,7 @@ from oslo_utils import excutils
 from neutron.api.v2 import attributes as attr
 from neutron.common import exceptions as n_exc
 
+from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
 from vmware_nsx.neutron.plugins.vmware.plugins import nsx_v
 from vmware_nsx.neutron.plugins.vmware.plugins.nsx_v_drivers import (
@@ -83,7 +84,8 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                                  gateway_vnic_index=internal_vnic_index)
 
     def create_router(self, context, lrouter, allow_metadata=True):
-        self.edge_manager.create_lrouter(context, lrouter, dist=True)
+        self.edge_manager.create_lrouter(context, lrouter,
+                                         edge_type=nsxv_constants.VDR_EDGE)
 
     def update_router(self, context, router_id, router):
         gw_info = self.plugin._extract_external_gw(context, router,
@@ -101,7 +103,8 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
         return self.plugin.get_router(context, router_id)
 
     def delete_router(self, context, router_id):
-        self.edge_manager.delete_lrouter(context, router_id, dist=True)
+        self.edge_manager.delete_lrouter(context, router_id,
+                                         edge_type=nsxv_constants.VDR_EDGE)
 
     def update_routes(self, context, router_id, newnexthop):
         plr_id = self.edge_manager.get_plr_by_tlr_id(context, router_id)
@@ -332,7 +335,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
         if not ports:
             edge_utils.delete_interface(self.nsx_v, context,
                                         router_id, network_id,
-                                        dist=True)
+                                        edge_type=nsxv_constants.VDR_EDGE)
         else:
             address_groups = self.plugin._get_address_groups(
                 context, router_id, network_id)
