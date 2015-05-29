@@ -355,6 +355,10 @@ class TaskManager():
         if self._main_thread_exec_task:
             LOG.info(str(self._main_thread_exec_task))
 
+    def get_task_list(self, resource_id):
+        return [task for task in self._tasks_queue
+                if task.resource_id == resource_id]
+
     def count(self):
         count = 0
         for resource_id, tasks in six.iteritems(self._tasks):

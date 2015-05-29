@@ -56,6 +56,7 @@ from vmware_nsx.neutron.plugins import vmware
 from vmware_nsx.neutron.plugins.vmware.common import config  # noqa
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.common import locking
+from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.common import utils as c_utils
 from vmware_nsx.neutron.plugins.vmware.dbexts import (
     routertype as rt_rtr)
@@ -120,12 +121,12 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 # TODO(rkukura): Replace with new VIF security details
                 pbin.CAP_PORT_FILTER:
                 'security-group' in self.supported_extension_aliases}}
+        self.vdn_scope_id = cfg.CONF.nsxv.vdn_scope_id
+        self.dvs_id = cfg.CONF.nsxv.dvs_id
         # Create the client to interface with the NSX-v
         _nsx_v_callbacks = edge_utils.NsxVCallbacks(self)
         self.nsx_v = vcns_driver.VcnsDriver(_nsx_v_callbacks)
         self.edge_manager = edge_utils.EdgeManager(self.nsx_v, self)
-        self.vdn_scope_id = cfg.CONF.nsxv.vdn_scope_id
-        self.dvs_id = cfg.CONF.nsxv.dvs_id
         self.nsx_sg_utils = securitygroup_utils.NsxSecurityGroupUtils(
             self.nsx_v)
         # Ensure that edges do concurrency
@@ -148,6 +149,10 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         self.is_multi_dhcp_enabled = (
             cfg.CONF.nsxv.multi_context_dhcp_enabled
             and not self.metadata_proxy_handler)
+        if self.is_multi_dhcp_enabled:
+            LOG.info(_LI("Nsxv would support DHCP with multi context edge"))
+        else:
+            LOG.info(_LI("Nsxv would support DHCP with service edge"))
 
     def _create_security_group_container(self):
         name = "OpenStack Security Group container"
@@ -540,7 +545,8 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
     def create_network(self, context, network):
         net_data = network['network']
         tenant_id = self._get_tenant_id_for_create(context, net_data)
-        self._ensure_default_security_group(context, tenant_id)
+        if net_data[psec.PORTSECURITY]:
+            self._ensure_default_security_group(context, tenant_id)
         # Process the provider network extension
         provider_type = self._convert_to_transport_zones_dict(net_data)
         self._validate_provider_create(context, net_data)
@@ -690,15 +696,23 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         auto_del = all(p['device_owner'] in [constants.DEVICE_OWNER_DHCP]
                        for p in ports)
         if auto_del:
-            filters = {'network_id': [id], 'enable_dhcp': [True]}
-            sids = self.get_subnets(context, filters=filters, fields=['id'])
-            if len(sids) > 0:
-                try:
-                    self._cleanup_dhcp_edge_before_deletion(context, id)
-                    self._delete_dhcp_edge_service(context, id)
-                except Exception:
-                    with excutils.save_and_reraise_exception():
-                        LOG.exception(_LE('Failed to delete network'))
+            edge_backend = self.edge_manager.get_dhcp_edge_binding_at_backend(
+                    context, id)
+            edge_type = edge_backend['edge_type'] if edge_backend else None
+            if edge_type == nsxv_constants.SERVICE_CONTAINER_EDGE:
+                self.edge_manager.unbind_multi_context_dhcp_edge(
+                    context, id)
+            else:
+                filters = {'network_id': [id], 'enable_dhcp': [True]}
+                sids = self.get_subnets(context, filters=filters,
+                                        fields=['id'])
+                if len(sids) > 0:
+                    try:
+                        self._cleanup_dhcp_edge_before_deletion(context, id)
+                        self._delete_dhcp_edge_service(context, id)
+                    except Exception:
+                        with excutils.save_and_reraise_exception():
+                            LOG.exception(_LE('Failed to delete network'))
 
         with context.session.begin(subtransactions=True):
             self._process_l3_delete(context, id)
@@ -1001,16 +1015,43 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             network_id = subnet['network_id']
             filters = {'network_id': [network_id]}
             remaining_subnets = self.get_subnets(context, filters=filters)
-            if len(remaining_subnets) == 0:
-                self._cleanup_dhcp_edge_before_deletion(context, network_id)
-                LOG.debug("Delete the DHCP Edge for network %s", network_id)
-                self._delete_dhcp_edge_service(context, network_id)
+
+            edge_backend = self.edge_manager.get_dhcp_edge_binding_at_backend(
+                context, network_id)
+            edge_type = edge_backend['edge_type'] if edge_backend else None
+            if edge_type == nsxv_constants.SERVICE_CONTAINER_EDGE:
+                is_multi_dhcp = True
+            elif edge_type == nsxv_constants.SERVICE_EDGE:
+                is_multi_dhcp = False
+            elif edge_type is None:
+                is_multi_dhcp = None
+
+            if is_multi_dhcp is True:
+                # Update address group and delete the DHCP port only
+                address_groups = self._create_network_dhcp_address_group(
+                    context, network_id)
+                self.edge_manager.update_dhcp_edge_service_with_multi(
+                    context, network_id, address_groups=address_groups)
+            elif len(remaining_subnets) == 0:
+                if is_multi_dhcp is False:
+                    self._cleanup_dhcp_edge_before_deletion(
+                        context, network_id)
+                    LOG.debug("Delete the DHCP Edge for network %s",
+                              network_id)
+                    self._delete_dhcp_edge_service(context, network_id)
+                elif is_multi_dhcp is None:
+                    LOG.info(_LI("No backend edge found for deleting the "
+                                    "subnet %s"), id)
             else:
                 # Update address group and delete the DHCP port only
                 address_groups = self._create_network_dhcp_address_group(
                     context, network_id)
-                self._update_dhcp_edge_service(context, network_id,
-                                               address_groups)
+                if is_multi_dhcp is False:
+                    self._update_dhcp_edge_service(context, network_id,
+                                                   address_groups)
+                elif is_multi_dhcp is None:
+                    LOG.warning(_LW("No backend edge found for deleting the "
+                                    "subnet %s"), id)
 
     def create_subnet(self, context, subnet):
         """Create subnet on nsx_v provider network.
@@ -1019,8 +1060,9 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         the subnet is attached is not bound to an DHCP Edge, nsx_v will
         create the Edge and make sure the network is bound to the Edge
         """
+        network_id = subnet['subnet']['network_id']
         if subnet['subnet']['enable_dhcp']:
-            filters = {'id': [subnet['subnet']['network_id']],
+            filters = {'id': [network_id],
                        'router:external': [True]}
             nets = self.get_networks(context, filters=filters)
             if len(nets) > 0:
@@ -1031,20 +1073,38 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 err_msg = _("No support for DHCP for IPv6")
                 raise n_exc.InvalidInput(error_message=err_msg)
 
-        with locking.LockManager.get_lock(
-                'nsx-edge-pool', lock_file_prefix='edge-bind-', external=True):
+        edge_backend = self.edge_manager.get_dhcp_edge_binding_at_backend(
+            context, network_id)
+        edge_type = None if not edge_backend else edge_backend['edge_type']
+        if (edge_type == nsxv_constants.SERVICE_CONTAINER_EDGE
+            or (edge_type is None and self.is_multi_dhcp_enabled)):
+            # support dhcp service with service container edge
             s = super(NsxVPluginV2, self).create_subnet(context, subnet)
-        if s['enable_dhcp']:
-            try:
-                self._update_dhcp_service_with_subnet(context, s)
-            except Exception:
-                with excutils.save_and_reraise_exception():
-                    self.delete_subnet(context, s['id'])
+            if s['enable_dhcp']:
+                try:
+                    self._update_dhcp_service_with_subnet_with_multi(
+                        context, s)
+                except Exception:
+                    with excutils.save_and_reraise_exception():
+                        self.delete_subnet(context, s['id'])
+        else:
+            # support dhcp service with service edge
+            with locking.LockManager.get_lock(
+                    'nsx-edge-pool', lock_file_prefix='edge-bind-',
+                    external=True):
+                s = super(NsxVPluginV2, self).create_subnet(context, subnet)
+            if s['enable_dhcp']:
+                try:
+                    self._update_dhcp_service_with_subnet(context, s)
+                except Exception:
+                    with excutils.save_and_reraise_exception():
+                        self.delete_subnet(context, s['id'])
         return s
 
     def update_subnet(self, context, id, subnet):
-        orig = self._get_subnet(context, id)
+        orig = self.get_subnet(context, id)
         subnet = super(NsxVPluginV2, self).update_subnet(context, id, subnet)
+
         if (orig['gateway_ip'] != subnet['gateway_ip'] or
             set(orig['dns_nameservers']) != set(subnet['dns_nameservers'])):
             # Need to ensure that all of the subnet attributes will be reloaded
@@ -1053,7 +1113,20 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             context.session.expire_all()
             # Update the edge
             network_id = subnet['network_id']
-            self.edge_manager.update_dhcp_edge_bindings(context, network_id)
+            edge_backend = self.edge_manager.get_dhcp_edge_binding_at_backend(
+                context, network_id)
+            edge_type = edge_backend['edge_type'] if edge_backend else None
+            if edge_type == nsxv_constants.SERVICE_CONTAINER_EDGE:
+                address_groups = self._create_network_dhcp_address_group(
+                    context, network_id)
+                self.edge_manager.update_dhcp_edge_service_with_multi(
+                    context, network_id, address_groups=address_groups)
+            elif edge_type == nsxv_constants.SERVICE_EDGE:
+                self.edge_manager.update_dhcp_edge_bindings(
+                    context, network_id)
+            elif edge_type is None:
+                LOG.warning(_LW("No backend subnet for updating the subnet "
+                                "%s"), id)
         return subnet
 
     def _get_conflict_network_ids_by_overlapping(self, context, subnets):
@@ -1100,8 +1173,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         conflicting_networks = list(set(conflicting_networks))
         return conflicting_networks
 
-    def _update_dhcp_service_with_subnet(self, context, subnet):
-        network_id = subnet['network_id']
+    def _create_dhcp_port(self, context, network_id, subnet):
         # Create DHCP port
         port_dict = {'name': '',
                      'admin_state_up': True,
@@ -1113,6 +1185,10 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                      'mac_address': attr.ATTR_NOT_SPECIFIED
                      }
         self.create_port(context, {'port': port_dict})
+
+    def _update_dhcp_service_with_subnet(self, context, subnet):
+        network_id = subnet['network_id']
+        self._create_dhcp_port(context, network_id, subnet)
 
         try:
             resource_id = self.edge_manager.create_dhcp_edge_service(
@@ -1156,6 +1232,22 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             # Edge appliance. This won't break the DHCP functionality
             LOG.error(
                 _LE('Could not set up DHCP Edge firewall. Exception %s'), e)
+
+    def _update_dhcp_service_with_subnet_with_multi(self, context, subnet):
+        network_id = subnet['network_id']
+        self._create_dhcp_port(context, network_id, subnet)
+
+        try:
+            # Create all dhcp ports within the network
+            address_groups = self._create_network_dhcp_address_group(
+                context, network_id)
+            self.edge_manager.update_dhcp_edge_service_with_multi(
+                context, network_id, address_groups=address_groups)
+
+        except Exception:
+            with excutils.save_and_reraise_exception():
+                LOG.exception(_LE("Failed to update DHCP for subnet %s"),
+                              subnet['id'])
 
     def _create_network_dhcp_address_group(self, context, network_id):
         """Create dhcp address group for subnets attached to the network."""

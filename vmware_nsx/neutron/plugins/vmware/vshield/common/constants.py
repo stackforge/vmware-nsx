@@ -21,6 +21,7 @@ from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
 EDGE_ID = 'edge_id'
 ROUTER_ID = 'router_id'
 DHCP_EDGE_PREFIX = 'dhcp-'
+MULTI_DHCP_EDGE_PREFIX = 'multi-dhcp-'
 ROUTER_EDGE_PREFIX = 'router-'
 PLR_EDGE_PREFIX = 'plr-'
 BACKUP_ROUTER_PREFIX = 'backup-'
@@ -56,7 +57,8 @@ SUFFIX_LENGTH = 8
 #Edge size
 SERVICE_SIZE_MAPPING = {
     'router': nsxv_constants.COMPACT,
-    'dhcp': nsxv_constants.COMPACT
+    'dhcp': nsxv_constants.COMPACT,
+    'multi_dhcp': nsxv_constants.XLARGE
 }
 ALLOWED_EDGE_SIZES = (nsxv_constants.COMPACT,
                       nsxv_constants.LARGE,
@@ -65,7 +67,11 @@ ALLOWED_EDGE_SIZES = (nsxv_constants.COMPACT,
 
 #Edge type
 ALLOWED_EDGE_TYPES = (nsxv_constants.SERVICE_EDGE,
-                      nsxv_constants.VDR_EDGE)
+                      nsxv_constants.VDR_EDGE,
+                      nsxv_constants.MULTI_CONTEXT_EDGE)
+
+# Edge status
+FULL = 'full'
 
 
 # router status by number

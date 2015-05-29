@@ -23,9 +23,24 @@ QUADLARGE = 'quadlarge'
 # Edge type
 SERVICE_EDGE = 'service'
 VDR_EDGE = 'vdr'
+MULTI_CONTEXT_EDGE = 'multi_context_gateway'
+SERVICE_CONTAINER_EDGE = 'service_container'
 
 # Internal element purpose
 INTER_EDGE_PURPOSE = 'inter_edge_net'
+TRUNK_EDGE_PURPOSE = 'trunk_edge_net'
 
 # etc
 INTERNAL_TENANT_ID = 'a1b2c3d4-e5f6-eeff-ffee-6f5e4d3c2b1a'
+
+# Max number of service container edge per multi context gateway edge
+MaxContainerEdgeNum = {
+    COMPACT: 20,
+    XLARGE: 200}
+
+# Edge type mapping
+EdgeTypeMapping = {
+    SERVICE_EDGE: 'gatewayServices',
+    VDR_EDGE: 'distributedRouter',
+    MULTI_CONTEXT_EDGE: 'multiContextGateway',
+    SERVICE_CONTAINER_EDGE: 'serviceContainer'}
