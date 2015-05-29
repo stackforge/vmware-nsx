@@ -16,6 +16,7 @@ from oslo_log import log as logging
 
 from neutron.api.v2 import attributes as attr
 
+from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.plugins import nsx_v
 from vmware_nsx.neutron.plugins.vmware.plugins.nsx_v_drivers import (
     abstract_router_driver as router_driver)
@@ -30,7 +31,8 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
         return "exclusive"
 
     def create_router(self, context, lrouter, allow_metadata=True):
-        self.edge_manager.create_lrouter(context, lrouter, dist=False)
+        self.edge_manager.create_lrouter(context, lrouter,
+                                         edge_type=nsxv_constants.SERVICE_EDGE)
         if allow_metadata:
             self.plugin.metadata_proxy_handler.configure_router_edge(
                 lrouter['id'])
@@ -51,7 +53,8 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
         return self.plugin.get_router(context, router_id)
 
     def delete_router(self, context, router_id):
-        self.edge_manager.delete_lrouter(context, router_id, dist=False)
+        self.edge_manager.delete_lrouter(context, router_id,
+                                         edge_type=nsxv_constants.SERVICE_EDGE)
         if self.plugin.metadata_proxy_handler:
             self.plugin.metadata_proxy_handler.cleanup_router_edge(router_id)
 
@@ -141,7 +144,7 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
         if not ports:
             edge_utils.delete_interface(self.nsx_v, context,
                                         router_id, network_id,
-                                        dist=False)
+                                        edge_type=nsxv_constants.SERVICE_EDGE)
         else:
             address_groups = self.plugin._get_address_groups(
                 context, router_id, network_id)

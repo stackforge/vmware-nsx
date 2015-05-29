@@ -47,7 +47,8 @@ def _apply_filters_to_query(query, model, filters, like_filters=None):
 
 def add_nsxv_router_binding(session, router_id, vse_id, lswitch_id, status,
                             appliance_size=nsxv_constants.LARGE,
-                            edge_type=nsxv_constants.SERVICE_EDGE):
+                            edge_type=nsxv_constants.SERVICE_EDGE,
+                            master_edge_id=None):
     with session.begin(subtransactions=True):
         binding = nsxv_models.NsxvRouterBinding(
             router_id=router_id,
@@ -55,7 +56,8 @@ def add_nsxv_router_binding(session, router_id, vse_id, lswitch_id, status,
             lswitch_id=lswitch_id,
             status=status,
             appliance_size=appliance_size,
-            edge_type=edge_type)
+            edge_type=edge_type,
+            master_edge_id=master_edge_id)
         session.add(binding)
     return binding
 
