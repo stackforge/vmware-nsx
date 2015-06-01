@@ -362,13 +362,23 @@ class EdgeApplianceDriver(object):
         try:
             response = self.vcns.get_edge_deploy_status(edge_id)[1]
             task.userdata['retries'] = 0
-            system_status = response.get('systemStatus', None)
-            if system_status is None:
-                status = task_constants.TaskStatus.PENDING
-            elif system_status == 'good':
-                status = task_constants.TaskStatus.COMPLETED
+            edge_type = task.userdata.get('edge_type',
+                                          nsxv_constants.SERVICE_EDGE)
+            if edge_type != nsxv_constants.SERVICE_CONTAINER_EDGE:
+                system_status = response.get('systemStatus', None)
+                if system_status is None:
+                    status = task_constants.TaskStatus.PENDING
+                elif system_status == 'good':
+                    status = task_constants.TaskStatus.COMPLETED
+                else:
+                    status = task_constants.TaskStatus.ERROR
             else:
-                status = task_constants.TaskStatus.ERROR
+                publish_status = response.get('publishStatus', None)
+                if publish_status == 'APPLIED':
+                    status = task_constants.TaskStatus.COMPLETED
+                else:
+                    status = task_constants.TaskStatus.PENDING
+
         except exceptions.VcnsApiException as e:
             LOG.exception(_LE("VCNS: Edge %s status query failed."), edge_id)
             raise e
@@ -402,6 +412,31 @@ class EdgeApplianceDriver(object):
         edge_id = task.userdata['edge_id']
         LOG.debug("start update edge %s", edge_id)
         request = task.userdata['request']
+
+        skip_feature = task.userdata.get('skip_feature')
+        if skip_feature:
+            resource_id = task.resource_id
+            task_list = self.task_manager.get_task_list(resource_id)
+            for task in task_list:
+                skip_data = task.userdata.get('skip_data')
+                if skip_data and skip_data.get("skip_before"):
+                    LOG.debug(_("Update edge %(id)s task is aborted since "
+                                "request %(request)s isn't latest config"),
+                              {'id': edge_id, 'request': request})
+                    return task_constants.TaskStatus.COMPLETED
+
+        delay = 0.5
+        retry_number = 0
+        while "PENDING":
+            response = self.vcns.get_edge_deploy_status(edge_id)[1]
+            publish_status = response.get('publishStatus', None)
+            if publish_status == 'APPLIED':
+                break
+            else:
+                LOG.debug("edge %s hasn't been ready for update!", edge_id)
+                retry_number = retry_number + 1
+                tts = (2 ** (retry_number - 1)) * delay
+                time.sleep(min(tts, 2))
         try:
             self.vcns.update_edge(edge_id, request)
             status = task_constants.TaskStatus.COMPLETED
@@ -534,13 +569,16 @@ class EdgeApplianceDriver(object):
 
     def update_edge_obj(self, name, resource_id, edge_id, edge_obj,
                         jobdata=None, edge_type=nsxv_constants.SERVICE_EDGE,
-                        async=True):
+                        async=True, skip_feature=False, skip_data=None):
         #TODO(Bo): implement sync call
         task_name = 'update-%s' % name
         userdata = {
             'edge_id': edge_id,
+            'edge_type': edge_type,
             'request': edge_obj,
-            'jobdata': jobdata
+            'jobdata': jobdata,
+            'skip_feature': skip_feature,
+            'skip_data': skip_data
         }
         task = tasks.Task(task_name, resource_id,
                           self._update_edge,

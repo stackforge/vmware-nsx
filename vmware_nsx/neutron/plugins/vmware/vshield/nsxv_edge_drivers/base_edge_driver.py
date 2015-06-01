@@ -51,17 +51,19 @@ class EdgeAbstractDriver(object):
         return
 
     @abc.abstractmethod
-    def deploy(self, jobdata=None, async=True, wait_for_exec=False):
+    def deploy(self, jobdata=None, async=True):
         return
 
     @abc.abstractmethod
     def update_edge(self, edge_id, appliance_size,
                     name=None, internal_network=None,
-                    jobdata=None, async=True):
+                    jobdata=None, async=True,
+                    skip_feature=False, skip_data=None):
         return
 
     @abc.abstractmethod
-    def update(self, edge_id, jobdata=None, async=True):
+    def update(self, edge_id, jobdata=None, async=True,
+               skip_feature=True, skip_data=None):
         return
 
     @abc.abstractmethod
@@ -91,6 +93,7 @@ class EdgeBaseDriver(EdgeAbstractDriver):
         self.appliances = {}
         self.vnics = []
         self.interfaces = []
+        self.features = []
 
     def get_type(self):
         return self._edge_type
@@ -124,8 +127,12 @@ class EdgeBaseDriver(EdgeAbstractDriver):
                       is_connected=True, mtu=1500, address_groups=None):
         interface = EdgeInterface(portgroup_id, primary_address, subnet_mask,
                                   secondary, type, is_connected, mtu,
-                                  address_groups)
+                                  address_groups).payload
         self.interfaces.append(interface)
+
+    def add_dhcp(self, static_bindings=None, enabled=True):
+        dhcp_payload = EdgeDhcpService(static_bindings, enabled).payload
+        self.features.append(dhcp_payload)
 
     def validate_payload(self):
         if not self.appliances:
@@ -138,16 +145,20 @@ class EdgeBaseDriver(EdgeAbstractDriver):
         appliances = self.appliances.copy()
         vnics = self.vnics
         interfaces = self.interfaces
+        features = self.features
 
         payload = self.payload.copy()
         payload['cliSettings'] = cli_settings
         if appliances.get('datacenterMoid'):
             payload['datacenterMoid'] = appliances.pop('datacenterMoid')
-        payload['appliances'] = appliances
+        if appliances:
+            payload['appliances'] = appliances
         if vnics:
             payload['vnics'] = {'vnics': vnics}
         if interfaces:
             payload['interfaces'] = {'interfaces': interfaces}
+        if features:
+            payload['featureConfigs'] = {'features': features}
         LOG.debug(_("payload of the edge is %s"), payload)
         return payload
 
@@ -180,7 +191,8 @@ class EdgeBaseDriver(EdgeAbstractDriver):
 
     def update_edge(self, edge_id, appliance_size,
                     name=None, internal_network=None,
-                    jobdata=None, async=True):
+                    jobdata=None, async=True,
+                    skip_feature=True, skip_data=None):
         if name:
             self.payload['name'] = name
         self.set_appliances(appliance_size)
@@ -191,16 +203,20 @@ class EdgeBaseDriver(EdgeAbstractDriver):
                           primary_address=constants.INTEGRATION_EDGE_IPADDRESS,
                           subnet_mask=constants.INTEGRATION_SUBNET_NETMASK)
         self._prepare_before_send()
-        return self.update(edge_id, jobdata=jobdata, async=async)
+        return self.update(edge_id, jobdata=jobdata, async=async,
+                           skip_feature=skip_feature, skip_data=skip_data)
 
-    def update(self, edge_id, jobdata=None, async=True):
+    def update(self, edge_id, jobdata=None, async=True,
+               skip_feature=True, skip_data=None):
         payload = self.serializable_payload()
         resource_id = edge_id
-        return self.nsx_v.update_edge_obj(edge_id, resource_id, payload,
-                                          payload,
+        return self.nsx_v.update_edge_obj(payload.get('name'), resource_id,
+                                          edge_id, payload,
                                           jobdata=jobdata,
                                           edge_type=self.get_type(),
-                                          async=async)
+                                          async=async,
+                                          skip_feature=skip_feature,
+                                          skip_data=skip_data)
 
     def delete_edge(self, edge_id, jobdata=None):
         return self.delete(edge_id, jobdata)
@@ -359,3 +375,13 @@ class EdgeInterface(object):
         else:
             interface['addressGroups'] = {'addressGroups': address_groups}
         return interface
+
+
+class EdgeDhcpService(object):
+
+    def __init__(self, static_bindings=None, enabled=True):
+        if not static_bindings:
+            static_bindings = []
+        self.payload = {'featureType': "dhcp_4.0",
+                        'enabled': enabled,
+                        'staticBindings': {'staticBindings': static_bindings}}

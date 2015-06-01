@@ -33,6 +33,11 @@ TRUNK_EDGE_PURPOSE = 'trunk_edge_net'
 # etc
 INTERNAL_TENANT_ID = 'a1b2c3d4-e5f6-eeff-ffee-6f5e4d3c2b1a'
 
+# Max number of service container edge per multi context gateway edge
+MaxContainerEdgeNum = {
+    COMPACT: 20,
+    XLARGE: 200}
+
 # Edge type mapping
 EdgeTypeMapping = {
     SERVICE_EDGE: 'gatewayServices',

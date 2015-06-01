@@ -107,8 +107,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
         return self.plugin.get_router(context, router_id)
 
     def delete_router(self, context, router_id):
-        self.edge_manager.delete_lrouter(context, router_id,
-                                         edge_type=nsxv_constants.VDR_EDGE)
+        self.edge_manager.delete_lrouter(context, router_id)
 
     def update_routes(self, context, router_id, newnexthop):
         plr_id = self.edge_manager.get_plr_by_tlr_id(context, router_id)
