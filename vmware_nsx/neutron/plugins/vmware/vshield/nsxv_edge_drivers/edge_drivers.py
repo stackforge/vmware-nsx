@@ -137,7 +137,7 @@ class EdgeServiceContainerDriver(base_edge_driver.EdgeBaseDriver):
     def __init__(self, nsx_v, edge_type, name=None,
                  fqdn=None, enable_aesni=True, enable_fips=False,
                  master_edge_id=None):
-        super(EdgeServiceDriver, self).__init__(
+        super(EdgeServiceContainerDriver, self).__init__(
             nsx_v, edge_type, name=name,
             fqdn=fqdn, enable_aesni=enable_aesni, enable_fips=enable_fips,
             master_edge_id=master_edge_id)
@@ -161,10 +161,15 @@ class EdgeServiceContainerDriver(base_edge_driver.EdgeBaseDriver):
         self.payload['masterEdgeId'] = master_edge_id
 
     def validate_payload(self):
-        super(EdgeServiceContainerDriver, self).validate_payload()
         if self.vnics:
             msg = _('Can not add vnic on service container edge')
             raise nsxv_exc.VcnsBadRequest(resource='edge', msg=msg)
         if not self.payload.get('masterEdgeId'):
             msg = _('masterEdgeId must be required for service container edge')
             raise nsxv_exc.VcnsBadRequest(resource='edge', msg=msg)
+
+    def set_appliances(self, appliance_size, deployment_container_id=None,
+                       datacenter_moid=None, resource_pool_id=None,
+                       datastore_id=None):
+        # No need to set appliance for service container edge.
+        return
