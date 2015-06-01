@@ -91,6 +91,7 @@ class EdgeBaseDriver(EdgeAbstractDriver):
         self.appliances = {}
         self.vnics = []
         self.interfaces = []
+        self.features = []
 
     def get_type(self):
         return self._edge_type
@@ -127,6 +128,10 @@ class EdgeBaseDriver(EdgeAbstractDriver):
                                   address_groups)
         self.interfaces.append(interface)
 
+    def add_dhcp(self, static_bindings=None, enabled=True):
+        dhcp_payload = EdgeDhcpService(static_bindings, enabled).payload
+        self.features.append(dhcp_payload)
+
     def validate_payload(self):
         if not self.appliances:
             msg = _('payload is invalid since have not filled appliances')
@@ -138,16 +143,20 @@ class EdgeBaseDriver(EdgeAbstractDriver):
         appliances = self.appliances.copy()
         vnics = self.vnics
         interfaces = self.interfaces
+        features = self.features
 
         payload = self.payload.copy()
         payload['cliSettings'] = cli_settings
         if appliances.get('datacenterMoid'):
             payload['datacenterMoid'] = appliances.pop('datacenterMoid')
-        payload['appliances'] = appliances
+        if appliances:
+            payload['appliances'] = appliances
         if vnics:
             payload['vnics'] = {'vnics': vnics}
         if interfaces:
             payload['interfaces'] = {'interfaces': interfaces}
+        if features:
+            payload['featureConfigs'] = {'features': features}
         LOG.debug(_("payload of the edge is %s"), payload)
         return payload
 
@@ -359,3 +368,13 @@ class EdgeInterface(object):
         else:
             interface['addressGroups'] = {'addressGroups': address_groups}
         return interface
+
+
+class EdgeDhcpService(object):
+
+    def __init__(self, static_bindings=None, enabled=True):
+        if not static_bindings:
+            static_bindings = []
+        self.payload = {'featureType': "dhcp_4.0",
+                        'enabled': enabled,
+                        'staticBindings': {'staticBindings': static_bindings}}
