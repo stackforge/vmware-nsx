@@ -79,7 +79,6 @@ def get_nsxv_router_bindings_by_edge(session, edge_id):
 
 def get_nsxv_router_bindings(session, filters=None,
                              like_filters=None):
-    session = db.get_session()
     query = session.query(nsxv_models.NsxvRouterBinding)
     return _apply_filters_to_query(query, nsxv_models.NsxvRouterBinding,
                                    filters, like_filters).all()

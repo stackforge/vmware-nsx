@@ -360,13 +360,23 @@ class EdgeApplianceDriver(object):
         try:
             response = self.vcns.get_edge_deploy_status(edge_id)[1]
             task.userdata['retries'] = 0
-            system_status = response.get('systemStatus', None)
-            if system_status is None:
-                status = task_constants.TaskStatus.PENDING
-            elif system_status == 'good':
-                status = task_constants.TaskStatus.COMPLETED
+            edge_type = task.userdata['edge_type']
+            if edge_type != nsxv_constants.SERVICE_CONTAINER_EDGE:
+                system_status = response.get('systemStatus', None)
+                if system_status is None:
+                    status = task_constants.TaskStatus.PENDING
+                elif system_status == 'good':
+                    status = task_constants.TaskStatus.COMPLETED
+                else:
+                    status = task_constants.TaskStatus.ERROR
             else:
-                status = task_constants.TaskStatus.ERROR
+                #TODO(Bo): how to know service container edge is deployed?
+                publish_status = response.get('publishStatus', None)
+                if publish_status == 'APPLIED':
+                    status = task_constants.TaskStatus.COMPLETED
+                else:
+                    status = task_constants.TaskStatus.PENDING
+
         except exceptions.VcnsApiException as e:
             LOG.exception(_LE("VCNS: Edge %s status query failed."), edge_id)
             raise e
