@@ -445,7 +445,9 @@ class EdgeManager(object):
 
         lrouter = {'id': resource_id,
                    'name': name}
-        edge_pool_range = self.edge_pool_dicts[edge_type].get(appliance_size)
+        pool_dicts = self.edge_pool_dicts.get(edge_type)
+        edge_pool_range = (None if not pool_dicts
+                           else pool_dicts.get(appliance_size))
         if edge_pool_range is None:
             nsxv_db.add_nsxv_router_binding(
                 context.session, resource_id, None, None,
@@ -510,9 +512,11 @@ class EdgeManager(object):
             fake_task.status = task_const.TaskStatus.COMPLETED
             self.nsxv_manager.callbacks.edge_deploy_result(fake_task)
             # change edge's name at backend
-            task = self.nsxv_manager.update_edge(
-                resource_id, available_router_binding['edge_id'],
-                name, None, appliance_size=appliance_size, edge_type=edge_type)
+            edge_driver = self.edge_drivers[edge_type](
+                self.nsxv_manager, edge_type, name=name,
+                master_edge_id=master_edge_id)
+            task = edge_driver.update_edge(available_router_binding['edge_id'],
+                                           appliance_size)
             task.wait(task_const.TaskState.RESULT)
         backup_num = len(self._get_backup_edge_bindings(
             context, appliance_size=appliance_size, edge_type=edge_type,
@@ -531,9 +535,15 @@ class EdgeManager(object):
             LOG.warning(_LW("router binding for router: %s "
                             "not found"), router_id)
             return
+        if not binding['edge_id']:
+            LOG.warning(_LW("backend edge for router: %s "
+                            "not found"), router_id)
+            nsxv_db.delete_nsxv_router_binding(context.session, router_id)
+            return
         edge_type = binding['edge_type']
-        edge_pool_range = self.edge_pool_dicts[edge_type].get(
-            binding['appliance_size'])
+        pool_dicts = self.edge_pool_dicts.get(edge_type)
+        edge_pool_range = (None if not pool_dicts
+                           else pool_dicts.get(binding['appliance_size']))
         if (not self.check_edge_active_at_backend(binding['edge_id']) or
             not edge_pool_range):
             nsxv_db.update_nsxv_router_binding(
@@ -571,11 +581,14 @@ class EdgeManager(object):
                 None,
                 plugin_const.ACTIVE,
                 appliance_size=binding['appliance_size'],
-                edge_type=binding['edge_type'])
+                edge_type=binding['edge_type'],
+                master_edge_id=binding['master_edge_id'])
             # change edge's name at backend
-            task = self.nsxv_manager.update_edge(
-                router_id, binding['edge_id'], backup_router_id, None,
-                appliance_size=binding['appliance_size'], edge_type=edge_type)
+            edge_driver = self.edge_drivers[edge_type](
+                self.nsxv_manager, binding['edge_type'], name=backup_router_id,
+                master_edge_id=binding)
+            task = edge_driver.update_edge(binding['edge_id'],
+                                           binding['appliance_size'])
             task.wait(task_const.TaskState.RESULT)
 
             # Refresh edge_vnic_bindings
@@ -636,27 +649,14 @@ class EdgeManager(object):
             context.session, edge_id)
         dhcp_networks = [edge_vnic_binding.network_id
                          for edge_vnic_binding in edge_vnic_bindings]
-        ports = self.nsxv_plugin.get_ports(
-            context, filters={'network_id': dhcp_networks})
-        inst_ports = [port
-                      for port in ports
-                      if port['device_owner'].startswith("compute")]
-        static_bindings = []
-        for port in inst_ports:
-            static_bindings.extend(
-                self.nsxv_plugin._create_static_binding(context, port))
+        static_bindings = self._get_dhcp_static_bindings(context,
+  dhcp_networks)
         dhcp_request = {
             'featureType': "dhcp_4.0",
             'enabled': True,
             'staticBindings': {'staticBindings': static_bindings}}
         self.nsxv_manager.vcns.reconfigure_dhcp_service(edge_id, dhcp_request)
-        bindings_get = get_dhcp_binding_mappings(self.nsxv_manager, edge_id)
-        # Refresh edge_dhcp_static_bindings attached to edge
-        nsxv_db.clean_edge_dhcp_static_bindings_by_edge(
-            context.session, edge_id)
-        for mac_address, binding_id in bindings_get.items():
-            nsxv_db.create_edge_dhcp_static_binding(context.session, edge_id,
-                                                    mac_address, binding_id)
+        self._refresh_dhcp_static_bindings(context, edge_id)
 
     def _get_vdr_dhcp_edges(self, context):
         bindings = nsxv_db.get_vdr_dhcp_bindings(context.session)
@@ -820,15 +820,159 @@ class EdgeManager(object):
             # If a new Edge was allocated, return resource_id
             return resource_id
 
+    def get_dhcp_edge_binding_at_backend(self, context, network_id):
+        resource_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
+        filters = {'status': [plugin_const.PENDING_CREATE,
+                              plugin_const.ACTIVE],
+                   'router_id': [resource_id]}
+        bindings = nsxv_db.get_nsxv_router_bindings(context.session,
+                                                    filters=filters)
+        if bindings:
+            return bindings[0]
+
+    @lockutils.synchronized("multi-context-edge", "edge-bind-", external=True)
+    def bind_multi_context_dhcp_edge(self, context, network_id):
+        """Bind one creating service container edge on an available
+        multi context gateway edge.
+        """
+        resource_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
+        multi_resource_id = (vcns_const.MULTI_DHCP_EDGE_PREFIX + _uuid())[:36]
+        appliance_size = vcns_const.SERVICE_SIZE_MAPPING['multi_dhcp']
+        filters = {'status': [plugin_const.ACTIVE],
+                   'appliance_size': [appliance_size]}
+        like_filters = {'router_id': vcns_const.MULTI_DHCP_EDGE_PREFIX + "%"}
+        all_multi_dhcp_edges = nsxv_db.get_nsxv_router_bindings(
+            context.session, filters=filters, like_filters=like_filters)
+
+        if all_multi_dhcp_edges:
+            master_edge_binding = random.choice(all_multi_dhcp_edges)
+        else:
+            self._allocate_edge_appliance(
+                context, multi_resource_id, multi_resource_id,
+                appliance_size=appliance_size,
+                edge_type=nsxv_constants.MULTI_CONTEXT_EDGE)
+            master_edge_binding = nsxv_db.get_nsxv_router_binding(
+                context.session, multi_resource_id)
+
+        master_edge_id = master_edge_binding['edge_id']
+        nsxv_db.add_nsxv_router_binding(
+            context.session, resource_id, None, None,
+            plugin_const.PENDING_CREATE,
+            appliance_size=None,
+            edge_type=nsxv_constants.SERVICE_CONTAINER_EDGE,
+            master_edge_id=master_edge_id)
+
+        filters = {'master_edge_id': [master_edge_id]}
+        service_container_edge_num = len(nsxv_db.get_nsxv_router_bindings(
+            context.session, filters=filters))
+        if (service_container_edge_num
+            >= nsxv_constants.MaxContainerEdgeNum.get(appliance_size,
+                                                      nsxv_constants.COMPACT)):
+            nsxv_db.update_nsxv_router_binding(
+                context.session,
+                multi_resource_id,
+                status=vcns_const.FULL)
+
+        return master_edge_id
+
+    @lockutils.synchronized("multi-context-edge", "edge-bind-", external=True)
+    def unbind_multi_context_dhcp_edge(self, context, network_id):
+        """Unbind one service container edge from multi context gateway edge.
+        """
+        resource_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
+        edge_binding = nsxv_db.get_nsxv_router_binding(
+            context.session, resource_id)
+        master_edge_id = edge_binding['master_edge_id']
+        master_edge_binding = nsxv_db.get_nsxv_router_binding_by_edge(
+            context.session, master_edge_id)
+        master_appliance_size = master_edge_binding['appliance_size']
+        self._free_edge_appliance(context, resource_id)
+        filters = {'master_edge_id': [master_edge_id]}
+        service_container_edge_num = len(nsxv_db.get_nsxv_router_bindings(
+            context.session, filters=filters))
+        if service_container_edge_num == 0:
+            self._free_edge_appliance(context,
+                                      master_edge_binding['router_id'])
+        elif (edge_binding['status'] == vcns_const.FULL and
+              service_container_edge_num <
+              nsxv_constants.MaxContainerEdgeNum.get(master_appliance_size,
+                                                     nsxv_constants.COMPACT)):
+            nsxv_db.update_nsxv_router_binding(
+                context.session,
+                master_edge_binding['router_id'],
+                status=plugin_const.ACTIVE)
+
+    def _get_dhcp_static_bindings(self, context, network_ids=None):
+        if not network_ids:
+            network_ids = []
+        ports = self.nsxv_plugin.get_ports(
+            context, filters={'network_id': network_ids})
+        inst_ports = [port
+                      for port in ports
+                      if port['device_owner'].startswith("compute")]
+        static_bindings = []
+        for port in inst_ports:
+            static_bindings.extend(
+                self.nsxv_plugin._create_static_binding(context, port))
+        return static_bindings
+
+    def _refresh_dhcp_static_bindings(self, context, edge_id):
+
+        bindings_get = get_dhcp_binding_mappings(self.nsxv_manager, edge_id)
+        # Refresh edge_dhcp_static_bindings attached to edge
+        nsxv_db.clean_edge_dhcp_static_bindings_by_edge(
+            context.session, edge_id)
+        for mac_address, binding_id in bindings_get.items():
+            nsxv_db.create_edge_dhcp_static_binding(context.session, edge_id,
+                                                    mac_address, binding_id)
+
+    def update_dhcp_edge_service_with_multi(self, context, network_id,
+                                            address_groups=None):
+        edge_id = None
+        master_edge_id = None
+        edge_name = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
+        edge_type = nsxv_constants.SERVICE_CONTAINER_EDGE
+        # port group id for vlan or virtual wire id for vxlan
+        nsx_network_id = nsx_db.get_nsx_switch_ids(context.session,
+                                                   network_id)[0]
+
+        edge_binding = self.get_dhcp_edge_binding_at_backend(
+            context, network_id)
+        if edge_binding:
+            if edge_binding['edge_type'] != edge_type:
+                msg = _("We are using non service container edge to support "
+                        "dhcp in service container edge op logic")
+                raise n_exc.BadRequest(resource='dhcp', msg=msg)
+            master_edge_id = edge_binding['master_edge_id']
+            edge_id = edge_binding['edge_id']
+        else:
+            master_edge_id = self.bind_multi_context_dhcp_edge(
+                context, network_id)
+            edge_id = None
+
+        static_bindings = self._get_dhcp_static_bindings(context, [network_id])
+        service_container_edge_obj = self.edge_drivers[edge_type](
+            self.nsxv_manager, edge_type, name=edge_name,
+            master_edge_id=master_edge_id)
+        resource_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
+        jobdata = {
+            'router_id': resource_id,
+            'context': context}
+        edge_id = service_container_edge_obj.bulk_update_dhcp(
+            nsx_network_id, jobdata, edge_id=edge_id,
+            address_groups=address_groups,
+            static_bindings=static_bindings)
+
+        self._refresh_dhcp_static_bindings(context, edge_id)
+
     def update_dhcp_edge_service(self, context, network_id,
                                  address_groups=None):
         """Update the subnet to the dhcp edge vnic."""
         if address_groups is None:
             address_groups = []
 
-        resource_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
-        edge_binding = nsxv_db.get_nsxv_router_binding(context.session,
-                                                       resource_id)
+        edge_binding = self.get_dhcp_edge_binding_at_backend(
+            context, network_id)
         dhcp_binding = nsxv_db.get_edge_vnic_binding(context.session,
                                                      edge_binding['edge_id'],
                                                      network_id)
@@ -1606,9 +1750,7 @@ class NsxVCallbacks(object):
         else:
             LOG.debug("Failed to deploy Edge")
             if router_id:
-                nsxv_db.update_nsxv_router_binding(
-                    context.session, router_id,
-                    status=plugin_const.ERROR)
+                nsxv_db.delete_nsxv_router_binding(context.session, router_id)
 
     def edge_deploy_result(self, task):
         """callback when deployment task finished."""
@@ -1648,12 +1790,13 @@ class NsxVCallbacks(object):
             LOG.debug("Failed to deploy Edge for router %s", name)
             if router_db:
                 router_db['status'] = plugin_const.ERROR
-            nsxv_db.update_nsxv_router_binding(
-                context.session, router_id,
-                status=plugin_const.ERROR)
-            if edge_type == nsxv_constants.SERVICE_EDGE and edge_id:
-                nsxv_db.clean_edge_vnic_binding(
-                    context.session, edge_id)
+            if edge_id:
+                nsxv_db.update_nsxv_router_binding(
+                    context.session, router_id,
+                    status=plugin_const.ERROR)
+                if edge_type == nsxv_constants.SERVICE_EDGE and edge_id:
+                    nsxv_db.clean_edge_vnic_binding(
+                        context.session, edge_id)
 
     def edge_update_result(self, task):
         LOG.debug("edge_update_result %d", task.status)

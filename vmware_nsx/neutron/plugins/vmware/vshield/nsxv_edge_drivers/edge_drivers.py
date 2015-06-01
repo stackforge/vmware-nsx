@@ -137,7 +137,7 @@ class EdgeServiceContainerDriver(base_edge_driver.EdgeBaseDriver):
     def __init__(self, nsx_v, edge_type, name=None,
                  fqdn=None, enable_aesni=True, enable_fips=False,
                  master_edge_id=None):
-        super(EdgeServiceDriver, self).__init__(
+        super(EdgeServiceContainerDriver, self).__init__(
             nsx_v, edge_type, name=name,
             fqdn=fqdn, enable_aesni=enable_aesni, enable_fips=enable_fips,
             master_edge_id=master_edge_id)
@@ -161,10 +161,38 @@ class EdgeServiceContainerDriver(base_edge_driver.EdgeBaseDriver):
         self.payload['masterEdgeId'] = master_edge_id
 
     def validate_payload(self):
-        super(EdgeServiceContainerDriver, self).validate_payload()
         if self.vnics:
             msg = _('Can not add vnic on service container edge')
             raise nsxv_exc.VcnsBadRequest(resource='edge', msg=msg)
         if not self.payload.get('masterEdgeId'):
             msg = _('masterEdgeId must be required for service container edge')
             raise nsxv_exc.VcnsBadRequest(resource='edge', msg=msg)
+
+    def set_appliances(self, appliance_size, deployment_container_id=None,
+                       datacenter_moid=None, resource_pool_id=None,
+                       datastore_id=None):
+        # No need to set appliance for service container edge.
+        return
+
+    def bulk_update_dhcp(self, pg_id, jobdata, edge_id=None,
+                         address_groups=None, static_bindings=None):
+        if edge_id:
+            # Update the edge with empty config first to avaoid pg-id
+            # conflict errors inside nsxv manager
+            task = self.update_edge(edge_id, appliance_size=None,
+                                    jobdata=jobdata,
+                                    skip_feature=True,
+                                    skip_data={'skip_before': True})
+        self.add_interface(pg_id, address_groups=address_groups)
+        self.add_dhcp(static_bindings=static_bindings)
+        if edge_id:
+            task = self.update_edge(edge_id, appliance_size=None,
+                                    jobdata=jobdata, skip_feature=True)
+        else:
+            task = self.deploy_edge(appliance_size=None, jobdata=jobdata,
+                                    wait_for_exec=True)
+            edge_id = task.userdata.get('edge_id')
+            if not edge_id:
+                msg = _('Failed to deploy service container edge')
+                raise nsxv_exc.VcnsBadRequest(resource='edge', msg=msg)
+        return edge_id
