@@ -28,6 +28,7 @@ from oslo_log import log as logging
 from oslo_utils import excutils
 
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsxv_exc
+from vmware_nsx.neutron.plugins.vmware.common import locking
 from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
 from vmware_nsx.neutron.plugins.vmware.vshield import (
@@ -74,10 +75,13 @@ class NsxVMetadataProxyHandler:
         self.nsxv_plugin = nsxv_plugin
         self.context = neutron_context.get_admin_context()
 
-        self.internal_net, self.internal_subnet = (
-            self._get_internal_network_and_subnet())
+        # Init cannot run concurrently on multiple nodes
+        with locking.LockManager.get_lock('metadata-init',
+                                          lock_file_prefix='nsxv-metadata'):
+            self.internal_net, self.internal_subnet = (
+                self._get_internal_network_and_subnet())
 
-        self.proxy_edge_ips = self._get_proxy_edges()
+            self.proxy_edge_ips = self._get_proxy_edges()
 
     def _create_metadata_internal_network(self, cidr):
         # Neutron requires a network to have some tenant_id
