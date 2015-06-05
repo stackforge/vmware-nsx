@@ -40,6 +40,7 @@ from neutron.i18n import _LW
 
 from vmware_nsx.neutron.plugins.vmware.common import config  # noqa
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
+from vmware_nsx.neutron.plugins.vmware.common import locking
 from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
 from vmware_nsx.neutron.plugins.vmware.nsxlib import v3 as nsxlib
@@ -164,9 +165,18 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         return ret_val
 
     def update_port(self, context, id, port):
-        # TODO(arosen) - call to backend
-        return super(NsxV3Plugin, self).update_port(context, id,
-                                                    port)
+        with locking.LockManager.get_lock(
+                str(id), lock_file_prefix="neutron-port-ops"):
+            nsx_lswitch_id, nsx_lport_id = nsx_db.get_nsx_switch_and_port_id(
+                context.session, id)
+            existing_payload = nsxlib.get_logical_port(nsx_lport_id)
+            nsxlib.update_logical_port(
+                nsx_lport_id, existing_payload, name=port['port'].get('name'),
+                admin_state=port['port'].get('admin_state_up'))
+            try:
+                return super(NsxV3Plugin, self).update_port(context, id, port)
+            except Exception:
+                nsxlib.update_logical_port(nsx_lport_id, existing_payload)
 
     def create_router(self, context, router):
         tags = utils.build_v3_tags_payload(router['router'])
