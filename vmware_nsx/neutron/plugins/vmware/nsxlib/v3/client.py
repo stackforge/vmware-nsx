@@ -24,11 +24,8 @@ from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 
 LOG = log.getLogger(__name__)
 
-NOT_FOUND = 404
-PRECONDITION_FAILED = 412
-
-ERRORS = {NOT_FOUND: nsx_exc.ResourceNotFound,
-          PRECONDITION_FAILED: nsx_exc.StaleRevision}
+ERRORS = {requests.codes.NOT_FOUND: nsx_exc.ResourceNotFound,
+          requests.codes.PRECONDITION_FAILED: nsx_exc.StaleRevision}
 
 
 def _get_manager_endpoint():
@@ -45,6 +42,10 @@ def _get_manager_ip():
 
 
 def _validate_result(result, expected, operation):
+    if result.status_code == requests.codes.PRECONDITION_FAILED:
+        LOG.warning(_LW("The HTTP request returned error code %s; "
+                        "need to fetch and retry"), result.status_code)
+        raise requests.exceptions.HTTPError(_("Preconditon failed"))
     if result.status_code not in expected:
         if (result.status_code == requests.codes.bad):
             LOG.warning(_LW("The HTTP request returned error code "

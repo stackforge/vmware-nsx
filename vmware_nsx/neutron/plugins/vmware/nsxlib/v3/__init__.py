@@ -13,9 +13,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_config import cfg
 from oslo_log import log
 
+from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.common import nsx_constants
+from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware.nsxlib.v3 import client
 
 LOG = log.getLogger(__name__)
@@ -68,6 +71,43 @@ def create_logical_port(lswitch_id, vif_uuid, tags,
 def delete_logical_port(logical_port_id):
     resource = 'logical-ports/%s?detach=true' % logical_port_id
     client.delete_resource(resource)
+
+
+def get_logical_port(logical_port_id):
+    resource = "logical-ports/%s" % logical_port_id
+    result = client.get_resource(resource)
+    return result.json()
+
+
+@utils.retry_upon_exception_nsxv3(nsx_exc.StaleRevision,
+                                  max_attempts=cfg.CONF.nsx_v3.retries)
+def retry_update_logical_port(payload):
+    revised_payload = get_logical_port(payload.get('id'))
+    resource = "logical-ports/%s" % payload.get('id')
+    revised_payload['display_name'] = payload['display_name']
+    revised_payload['admin_state'] = payload['admin_state']
+    result = client.update_resource(resource, revised_payload)
+    return result.json()
+
+
+def update_logical_port(lport_id, payload,
+                        name=None, admin_state=None):
+    resource = "logical-ports/%s" % lport_id
+    if name is not None:
+        payload['display_name'] = name
+    if admin_state is not None:
+        if admin_state:
+            payload['admin_state'] = nsx_constants.ADMIN_STATE_UP
+        else:
+            payload['admin_state'] = nsx_constants.ADMIN_STATE_DOWN
+    # If revision_id of the payload that we send is older than what NSX has
+    # then we will get a 412: Precondition Failed. In that case we need to
+    # re-fetch, patch the response and send it again with the new revision_id
+    try:
+        result = client.update_resource(resource, payload)
+        return result.json()
+    except nsx_exc.StaleRevision:
+        return retry_update_logical_port(payload)
 
 
 def create_logical_router(display_name, edge_cluster_uuid, tags, tier_0=False):
