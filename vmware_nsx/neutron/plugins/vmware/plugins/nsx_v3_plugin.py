@@ -1,4 +1,4 @@
-# Copyright 2015 OpenStack Foundation
+# Copyright 2015 VMware, Inc.
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,9 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 from oslo_config import cfg
 from oslo_log import log
+from oslo_utils import excutils
 from oslo_utils import importutils
 from oslo_utils import uuidutils
 
@@ -36,7 +36,7 @@ from neutron.db import l3_db
 from neutron.db import models_v2
 from neutron.db import portbindings_db
 from neutron.db import securitygroups_db
-from neutron.i18n import _LW
+from neutron.i18n import _LE, _LW
 
 from vmware_nsx.neutron.plugins.vmware.common import config  # noqa
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
@@ -164,9 +164,24 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         return ret_val
 
     def update_port(self, context, id, port):
-        # TODO(arosen) - call to backend
-        return super(NsxV3Plugin, self).update_port(context, id,
-                                                    port)
+        nsx_lswitch_id, nsx_lport_id = nsx_db.get_nsx_switch_and_port_id(
+            context.session, id)
+        existing_payload = nsxlib.get_logical_port(nsx_lport_id)
+        nsxlib.update_logical_port(
+            nsx_lport_id, existing_payload, name=port['port'].get('name'),
+            admin_state=port['port'].get('admin_state_up'))
+        try:
+            return super(NsxV3Plugin, self).update_port(context, id, port)
+        except Exception:
+            LOG.exception(_LE("Unable to update port in Neutron"))
+            with excutils.save_and_reraise_exception():
+                # In case of plugin failure; rollback lport to the same state
+                # it was in before this update
+                try:
+                    nsxlib.update_logical_port(nsx_lport_id, existing_payload)
+                except Exception:
+                    LOG.exception(_LE("NSX could now be out of sync as we "
+                                      "weren't able to roll back your port"))
 
     def create_router(self, context, router):
         tags = utils.build_v3_tags_payload(router['router'])
