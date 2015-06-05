@@ -39,6 +39,10 @@ def _get_manager_ip():
 
 
 def _validate_result(result, expected, operation):
+    if result.status_code == requests.codes.PRECONDITION_FAILED:
+        LOG.warning(_LW("The HTTP request returned error code %s; "
+                        "need to fetch and retry"), result.status_code)
+        raise requests.exceptions.HTTPError(_("Preconditon failed"))
     if result.status_code not in expected:
         # Do not reveal internal details in the exception message, as it will
         # be user-visible
