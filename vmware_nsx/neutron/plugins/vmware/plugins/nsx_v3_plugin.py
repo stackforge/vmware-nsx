@@ -1,4 +1,4 @@
-# Copyright 2015 OpenStack Foundation
+# Copyright 2015 VMware, Inc.
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,9 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 from oslo_config import cfg
 from oslo_log import log
+from oslo_utils import excutils
 from oslo_utils import importutils
 from oslo_utils import uuidutils
 
@@ -164,9 +164,19 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         return ret_val
 
     def update_port(self, context, id, port):
-        # TODO(arosen) - call to backend
-        return super(NsxV3Plugin, self).update_port(context, id,
-                                                    port)
+        nsx_lswitch_id, nsx_lport_id = nsx_db.get_nsx_switch_and_port_id(
+            context.session, id)
+        existing_payload = nsxlib.get_logical_port(nsx_lport_id)
+        nsxlib.update_logical_port(
+            nsx_lport_id, existing_payload, name=port['port'].get('name'),
+            admin_state=port['port'].get('admin_state_up'))
+        try:
+            return super(NsxV3Plugin, self).update_port(context, id, port)
+        except Exception:
+            with excutils.save_and_reraise_exception():
+                # In case of plugin failure; rollback lport to the same state
+                # it was in before this update
+                nsxlib.update_logical_port(nsx_lport_id, existing_payload)
 
     def create_router(self, context, router):
         tags = utils.build_v3_tags_payload(router['router'])
