@@ -150,9 +150,14 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
 
         return ret_val
 
-    def update_port(self, context, id, port):
-        # TODO(arosen) - call to backend
-        return super(NsxV3Plugin, self).update_port(context, id,
+    def update_port(self, context, port_id, port):
+        nsx_lswitch_id, nsx_lport_id = nsx_db.get_nsx_switch_and_port_id(
+            context.session, port_id)
+        result = nsxlib.update_logical_port(
+            nsx_lport_id, name=port['port'].get('name'),
+            admin_state=port['port'].get('admin_state_up'))
+
+        return super(NsxV3Plugin, self).update_port(context, port_id,
                                                     port)
 
     def create_router(self, context, router):
