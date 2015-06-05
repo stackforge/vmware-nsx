@@ -135,6 +135,49 @@ def delete_logical_port(logical_port_id):
                       "deleting logical port"))
 
 
+def get_logical_port(logical_port_id):
+    controller, user, password = _get_controller_endpoint()
+    url = controller + "/api/v1/logical-ports/%s" % logical_port_id
+    headers = {'Content-Type': 'application/json'}
+    body = {}
+
+    result = requests.get(url, auth=auth.HTTPBasicAuth(user, password),
+                          verify=False, headers=headers,
+                          data=jsonutils.dumps(body))
+    if result.status_code != requests.codes.ok:
+        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
+                        "200 response code was expected"), result.status_code)
+        raise nsx_exc.NsxPluginException(
+            err_msg=_("Unexpected error from backend while "
+                      "retriving logical port"))
+    return result.json()
+
+
+def update_logical_port(logical_port_id,
+                        name=None, admin_state=None):
+    backend_port_payload = get_logical_port(logical_port_id)
+    controller, user, password = _get_controller_endpoint()
+    url = controller + "/api/v1/logical-ports/%s" % logical_port_id
+    headers = {'Content-Type': 'application/json'}
+    if name:
+        backend_port_payload['display_name'] = name
+    if admin_state is not None:
+        if admin_state:
+            backend_port_payload['admin_state'] = "UP"
+        else:
+            backend_port_payload['admin_state'] = "DOWN"
+    result = requests.put(url, auth=auth.HTTPBasicAuth(user, password),
+                          verify=False, headers=headers,
+                          data=jsonutils.dumps(backend_port_payload))
+    if result.status_code != requests.codes.ok:
+        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
+                        "200 response code was expected"), result.status_code)
+        raise nsx_exc.NsxPluginException(
+            err_msg=_("Unexpected error from backend while "
+                      "updating logical port"))
+    return result.json()
+
+
 def create_logical_router(display_name, edge_cluster_uuid, tier_0=False):
     # TODO(salv-orlando): If possible do not manage edge clusters in the main
     # plugin logic.
