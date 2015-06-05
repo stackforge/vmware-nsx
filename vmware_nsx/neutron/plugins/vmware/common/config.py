@@ -166,7 +166,10 @@ nsx_v3_opts = [
                secret=True,
                help=_('Password for NSX controllers in this cluster')),
     cfg.StrOpt('default_edge_cluster_uuid',
-               help=_("Default edge cluster identifier"))]
+               help=_("Default edge cluster identifier")),
+    cfg.IntOpt('retries',
+               default=10,
+               help=_('Maximum number of times to retry API request'))]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
 DEFAULT_MINIMUM_POOLED_EDGES = 1
