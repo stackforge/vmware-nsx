@@ -22,6 +22,7 @@ from requests import auth
 from neutron.i18n import _LI, _LW
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.common import nsx_constants
+from vmware_nsx.neutron.plugins.vmware.common import utils
 
 LOG = log.getLogger(__name__)
 
@@ -37,7 +38,11 @@ def _get_controller_endpoint():
 
 
 def _validate_result(result, expected, operation):
-    if result.status_code != expected:
+    if result.status_code == requests.codes.PRECONDITION_FAILED:
+        LOG.warning(_LW("The HTTP request returned error code %s; "
+                        "need to fetch and retry") % result.status_code)
+        raise requests.exceptions.HTTPError("Preconditon failed")
+    elif result.status_code != expected:
         # Do not reveal internal details in the exception message, as it will
         # be user-visible
         LOG.warning(_LW("The HTTP request returned error code %(result)d, "
@@ -123,6 +128,63 @@ def delete_logical_port(logical_port_id):
                              verify=False, headers=headers)
     _validate_result(result, requests.codes.ok,
                      _("deleting logical port"))
+
+
+def get_logical_port(logical_port_id):
+    controller, user, password = _get_controller_endpoint()
+    url = controller + "/api/v1/logical-ports/%s" % logical_port_id
+    headers = {'Content-Type': 'application/json'}
+    body = {}
+
+    result = requests.get(url, auth=auth.HTTPBasicAuth(user, password),
+                          verify=False, headers=headers,
+                          data=jsonutils.dumps(body))
+    _validate_result(result, requests.codes.ok,
+                     _("retrieving logical port"))
+    return result.json()
+
+
+@utils.retry_upon_exception(requests.exceptions.HTTPError,
+                            max_attempts=cfg.CONF.nsx_v3.retries)
+def retry_update_logical_port(payload):
+    revised_payload = get_logical_port(payload.get('id'))
+    controller, user, password = _get_controller_endpoint()
+    url = controller + "/api/v1/logical-ports/%s" % payload.get('id')
+    headers = {'Content-Type': 'application/json'}
+    revised_payload['display_name'] = payload['display_name']
+    revised_payload['admin_state'] = payload['admin_state']
+    result = requests.put(url, auth=auth.HTTPBasicAuth(user, password),
+                          verify=False, headers=headers,
+                          data=jsonutils.dumps(revised_payload))
+    _validate_result(result, requests.codes.ok,
+                     _("retrying update logical port"))
+    return result.json()
+
+
+def update_logical_port(lport_id, existing_payload,
+                        name=None, admin_state=None):
+    controller, user, password = _get_controller_endpoint()
+    url = controller + "/api/v1/logical-ports/%s" % lport_id
+    headers = {'Content-Type': 'application/json'}
+    if name:
+        existing_payload['display_name'] = name
+    if admin_state is not None:
+        if admin_state:
+            existing_payload['admin_state'] = "UP"
+        else:
+            existing_payload['admin_state'] = "DOWN"
+    # If revision_id of the payload that we send is older than what NSX has
+    # then we will get a 412: Precondition Failed. In that case we need to
+    # re-fetch, patch the response and send it again with the new revision_id
+    try:
+        result = requests.put(url, auth=auth.HTTPBasicAuth(user, password),
+                              verify=False, headers=headers,
+                              data=jsonutils.dumps(existing_payload))
+        _validate_result(result, requests.codes.ok,
+                         _("updating logical port"))
+        return result.json()
+    except requests.exceptions.HTTPError:
+        return retry_update_logical_port(existing_payload)
 
 
 def create_logical_router(display_name, edge_cluster_uuid, tags, tier_0=False):
