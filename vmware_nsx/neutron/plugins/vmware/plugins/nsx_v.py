@@ -916,6 +916,8 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                     self._remove_vnic_from_spoofguard_policy(
                         context.session, original_port['network_id'], vnic_id)
                 self._delete_port_vnic_index_mapping(context, id)
+                self._delete_dhcp_static_binding(context, original_port)
+
             else:
                 # Update vnic with the newest approved IP addresses
                 if has_port_security and updates_fixed_ips:
