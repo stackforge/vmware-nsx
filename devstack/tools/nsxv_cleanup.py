@@ -146,7 +146,10 @@ class VSMClient(object):
         self.__set_api_version('2.0');
         self.__set_endpoint("/vdn/scopes")
         response = self.get();
-        vdn_scope_id = response.json()['allScopes'][0]['objectId']
+        try:
+            vdn_scope_id = response.json()['allScopes'][0]['objectId']
+        except IndexError:
+            return
         return vdn_scope_id
 
 
@@ -155,6 +158,8 @@ class VSMClient(object):
         lswitches = []
         self.__set_api_version('2.0')
         vdn_scope_id = self.get_vdn_scope_id();
+        if not vdn_scope_id:
+            return lswitches
         endpoint = "/vdn/scopes/%s/virtualwires" % (vdn_scope_id)
         self.__set_endpoint(endpoint)
         # Query all logical switches
