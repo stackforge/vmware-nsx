@@ -1,0 +1,10 @@
+Verified+2: Jenkins
+Code-Review+2: Salvatore Orlando <salv.orlando@gmail.com>
+Code-Review+2: Aaron Rosen <aaronorosen@gmail.com>
+Workflow+1: Aaron Rosen <aaronorosen@gmail.com>
+Verified+1: VMware NSX CI
+Submitted-by: Jenkins
+Submitted-at: Mon, 08 Jun 2015 23:46:52 +0000
+Reviewed-on: https://review.openstack.org/188560
+Project: stackforge/vmware-nsx
+Branch: refs/heads/master
