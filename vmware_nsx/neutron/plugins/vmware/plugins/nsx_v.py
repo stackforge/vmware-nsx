@@ -111,6 +111,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
     def __init__(self):
         super(NsxVPluginV2, self).__init__()
         config.validate_nsxv_config_options()
+        c_utils.add_policy_dir(vmware.NSX_POLICY_PATH)
         neutron_extensions.append_api_extensions_path([vmware.NSX_EXT_PATH])
 
         self.base_binding_dict = {

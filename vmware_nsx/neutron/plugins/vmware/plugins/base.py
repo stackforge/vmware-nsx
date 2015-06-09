@@ -161,6 +161,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                        'default': self._nsx_delete_port}
         }
 
+        c_utils.add_policy_dir(vmware.NSX_POLICY_PATH)
         neutron_extensions.append_api_extensions_path([vmware.NSX_EXT_PATH])
         self.nsx_opts = cfg.CONF.NSX
         self.nsx_sync_opts = cfg.CONF.NSX_SYNC

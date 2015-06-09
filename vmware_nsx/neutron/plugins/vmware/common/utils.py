@@ -17,6 +17,7 @@ import hashlib
 
 from neutron.api.v2 import attributes
 from neutron import version
+from oslo_config import cfg
 from oslo_log import log
 import six
 
@@ -74,3 +75,9 @@ def check_and_truncate(display_name):
                   "It will be truncated on NSX", display_name)
         return display_name[:MAX_DISPLAY_NAME_LEN]
     return display_name or ''
+
+
+def add_policy_dir(path):
+    dirs = list(set([cfg.CONF.policy_dirs] + path))
+    cfg.CONF.set_override('policy_dirs',
+                          ':'.join([d for d in dirs]))
