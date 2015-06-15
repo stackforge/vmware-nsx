@@ -1047,16 +1047,20 @@ class EdgeManager(object):
         dhcp_edge_binding = nsxv_db.get_nsxv_router_binding(context.session,
                                                             resource_id)
 
-        if dhcp_edge_binding:
-            with locking.LockManager.get_lock(
-                    'nsx-edge-pool', lock_file_prefix='edge-bind-',
-                    external=True):
-                edge_id = dhcp_edge_binding['edge_id']
+        if dhcp_edge_bindind:
+            edge_type = dhcp_edge_binding['edge_type']
+            if edge_type == nsxv_constants.SERVICE_EDGE:
                 with locking.LockManager.get_lock(
-                        str(edge_id), lock_file_prefix='nsxv-dhcp-config-',
+                        'nsx-edge-pool', lock_file_prefix='edge-bind-',
                         external=True):
-                    self.remove_network_from_dhcp_edge(context, network_id,
-                                                       edge_id)
+                    edge_id = dhcp_edge_binding['edge_id']
+                    with lockutils.lock(str(edge_id),
+                                        lock_file_prefix='nsxv-dhcp-config-',
+                                        external=True):
+                        self.remove_network_from_dhcp_edge(context, network_id,
+                                                           edge_id)
+            elif edge_type == nsxv_constants.SERVICE_CONTAINER_EDGE:
+                self.unbind_multi_context_dhcp_edge(context, network_id)
 
         # Find DHCP Edge which is associated with this VDR
         vdr_dhcp_binding = nsxv_db.get_vdr_dhcp_binding_by_vdr(
