@@ -18,8 +18,8 @@ import mock
 from oslo_config import cfg
 
 import neutron.tests.unit.db.test_db_base_plugin_v2 as test_plugin
+import test_constants_v3
 from vmware_nsx.neutron.plugins.vmware.nsxlib import v3 as nsxlib
-
 
 PLUGIN_NAME = ('vmware_nsx.neutron.plugins.vmware.'
                'plugins.nsx_v3_plugin.NsxV3Plugin')
@@ -38,8 +38,21 @@ class NsxPluginV3TestCase(test_plugin.NeutronDbPluginV2TestCase):
         # white-box testing on the plugin class
         # TODO(salv-orlando): supply unit tests for nsxlib.v3
         nsxlib.create_logical_switch = mock.Mock()
-        nsxlib.create_logical_switch.return_value = {"id": "xxx"}
+        nsxlib.create_logical_switch.return_value = \
+            test_constants_v3.FAKE_SWITCH
 
 
-class TestBasicGet(test_plugin.TestBasicGet, NsxPluginV3TestCase):
-    pass
+class TestNetworksV3(test_plugin.TestNetworksV2, NsxPluginV3TestCase):
+    def test_create_logical_switch(self):
+        name = test_constants_v3.FAKE_NAME
+        expected =[
+            ('name', test_constants_v3.FAKE_NAME),
+            ('admin_state_up', True),
+            ('id', test_constants_v3.FAKE_UUID),
+            ('status', "ACTIVE"),
+            ('shared', False),
+            ('subnets', [])
+        ]
+        with self.network(name=name) as net:
+            for k, v in expected:
+                self.assertEqual(net['network'][k], v)
