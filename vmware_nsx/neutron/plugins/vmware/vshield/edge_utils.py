@@ -827,77 +827,83 @@ class EdgeManager(object):
         if bindings:
             return bindings[0]
 
-    @lockutils.synchronized("multi-context-edge", "edge-bind-", external=True)
     def bind_multi_context_dhcp_edge(self, context, network_id):
         """Bind one creating service container edge on an available
         multi context gateway edge.
         """
-        resource_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
-        multi_resource_id = (vcns_const.MULTI_DHCP_EDGE_PREFIX + _uuid())[:36]
-        appliance_size = vcns_const.SERVICE_SIZE_MAPPING['multi_dhcp']
-        filters = {'status': [plugin_const.ACTIVE],
-                   'appliance_size': [appliance_size]}
-        like_filters = {'router_id': vcns_const.MULTI_DHCP_EDGE_PREFIX + "%"}
-        all_multi_dhcp_edges = nsxv_db.get_nsxv_router_bindings(
-            context.session, filters=filters, like_filters=like_filters)
+        with locking.LockManager.get_lock("multi-context-edge",
+                                          lock_file_prefix="edge-bind-",
+                                          external=True):
+            resource_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
+            multi_resource_id = (vcns_const.MULTI_DHCP_EDGE_PREFIX
+                                 + _uuid())[:36]
+            appliance_size = vcns_const.SERVICE_SIZE_MAPPING['multi_dhcp']
+            filters = {'status': [plugin_const.ACTIVE],
+                       'appliance_size': [appliance_size]}
+            like_filters = {'router_id':
+                vcns_const.MULTI_DHCP_EDGE_PREFIX + "%"}
+            all_multi_dhcp_edges = nsxv_db.get_nsxv_router_bindings(
+                context.session, filters=filters, like_filters=like_filters)
 
-        if all_multi_dhcp_edges:
-            master_edge_binding = random.choice(all_multi_dhcp_edges)
-        else:
-            self._allocate_edge_appliance(
-                context, multi_resource_id, multi_resource_id,
-                appliance_size=appliance_size,
-                edge_type=nsxv_constants.MULTI_CONTEXT_EDGE)
-            master_edge_binding = nsxv_db.get_nsxv_router_binding(
-                context.session, multi_resource_id)
+            if all_multi_dhcp_edges:
+                master_edge_binding = random.choice(all_multi_dhcp_edges)
+            else:
+                self._allocate_edge_appliance(
+                    context, multi_resource_id, multi_resource_id,
+                    appliance_size=appliance_size,
+                    edge_type=nsxv_constants.MULTI_CONTEXT_EDGE)
+                master_edge_binding = nsxv_db.get_nsxv_router_binding(
+                    context.session, multi_resource_id)
 
-        master_edge_id = master_edge_binding['edge_id']
-        nsxv_db.add_nsxv_router_binding(
-            context.session, resource_id, None, None,
-            plugin_const.PENDING_CREATE,
-            appliance_size=None,
-            edge_type=nsxv_constants.SERVICE_CONTAINER_EDGE,
-            master_edge_id=master_edge_id)
+            master_edge_id = master_edge_binding['edge_id']
+            nsxv_db.add_nsxv_router_binding(
+                context.session, resource_id, None, None,
+                plugin_const.PENDING_CREATE,
+                appliance_size=None,
+                edge_type=nsxv_constants.SERVICE_CONTAINER_EDGE,
+                master_edge_id=master_edge_id)
 
-        filters = {'master_edge_id': [master_edge_id]}
-        service_container_edge_num = len(nsxv_db.get_nsxv_router_bindings(
-            context.session, filters=filters))
-        if (service_container_edge_num
-            >= nsxv_constants.MaxContainerEdgeNum.get(appliance_size,
-                                                      nsxv_constants.COMPACT)):
-            nsxv_db.update_nsxv_router_binding(
-                context.session,
-                master_edge_binding['router_id'],
-                status=vcns_const.FULL)
+            filters = {'master_edge_id': [master_edge_id]}
+            service_container_edge_num = len(nsxv_db.get_nsxv_router_bindings(
+                context.session, filters=filters))
+            if (service_container_edge_num
+                >= nsxv_constants.MaxContainerEdgeNum.get(
+                    appliance_size, nsxv_constants.COMPACT)):
+                nsxv_db.update_nsxv_router_binding(
+                    context.session,
+                    master_edge_binding['router_id'],
+                    status=vcns_const.FULL)
 
-        return master_edge_id
+            return master_edge_id
 
-    @lockutils.synchronized("multi-context-edge", "edge-bind-", external=True)
     def unbind_multi_context_dhcp_edge(self, context, network_id):
         """Unbind one service container edge from multi context gateway edge.
         """
-        resource_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
-        edge_binding = nsxv_db.get_nsxv_router_binding(
-            context.session, resource_id)
-        master_edge_id = edge_binding['master_edge_id']
-        master_edge_binding = nsxv_db.get_nsxv_router_binding_by_edge(
-            context.session, master_edge_id)
-        master_appliance_size = master_edge_binding['appliance_size']
-        self._free_edge_appliance(context, resource_id)
-        filters = {'master_edge_id': [master_edge_id]}
-        service_container_edge_num = len(nsxv_db.get_nsxv_router_bindings(
-            context.session, filters=filters))
-        if service_container_edge_num == 0:
-            self._free_edge_appliance(context,
-                                      master_edge_binding['router_id'])
-        elif (master_edge_binding['status'] == vcns_const.FULL and
-              service_container_edge_num <
-              nsxv_constants.MaxContainerEdgeNum.get(master_appliance_size,
-                                                     nsxv_constants.COMPACT)):
-            nsxv_db.update_nsxv_router_binding(
-                context.session,
-                master_edge_binding['router_id'],
-                status=plugin_const.ACTIVE)
+        with locking.LockManager.get_lock("multi-context-edge",
+                                          lock_file_prefix="edge-bind-",
+                                          external=True):
+            resource_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
+            edge_binding = nsxv_db.get_nsxv_router_binding(
+                context.session, resource_id)
+            master_edge_id = edge_binding['master_edge_id']
+            master_edge_binding = nsxv_db.get_nsxv_router_binding_by_edge(
+                context.session, master_edge_id)
+            master_appliance_size = master_edge_binding['appliance_size']
+            self._free_edge_appliance(context, resource_id)
+            filters = {'master_edge_id': [master_edge_id]}
+            service_container_edge_num = len(nsxv_db.get_nsxv_router_bindings(
+                context.session, filters=filters))
+            if service_container_edge_num == 0:
+                self._free_edge_appliance(context,
+                                          master_edge_binding['router_id'])
+            elif (master_edge_binding['status'] == vcns_const.FULL and
+                  service_container_edge_num <
+                  nsxv_constants.MaxContainerEdgeNum.get(
+                      master_appliance_size, nsxv_constants.COMPACT)):
+                nsxv_db.update_nsxv_router_binding(
+                    context.session,
+                    master_edge_binding['router_id'],
+                    status=plugin_const.ACTIVE)
 
     def _get_dhcp_static_bindings(self, context, network_ids=None):
         if not network_ids:
@@ -1047,16 +1053,20 @@ class EdgeManager(object):
         dhcp_edge_binding = nsxv_db.get_nsxv_router_binding(context.session,
                                                             resource_id)
 
-        if dhcp_edge_binding:
-            with locking.LockManager.get_lock(
-                    'nsx-edge-pool', lock_file_prefix='edge-bind-',
-                    external=True):
-                edge_id = dhcp_edge_binding['edge_id']
+        if dhcp_edge_bindind:
+            edge_type = dhcp_edge_binding['edge_type']
+            if edge_type == nsxv_constants.SERVICE_EDGE:
                 with locking.LockManager.get_lock(
+                        'nsx-edge-pool', lock_file_prefix='edge-bind-',
+                        external=True):
+                    edge_id = dhcp_edge_binding['edge_id']
+                    with locking.LockManager.get_lock(
                         str(edge_id), lock_file_prefix='nsxv-dhcp-config-',
                         external=True):
-                    self.remove_network_from_dhcp_edge(context, network_id,
-                                                       edge_id)
+                        self.remove_network_from_dhcp_edge(context, network_id,
+                                                           edge_id)
+            elif edge_type == nsxv_constants.SERVICE_CONTAINER_EDGE:
+                self.unbind_multi_context_dhcp_edge(context, network_id)
 
         # Find DHCP Edge which is associated with this VDR
         vdr_dhcp_binding = nsxv_db.get_vdr_dhcp_binding_by_vdr(
