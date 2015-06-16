@@ -744,7 +744,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         pnet._raise_if_updates_provider_attributes(net_attrs)
         if net_attrs.get("admin_state_up") is False:
             raise NotImplementedError(_("admin_state_up=False networks "
-                                        "are not supported."))
+                                        "not supported."))
 
         # PortSecurity validation checks
         # TODO(roeyc): enacapsulate validation in a method
@@ -866,6 +866,9 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 context, id, port)
             if psec.PORTSECURITY in port['port']:
                 raise NotImplementedError()
+            if 'admin_state_up' in port['port']:
+                raise NotImplementedError(_("Port admin_state_up updates are "
+                                            "."))
             # copy values over - except fixed_ips as
             # they've already been processed
             updates_fixed_ips = port['port'].pop('fixed_ips', [])
