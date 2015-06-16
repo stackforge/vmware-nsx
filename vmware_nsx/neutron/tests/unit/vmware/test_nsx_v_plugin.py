@@ -316,6 +316,16 @@ class TestPortsV2(NsxVPluginV2TestCase,
     VIF_TYPE = portbindings.VIF_TYPE_DVS
     HAS_PORT_FILTER = True
 
+
+    def new_update_request(self, resource, data, id, fmt=None,
+                           subresource=None, context=None):
+        if resource == 'ports':
+            data['port']['admin_state_up'] = True
+        return super(TestPortsV2,
+                     self).new_update_request(resource, data, id, fmt=fmt,
+                                              subresource=subresource,
+                                              context=context)
+
     def test_create_port_json(self):
         keys = [('admin_state_up', True), ('status', self.port_create_status)]
         with self.port(name='myname') as port:
@@ -388,9 +398,9 @@ class TestPortsV2(NsxVPluginV2TestCase,
         with self.subnet(enable_dhcp=False) as subnet,\
                 self.port(subnet, admin_state_up='True',
                           mac_address='00:00:00:00:00:01') as port1,\
-                self.port(subnet, admin_state_up='False',
+                self.port(subnet, admin_state_up='True',
                           mac_address='00:00:00:00:00:02') as port2,\
-                self.port(subnet, admin_state_up='False',
+                self.port(subnet, admin_state_up='True',
                           mac_address='00:00:00:00:00:03') as port3:
 
             self._test_list_with_sort('port', (port3, port2, port1),
@@ -404,9 +414,9 @@ class TestPortsV2(NsxVPluginV2TestCase,
         with self.subnet(enable_dhcp=False) as subnet,\
                 self.port(subnet, admin_state_up='True',
                           mac_address='00:00:00:00:00:01') as port1,\
-                self.port(subnet, admin_state_up='False',
+                self.port(subnet, admin_state_up='True',
                           mac_address='00:00:00:00:00:02') as port2,\
-                self.port(subnet, admin_state_up='False',
+                self.port(subnet, admin_state_up='True',
                           mac_address='00:00:00:00:00:03') as port3:
 
             self._test_list_with_sort('port', (port3, port2, port1),
@@ -420,7 +430,7 @@ class TestPortsV2(NsxVPluginV2TestCase,
         # is first removed.
         with self.subnet() as subnet:
             with self.port(subnet=subnet) as port:
-                data = {'port': {'admin_state_up': False,
+                data = {'port': {'admin_state_up': True,
                                  'fixed_ips': [],
                                  secgrp.SECURITYGROUPS: []}}
                 req = self.new_update_request('ports',
@@ -478,7 +488,7 @@ class TestPortsV2(NsxVPluginV2TestCase,
         """
         with self.port() as port:
             with mock.patch(PLUGIN_NAME + '._create_dhcp_static_binding'):
-                update = {'port': {'device_owner'}}
+                update = {'port': {'device_owner': 'compute:None'}}
                 self.new_update_request('ports',
                                         update, port['port']['id'])
 
@@ -847,7 +857,7 @@ class TestPortsV2(NsxVPluginV2TestCase,
         """Test update of port with additional IP."""
         with self.subnet(enable_dhcp=False) as subnet:
             with self.port(subnet=subnet) as port:
-                data = {'port': {'admin_state_up': False,
+                data = {'port': {'admin_state_up': True,
                                  'fixed_ips': [{'subnet_id':
                                                 subnet['subnet']['id']},
                                                {'subnet_id':
@@ -970,6 +980,9 @@ class TestPortsV2(NsxVPluginV2TestCase,
                 fixed_ips = port['port']['fixed_ips']
                 self.assertEqual(1, len(fixed_ips))
                 self.assertEqual('10.0.0.3', fixed_ips[0]['ip_address'])
+
+    def test_update_port_not_admin(self):
+        self.skipTest("admin_state_up port updates are not supported")
 
 
 class TestSubnetsV2(NsxVPluginV2TestCase,
