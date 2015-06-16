@@ -866,6 +866,9 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 context, id, port)
             if psec.PORTSECURITY in port['port']:
                 raise NotImplementedError()
+            if 'admin_state_up' in port['port']:
+                raise NotImplementedError(_("Port admin_state_up updates are "
+                                            "not supported."))
             # copy values over - except fixed_ips as
             # they've already been processed
             updates_fixed_ips = port['port'].pop('fixed_ips', [])
