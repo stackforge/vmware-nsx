@@ -802,6 +802,9 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
 
     def create_port(self, context, port):
         port_data = port['port']
+
+        self._check_port_state_up(port)
+
         with context.session.begin(subtransactions=True):
             # First we allocate port in neutron database
             neutron_db = super(NsxVPluginV2, self).create_port(context, port)
@@ -841,11 +844,13 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
 
     def update_port(self, context, id, port):
         port_data = port['port']
+        self._check_port_state_up(port)
         original_port = super(NsxVPluginV2, self).get_port(context, id)
         is_compute_port = self._is_compute_port(original_port)
         device_id = original_port['device_id']
         has_port_security = (cfg.CONF.nsxv.spoofguard_enabled and
                              original_port[psec.PORTSECURITY])
+
 
         # TODO(roeyc): create a method '_process_vnic_index_update' from the
         # following code block
@@ -2000,3 +2005,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             if moref and not self.nsx_v.vcns.validate_inventory(moref):
                 error = _("configured %s not found") % field
                 raise nsx_exc.NsxPluginException(err_msg=error)
+
+    def _check_port_state_up(self, port):
+        if not port['port'].get('admin_state_up', True):
+            raise NotImplementedError(_("Port admin_state_up must be True."))
