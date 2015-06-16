@@ -787,6 +787,11 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
 
     def create_port(self, context, port):
         port_data = port['port']
+
+        if not port['port'].get('admin_state_up', True):
+            raise NotImplementedError(_("Port admin_state_up can't be set "
+                                        "to False."))
+
         with context.session.begin(subtransactions=True):
             # First we allocate port in neutron database
             neutron_db = super(NsxVPluginV2, self).create_port(context, port)
@@ -831,6 +836,10 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         device_id = original_port['device_id']
         has_port_security = (cfg.CONF.nsxv.spoofguard_enabled and
                              original_port[psec.PORTSECURITY])
+
+        if not port['port'].get('admin_state_up', True):
+            raise NotImplementedError(_("Port admin_state_up updates are "
+                                        "not supported."))
 
         # TODO(roeyc): create a method '_process_vnic_index_update' from the
         # following code block

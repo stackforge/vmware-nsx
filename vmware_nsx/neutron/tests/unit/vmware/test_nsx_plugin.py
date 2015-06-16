@@ -229,6 +229,24 @@ class TestPortsV2(NsxPluginV2TestCase,
                     self.assertEqual(webob.exc.HTTPServiceUnavailable.code,
                                      res.status_int)
 
+    def test_ports_vif_non_host_update(self):
+        host_arg = {portbindings.HOST_ID: self.hostname}
+        with self.port(name='name', arg_list=(portbindings.HOST_ID,),
+                       **host_arg) as port:
+            data = {'port': {'admin_state_up': True}}
+            req = self.new_update_request('ports', data, port['port']['id'])
+            res = self.deserialize(self.fmt, req.get_response(self.api))
+            self.assertEqual(port['port'][portbindings.HOST_ID],
+                             res['port'][portbindings.HOST_ID])
+
+    def test_ports_vif_non_host_update_when_host_null(self):
+        with self.port() as port:
+            data = {'port': {'admin_state_up': True}}
+            req = self.new_update_request('ports', data, port['port']['id'])
+            res = self.deserialize(self.fmt, req.get_response(self.api))
+            self.assertEqual(port['port'][portbindings.HOST_ID],
+                             res['port'][portbindings.HOST_ID])
+
 
 class TestNetworksV2(test_plugin.TestNetworksV2, NsxPluginV2TestCase):
 
