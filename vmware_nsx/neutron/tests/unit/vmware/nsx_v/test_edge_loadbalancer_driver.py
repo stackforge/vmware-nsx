@@ -18,6 +18,8 @@ import mock
 from neutron import context
 from neutron.tests import base
 
+from vmware_nsx.neutron.plugins.vmware.plugins.nsx_v_drivers import (
+    lbaas_common as lb_common)
 from vmware_nsx.neutron.plugins.vmware.vshield import vcns_driver
 
 EDGE_PROVIDER = ('LOADBALANCER:vmwareedge:neutron.services.'
@@ -174,8 +176,33 @@ class TestEdgeLbDriver(base.BaseTestCase):
     def setUp(self):
         super(TestEdgeLbDriver, self).setUp()
         self.context = context.get_admin_context()
-        self.edge_driver = vcns_driver.VcnsDriver(self)
+        callbacks = mock.Mock()
+        callbacks.plugin = mock.Mock()
+        self.edge_driver = vcns_driver.VcnsDriver(callbacks)
         self.edge_driver._lb_driver_prop = mock.Mock()
+        self._temp_get_lbaas_edge_id_for_subnet = (
+            lb_common.get_lbaas_edge_id_for_subnet)
+        self._temp_update_pool_fw_rule = lb_common.update_pool_fw_rule
+        self._temp_add_vip_as_secondary_ip = lb_common.add_vip_as_secondary_ip
+        self._temp_add_vip_fw_rule = lb_common.add_vip_fw_rule
+        self._temp_del_vip_as_secondary_ip = lb_common.del_vip_as_secondary_ip
+        self._temp_del_vip_fw_rule = lb_common.del_vip_fw_rule
+        lb_common.get_lbaas_edge_id_for_subnet = mock.Mock()
+        lb_common.update_pool_fw_rule = mock.Mock()
+        lb_common.add_vip_as_secondary_ip = mock.Mock()
+        lb_common.add_vip_fw_rule = mock.Mock()
+        lb_common.del_vip_as_secondary_ip = mock.Mock()
+        lb_common.del_vip_fw_rule = mock.Mock()
+
+    def tearDown(self):
+        super(TestEdgeLbDriver, self).tearDown()
+        lb_common.get_lbaas_edge_id_for_subnet = (
+            self._temp_get_lbaas_edge_id_for_subnet)
+        lb_common.update_pool_fw_rule = self._temp_update_pool_fw_rule
+        lb_common.add_vip_as_secondary_ip = self._temp_add_vip_as_secondary_ip
+        lb_common.add_vip_fw_rule = self._temp_add_vip_fw_rule
+        lb_common.del_vip_as_secondary_ip = self._temp_del_vip_as_secondary_ip
+        lb_common.del_vip_fw_rule = self._temp_del_vip_fw_rule
 
     def _mock_edge_driver(self, attr):
         return mock.patch.object(self.edge_driver, attr)
@@ -193,12 +220,11 @@ class TestEdgeLbDriver(base.BaseTestCase):
             'transparent': False, 'name': 'pool_' + POOL_ID,
             'algorithm': 'round-robin', 'description': ''}
 
-        with self._mock_edge_driver('_get_lb_edge_id') as _get_lb_edge_id,\
-                self._mock_edge_lb_driver(
-                    'create_pool_successful') as create_pool_successful,\
+        with self._mock_edge_lb_driver(
+                'create_pool_successful') as create_pool_successful, \
                 self._mock_edge_driver_vcns('create_pool') as create_pool:
 
-            _get_lb_edge_id.return_value = EDGE_ID
+            lb_common.get_lbaas_edge_id_for_subnet.return_value = EDGE_ID
             create_pool.return_value = ({'location': 'x/' + EDGE_POOL_ID},
                                         None)
 
@@ -238,31 +264,6 @@ class TestEdgeLbDriver(base.BaseTestCase):
                 self.context, lbaas_pool, pool_mapping)
             mock_delete_successful.assert_called_with(self.context, lbaas_pool)
 
-    def test__add_vip_as_secondary_ip(self):
-        update_if = if_maker(['10.0.0.6', '10.0.0.8'])
-
-        with self._mock_edge_driver_vcns('get_interfaces') as mock_get_if,\
-                self._mock_edge_driver_vcns(
-                    'update_interface') as mock_update_if:
-
-            mock_get_if.return_value = (None, if_list_maker(['10.0.0.6']))
-
-            self.edge_driver._add_vip_as_secondary_ip(EDGE_ID, '10.0.0.8')
-            mock_update_if.assert_called_with(EDGE_ID, update_if)
-
-    def test__del_vip_as_secondary_ip(self):
-        update_if = if_maker(['10.0.0.6'])
-
-        with self._mock_edge_driver_vcns('get_interfaces') as mock_get_if,\
-                self._mock_edge_driver_vcns(
-                    'update_interface') as mock_update_if:
-
-            mock_get_if.return_value = (None, if_list_maker(['10.0.0.6',
-                                                             '10.0.0.8']))
-
-            self.edge_driver._del_vip_as_secondary_ip(EDGE_ID, '10.0.0.8')
-            mock_update_if.assert_called_with(EDGE_ID, update_if)
-
     def test_create_vip(self):
         lbaas_vip = lbaas_vip_maker()
         edge_app_prof = {
@@ -277,12 +278,9 @@ class TestEdgeLbDriver(base.BaseTestCase):
 
         pool_mapping = {'edge_id': EDGE_ID, 'edge_pool_id': EDGE_POOL_ID}
 
-        with self._mock_edge_driver('_add_vip_as_secondary_ip'),\
-                self._mock_edge_driver_vcns(
+        with self._mock_edge_driver_vcns(
                     'create_app_profile') as mock_create_app_profile,\
                 self._mock_edge_driver_vcns('create_vip') as mock_create_vip,\
-                self._mock_edge_driver(
-                    '_add_vip_fw_rule') as mock_add_fw_rule,\
                 self._mock_edge_lb_driver(
                     'create_vip_successful') as mock_vip_successful:
 
@@ -290,11 +288,12 @@ class TestEdgeLbDriver(base.BaseTestCase):
                 {'location': 'x/' + APP_PROFILE_ID}, None)
             mock_create_vip.return_value = (
                 {'location': 'x/' + EDGE_VSE_ID}, None)
-            mock_add_fw_rule.return_value = EDGE_FW_RULE_ID
+            lb_common.add_vip_fw_rule.return_value = EDGE_FW_RULE_ID
 
             self.edge_driver.create_vip(self.context, lbaas_vip, pool_mapping)
             mock_create_app_profile.assert_called_with(EDGE_ID, edge_app_prof)
-            mock_add_fw_rule.assert_called_with(EDGE_ID, VIP_ID, '10.0.0.8')
+            lb_common.add_vip_fw_rule.assert_called_with(
+                self.edge_driver.vcns, EDGE_ID, VIP_ID, '10.0.0.8')
             mock_create_vip.assert_called_with(EDGE_ID, edge_vip)
             mock_vip_successful.assert_called_with(
                 self.context, lbaas_vip, EDGE_ID, APP_PROFILE_ID, EDGE_VSE_ID,
@@ -339,19 +338,17 @@ class TestEdgeLbDriver(base.BaseTestCase):
                        'edge_app_profile_id': APP_PROFILE_ID,
                        'edge_fw_rule_id': EDGE_FW_RULE_ID}
 
-        with self._mock_edge_driver('_del_vip_as_secondary_ip'),\
-                self._mock_edge_driver_vcns(
+        with self._mock_edge_driver_vcns(
                     'delete_app_profile') as mock_del_app_profile,\
                 self._mock_edge_driver_vcns('delete_vip') as mock_del_vip,\
-                self._mock_edge_driver(
-                    '_del_vip_fw_rule') as mock_del_fw_rule,\
                 self._mock_edge_lb_driver(
                     'delete_vip_successful') as mock_del_successful:
 
             self.edge_driver.delete_vip(self.context, lbaas_vip, vip_mapping)
             mock_del_app_profile.assert_called_with(EDGE_ID, APP_PROFILE_ID)
             mock_del_vip.assert_called_with(EDGE_ID, EDGE_VSE_ID)
-            mock_del_fw_rule.assert_called_with(EDGE_ID, EDGE_FW_RULE_ID)
+            lb_common.del_vip_fw_rule.assert_called_with(
+                self.edge_driver.vcns, EDGE_ID, EDGE_FW_RULE_ID)
             mock_del_successful.assert_called_with(self.context, lbaas_vip)
 
     def test_create_member(self):
@@ -367,12 +364,17 @@ class TestEdgeLbDriver(base.BaseTestCase):
         pool_mapping = {'edge_id': EDGE_ID, 'edge_pool_id': EDGE_POOL_ID}
 
         with self._mock_edge_driver_vcns('update_pool'),\
-                self._mock_edge_driver('_update_pool_fw_rule'),\
                 self._mock_edge_driver_vcns('get_pool') as mock_get_pool,\
+                self._mock_edge_driver(
+                    '_get_pool_member_ips') as mock_get_ips, \
+                self._mock_edge_driver(
+                    '_get_lbaas_fw_section_id') as mock_fw_sect, \
                 self._mock_edge_lb_driver(
                     'member_successful') as mock_member_successful:
 
             mock_get_pool.return_value = (None, edge_pool)
+            mock_get_ips.return_value = ['10.0.0.4']
+            mock_fw_sect.return_value = 10010
             self.edge_driver.create_member(self.context, lbaas_member,
                                            pool_mapping)
             edge_pool['member'].append(edge_member)
@@ -426,92 +428,19 @@ class TestEdgeLbDriver(base.BaseTestCase):
 
         with self._mock_edge_driver('_get_lb_plugin') as mock_get_lb_plugin,\
                 self._mock_edge_driver_vcns('get_pool') as mock_get_pool,\
+                self._mock_edge_driver(
+                    '_get_lbaas_fw_section_id') as mock_fw_sect, \
                 self._mock_edge_driver_vcns(
-                    'update_pool') as mock_update_pool,\
-                self._mock_edge_driver('_update_pool_fw_rule'):
+                    'update_pool') as mock_update_pool:
 
             mock_get_pool.return_value = (None, edge_pool)
             self.edge_driver.delete_member(self.context, lbaas_member,
                                            pool_mapping)
+            mock_fw_sect.return_value = 10010
             mock_get_lb_plugin.return_value = mock_lb_plugin
             edge_pool['member'] = []
             mock_update_pool.assert_called_with(EDGE_ID, EDGE_POOL_ID,
                                                 edge_pool)
-
-    def test__update_pool_fw_rule_add(self):
-        edge_fw_section = (
-            '<section id="1132" name="LBaaS FW Rules"><rule><name>' + POOL_ID +
-            '</name><action>allow</action><sources excluded="false"><source>'
-            '<type>Ipv4Address</type><value>10.0.0.1,11.0.0.1</value></source>'
-            '</sources><destinations excluded="false"><destination>'
-            '<type>Ipv4Address</type><value>10.0.0.10</value></destination>'
-            '</destinations></rule></section>')
-        edge_fw_updated_section = (
-            '<section id="1132" name="LBaaS FW Rules"><rule><name>' + POOL_ID +
-            '</name><action>allow</action><sources excluded="false"><source>'
-            '<type>Ipv4Address</type><value>10.0.0.1,11.0.0.1</value></source>'
-            '</sources><destinations excluded="false"><destination>'
-            '<type>Ipv4Address</type><value>10.0.0.10,11.0.0.10</value>'
-            '</destination></destinations></rule></section>')
-
-        mock_lb_plugin = mock.Mock()
-
-        with self._mock_edge_driver('_get_lb_plugin') as mock_get_lb_plugin,\
-                self._mock_edge_driver('_get_edge_ips') as mock_get_edge_ips,\
-                self._mock_edge_driver_vcns(
-                    'get_section') as mock_get_section,\
-                self._mock_edge_driver(
-                    '_get_lbaas_fw_section_id') as mock_get_section_id,\
-                self._mock_edge_driver_vcns(
-                    'update_section') as mock_update_section:
-
-            mock_get_section_id.return_value = '1111'
-            mock_get_edge_ips.return_value = ['10.0.0.1', '11.0.0.1']
-            mock_get_lb_plugin.return_value = mock_lb_plugin
-            mock_lb_plugin.get_members.return_value = [{'address':
-                                                        '10.0.0.10'}]
-            mock_get_section.return_value = (None, edge_fw_section)
-            self.edge_driver._update_pool_fw_rule(
-                self.context, POOL_ID, EDGE_ID, 'add', '11.0.0.10')
-            mock_update_section.assert_called_with(
-                '/api/4.0/firewall/globalroot-0/config/layer3sections/1111',
-                edge_fw_updated_section, None)
-
-    def test__update_pool_fw_rule_del(self):
-        edge_fw_section = firewall_section_maker('10.0.0.10,11.0.0.10')
-        edge_fw_updated_section = firewall_section_maker('10.0.0.10')
-
-        mock_lb_plugin = mock.Mock()
-
-        with self._mock_edge_driver('_get_edge_ips') as mock_get_edge_ips,\
-                self._mock_edge_driver(
-                    '_get_lb_plugin') as mock_get_lb_plugin,\
-                self._mock_edge_driver_vcns(
-                    'get_section') as mock_get_section,\
-                self._mock_edge_driver(
-                    '_get_lbaas_fw_section_id') as mock_get_section_id,\
-                self._mock_edge_driver_vcns(
-                    'update_section') as mock_update_section:
-
-            mock_get_section_id.return_value = '1111'
-            mock_get_edge_ips.return_value = ['10.0.0.1', '11.0.0.1']
-            mock_get_lb_plugin.return_value = mock_lb_plugin
-            mock_lb_plugin.get_members.return_value = [
-                {'address': '10.0.0.10'}, {'address': '11.0.0.10'}]
-            mock_get_section.return_value = (None, edge_fw_section)
-            self.edge_driver._update_pool_fw_rule(
-                self.context, POOL_ID, EDGE_ID, 'del', '11.0.0.10')
-            mock_update_section.assert_called_with(
-                '/api/4.0/firewall/globalroot-0/config/layer3sections/1111',
-                edge_fw_updated_section, None)
-
-    def test__get_edge_ips(self):
-        get_if_list = if_list_maker(['10.0.0.6'])
-
-        with mock.patch.object(self.edge_driver.vcns, 'get_interfaces',
-                               return_value=(None, get_if_list)):
-            ip_list = self.edge_driver._get_edge_ips(EDGE_ID)
-            self.assertEqual(['172.24.4.2', '10.0.0.1'], ip_list)
 
     def test_create_pool_health_monitor(self):
         hmon = lbaas_hmon_maker()
@@ -666,3 +595,103 @@ class TestEdgeLbDriver(base.BaseTestCase):
                               return_value=members):
             stats = self.edge_driver.stats(self.context, POOL_ID, pool_mapping)
             self.assertEqual(stats, expected_stats)
+
+
+# class TestLbaasCommon(base.BaseTestCase):
+#     def test__update_pool_fw_rule_del(self):
+#         edge_fw_section = firewall_section_maker('10.0.0.10,11.0.0.10')
+#         edge_fw_updated_section = firewall_section_maker('10.0.0.10')
+#
+#         mock_lb_plugin = mock.Mock()
+#
+#         with self._mock_edge_driver('_get_lb_plugin') as mock_get_lb_plugin,\
+#                 self._mock_edge_driver_vcns(
+#                     'get_section') as mock_get_section,\
+#                 self._mock_edge_driver(
+#                     '_get_lbaas_fw_section_id') as mock_get_section_id,\
+#                 self._mock_edge_driver_vcns(
+#                     'update_section') as mock_update_section:
+#
+#             mock_get_section_id.return_value = '1111'
+#             mock_get_edge_ips.return_value = ['10.0.0.1', '11.0.0.1']
+#             mock_get_lb_plugin.return_value = mock_lb_plugin
+#             mock_lb_plugin.get_members.return_value = [
+#                 {'address': '10.0.0.10'}, {'address': '11.0.0.10'}]
+#             mock_get_section.return_value = (None, edge_fw_section)
+#             lb_common.update_pool_fw_rule(
+#                 self.edge_driver.vcns, POOL_ID, EDGE_ID, 'del', '11.0.0.10')
+#             mock_update_section.assert_called_with(
+#                 '/api/4.0/firewall/globalroot-0/config/layer3sections/1111',
+#                 edge_fw_updated_section, None)
+#
+#     def test__add_vip_as_secondary_ip(self):
+#         update_if = if_maker(['10.0.0.6', '10.0.0.8'])
+#
+#         with self._mock_edge_driver_vcns('get_interfaces') as mock_get_if,\
+#                 self._mock_edge_driver_vcns(
+#                     'update_interface') as mock_update_if:
+#
+#             mock_get_if.return_value = (None, if_list_maker(['10.0.0.6']))
+#
+#             self.edge_driver._add_vip_as_secondary_ip(EDGE_ID, '10.0.0.8')
+#             mock_update_if.assert_called_with(EDGE_ID, update_if)
+#
+#     def test__del_vip_as_secondary_ip(self):
+#         update_if = if_maker(['10.0.0.6'])
+#
+#         with self._mock_edge_driver_vcns('get_interfaces') as mock_get_if,\
+#                 self._mock_edge_driver_vcns(
+#                     'update_interface') as mock_update_if:
+#
+#             mock_get_if.return_value = (None, if_list_maker(['10.0.0.6',
+#                                                              '10.0.0.8']))
+#
+#             self.edge_driver._del_vip_as_secondary_ip(EDGE_ID, '10.0.0.8')
+#             mock_update_if.assert_called_with(EDGE_ID, update_if)
+#
+#     def test__get_edge_ips(self):
+#         get_if_list = if_list_maker(['10.0.0.6'])
+#
+#         with mock.patch.object(self.edge_driver.vcns, 'get_interfaces',
+#                                return_value=(None, get_if_list)):
+#             ip_list = self.edge_driver._get_edge_ips(EDGE_ID)
+#             self.assertEqual(['172.24.4.2', '10.0.0.1'], ip_list)
+#
+#     def test__update_pool_fw_rule_add(self):
+#         edge_fw_section = (
+#             '<section id="1132" name="LBaaS FW Rules"><rule><name>' + POOL_ID +
+#             '</name><action>allow</action><sources excluded="false"><source>'
+#             '<type>Ipv4Address</type><value>10.0.0.1,11.0.0.1</value></source>'
+#             '</sources><destinations excluded="false"><destination>'
+#             '<type>Ipv4Address</type><value>10.0.0.10</value></destination>'
+#             '</destinations></rule></section>')
+#         edge_fw_updated_section = (
+#             '<section id="1132" name="LBaaS FW Rules"><rule><name>' + POOL_ID +
+#             '</name><action>allow</action><sources excluded="false"><source>'
+#             '<type>Ipv4Address</type><value>10.0.0.1,11.0.0.1</value></source>'
+#             '</sources><destinations excluded="false"><destination>'
+#             '<type>Ipv4Address</type><value>10.0.0.10,11.0.0.10</value>'
+#             '</destination></destinations></rule></section>')
+#
+#         mock_lb_plugin = mock.Mock()
+#
+#         with self._mock_edge_driver('_get_lb_plugin') as mock_get_lb_plugin,\
+#                 self._mock_edge_driver('_get_edge_ips') as mock_get_edge_ips,\
+#                 self._mock_edge_driver_vcns(
+#                     'get_section') as mock_get_section,\
+#                 self._mock_edge_driver(
+#                     '_get_lbaas_fw_section_id') as mock_get_section_id,\
+#                 self._mock_edge_driver_vcns(
+#                     'update_section') as mock_update_section:
+#
+#             mock_get_section_id.return_value = '1111'
+#             mock_get_edge_ips.return_value = ['10.0.0.1', '11.0.0.1']
+#             mock_get_lb_plugin.return_value = mock_lb_plugin
+#             mock_lb_plugin.get_members.return_value = [{'address':
+#                                                         '10.0.0.10'}]
+#             mock_get_section.return_value = (None, edge_fw_section)
+#             self.edge_driver._update_pool_fw_rule(
+#                 self.context, POOL_ID, EDGE_ID, 'add', '11.0.0.10')
+#             mock_update_section.assert_called_with(
+#                 '/api/4.0/firewall/globalroot-0/config/layer3sections/1111',
+#                 edge_fw_updated_section, None)
