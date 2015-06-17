@@ -536,3 +536,38 @@ def get_vdr_dhcp_binding_by_vdr(session, vdr_router_id):
 def delete_vdr_dhcp_binding(session, vdr_router_id):
     return (session.query(nsxv_models.NsxvVdrDhcpBinding).
             filter_by(vdr_router_id=vdr_router_id).delete())
+
+
+def add_nsxv_lbaas_loadbalancer_binding(
+        session, loadbalancer_id, edge_id, edge_fw_rule_id, vip_address):
+    pass
+
+
+def get_nsxv_lbaas_loadbalancer_binding(session, loadbalancer_id):
+    pass
+
+
+def del_nsxv_lbaas_loadbalancer_binding(session, loadbalancer_id):
+    pass
+
+
+def add_nsxv_lbaas_listener_binding(session, loadbalancer_id, listener_id,
+                                    app_profile_id, vse_id):
+    pass
+
+
+def get_nsxv_lbaas_listener_binding(session, loadbalancer_id, listener_id):
+    pass
+
+
+def del_nsxv_lbaas_listener_binding(session, loadbalancer_id, listener_id):
+    pass
+
+
+def add_nsxv_lbaas_pool_binding(
+        session, loadbalancer_id, listener_id, pool_id, edge_pool_id):
+    pass
+
+def get_nsxv_lbaas_pool_binding(
+        session, loadbalancer_id, listener_id, pool_id):
+    pass
