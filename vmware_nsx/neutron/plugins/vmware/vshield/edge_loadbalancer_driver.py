@@ -15,13 +15,13 @@
 
 import xml.etree.ElementTree as et
 
-import netaddr
 from oslo_log import log as logging
 from oslo_utils import excutils
 
 from neutron import manager
 from neutron.plugins.common import constants
-from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
+from vmware_nsx.neutron.plugins.vmware.plugins.nsx_v_drivers import (
+    lbaas_common)
 from vmware_nsx.neutron.plugins.vmware.vshield.common import (
     exceptions as nsxv_exc)
 from vmware_nsx.neutron.plugins.vmware.vshield import vcns as nsxv_api
@@ -175,68 +175,6 @@ def convert_lbaas_monitor(monitor):
         'name': monitor['id']}
 
 
-def extract_resource_id(location_uri):
-    """
-    Edge assigns an ID for each resource that is being created:
-    it is postfixes the uri specified in the Location header.
-    This ID should be used while updating/deleting this resource.
-    """
-    uri_elements = location_uri.split('/')
-    return uri_elements[-1]
-
-
-def get_subnet_primary_ip(ip_addr, address_groups):
-    """
-    Retrieve the primary IP of an interface that's attached to the same subnet.
-    """
-    addr_group = find_address_in_same_subnet(ip_addr, address_groups)
-    return addr_group['primaryAddress'] if addr_group else None
-
-
-def find_address_in_same_subnet(ip_addr, address_groups):
-    """
-    Lookup an address group with a matching subnet to ip_addr.
-    If found, return address_group.
-    """
-    for address_group in address_groups['addressGroups']:
-        net_addr = '%(primaryAddress)s/%(subnetPrefixLength)s' % address_group
-        if netaddr.IPAddress(ip_addr) in netaddr.IPNetwork(net_addr):
-            return address_group
-
-
-def add_address_to_address_groups(ip_addr, address_groups):
-    """
-    Add ip_addr as a secondary IP address to an address group which belongs to
-    the same subnet.
-    """
-    address_group = find_address_in_same_subnet(
-        ip_addr, address_groups)
-    if address_group:
-        sec_addr = address_group.get('secondaryAddresses')
-        if not sec_addr:
-            sec_addr = {
-                'type': 'secondary_addresses',
-                'ipAddress': [ip_addr]}
-        else:
-            sec_addr['ipAddress'].append(ip_addr)
-        address_group['secondaryAddresses'] = sec_addr
-        return True
-    return False
-
-
-def del_address_from_address_groups(ip_addr, address_groups):
-    """
-    Delete ip_addr from secondary address list in address groups.
-    """
-    address_group = find_address_in_same_subnet(ip_addr, address_groups)
-    if address_group:
-        sec_addr = address_group.get('secondaryAddresses')
-        if sec_addr and ip_addr in sec_addr['ipAddress']:
-            sec_addr['ipAddress'].remove(ip_addr)
-            return True
-    return False
-
-
 def get_member_id(member_id):
     return 'member-' + member_id
 
@@ -272,70 +210,6 @@ class EdgeLbDriver(object):
                 fw_section_id = et.fromstring(sect).attrib['id']
             self._fw_section_id = fw_section_id
         return self._fw_section_id
-
-    def _get_lb_edge_id(self, context, subnet_id):
-        """
-        Grab the id of an Edge appliance that is connected to subnet_id.
-        """
-        subnet = self.callbacks.plugin.get_subnet(context, subnet_id)
-        net_id = subnet.get('network_id')
-        filters = {'network_id': [net_id],
-                   'device_owner': ['network:router_interface']}
-        attached_routers = self.callbacks.plugin.get_ports(
-            context.elevated(), filters=filters,
-            fields=['device_id'])
-
-        for attached_router in attached_routers:
-            router = self.callbacks.plugin.get_router(
-                context, attached_router['device_id'])
-            if router['router_type'] == 'exclusive':
-                rtr_bindings = nsxv_db.get_nsxv_router_binding(
-                    context.session, router['id'])
-                return rtr_bindings['edge_id']
-
-    def _vip_as_secondary_ip(self, edge_id, vip, handler):
-        r = self.vcns.get_interfaces(edge_id)[1]
-        vnics = r.get('vnics', [])
-        for vnic in vnics:
-            if vnic['type'] == 'trunk':
-                for sub_interface in vnic.get('subInterfaces').get(
-                        'subInterfaces'):
-                    address_groups = sub_interface.get('addressGroups')
-                    if handler(vip, address_groups):
-                        self.vcns.update_interface(edge_id, vnic)
-                        return True
-            else:
-                address_groups = vnic.get('addressGroups')
-                if handler(vip, address_groups):
-                    self.vcns.update_interface(edge_id, vnic)
-                    return True
-        return False
-
-    def _add_vip_as_secondary_ip(self, edge_id, vip):
-        """
-        Edge appliance requires that a VIP will be configured as a primary
-        or a secondary IP address on an interface.
-        To do so, we locate an interface which is connected to the same subnet
-        that vip belongs to.
-        This can be a regular interface, on a sub-interface on a trunk.
-        """
-        if not self._vip_as_secondary_ip(
-                edge_id, vip, add_address_to_address_groups):
-
-            msg = _('Failed to add VIP %(vip)s as secondary IP on '
-                    'Edge %(edge_id)s') % {'vip': vip, 'edge_id': edge_id}
-            raise nsxv_exc.VcnsApiException(msg=msg)
-
-    def _del_vip_as_secondary_ip(self, edge_id, vip):
-        """
-        While removing vip, delete the secondary interface from Edge config.
-        """
-        if not self._vip_as_secondary_ip(
-                edge_id, vip, del_address_from_address_groups):
-
-            msg = _('Failed to delete VIP %(vip)s as secondary IP on '
-                    'Edge %(edge_id)s') % {'vip': vip, 'edge_id': edge_id}
-            raise nsxv_exc.VcnsApiException(msg=msg)
 
     def _get_edge_ips(self, edge_id):
         edge_ips = []
@@ -406,25 +280,10 @@ class EdgeLbDriver(object):
 
         self.vcns.update_section(section_uri, et.tostring(section), None)
 
-    def _add_vip_fw_rule(self, edge_id, vip_id, ip_address):
-        fw_rule = {
-            'firewallRules': [
-                {'action': 'accept', 'destination': {
-                    'ipAddress': [ip_address]},
-                 'enabled': True,
-                 'name': vip_id}]}
-
-        h = self.vcns.add_firewall_rule(edge_id, fw_rule)[0]
-        fw_rule_id = extract_resource_id(h['location'])
-
-        return fw_rule_id
-
-    def _del_vip_fw_rule(self, edge_id, vip_fw_rule_id):
-        self.vcns.delete_firewall_rule(edge_id, vip_fw_rule_id)
-
     def create_pool(self, context, pool):
         LOG.debug('Creating pool %s', pool)
-        edge_id = self._get_lb_edge_id(context, pool['subnet_id'])
+        edge_id = lbaas_common.get_lbaas_edge_id_for_subnet(
+            context, self.callbacks.plugin, pool['subnet_id'])
 
         if edge_id is None:
             msg = _(
@@ -434,7 +293,7 @@ class EdgeLbDriver(object):
         edge_pool = convert_lbaas_pool(pool)
         try:
             h = self.vcns.create_pool(edge_id, edge_pool)[0]
-            edge_pool_id = extract_resource_id(h['location'])
+            edge_pool_id = lbaas_common.extract_resource_id(h['location'])
             self._lb_driver.create_pool_successful(
                 context, pool, edge_id, edge_pool_id)
 
@@ -489,7 +348,7 @@ class EdgeLbDriver(object):
         app_profile_id = None
         try:
             h = (self.vcns.create_app_profile(edge_id, app_profile))[0]
-            app_profile_id = extract_resource_id(h['location'])
+            app_profile_id = lbaas_common.extract_resource_id(h['location'])
         except nsxv_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
                 self._lb_driver.vip_failed(context, vip)
@@ -498,11 +357,13 @@ class EdgeLbDriver(object):
 
         edge_vip = convert_lbaas_vip(vip, app_profile_id, pool_mapping)
         try:
-            self._add_vip_as_secondary_ip(edge_id, vip['address'])
+            lbaas_common.add_vip_as_secondary_ip(self.vcns, edge_id,
+                                                 vip['address'])
             h = self.vcns.create_vip(edge_id, edge_vip)[0]
-            edge_vip_id = extract_resource_id(h['location'])
-            edge_fw_rule_id = self._add_vip_fw_rule(edge_id, vip['id'],
-                                                    vip['address'])
+            edge_vip_id = lbaas_common.extract_resource_id(h['location'])
+            edge_fw_rule_id = lbaas_common.add_vip_fw_rule(self.vcns,
+                                                           edge_id, vip['id'],
+                                                           vip['address'])
             self._lb_driver.create_vip_successful(
                 context, vip, edge_id, app_profile_id, edge_vip_id,
                 edge_fw_rule_id)
@@ -551,8 +412,10 @@ class EdgeLbDriver(object):
 
             try:
                 self.vcns.delete_vip(edge_id, edge_vse_id)
-                self._del_vip_as_secondary_ip(edge_id, vip['address'])
-                self._del_vip_fw_rule(edge_id, vip_mapping['edge_fw_rule_id'])
+                lbaas_common.del_vip_as_secondary_ip(self.vcns, edge_id,
+                                                     vip['address'])
+                lbaas_common.del_vip_fw_rule(self.vcns, edge_id,
+                                             vip_mapping['edge_fw_rule_id'])
             except nsxv_exc.ResourceNotFound:
                 LOG.error(_LE('vip not found on edge: %s'), edge_id)
             except nsxv_exc.VcnsApiException:
@@ -673,7 +536,7 @@ class EdgeLbDriver(object):
             try:
                 h = self.vcns.create_health_monitor(
                     pool_mapping['edge_id'], edge_monitor)[0]
-                edge_mon_id = extract_resource_id(h['location'])
+                edge_mon_id = lbaas_common.extract_resource_id(h['location'])
 
             except nsxv_exc.VcnsApiException:
                 self._lb_driver.pool_health_monitor_failed(context,
