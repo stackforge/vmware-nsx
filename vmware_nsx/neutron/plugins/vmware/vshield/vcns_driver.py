@@ -20,6 +20,8 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from vmware_nsx.neutron.plugins.vmware.common import config  # noqa
+from vmware_nsx.neutron.plugins.vmware.plugins.nsx_v_drivers import (
+    edge_loadbalancer_driver_v2)
 from vmware_nsx.neutron.plugins.vmware.vshield import edge_appliance_driver
 from vmware_nsx.neutron.plugins.vmware.vshield import edge_firewall_driver
 from vmware_nsx.neutron.plugins.vmware.vshield import edge_loadbalancer_driver
@@ -31,6 +33,7 @@ LOG = logging.getLogger(__name__)
 
 class VcnsDriver(edge_appliance_driver.EdgeApplianceDriver,
                  edge_loadbalancer_driver.EdgeLbDriver,
+                 edge_loadbalancer_driver_v2.EdgeLoadbalancerDriverV2,
                  edge_firewall_driver.EdgeFirewallDriver):
 
     def __init__(self, callbacks):

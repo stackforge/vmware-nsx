@@ -15,7 +15,6 @@
 
 import xml.etree.ElementTree as et
 
-import netaddr
 from oslo_log import log as logging
 from oslo_utils import excutils
 
@@ -24,10 +23,10 @@ from neutron.i18n import _LE
 from neutron import manager
 from neutron.plugins.common import constants
 from vmware_nsx.neutron.plugins.vmware.common import locking
-from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
+from vmware_nsx.neutron.plugins.vmware.plugins.nsx_v_drivers import (
+    lbaas_common as lb_common)
 from vmware_nsx.neutron.plugins.vmware.vshield.common import (
     exceptions as nsxv_exc)
-from vmware_nsx.neutron.plugins.vmware.vshield import vcns as nsxv_api
 
 
 LOG = logging.getLogger(__name__)
@@ -73,10 +72,6 @@ SESSION_PERSISTENCE_METHOD_MAP = {
 SESSION_PERSISTENCE_COOKIE_MAP = {
     LB_SESSION_PERSISTENCE_APP_COOKIE: 'app',
     LB_SESSION_PERSISTENCE_HTTP_COOKIE: 'insert'}
-
-LBAAS_FW_SECTION_NAME = 'LBaaS FW Rules'
-
-MEMBER_ID_PFX = 'member-'
 
 
 def convert_lbaas_pool(lbaas_pool):
@@ -159,7 +154,7 @@ def convert_lbaas_member(member):
         'weight': member['weight'],
         'port': member['protocol_port'],
         'monitorPort': member['protocol_port'],
-        'name': get_member_id(member['id']),
+        'name': lb_common.get_member_id(member['id']),
         'condition': 'enabled' if member['admin_state_up'] else 'disabled'}
 
 
@@ -181,72 +176,6 @@ def convert_lbaas_monitor(monitor):
     if monitor.get('url_path'):
         mon['url'] = monitor['url_path']
     return mon
-
-
-def extract_resource_id(location_uri):
-    """
-    Edge assigns an ID for each resource that is being created:
-    it is postfixes the uri specified in the Location header.
-    This ID should be used while updating/deleting this resource.
-    """
-    uri_elements = location_uri.split('/')
-    return uri_elements[-1]
-
-
-def get_subnet_primary_ip(ip_addr, address_groups):
-    """
-    Retrieve the primary IP of an interface that's attached to the same subnet.
-    """
-    addr_group = find_address_in_same_subnet(ip_addr, address_groups)
-    return addr_group['primaryAddress'] if addr_group else None
-
-
-def find_address_in_same_subnet(ip_addr, address_groups):
-    """
-    Lookup an address group with a matching subnet to ip_addr.
-    If found, return address_group.
-    """
-    for address_group in address_groups['addressGroups']:
-        net_addr = '%(primaryAddress)s/%(subnetPrefixLength)s' % address_group
-        if netaddr.IPAddress(ip_addr) in netaddr.IPNetwork(net_addr):
-            return address_group
-
-
-def add_address_to_address_groups(ip_addr, address_groups):
-    """
-    Add ip_addr as a secondary IP address to an address group which belongs to
-    the same subnet.
-    """
-    address_group = find_address_in_same_subnet(
-        ip_addr, address_groups)
-    if address_group:
-        sec_addr = address_group.get('secondaryAddresses')
-        if not sec_addr:
-            sec_addr = {
-                'type': 'secondary_addresses',
-                'ipAddress': [ip_addr]}
-        else:
-            sec_addr['ipAddress'].append(ip_addr)
-        address_group['secondaryAddresses'] = sec_addr
-        return True
-    return False
-
-
-def del_address_from_address_groups(ip_addr, address_groups):
-    """
-    Delete ip_addr from secondary address list in address groups.
-    """
-    address_group = find_address_in_same_subnet(ip_addr, address_groups)
-    if address_group:
-        sec_addr = address_group.get('secondaryAddresses')
-        if sec_addr and ip_addr in sec_addr['ipAddress']:
-            sec_addr['ipAddress'].remove(ip_addr)
-            return True
-    return False
-
-
-def get_member_id(member_id):
-    return MEMBER_ID_PFX + member_id
 
 
 class EdgeLbDriver(object):
@@ -275,179 +204,28 @@ class EdgeLbDriver(object):
 
     def _get_lbaas_fw_section_id(self):
         if not self._fw_section_id:
-            # Avoid concurrent creation of section by multiple neutron
-            # instances
-            with locking.LockManager.get_lock('lbaas-section-creation',
-                                              external=True):
-                fw_section_id = self.vcns.get_section_id(LBAAS_FW_SECTION_NAME)
-                if not fw_section_id:
-                    section = et.Element('section')
-                    section.attrib['name'] = LBAAS_FW_SECTION_NAME
-                    sect = self.vcns.create_section('ip',
-                                                    et.tostring(section))[1]
-                    fw_section_id = et.fromstring(sect).attrib['id']
-                self._fw_section_id = fw_section_id
+                self._fw_section_id = lb_common.get_lbaas_fw_section_id(
+                    self.vcns)
         return self._fw_section_id
 
-    def _get_lb_edge_id(self, context, subnet_id):
-        """
-        Grab the id of an Edge appliance that is connected to subnet_id.
-        """
-        subnet = self.callbacks.plugin.get_subnet(context, subnet_id)
-        net_id = subnet.get('network_id')
-        filters = {'network_id': [net_id],
-                   'device_owner': ['network:router_interface']}
-        attached_routers = self.callbacks.plugin.get_ports(
-            context.elevated(), filters=filters,
-            fields=['device_id'])
-
-        for attached_router in attached_routers:
-            router = self.callbacks.plugin.get_router(
-                context, attached_router['device_id'])
-            if router['router_type'] == 'exclusive':
-                rtr_bindings = nsxv_db.get_nsxv_router_binding(
-                    context.session, router['id'])
-                return rtr_bindings['edge_id']
-
-    def _vip_as_secondary_ip(self, edge_id, vip, handler):
-        with locking.LockManager.get_lock(edge_id, external=True):
-            r = self.vcns.get_interfaces(edge_id)[1]
-            vnics = r.get('vnics', [])
-            for vnic in vnics:
-                if vnic['type'] == 'trunk':
-                    for sub_interface in vnic.get('subInterfaces').get(
-                            'subInterfaces'):
-                        address_groups = sub_interface.get('addressGroups')
-                        if handler(vip, address_groups):
-                            self.vcns.update_interface(edge_id, vnic)
-                            return True
-                else:
-                    address_groups = vnic.get('addressGroups')
-                    if handler(vip, address_groups):
-                        self.vcns.update_interface(edge_id, vnic)
-                        return True
-        return False
-
-    def _add_vip_as_secondary_ip(self, edge_id, vip):
-        """
-        Edge appliance requires that a VIP will be configured as a primary
-        or a secondary IP address on an interface.
-        To do so, we locate an interface which is connected to the same subnet
-        that vip belongs to.
-        This can be a regular interface, on a sub-interface on a trunk.
-        """
-        if not self._vip_as_secondary_ip(
-                edge_id, vip, add_address_to_address_groups):
-
-            msg = _('Failed to add VIP %(vip)s as secondary IP on '
-                    'Edge %(edge_id)s') % {'vip': vip, 'edge_id': edge_id}
-            raise n_exc.BadRequest(resource='edge-lbaas', msg=msg)
-
-    def _del_vip_as_secondary_ip(self, edge_id, vip):
-        """
-        While removing vip, delete the secondary interface from Edge config.
-        """
-        if not self._vip_as_secondary_ip(
-                edge_id, vip, del_address_from_address_groups):
-
-            msg = _('Failed to delete VIP %(vip)s as secondary IP on '
-                    'Edge %(edge_id)s') % {'vip': vip, 'edge_id': edge_id}
-            raise n_exc.BadRequest(resource='edge-lbaas', msg=msg)
-
-    def _get_edge_ips(self, edge_id):
-        edge_ips = []
-        r = self.vcns.get_interfaces(edge_id)[1]
-        vnics = r.get('vnics', [])
-        for vnic in vnics:
-            if vnic['type'] == 'trunk':
-                for sub_interface in vnic.get('subInterfaces').get(
-                        'subInterfaces'):
-                    address_groups = sub_interface.get('addressGroups')
-                    for address_group in address_groups['addressGroups']:
-                        edge_ips.append(address_group['primaryAddress'])
-
-            else:
-                address_groups = vnic.get('addressGroups')
-                for address_group in address_groups['addressGroups']:
-                    edge_ips.append(address_group['primaryAddress'])
-        return edge_ips
-
-    def _update_pool_fw_rule(self, context, pool_id, edge_id,
-                             operation=None, address=None):
-        edge_ips = self._get_edge_ips(edge_id)
-
+    def _get_pool_member_ips(self, context, pool_id, operation, address):
         plugin = self._get_lb_plugin()
-        with locking.LockManager.get_lock('lbaas-fw-section', external=True):
-            members = plugin.get_members(
-                context,
-                filters={'pool_id': [pool_id]},
-                fields=['address'])
-            member_ips = [member['address'] for member in members]
-            if operation == 'add' and address not in member_ips:
-                member_ips.append(address)
-            elif operation == 'del' and address in member_ips:
-                member_ips.remove(address)
+        members = plugin.get_members(
+            context,
+            filters={'pool_id': [pool_id]},
+            fields=['address'])
+        member_ips = [member['address'] for member in members]
+        if operation == 'add' and address not in member_ips:
+            member_ips.append(address)
+        elif operation == 'del' and address in member_ips:
+            member_ips.remove(address)
 
-            section_uri = '%s/%s/%s' % (nsxv_api.FIREWALL_PREFIX,
-                                        'layer3sections',
-                                        self._get_lbaas_fw_section_id())
-            xml_section = self.vcns.get_section(section_uri)[1]
-            section = et.fromstring(xml_section)
-            pool_rule = None
-            for rule in section.iter('rule'):
-                if rule.find('name').text == pool_id:
-                    pool_rule = rule
-                    if member_ips:
-                        pool_rule.find('sources').find('source').find(
-                            'value').text = (','.join(edge_ips))
-                        pool_rule.find('destinations').find(
-                            'destination').find('value').text = ','.join(
-                            member_ips)
-                    else:
-                        section.remove(pool_rule)
-                    break
-
-            if member_ips and pool_rule is None:
-                pool_rule = et.SubElement(section, 'rule')
-                et.SubElement(pool_rule, 'name').text = pool_id
-                et.SubElement(pool_rule, 'action').text = 'allow'
-                sources = et.SubElement(pool_rule, 'sources')
-                sources.attrib['excluded'] = 'false'
-                source = et.SubElement(sources, 'source')
-                et.SubElement(source, 'type').text = 'Ipv4Address'
-                et.SubElement(source, 'value').text = ','.join(edge_ips)
-
-                destinations = et.SubElement(pool_rule, 'destinations')
-                destinations.attrib['excluded'] = 'false'
-                destination = et.SubElement(destinations, 'destination')
-                et.SubElement(destination, 'type').text = 'Ipv4Address'
-                et.SubElement(destination, 'value').text = ','.join(member_ips)
-
-            self.vcns.update_section(section_uri,
-                                     et.tostring(section, encoding="us-ascii"),
-                                     None)
-
-    def _add_vip_fw_rule(self, edge_id, vip_id, ip_address):
-        fw_rule = {
-            'firewallRules': [
-                {'action': 'accept', 'destination': {
-                    'ipAddress': [ip_address]},
-                 'enabled': True,
-                 'name': vip_id}]}
-
-        with locking.LockManager.get_lock(edge_id, external=True):
-            h = self.vcns.add_firewall_rule(edge_id, fw_rule)[0]
-        fw_rule_id = extract_resource_id(h['location'])
-
-        return fw_rule_id
-
-    def _del_vip_fw_rule(self, edge_id, vip_fw_rule_id):
-        with locking.LockManager.get_lock(edge_id, external=True):
-            self.vcns.delete_firewall_rule(edge_id, vip_fw_rule_id)
+        return member_ips
 
     def create_pool(self, context, pool):
         LOG.debug('Creating pool %s', pool)
-        edge_id = self._get_lb_edge_id(context, pool['subnet_id'])
+        edge_id = lb_common.get_lbaas_edge_id_for_subnet(
+            context, self.callbacks.plugin, pool['subnet_id'])
 
         if edge_id is None:
             self._lb_driver.pool_failed(context, pool)
@@ -459,7 +237,7 @@ class EdgeLbDriver(object):
         try:
             with locking.LockManager.get_lock(edge_id, external=True):
                 h = self.vcns.create_pool(edge_id, edge_pool)[0]
-            edge_pool_id = extract_resource_id(h['location'])
+            edge_pool_id = lb_common.extract_resource_id(h['location'])
             self._lb_driver.create_pool_successful(
                 context, pool, edge_id, edge_pool_id)
 
@@ -519,7 +297,7 @@ class EdgeLbDriver(object):
         try:
             with locking.LockManager.get_lock(edge_id, external=True):
                 h = (self.vcns.create_app_profile(edge_id, app_profile))[0]
-            app_profile_id = extract_resource_id(h['location'])
+            app_profile_id = lb_common.extract_resource_id(h['location'])
         except nsxv_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
                 self._lb_driver.vip_failed(context, vip)
@@ -528,12 +306,14 @@ class EdgeLbDriver(object):
 
         edge_vip = convert_lbaas_vip(vip, app_profile_id, pool_mapping)
         try:
-            self._add_vip_as_secondary_ip(edge_id, vip['address'])
+            lb_common.add_vip_as_secondary_ip(self.vcns, edge_id,
+                                                 vip['address'])
             with locking.LockManager.get_lock(edge_id, external=True):
                 h = self.vcns.create_vip(edge_id, edge_vip)[0]
-            edge_vip_id = extract_resource_id(h['location'])
-            edge_fw_rule_id = self._add_vip_fw_rule(edge_id, vip['id'],
-                                                    vip['address'])
+            edge_vip_id = lb_common.extract_resource_id(h['location'])
+            edge_fw_rule_id = lb_common.add_vip_fw_rule(self.vcns,
+                                                        edge_id, vip['id'],
+                                                        vip['address'])
             self._lb_driver.create_vip_successful(
                 context, vip, edge_id, app_profile_id, edge_vip_id,
                 edge_fw_rule_id)
@@ -587,8 +367,11 @@ class EdgeLbDriver(object):
             try:
                 with locking.LockManager.get_lock(edge_id, external=True):
                     self.vcns.delete_vip(edge_id, edge_vse_id)
-                self._del_vip_as_secondary_ip(edge_id, vip['address'])
-                self._del_vip_fw_rule(edge_id, vip_mapping['edge_fw_rule_id'])
+                lb_common.del_vip_as_secondary_ip(self.vcns, edge_id,
+                                                  vip['address'])
+                lb_common.del_vip_fw_rule(self.vcns, edge_id,
+                                          vip_mapping['edge_fw_rule_id'])
+
             except nsxv_exc.ResourceNotFound:
                 LOG.error(_LE('vip not found on edge: %s'), edge_id)
             except nsxv_exc.VcnsApiException:
@@ -631,10 +414,12 @@ class EdgeLbDriver(object):
                     pool_mapping['edge_pool_id'],
                     edge_pool)
 
-                self._update_pool_fw_rule(context, member['pool_id'],
-                                          pool_mapping['edge_id'],
-                                          'add',
-                                          member['address'])
+                member_ips = self._get_pool_member_ips(
+                    context, member['pool_id'], 'add', member['address'])
+                lb_common.update_pool_fw_rule(
+                    self.vcns, member['pool_id'], pool_mapping['edge_id'],
+                    self._get_lbaas_fw_section_id(), member_ips)
+
                 self._lb_driver.member_successful(context, member)
 
             except nsxv_exc.VcnsApiException:
@@ -653,7 +438,7 @@ class EdgeLbDriver(object):
 
             edge_member = convert_lbaas_member(member)
             for i, m in enumerate(edge_pool['member']):
-                if m['name'] == get_member_id(member['id']):
+                if m['name'] == lb_common.get_member_id(member['id']):
                     edge_pool['member'][i] = edge_member
                     break
 
@@ -679,7 +464,7 @@ class EdgeLbDriver(object):
                     pool_mapping['edge_pool_id'])[1]
 
                 for i, m in enumerate(edge_pool['member']):
-                    if m['name'] == get_member_id(member['id']):
+                    if m['name'] == lb_common.get_member_id(member['id']):
                         edge_pool['member'].pop(i)
                         break
 
@@ -687,10 +472,12 @@ class EdgeLbDriver(object):
                     self.vcns.update_pool(pool_mapping['edge_id'],
                                           pool_mapping['edge_pool_id'],
                                           edge_pool)
-                    self._update_pool_fw_rule(context, member['pool_id'],
-                                              pool_mapping['edge_id'],
-                                              'del',
-                                              member['address'])
+                    member_ips = self._get_pool_member_ips(
+                        context, member['pool_id'], 'del', member['address'])
+                    lb_common.update_pool_fw_rule(
+                        self.vcns, member['pool_id'], pool_mapping['edge_id'],
+                        self._get_lbaas_fw_section_id(), member_ips)
+
                 except nsxv_exc.VcnsApiException:
                     with excutils.save_and_reraise_exception():
                         self._lb_driver.member_failed(context, member)
@@ -718,7 +505,7 @@ class EdgeLbDriver(object):
                 try:
                     h = self.vcns.create_health_monitor(
                         pool_mapping['edge_id'], edge_monitor)[0]
-                    edge_mon_id = extract_resource_id(h['location'])
+                    edge_mon_id = lb_common.extract_resource_id(h['location'])
 
                 except nsxv_exc.VcnsApiException:
                     self._lb_driver.pool_health_monitor_failed(context,
@@ -858,7 +645,7 @@ class EdgeLbDriver(object):
 
                 member_stats = {}
                 for member in pool_stats.get('member', []):
-                    member_id = member['name'][len(MEMBER_ID_PFX):]
+                    member_id = member['name'][len(lb_common.MEMBER_ID_PFX):]
                     if member_map[member_id] != 'ERROR':
                         member_stats[member_id] = {
                             'status': ('INACTIVE'
