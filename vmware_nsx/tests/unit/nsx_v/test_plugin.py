@@ -30,7 +30,6 @@ from neutron.extensions import portsecurity as psec
 from neutron.extensions import providernet as pnet
 from neutron.extensions import securitygroup as secgrp
 from neutron import manager
-
 from neutron.tests.unit import _test_extension_portbindings as test_bindings
 import neutron.tests.unit.db.test_allowedaddresspairs_db as test_addr_pair
 import neutron.tests.unit.db.test_db_base_plugin_v2 as test_plugin
@@ -49,16 +48,16 @@ from vmware_nsx._i18n import _
 from vmware_nsx.common import exceptions as nsxv_exc
 from vmware_nsx.common import nsx_constants
 from vmware_nsx.db import nsxv_db
-from vmware_nsx.extensions import (
-    routersize as router_size)
-from vmware_nsx.extensions import (
-    routertype as router_type)
-from vmware_nsx.extensions import (
-    vnicindex as ext_vnic_idx)
-from vmware_nsx.plugins.nsx_v.vshield.common import (
-    constants as vcns_const)
+from vmware_nsx.extensions import routersize as router_size
+from vmware_nsx.extensions import routertype as router_type
+from vmware_nsx.extensions import secgroup_rule_local_ip_prefix as sg_local_ip
+from vmware_nsx.extensions import vnicindex as ext_vnic_idx
+from vmware_nsx.plugins.nsx_v.vshield.common import constants as vcns_const
 from vmware_nsx.plugins.nsx_v.vshield import edge_utils
+from vmware_nsx.plugins.nsx_v.vshield import securitygroup_utils
 from vmware_nsx.tests import unit as vmware
+from vmware_nsx.tests.unit.extensions import (test_extended_security_group_rule
+                                              as test_ext_rule)
 from vmware_nsx.tests.unit.extensions import test_vnic_index
 from vmware_nsx.tests.unit.nsx_v.vshield import fake_vcns
 from vmware_nsx.tests.unit import test_utils
@@ -3367,3 +3366,34 @@ class TestSharedRouterTestCase(L3NatTest, L3NatTestCaseBase,
             # get the updated router and check it's type
             body = self._show('routers', router_id)
             self.assertEqual('exclusive', body['router']['router_type'])
+
+
+class TestExtendedRule(NsxVSecurityGroupsTestCase,
+                       test_ext_rule.ExtendedRuleDbTestCase):
+    def setUp(self, plugin=PLUGIN_NAME, ext_mgr=None, service_plugins=None):
+        super(TestExtendedRule, self).setUp(plugin=plugin,
+                                            ext_mgr=ext_mgr,
+                                            service_plugins=service_plugins)
+        #FIXME(roeyc): There's probably a better way to acheive that
+        attributes.RESOURCE_ATTRIBUTE_MAP['security_group_rules'].update(
+            sg_local_ip.RESOURCE_ATTRIBUTE_MAP['security_group_rules'])
+
+    def test_rule_dst_is_local_ip_prefix(self):
+        sg_utils = securitygroup_utils.NsxSecurityGroupUtils(None)
+        plugin = manager.NeutronManager.get_plugin()
+
+        local_ip_prefix = '239.255.0.0/16'
+        dest = {'type': 'Ipv4Address', 'value': local_ip_prefix}
+
+        def _assert_destination_as_expected(*args, **kwargs):
+            self.assertEqual(dest, kwargs['destination'])
+            return sg_utils.get_rule_config(*args, **kwargs)
+
+        with self.security_group() as sg:
+            rule = self._build_ingress_rule_with_local_ip_prefix(
+                sg['security_group']['id'], local_ip_prefix=local_ip_prefix,
+                remote_ip_prefix='10.0.0.0/24')
+            plugin.nsx_sg_utils.get_rule_config = (
+                mock.Mock(side_effect=_assert_destination_as_expected))
+
+            self._make_security_group_rule(self.fmt, rule)
