@@ -440,10 +440,9 @@ class EdgeManager(object):
                 plugin_const.PENDING_CREATE,
                 appliance_size=appliance_size,
                 edge_type=edge_type)
-            task = self._deploy_edge(context, lrouter,
-                                     appliance_size=appliance_size,
-                                     edge_type=edge_type)
-            task.wait(task_const.TaskState.RESULT)
+            self._deploy_edge(context, lrouter,
+                              appliance_size=appliance_size,
+                              edge_type=edge_type, async=False)
             return
 
         with locking.LockManager.get_lock(
@@ -459,10 +458,9 @@ class EdgeManager(object):
                 plugin_const.PENDING_CREATE,
                 appliance_size=appliance_size,
                 edge_type=edge_type)
-            task = self._deploy_edge(context, lrouter,
-                                     appliance_size=appliance_size,
-                                     edge_type=edge_type)
-            task.wait(task_const.TaskState.RESULT)
+            self._deploy_edge(context, lrouter,
+                              appliance_size=appliance_size,
+                              edge_type=edge_type, async=False)
         else:
             LOG.debug("Select edge: %(edge_id)s from pool for %(name)s",
                       {'edge_id': available_router_binding['edge_id'],
