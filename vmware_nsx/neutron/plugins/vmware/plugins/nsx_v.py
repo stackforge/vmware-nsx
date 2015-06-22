@@ -1733,9 +1733,13 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             nsx_sg_id = nsx_db.get_nsx_security_group_id(
                 context.session, rule['security_group_id'])
 
-        # Find the remote nsx security group id, if given in rule
-        remote_nsx_sg_id = nsx_db.get_nsx_security_group_id(
-            context.session, rule['remote_group_id'])
+        # Find the remote nsx security group id, which might be the current
+        # one.
+        if rule['remote_group_id'] == rule['security_group_id']:
+            remote_nsx_sg_id = nsx_sg_id
+        else:
+            remote_nsx_sg_id = nsx_db.get_nsx_security_group_id(
+                context.session, rule['remote_group_id'])
 
         # Get source and destination containers from rule
         if rule['direction'] == 'ingress':
