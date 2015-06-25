@@ -91,10 +91,24 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         self.supported_extension_aliases.extend(
             ['agent', 'dhcp_agent_scheduler'])
 
+    def _build_tags_payload(self, logical_entity):
+        """
+        Construct the tags payload that will be pushed to NSX.
+        Add os-tid:<tenant-id>, os-api-version:<neutron-api-version>
+        """
+        tags = []
+        tags.append({
+            "scope": "os-tid",
+            "tag": logical_entity.get("tenant_id")
+        })
+        #TODO(abhide): Add API version to tags
+        return tags
+
     def create_network(self, context, network):
+        tags = self._build_tags_payload(network['network'])
         result = nsxlib.create_logical_switch(
             network['network']['name'],
-            cfg.CONF.default_tz_uuid)
+            cfg.CONF.default_tz_uuid, tags)
         network['network']['id'] = result['id']
         network = super(NsxV3Plugin, self).create_network(context,
                                                           network)
@@ -122,9 +136,10 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         # change in the future as the backend might need parameter generated
         # from the neutron side such as port MAC address
         port_id = uuidutils.generate_uuid()
+        tags = self._build_tags_payload(port['port'])
         result = nsxlib.create_logical_port(
             lswitch_id=port['port']['network_id'],
-            vif_uuid=port_id, name=port['port']['name'],
+            vif_uuid=port_id, name=port['port']['name'], tags=tags,
             admin_state=port['port']['admin_state_up'])
         port['port']['id'] = port_id
         # TODO(salv-orlando): Undo logical switch creation on failure
@@ -157,10 +172,12 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                                                     port)
 
     def create_router(self, context, router):
+        tags = self._build_tags_payload(router['router'])
         result = nsxlib.create_logical_router(
             display_name=router['router'].get('name', 'a_router_with_no_name'),
             tier_0=True,
-            edge_cluster_uuid=cfg.CONF.nsx_v3.default_edge_cluster_uuid)
+            edge_cluster_uuid=cfg.CONF.nsx_v3.default_edge_cluster_uuid,
+            tags=tags)
 
         with context.session.begin():
             router = super(NsxV3Plugin, self).create_router(
