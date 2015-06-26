@@ -20,7 +20,6 @@ import netaddr
 from neutron.api.v2 import attributes
 from neutron.common import constants
 from neutron.common import exceptions as ntn_exc
-import neutron.common.test_lib as test_lib
 from neutron import context
 from neutron.extensions import dvr
 from neutron.extensions import external_net
@@ -90,8 +89,12 @@ class NsxPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
               plugin=vmware.PLUGIN_NAME,
               ext_mgr=None,
               service_plugins=None):
-        test_lib.test_config['config_files'] = [
-            vmware.get_fake_conf('nsx.ini.test')]
+        cfg.CONF.set_override("default_tz_uuid", "fake_tz_uuid")
+        cfg.CONF.set_override("nsx_controllers", ["fake1", "fake_2"])
+        cfg.CONF.set_override("nsx_user", "foo")
+        cfg.CONF.set_override("nsx_password", "bar")
+        cfg.CONF.set_override("default_l3_gw_service_uuid", "whatever")
+        cfg.CONF.set_override("default_l2_gw_service_uuid", "whatever")
         # mock api client
         self.fc = fake.FakeClient(vmware.STUBS_PATH)
         self.mock_nsx = mock.patch(vmware.NSXAPI_NAME, autospec=True)
@@ -360,8 +363,12 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxPluginV2TestCase):
 class SecurityGroupsTestCase(ext_sg.SecurityGroupDBTestCase):
 
     def setUp(self):
-        test_lib.test_config['config_files'] = [
-            vmware.get_fake_conf('nsx.ini.test')]
+        cfg.CONF.set_override("default_tz_uuid", "fake_tz_uuid")
+        cfg.CONF.set_override("nsx_controllers", ["fake1", "fake_2"])
+        cfg.CONF.set_override("nsx_user", "foo")
+        cfg.CONF.set_override("nsx_password", "bar")
+        cfg.CONF.set_override("default_l3_gw_service_uuid", "whatever")
+        cfg.CONF.set_override("default_l2_gw_service_uuid", "whatever")
         # mock nsx api client
         self.fc = fake.FakeClient(vmware.STUBS_PATH)
         self.mock_nsx = mock.patch(vmware.NSXAPI_NAME, autospec=True)

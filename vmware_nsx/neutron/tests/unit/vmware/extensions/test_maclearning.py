@@ -15,7 +15,6 @@
 
 import mock
 from neutron.api.v2 import attributes
-from neutron.common import test_lib
 from neutron import context
 from neutron.extensions import agent
 from neutron.tests.unit.db import test_db_base_plugin_v2 as test_db_plugin
@@ -50,8 +49,17 @@ class MacLearningDBTestCase(test_db_plugin.NeutronDbPluginV2TestCase):
     fmt = 'json'
 
     def setUp(self):
-        test_lib.test_config['config_files'] = [
-            vmware.get_fake_conf('nsx.ini.full.test')]
+        cfg.CONF.set_override("default_tz_uuid", "fake_tz_uuid")
+        #cfg.CONF.set_override("nova_zone_id", "whatever")
+        cfg.CONF.set_override("nsx_controllers", ["fake1", "fake_2"])
+        cfg.CONF.set_override("nsx_user", "foo")
+        cfg.CONF.set_override("nsx_password", "bar")
+        cfg.CONF.set_override("default_l3_gw_service_uuid", "whatever")
+        cfg.CONF.set_override("default_l2_gw_service_uuid", "whatever")
+        cfg.CONF.set_override("default_interface_name", "whatever")
+        cfg.CONF.set_override("http_timeout", 13)
+        cfg.CONF.set_override("redirects", 12)
+        cfg.CONF.set_override("retries", "11")
         cfg.CONF.set_override('api_extensions_path', vmware.NSXEXT_PATH)
         # Save the original RESOURCE_ATTRIBUTE_MAP
         self.saved_attr_map = {}
