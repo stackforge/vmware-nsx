@@ -17,8 +17,7 @@ import mock
 from oslo_config import cfg
 
 from neutron.common import constants
-from neutron.common import test_lib
-from neutron.tests.unit.plugins.openvswitch import test_agent_scheduler
+from neutron.tests.unit.plugins.ml2.drivers.openvswitch.agent import test_agent_scheduler
 from vmware_nsx.neutron.plugins.vmware.common import sync
 from vmware_nsx.neutron.plugins.vmware.dhcp_meta import rpc
 from vmware_nsx.neutron.tests.unit import vmware
@@ -30,8 +29,17 @@ class DhcpAgentNotifierTestCase(
     plugin_str = vmware.PLUGIN_NAME
 
     def setUp(self):
-        test_lib.test_config['config_files'] = [
-            vmware.get_fake_conf('nsx.ini.full.test')]
+        cfg.CONF.set_override("default_tz_uuid", "fake_tz_uuid")
+        cfg.CONF.set_override("nova_zone_id", "whatever")
+	cfg.CONF.set_override("nsx_controllers", ["fake1", "fake_2"])
+        cfg.CONF.set_override("nsx_user", "foo")
+        cfg.CONF.set_override("nsx_password", "bar")
+        cfg.CONF.set_override("default_l3_gw_service_uuid", "whatever")
+        cfg.CONF.set_override("default_l2_gw_service_uuid", "whatever")
+        cfg.CONF.set_override("default_interface_name", "whatever")
+        cfg.CONF.set_override("http_timeout", 13)
+        cfg.CONF.set_override("redirects", 12)
+        cfg.CONF.set_override("retries", "11")
 
         # mock api client
         self.fc = fake.FakeClient(vmware.STUBS_PATH)
