@@ -36,6 +36,17 @@ def _get_controller_endpoint():
     return "https://%s" % controller, username, password
 
 
+def _validate_result(result, operation):
+    if result.status_code != requests.codes.created:
+        # Do not reveal internal details in the exception message, as it will
+        # be user-visible
+        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
+                        "201 response code was expected"), result.status_code)
+        raise nsx_exc.NsxPluginException(
+            err_msg=_("Unexpected error in backend while "
+                      "%s") % operation)
+
+
 def create_logical_switch(display_name, transport_zone_id, tags,
                           replication_mode=nsx_constants.MTEP,
                           admin_state=nsx_constants.ADMIN_STATE_UP):
@@ -58,16 +69,7 @@ def create_logical_switch(display_name, transport_zone_id, tags,
     result = requests.post(url, auth=auth.HTTPBasicAuth(user, password),
                            verify=False, headers=headers,
                            data=jsonutils.dumps(body))
-    # TODO(salv-orlando): Consider whether less generic error handling is
-    # applicable here
-    if result.status_code != requests.codes.created:
-        # Do not reveal internal details in the exception message, as it will
-        # be user-visible
-        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
-                        "201 response code was expected"), result.status_code)
-        raise nsx_exc.NsxPluginException(
-            err_msg=_("Unexpected error in backend while creating "
-                      "logical switch"))
+    _validate_result(result, _("creating logical switch"))
     return result.json()
 
 
@@ -78,15 +80,7 @@ def delete_logical_switch(lswitch_id):
     headers = {'Content-Type': 'application/json'}
     result = requests.delete(url, auth=auth.HTTPBasicAuth(user, password),
                              verify=False, headers=headers)
-
-    if result.status_code != requests.codes.ok:
-        # Do not reveal internal details in the exception message, as it will
-        # be user-visible
-        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
-                        "200 response code was expected"), result.status_code)
-        raise nsx_exc.NsxPluginException(
-            err_msg=_("Unexpected error in backend while "
-                      "deleting logical switch"))
+    _validate_result(result, _("deleting logical switch"))
 
 
 def create_logical_port(lswitch_id, vif_uuid, tags,
@@ -110,14 +104,7 @@ def create_logical_port(lswitch_id, vif_uuid, tags,
     result = requests.post(url, auth=auth.HTTPBasicAuth(user, password),
                            verify=False, headers=headers,
                            data=jsonutils.dumps(body))
-    if result.status_code != requests.codes.created:
-        # Do not reveal internal details in the exception message, as it will
-        # be user-visible
-        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
-                        "201 response code was expected"), result.status_code)
-        raise nsx_exc.NsxPluginException(
-            err_msg=_("Unexpected error in backend while "
-                      "creating logical port"))
+    _validate_result(result, _("creating logical port"))
     return result.json()
 
 
@@ -127,15 +114,7 @@ def delete_logical_port(logical_port_id):
     headers = {'Content-Type': 'application/json'}
     result = requests.delete(url, auth=auth.HTTPBasicAuth(user, password),
                              verify=False, headers=headers)
-
-    if result.status_code != requests.codes.ok:
-        # Do not reveal internal details in the exception message, as it will
-        # be user-visible
-        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
-                        "200 response code was expected"), result.status_code)
-        raise nsx_exc.NsxPluginException(
-            err_msg=_("Unexpected error in backend while "
-                      "deleting logical port"))
+    _validate_result(result, _("deleting logical port"))
 
 
 def create_logical_router(display_name, edge_cluster_uuid, tags, tier_0=False):
@@ -154,14 +133,7 @@ def create_logical_router(display_name, edge_cluster_uuid, tags, tier_0=False):
     result = requests.post(url, auth=auth.HTTPBasicAuth(user, password),
                            verify=False, headers=headers,
                            data=jsonutils.dumps(body))
-    if result.status_code != requests.codes.created:
-        # Do not reveal internal details in the exception message, as it will
-        # be user-visible
-        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
-                        "201 response code was expected"), result.status_code)
-        raise nsx_exc.NsxPluginException(
-            err_msg=_("Unexpected error in backend while "
-                      "creating logical router"))
+    _validate_result(result, _("creating logical router"))
     return result.json()
 
 
@@ -176,14 +148,7 @@ def delete_logical_router(lrouter_id):
     if result.status_code == requests.codes.not_found:
         LOG.info(_LI("Logical router %s not found on NSX backend"), lrouter_id)
         raise nsx_exc.LogicalRouterNotFound(entity_id=lrouter_id)
-    if result.status_code != requests.codes.ok:
-        # Do not reveal internal details in the exception message, as it will
-        # be user-visible
-        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
-                        "200 response code was expected"), result.status_code)
-        raise nsx_exc.NsxPluginException(
-            err_msg=_("Unexpected error in backend while "
-                      "deleting logical router"))
+    _validate_result(result, _("deleting logical router"))
 
 
 def create_logical_router_port(logical_router_id,
@@ -203,15 +168,7 @@ def create_logical_router_port(logical_router_id,
     result = requests.post(url, auth=auth.HTTPBasicAuth(user, password),
                            verify=False, headers=headers,
                            data=jsonutils.dumps(body))
-
-    if result.status_code != requests.codes.created:
-        # Do not reveal internal details in the exception message, as it will
-        # be user-visible
-        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
-                        "201 response code was expected"), result.status_code)
-        raise nsx_exc.NsxPluginException(
-            err_msg=_("Unexpected error in backend while "
-                      "creating logical router port"))
+    _validate_result(result, _("creating logical router port"))
     return result.json()
 
 
@@ -222,12 +179,4 @@ def delete_logical_router_port(logical_port_id):
     headers = {'Content-Type': 'application/json'}
     result = requests.delete(url, auth=auth.HTTPBasicAuth(user, password),
                              verify=False, headers=headers)
-
-    if result.status_code != requests.codes.ok:
-        # Do not reveal internal details in the exception message, as it will
-        # be user-visible
-        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
-                        "200 response code was expected"), result.status_code)
-        raise nsx_exc.NsxPluginException(
-            err_msg=_("Unexpected error in backend while "
-                      "deleting logical router port"))
+    _validate_result(result, _("deleting logical router port"))
