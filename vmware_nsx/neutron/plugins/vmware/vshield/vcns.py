@@ -716,3 +716,22 @@ class Vcns(object):
                 return True
 
         return False
+
+    def validate_inventory(self, object_id):
+        uri = '%s/inventory/%s/basicinfo' % (SERVICES_PREFIX, object_id)
+        try:
+            h, c = self.do_request(HTTP_GET, uri, decode=False)
+        except exceptions.ResourceNotFound:
+            return False
+        return True
+
+    def get_version(self):
+        uri = '/api/2.0/nwfabric/features'
+        h, c = self.do_request(HTTP_GET, uri, decode=True)
+        feature_id = "com.vmware.vshield.vsm.nwfabric.hostPrep"
+        for feature in c["infos"]:
+            if feature['featureId'] == feature_id:
+                LOG.debug("NSX version: %s", feature['version'])
+                return feature['version']
+        LOG.debug("Unable to get the NSX version")
+        return '0.0.0'
