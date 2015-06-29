@@ -86,5 +86,8 @@ def build_v3_tags_payload(logical_entity):
         "scope": "os-tid",
         "tag": logical_entity.get("tenant_id")
     })
-    #TODO(abhide): Add API version to tags
+    tags.append({
+        "scope": "os-api-version",
+        "tag": version.version_info.release_string()
+    })
     return tags
