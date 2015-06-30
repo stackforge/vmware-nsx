@@ -186,7 +186,7 @@ class VSMClient(object):
                                                              ls['objectId'])
             endpoint = '/vdn/virtualwires/%s' % ls['objectId']
             response = self.delete(endpoint=endpoint)
-            if response.status_code != 204:
+            if response.status_code != 200:
                 print "ERROR: reponse status code %s" % response.status_code
 
     def query_all_firewall_sections(self):
