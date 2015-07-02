@@ -38,7 +38,8 @@ def _get_controller_endpoint():
 
 def create_logical_switch(display_name, transport_zone_id, tags,
                           replication_mode=nsx_constants.MTEP,
-                          admin_state=nsx_constants.ADMIN_STATE_UP):
+                          admin_state=nsx_constants.ADMIN_STATE_UP,
+                          vlan_id=None):
     # TODO(salv-orlando): Validate Replication mode and admin_state
     # NOTE: These checks might be moved to the API client library if one that
     # performs such checks in the client is available
@@ -51,6 +52,8 @@ def create_logical_switch(display_name, transport_zone_id, tags,
             'admin_state': admin_state,
             'display_name': display_name,
             'tags': tags}
+    if vlan_id:
+        body['vlan'] = vlan_id
 
     # TODO(salv-orlando): Move actual HTTP request to separate module which
     # should be accessed through interface, in order to be able to switch API
@@ -87,6 +90,24 @@ def delete_logical_switch(lswitch_id):
         raise nsx_exc.NsxPluginException(
             err_msg=_("Unexpected error in backend while "
                       "deleting logical switch"))
+
+
+def get_logical_switch(logical_switch_id):
+    controller, user, password = _get_controller_endpoint()
+    url = controller + "/api/v1/logical-switches/%s" % logical_switch_id
+    headers = {'Content-Type': 'application/json'}
+    body = {}
+
+    result = requests.get(url, auth=auth.HTTPBasicAuth(user, password),
+                          verify=False, headers=headers,
+                          data=jsonutils.dumps(body))
+    if result.status_code != requests.codes.ok:
+        LOG.warning(_LW("The HTTP request returned error code %d, whereas a "
+                        "200 response code was expected"), result.status_code)
+        raise nsx_exc.NsxPluginException(
+            err_msg=_("Unexpected error from backend while retriving logical "
+                      "switch"))
+    return result.json()
 
 
 def create_logical_port(lswitch_id, vif_uuid, tags,

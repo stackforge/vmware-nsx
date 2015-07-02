@@ -18,6 +18,7 @@ from oslo_utils import uuidutils
 
 FAKE_NAME = "fake_name"
 FAKE_TZ_UUID = uuidutils.generate_uuid()
+FAKE_BRIDGED_TZ_UUID = uuidutils.generate_uuid()
 FAKE_SWITCH_UUID = uuidutils.generate_uuid()
 
 FAKE_SWITCH = {

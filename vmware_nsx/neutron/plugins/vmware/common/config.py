@@ -141,6 +141,11 @@ cluster_opts = [
                       "will be used for creating tunneled isolated "
                       "\"Neutron\" networks. It needs to be created in NSX "
                       "before starting Neutron with the nsx plugin.")),
+    cfg.StrOpt('default_bridged_tz_uuid',
+               help=_("This is uuid of the default bridged NSX Transport "
+                      "zone that will be used for creating bridged isolated "
+                      "\"Neutron\" networks. It needs to be created in NSX "
+                      "before starting Neutron with the nsx plugin.")),
     cfg.StrOpt('default_l3_gw_service_uuid',
                help=_("Unique identifier of the NSX L3 Gateway service "
                       "which will be used for implementing routers and "
