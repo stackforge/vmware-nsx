@@ -158,8 +158,14 @@ cluster_opts = [
 ]
 
 nsx_v3_opts = [
+    cfg.StrOpt('default_bridged_tz_uuid',
+               help=_("This is uuid of the default bridged NSX Transport "
+                      "zone that will be used for creating bridged isolated "
+                      "\"Neutron\" networks. It needs to be created in NSX "
+                      "before starting Neutron with the nsx plugin.")),
     cfg.StrOpt('default_edge_cluster_uuid',
-               help=_("Default edge cluster identifier"))]
+               help=_("Default edge cluster identifier")),
+]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
 DEFAULT_MINIMUM_POOLED_EDGES = 1

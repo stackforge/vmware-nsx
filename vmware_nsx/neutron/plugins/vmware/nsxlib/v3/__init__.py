@@ -38,7 +38,8 @@ def _get_controller_endpoint():
 
 def create_logical_switch(display_name, transport_zone_id, tags,
                           replication_mode=nsx_constants.MTEP,
-                          admin_state=nsx_constants.ADMIN_STATE_UP):
+                          admin_state=nsx_constants.ADMIN_STATE_UP,
+                          vlan_id=None):
     # TODO(salv-orlando): Validate Replication mode and admin_state
     # NOTE: These checks might be moved to the API client library if one that
     # performs such checks in the client is available
@@ -51,6 +52,8 @@ def create_logical_switch(display_name, transport_zone_id, tags,
             'admin_state': admin_state,
             'display_name': display_name,
             'tags': tags}
+    if vlan_id:
+        body['vlan'] = vlan_id
 
     # TODO(salv-orlando): Move actual HTTP request to separate module which
     # should be accessed through interface, in order to be able to switch API

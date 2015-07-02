@@ -47,3 +47,45 @@ class NsxLibSwitchTestCase(nsxlib_testcase.NsxLibTestCase):
                     test_constants_v3.FAKE_NAME,
                     test_constants_v3.FAKE_TZ_UUID, tags={})
         self.assertEqual(test_constants_v3.FAKE_SWITCH, result)
+
+    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3.requests.post")
+    def test_create_logical_switch_admin_down(self, mock_post):
+        """
+        Test creating switch with admin_state down
+        """
+        fake_switch = test_constants_v3.FAKE_SWITCH
+        fake_switch['admin_state'] = "DOWN"
+        mock_post.return_value = self._create_mock_object(fake_switch)
+        mock_post.return_value.status_code = requests.codes.created
+
+        result = nsxlib.create_logical_switch(
+                    test_constants_v3.FAKE_NAME,
+                    test_constants_v3.FAKE_TZ_UUID, tags={}, admin_state=False)
+        self.assertEqual(fake_switch, result)
+
+    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3.requests.post")
+    def test_create_logical_switch_vlan(self, mock_post):
+        """
+        Test creating switch with provider:network_type VLAN
+        """
+        fake_switch = test_constants_v3.FAKE_SWITCH
+        fake_switch['vlan_id'] = '123'
+        mock_post.return_value = self._create_mock_object(fake_switch)
+        mock_post.return_value.status_code = requests.codes.created
+
+        result = nsxlib.create_logical_switch(
+                    test_constants_v3.FAKE_NAME,
+                    test_constants_v3.FAKE_BRIDGED_TZ_UUID, tags={})
+        self.assertEqual(fake_switch, result)
+
+    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3.requests.delete")
+    def test_delete_logical_switch(self, mock_delete):
+        """
+        Test deleting switch
+        """
+        mock_delete.return_value = self._create_mock_object(None)
+        mock_delete.return_value.status_code = requests.codes.ok
+
+        result = nsxlib.delete_logical_switch(
+                     test_constants_v3.FAKE_SWITCH['id'])
+        self.assertIsNone(result)
