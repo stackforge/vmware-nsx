@@ -1,3 +1,6 @@
 3605cdbba0c614fcb74c5f473a3596adf42bf70b	vmware-nsx-core
-b5c4e18cd09e5550a427e0af3f215331897c61ba	oslo-vmware-ci
+a590185be17aea15cf967c29d5aae215b4e3bca3	neutron-stable-maint
+global:Registered-Users	Registered Users
+198912f7b5256e7b4957d207beebec7dae3c0961	neutron-release
 c055b28c0fd627dda92955a930e5a0c632ac1ad4	vmware-nsx-release
+b5c4e18cd09e5550a427e0af3f215331897c61ba	oslo-vmware-ci
