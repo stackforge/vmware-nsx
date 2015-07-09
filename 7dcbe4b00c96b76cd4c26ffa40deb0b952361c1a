@@ -1,0 +1,10 @@
+Verified+2: Jenkins
+Code-Review+2: Salvatore Orlando <salv.orlando@gmail.com>
+Code-Review+2: garyk <gkotton@vmware.com>
+Workflow+1: garyk <gkotton@vmware.com>
+Code-Review+1: Janet Yu <jwy@cs.stanford.edu>
+Submitted-by: Jenkins
+Submitted-at: Thu, 09 Jul 2015 05:39:10 +0000
+Reviewed-on: https://review.openstack.org/199217
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
