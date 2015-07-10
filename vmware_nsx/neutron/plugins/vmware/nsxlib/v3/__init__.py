@@ -26,14 +26,11 @@ from vmware_nsx.neutron.plugins.vmware.common import nsx_constants
 LOG = log.getLogger(__name__)
 
 
-def _get_controller_endpoint():
-    # For now only work with one controller
-    # NOTE: The same options defined for 'old' NSX controller connection can be
-    # reused for connecting to next-gen NSX controllers
-    controller = cfg.CONF.nsx_controllers[0]
+def _get_manager_endpoint():
+    manager = cfg.CONF.nsx_v3.nsx_managers[0]
     username = cfg.CONF.nsx_v3.nsx_user
     password = cfg.CONF.nsx_v3.nsx_password
-    return "https://%s" % controller, username, password
+    return "https://%s" % manager, username, password
 
 
 def _validate_result(result, expected, operation):
@@ -56,8 +53,8 @@ def create_logical_switch(display_name, transport_zone_id, tags,
     # NOTE: These checks might be moved to the API client library if one that
     # performs such checks in the client is available
 
-    controller, user, password = _get_controller_endpoint()
-    url = controller + "/api/v1/logical-switches"
+    manager, user, password = _get_manager_endpoint()
+    url = manager + "/api/v1/logical-switches"
     headers = {'Content-Type': 'application/json'}
     body = {'transport_zone_id': transport_zone_id,
             'replication_mode': replication_mode,
@@ -77,9 +74,9 @@ def create_logical_switch(display_name, transport_zone_id, tags,
 
 
 def delete_logical_switch(lswitch_id):
-    controller, user, password = _get_controller_endpoint()
+    manager, user, password = _get_manager_endpoint()
     url = ("%s/api/v1/logical-switches/%s?detach=true&cascade=true" %
-           (controller, lswitch_id))
+           (manager, lswitch_id))
     headers = {'Content-Type': 'application/json'}
     result = requests.delete(url, auth=auth.HTTPBasicAuth(user, password),
                              verify=False, headers=headers)
@@ -91,8 +88,8 @@ def create_logical_port(lswitch_id, vif_uuid, tags,
                         attachment_type=nsx_constants.ATTACHMENT_VIF,
                         admin_state=True, name=None, address_bindings=None):
 
-    controller, user, password = _get_controller_endpoint()
-    url = controller + "/api/v1/logical-ports"
+    manager, user, password = _get_manager_endpoint()
+    url = manager + "/api/v1/logical-ports"
     headers = {'Content-Type': 'application/json'}
     body = {'logical_switch_id': lswitch_id,
             'attachment': {'attachment_type': attachment_type,
@@ -116,8 +113,8 @@ def create_logical_port(lswitch_id, vif_uuid, tags,
 
 
 def delete_logical_port(logical_port_id):
-    controller, user, password = _get_controller_endpoint()
-    url = controller + "/api/v1/logical-ports/%s?detach=true" % logical_port_id
+    manager, user, password = _get_manager_endpoint()
+    url = manager + "/api/v1/logical-ports/%s?detach=true" % logical_port_id
     headers = {'Content-Type': 'application/json'}
     result = requests.delete(url, auth=auth.HTTPBasicAuth(user, password),
                              verify=False, headers=headers)
@@ -130,8 +127,8 @@ def create_logical_router(display_name, edge_cluster_uuid, tags, tier_0=False):
     # plugin logic.
     router_type = (nsx_constants.ROUTER_TYPE_TIER0 if tier_0 else
                    nsx_constants.ROUTER_TYPE_TIER1)
-    controller, user, password = _get_controller_endpoint()
-    url = controller + "/api/v1/logical-routers"
+    manager, user, password = _get_manager_endpoint()
+    url = manager + "/api/v1/logical-routers"
     headers = {'Content-Type': 'application/json'}
     body = {'edge_cluster_id': edge_cluster_uuid,
             'display_name': display_name,
@@ -147,8 +144,8 @@ def create_logical_router(display_name, edge_cluster_uuid, tags, tier_0=False):
 
 
 def delete_logical_router(lrouter_id):
-    controller, user, password = _get_controller_endpoint()
-    url = controller + "/api/v1/logical-routers/%s/" % lrouter_id
+    manager, user, password = _get_manager_endpoint()
+    url = manager + "/api/v1/logical-routers/%s/" % lrouter_id
     headers = {'Content-Type': 'application/json'}
 
     # TODO(salv-orlando): Must handle connection exceptions
@@ -166,8 +163,8 @@ def create_logical_router_port(logical_router_id,
                                resource_type,
                                cidr_length,
                                ip_address):
-    controller, user, password = _get_controller_endpoint()
-    url = controller + "/api/v1/logical-router-ports"
+    manager, user, password = _get_manager_endpoint()
+    url = manager + "/api/v1/logical-router-ports"
     headers = {'Content-Type': 'application/json'}
     body = {'resource_type': resource_type,
             'logical_router_id': logical_router_id,
@@ -184,9 +181,9 @@ def create_logical_router_port(logical_router_id,
 
 
 def delete_logical_router_port(logical_port_id):
-    controller, user, password = _get_controller_endpoint()
+    manager, user, password = _get_manager_endpoint()
     url = ("%s/api/v1/logical-router-ports/%s?detach=true" %
-           (controller, logical_port_id))
+           (manager, logical_port_id))
     headers = {'Content-Type': 'application/json'}
     result = requests.delete(url, auth=auth.HTTPBasicAuth(user, password),
                              verify=False, headers=headers)
