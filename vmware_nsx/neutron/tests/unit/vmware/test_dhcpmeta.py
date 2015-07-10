@@ -894,7 +894,7 @@ class DhcpAgentNotifyAPITestCase(base.BaseTestCase):
         }
         self.notifier.plugin.get_ports.return_value = ports
         self.notifier.notify(mock.ANY, {'port': port}, 'port.update.end')
-        self.lsn_manager.lsn_port_update.assert_has_calls(expected_args)
+        self.lsn_manager.lsn_port_update.assert_has_calls([expected_args])
 
     def test_notify_ports_update_no_ports(self):
         self._test_notify_port_update(None, 0, [])
