@@ -45,6 +45,13 @@ class NsxVNetworkTypes:
     PORTGROUP = 'portgroup'
 
 
+# Allowed network types for the NSX-v3 Plugin
+class NsxV3NetworkTypes:
+    """Allowed provider network types for the NSX-v3 Plugin."""
+    VLAN = 'vlan'
+    VXSTT = 'vxstt'
+
+
 def get_tags(**kwargs):
     tags = ([dict(tag=value, scope=key)
             for key, value in six.iteritems(kwargs)])
