@@ -51,7 +51,7 @@ def _validate_result(result, expected, operation):
 
 def create_logical_switch(display_name, transport_zone_id, tags,
                           replication_mode=nsx_constants.MTEP,
-                          admin_state=nsx_constants.ADMIN_STATE_UP):
+                          admin_state=True, vlan_id=None):
     # TODO(salv-orlando): Validate Replication mode and admin_state
     # NOTE: These checks might be moved to the API client library if one that
     # performs such checks in the client is available
@@ -61,9 +61,16 @@ def create_logical_switch(display_name, transport_zone_id, tags,
     headers = {'Content-Type': 'application/json'}
     body = {'transport_zone_id': transport_zone_id,
             'replication_mode': replication_mode,
-            'admin_state': admin_state,
             'display_name': display_name,
             'tags': tags}
+
+    if admin_state:
+        body['admin_state'] = nsx_constants.ADMIN_STATE_UP
+    else:
+        body['admin_state'] = nsx_constants.ADMIN_STATE_DOWN
+
+    if vlan_id:
+        body['vlan'] = vlan_id
 
     # TODO(salv-orlando): Move actual HTTP request to separate module which
     # should be accessed through interface, in order to be able to switch API
