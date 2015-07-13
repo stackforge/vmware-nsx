@@ -165,8 +165,19 @@ nsx_v3_opts = [
                default='default',
                secret=True,
                help=_('Password for NSX controllers in this cluster')),
+    cfg.StrOpt('default_overlay_tz_uuid',
+               help=_("This is the UUID of the default NSX Transport zone "
+                      "that will be used for creating tunneled isolated "
+                      "Neutron networks. It needs to be created in NSX "
+                      "before starting Neutron with the NSX plugin.")),
+    cfg.StrOpt('default_bridge_tz_uuid',
+               help=_("This is the UUID of the default bridge NSX Transport "
+                      "zone that will be used for creating bridge Neutron "
+                      "networks. It needs to be created in NSX before "
+                      "starting Neutron with the NSX plugin.")),
     cfg.StrOpt('default_edge_cluster_uuid',
-               help=_("Default edge cluster identifier"))]
+               help=_("Default edge cluster identifier")),
+]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
 DEFAULT_MINIMUM_POOLED_EDGES = 1

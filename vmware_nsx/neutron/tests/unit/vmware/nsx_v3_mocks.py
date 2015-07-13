@@ -24,7 +24,7 @@ FAKE_NAME = "fake_name"
 
 def create_logical_switch(display_name, transport_zone_id, tags,
                           replication_mode=nsx_constants.MTEP,
-                          admin_state=nsx_constants.ADMIN_STATE_UP):
+                          admin_state=True, vlan_id=None):
     FAKE_TZ_UUID = uuidutils.generate_uuid()
     FAKE_SWITCH_UUID = uuidutils.generate_uuid()
 
