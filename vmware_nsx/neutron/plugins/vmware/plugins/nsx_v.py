@@ -476,7 +476,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                           "failed %(vnic_id)s. Exception: %(exc)s",
                           {'sg_id': sg_id,
                            'vnic_id': vnic_id,
-                           'exc': e})
+                           'exc': e.response})
 
     def _add_security_groups_port_mapping(self, session, vnic_id,
                                           added_sgids):
