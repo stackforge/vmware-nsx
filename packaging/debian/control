@@ -1,0 +1,12 @@
+Source: neutron-plugin-nsx
+Section: net
+Priority: extra
+Maintainer: VMware, Inc. <nsx-support@vmware.com>
+Standards-Version: 3.7.3
+
+Package: neutron-plugin-nsx
+Architecture: all
+Depends: neutron-server
+Description: VMware NSX Plugin
+  This package provide Neutron plugins for VMware NSX-mh, NSX-V, Simple DVS,
+  and NSX_v3 platforms
