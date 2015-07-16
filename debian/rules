@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+
+BUILD_NUMBER = 0
+VERSION = 0.0.1
+UPDATE_CHANGELOG := $(shell cp debian/changelog.in debian/changelog && \
+  NAME="VMware, Inc." EMAIL="nsx-support@vmware.com" debchange \
+  -v $(VERSION).$(BUILD_NUMBER) --force-distribution \
+  --distribution unstable "Automated build")
+DEB_DESTDIR = ..
+
+%:
+	dh $@
+
+override_dh_builddeb:
+	dh_builddeb --destdir=$(DEB_DESTDIR)
+
+override_dh_auto_install:
+	install -d -m 755 $(CURDIR)/debian/neutron-plugin-nsx/usr/lib/python2.7/dist-packages/vmware-nsx/vmware_nsx/neutron/plugins
+	cp -R $(CURDIR)/vmware_nsx/neutron/plugins/vmware \
+            $(CURDIR)/debian/neutron-plugin-nsx/usr/lib/python2.7/dist-packages/vmware-nsx/vmware_nsx/neutron/plugins/
