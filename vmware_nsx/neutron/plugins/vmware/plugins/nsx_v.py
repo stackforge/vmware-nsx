@@ -111,6 +111,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
 
     def __init__(self):
         super(NsxVPluginV2, self).__init__()
+        self.metadata_proxy_handler = None
         config.validate_nsxv_config_options()
         neutron_extensions.append_api_extensions_path([vmware.NSX_EXT_PATH])
 

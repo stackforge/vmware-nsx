@@ -382,16 +382,23 @@ class NsxVMetadataProxyHandler:
             return edge_ip
 
         except Exception as e:
-            with excutils.save_and_reraise_exception():
-                LOG.exception(_LE("Exception %s while creating internal edge "
-                                  "for metadata service"), e)
+            LOG.exception(_LE("Exception %s while creating internal edge "
+                              "for metadata service"), e)
 
-                nsxv_db.delete_nsxv_internal_edge(
-                    self.context.session,
-                    rtr_ext_ip)
+            ports = self.nsxv_plugin.get_ports(
+                self.context, filters={'device_id': [rtr_id]})
 
-                if rtr_id:
-                    self.nsxv_plugin.delete_router(self.context, rtr_id)
+            for port in ports:
+                self.nsxv_plugin.delete_port(self.context, port['id'],
+                                             l3_port_check=True,
+                                             nw_gw_port_check=True)
+
+            nsxv_db.delete_nsxv_internal_edge(
+                self.context.session,
+                rtr_ext_ip)
+
+            if rtr_id:
+                self.nsxv_plugin.delete_router(self.context, rtr_id)
 
     def _get_address_groups(self, context, network_id, device_id, is_proxy):
 
