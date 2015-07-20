@@ -29,6 +29,7 @@ from neutron.api.v2 import attributes
 from neutron.extensions import l3
 from neutron.extensions import portbindings as pbin
 from neutron.extensions import providernet as pnet
+from neutron.extensions import securitygroup as ext_sg
 
 from neutron.common import constants as const
 from neutron.common import exceptions as n_exc
@@ -40,7 +41,6 @@ from neutron.db import db_base_plugin_v2
 from neutron.db import l3_db
 from neutron.db import models_v2
 from neutron.db import portbindings_db
-from neutron.db import securitygroups_db
 from neutron.i18n import _LE, _LW
 from neutron.plugins.common import constants as plugin_const
 from neutron.plugins.common import utils as n_utils
@@ -50,12 +50,13 @@ from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
 from vmware_nsx.neutron.plugins.vmware.nsxlib import v3 as nsxlib
+from vmware_nsx.neutron.plugins.vmware.nsxlib.v3 import security
 
 LOG = log.getLogger(__name__)
 
 
 class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
-                  securitygroups_db.SecurityGroupDbMixin,
+                  security.NSSecurityDB,
                   l3_db.L3_NAT_dbonly_mixin,
                   portbindings_db.PortBindingMixin,
                   agentschedulers_db.DhcpAgentSchedulerDbMixin):
@@ -83,6 +84,8 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                 pbin.CAP_PORT_FILTER:
                 'security-group' in self.supported_extension_aliases}}
         self._setup_rpc()
+
+        self.security_db = security.NSSecurityDB()
 
     def _setup_rpc(self):
         self.topic = topics.PLUGIN
@@ -310,9 +313,11 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             neutron_db[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
 
             sgids = self._get_security_groups_on_port(context, port)
-            self._process_port_create_security_group(
-                context, neutron_db, sgids)
-
+            if sgids is not None:
+                self._process_port_create_security_group(
+                    context, neutron_db, sgids)
+                self._update_lport_with_security_groups(
+                    context, result['id'], [], sgids)
         return neutron_db
 
     def delete_port(self, context, port_id, l3_port_check=True):
@@ -331,12 +336,15 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             updated_port = super(NsxV3Plugin, self).update_port(context,
                                                                 id, port)
             sec_grp_updated = self.update_security_group_on_port(
-                                  context, id, port, original_port,
-                                  updated_port)
+                context, id, port, original_port, updated_port)
         try:
             nsxlib.update_logical_port(
                 nsx_lport_id, name=port['port'].get('name'),
                 admin_state=port['port'].get('admin_state_up'))
+            self._update_lport_with_security_groups(
+                context, nsx_lport_id,
+                original_port.get(ext_sg.SECURITYGROUPS, []),
+                updated_port.get(ext_sg.SECURITYGROUPS, []))
         except nsx_exc.ManagerError:
             # In case if there is a failure on NSX-v3 backend, rollback the
             # previous update operation on neutron side.
@@ -350,6 +358,8 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                         self.update_security_group_on_port(
                             context, id, {'port': original_port}, updated_port,
                             original_port)
+
+        #TODO(roeyc): add port to nsgroups
 
         return updated_port
 
@@ -449,7 +459,3 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             nsxlib.delete_logical_router_port(nsx_port_id)
         return super(NsxV3Plugin, self).remove_router_interface(
             context, router_id, interface_info)
-
-    def create_security_group_rule_bulk(self, context, security_group_rules):
-        return super(NsxV3Plugin, self).create_security_group_rule_bulk_native(
-            context, security_group_rules)
