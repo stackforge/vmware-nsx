@@ -20,7 +20,6 @@ from neutron import version
 from oslo_config import cfg
 from oslo_log import log
 import retrying
-import six
 
 LOG = log.getLogger(__name__)
 MAX_DISPLAY_NAME_LEN = 40
@@ -56,8 +55,7 @@ class NsxV3NetworkTypes:
 
 
 def get_tags(**kwargs):
-    tags = ([dict(tag=value, scope=key)
-            for key, value in six.iteritems(kwargs)])
+    tags = populate_tags(kwargs)
     tags.append({"tag": NEUTRON_VERSION, "scope": "quantum"})
     return sorted(tags, key=lambda x: x['tag'])
 
@@ -103,3 +101,7 @@ def retry_upon_exception_nsxv3(exc, delay=500, max_delay=2000,
                           wait_exponential_multiplier=delay,
                           wait_exponential_max=max_delay,
                           stop_max_attempt_number=max_attempts)
+
+
+def populate_tags(tags):
+    return [{'scope': key, 'tag': value} for key, value in tags.items()]
