@@ -30,6 +30,7 @@ from neutron.api.v2 import attributes
 from neutron.extensions import l3
 from neutron.extensions import portbindings as pbin
 from neutron.extensions import providernet as pnet
+from neutron.extensions import securitygroup as ext_sg
 
 from neutron.common import constants as const
 from neutron.common import exceptions as n_exc
@@ -51,6 +52,8 @@ from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
 from vmware_nsx.neutron.plugins.vmware.nsxlib import v3 as nsxlib
+from vmware_nsx.neutron.plugins.vmware.nsxlib.v3 import dfw_api as firewall
+from vmware_nsx.neutron.plugins.vmware.nsxlib.v3 import security
 
 LOG = log.getLogger(__name__)
 
@@ -356,9 +359,11 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                     attributes.is_attr_set(port['port'][pbin.PROFILE])):
                 neutron_db[pbin.PROFILE] = port['port'][pbin.PROFILE]
             sgids = self._get_security_groups_on_port(context, port)
-            self._process_port_create_security_group(
-                context, neutron_db, sgids)
-
+            if sgids is not None:
+                self._process_port_create_security_group(
+                    context, neutron_db, sgids)
+                security.update_lport_with_security_groups(
+                    context, result['id'], [], sgids)
         return neutron_db
 
     def delete_port(self, context, port_id, l3_port_check=True):
@@ -377,12 +382,15 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             updated_port = super(NsxV3Plugin, self).update_port(context,
                                                                 id, port)
             sec_grp_updated = self.update_security_group_on_port(
-                                  context, id, port, original_port,
-                                  updated_port)
+                context, id, port, original_port, updated_port)
         try:
             nsxlib.update_logical_port(
                 nsx_lport_id, name=port['port'].get('name'),
                 admin_state=port['port'].get('admin_state_up'))
+            security.update_lport_with_security_groups(
+                context, nsx_lport_id,
+                original_port.get(ext_sg.SECURITYGROUPS, []),
+                updated_port.get(ext_sg.SECURITYGROUPS, []))
         except nsx_exc.ManagerError:
             # In case if there is a failure on NSX-v3 backend, rollback the
             # previous update operation on neutron side.
@@ -396,6 +404,8 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                         self.update_security_group_on_port(
                             context, id, {'port': original_port}, updated_port,
                             original_port)
+
+        #TODO(roeyc): add port to nsgroups
 
         return updated_port
 
@@ -496,10 +506,99 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         return super(NsxV3Plugin, self).remove_router_interface(
             context, router_id, interface_info)
 
-    def create_security_group_rule_bulk(self, context, security_group_rules):
-        return super(NsxV3Plugin, self).create_security_group_rule_bulk_native(
-            context, security_group_rules)
-
     def extend_port_dict_binding(self, port_res, port_db):
         super(NsxV3Plugin, self).extend_port_dict_binding(port_res, port_db)
         port_res[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
+
+    def create_security_group(self, context, security_group, default_sg=False):
+        security_group_db = (
+            super(NsxV3Plugin, self).create_security_group(
+                context, security_group, default_sg))
+
+        tenant_id = security_group_db['tenant_id']
+        name = security.get_nsgroup_name(security_group_db)
+
+        try:
+            ns_group = None
+            firewall_section = None
+
+            ns_group = firewall.create_nsgroup(
+                name, security_group_db['description'])
+            # security-group rules are located in a dedicated firewall section.
+            firewall_section = firewall.create_empty_section(
+                name, security_group_db['description'], [ns_group['id']],
+                tenant_id=tenant_id)
+
+            sg_rules = security_group_db['security_group_rules']
+            # translate and creates firewall rules.
+            rules = security.create_firewall_rules(
+                context, firewall_section['id'], ns_group['id'], sg_rules)
+        except nsx_exc.ManagerError:
+            LOG.exception(_LE("Unable to create security-group on backend,"
+                              "rollint back."))
+            with excutils.save_and_reraise_exception():
+                # Delete the security-group records from db.
+                # default security group deletion requires admin context
+                if default_sg:
+                    context = context.elevated()
+                super(NsxV3Plugin, self).delete_security_group(
+                    context, security_group_db['id'])
+                # If the ns-group or section were created already, then delete
+                # them too.
+                if ns_group:
+                    firewall.delete_nsgroup(ns_group['id'])
+                if firewall_section:
+                    firewall.delete_section(firewall_section['id'])
+
+        security.save_sg_mappings(context.session, security_group_db['id'],
+                                  ns_group['id'], firewall_section['id'])
+        security.save_sg_rule_mappings(context.session, rules['rules'])
+
+        return security_group_db
+
+    def update_security_group(self, context, id, security_group):
+        nsgroup_id, section_id = security.get_sg_mappings(context.session, id)
+        updated_security_group = (
+            super(NsxV3Plugin, self).update_security_group(context, id,
+                                                           security_group))
+        name = security.get_nsgroup_name(updated_security_group)
+        description = updated_security_group['description']
+        firewall.update_nsgroup(nsgroup_id, name, description)
+        firewall.update_section(section_id, name, description)
+        return updated_security_group
+
+    def delete_security_group(self, context, id):
+        nsgroup_id, section_id = security.get_sg_mappings(context.session, id)
+        super(NsxV3Plugin, self).delete_security_group(context, id)
+        firewall.delete_section(section_id)
+        firewall.delete_nsgroup(nsgroup_id)
+
+    def create_security_group_rule(self, context, security_group_rule):
+        bulk_rule = {'security_group_rules': [security_group_rule]}
+        return self.create_security_group_rule_bulk(context, bulk_rule)[0]
+
+    def create_security_group_rule_bulk(self, context, security_group_rules):
+        security_group_rules_db = (
+            super(NsxV3Plugin, self).create_security_group_rule_bulk_native(
+                context, security_group_rules))
+        sg_id = security_group_rules_db[0]['security_group_id']
+        nsgroup_id, section_id = security.get_sg_mappings(context.session,
+                                                          sg_id)
+        try:
+            rules = security.create_firewall_rules(
+                context, section_id, nsgroup_id, security_group_rules_db)
+        except nsx_exc.ManagerError:
+            with excutils.save_and_reraise_exception():
+                for rule in security_group_rules_db:
+                    super(NsxV3Plugin, self).delete_security_group_rule(
+                        context, rule['id'])
+        security.save_sg_rule_mappings(context.session, rules['rules'])
+        return security_group_rules_db
+
+    def delete_security_group_rule(self, context, id):
+        rule_db = self._get_security_group_rule(context, id)
+        sg_id = rule_db['security_group_id']
+        _, section_id = security.get_sg_mappings(context.session, sg_id)
+        fw_rule_id = security.get_sg_rule_mapping(context.session, id)
+        super(NsxV3Plugin, self).delete_security_group_rule(context, id)
+        firewall.delete_rule(section_id, fw_rule_id)
