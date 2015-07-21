@@ -1192,8 +1192,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         rules = [{"name": "ICMPPing",
                   "enabled": True,
                   "action": "allow",
-                  "application": {
-                      "applicationId": ["application-70", "application-327"]}}]
+                  "protocol": "icmp"}]
 
         if plugin.metadata_proxy_handler:
             rules += nsx_v_md_proxy.get_router_fw_rules()
