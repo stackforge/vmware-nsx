@@ -33,6 +33,7 @@ from neutron.plugins.common import constants as plugin_const
 
 from vmware_nsx.neutron.plugins.vmware.common import locking
 from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
+from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
 from vmware_nsx.neutron.plugins.vmware.vshield.common import (
@@ -423,7 +424,7 @@ class EdgeManager(object):
                                            tunnel_index,
                                            address_groups=iface_list)
 
-    @vcns.retry_upon_exception(db_base_exc.OperationalError, max_delay=10)
+    @utils.retry_upon_exception(db_base_exc.OperationalError, max_delay=10)
     def _allocate_edge_appliance(self, context, resource_id, name,
                                  appliance_size=nsxv_constants.LARGE,
                                  dist=False):

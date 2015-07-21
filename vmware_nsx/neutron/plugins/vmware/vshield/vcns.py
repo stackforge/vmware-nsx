@@ -17,9 +17,9 @@
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
-import retrying
 import xml.etree.ElementTree as et
 
+from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware.vshield.common import exceptions
 from vmware_nsx.neutron.plugins.vmware.vshield.common import VcnsApiClient
 
@@ -62,14 +62,6 @@ DHCP_BINDING_RESOURCE = "bindings"
 SYSCTL_SERVICE = 'systemcontrol/config'
 
 
-def retry_upon_exception(exc, delay=500, max_delay=2000,
-                         max_attempts=cfg.CONF.nsxv.retries):
-    return retrying.retry(retry_on_exception=lambda e: isinstance(e, exc),
-                          wait_exponential_multiplier=delay,
-                          wait_exponential_max=max_delay,
-                          stop_max_attempt_number=max_attempts)
-
-
 class Vcns(object):
 
     def __init__(self, address, user, password):
@@ -82,7 +74,7 @@ class Vcns(object):
                                                          password, 'xml')
         self.route_feature_type = None
 
-    @retry_upon_exception(exceptions.ServiceConflict)
+    @utils.retry_upon_exception(exceptions.ServiceConflict)
     def _client_request(self, client, method, uri,
                         params, headers, encodeParams):
         return client(method, uri, params, headers, encodeParams)
@@ -585,7 +577,7 @@ class Vcns(object):
         }
         return self.do_request(HTTP_PUT, uri, payload, decode=True)
 
-    @retry_upon_exception(exceptions.RequestBad)
+    @utils.retry_upon_exception(exceptions.RequestBad)
     def create_spoofguard_policy(self, enforcement_point, name, enable):
         uri = '%s/policies/' % SPOOFGUARD_PREFIX
 
@@ -599,7 +591,7 @@ class Vcns(object):
         return self.do_request(HTTP_POST, uri, body,
                                format='xml', encode=True, decode=False)
 
-    @retry_upon_exception(exceptions.RequestBad)
+    @utils.retry_upon_exception(exceptions.RequestBad)
     def update_spoofguard_policy(self, policy_id,
                                  enforcement_point, name, enable):
         update_uri = '%s/policies/%s' % (SPOOFGUARD_PREFIX, policy_id)
@@ -618,7 +610,7 @@ class Vcns(object):
                         format='xml', encode=True, decode=False)
         return self.do_request(HTTP_POST, publish_uri, decode=False)
 
-    @retry_upon_exception(exceptions.RequestBad)
+    @utils.retry_upon_exception(exceptions.RequestBad)
     def delete_spoofguard_policy(self, policy_id):
         uri = '%s/policies/%s' % (SPOOFGUARD_PREFIX, policy_id)
         return self.do_request(HTTP_DELETE, uri, decode=False)
@@ -639,13 +631,13 @@ class Vcns(object):
         return self.do_request(HTTP_POST, '%s?action=approve' % uri,
                                body, format='xml', decode=False)
 
-    @retry_upon_exception(exceptions.RequestBad)
+    @utils.retry_upon_exception(exceptions.RequestBad)
     def approve_assigned_addresses(self, policy_id,
                                    vnic_id, mac_addr, addresses):
         return self._approve_assigned_addresses(
             policy_id, vnic_id, mac_addr, addresses)
 
-    @retry_upon_exception(exceptions.VcnsApiException)
+    @utils.retry_upon_exception(exceptions.VcnsApiException)
     def publish_assigned_addresses(self, policy_id, vnic_id):
         uri = '%s/%s' % (SPOOFGUARD_PREFIX, policy_id)
         publish_vnic_uri = '%s?action=publish&vnicId=%s' % (uri, vnic_id)
