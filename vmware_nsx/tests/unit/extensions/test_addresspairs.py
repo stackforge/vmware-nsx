@@ -17,6 +17,7 @@ from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.tests.unit.db import test_allowedaddresspairs_db as ext_pairs
 
 from vmware_nsx.tests.unit.nsx_mh import test_plugin as test_nsx_plugin
+from vmware_nsx.tests.unit.nsx_v import test_plugin as test_nsx_v_plugin
 from vmware_nsx.tests.unit.nsx_v3 import test_constants as v3_constants
 from vmware_nsx.tests.unit.nsx_v3 import test_plugin as test_v3_plugin
 
@@ -48,3 +49,36 @@ class TestAllowedAddressPairsNSXv3(test_v3_plugin.NsxV3PluginTestCaseMixin,
 
     def test_create_port_security_false_allowed_address_pairs(self):
         self.skipTest('TBD')
+
+
+class TestAllowedAddressPairsNSXv(test_nsx_v_plugin.NsxVPluginV2TestCase,
+                                  ext_pairs.TestAllowedAddressPairs):
+
+    def setUp(self, plugin='vmware_nsx.plugin.NsxVPlugin',
+              ext_mgr=None,
+              service_plugins=None):
+        super(TestAllowedAddressPairsNSXv, self).setUp(
+            plugin=plugin, ext_mgr=ext_mgr, service_plugins=service_plugins)
+
+    def test_create_port_security_false_allowed_address_pairs(self):
+        self.skipTest('TBD')
+
+    def test_update_port_security_off_address_pairs(self):
+        self.skipTest('Not supported')
+
+    def test_create_overlap_with_fixed_ip(self):
+        address_pairs = [{'mac_address': '00:00:00:00:00:01',
+                          'ip_address': '10.0.0.2'}]
+        with self.network() as network:
+            with self.subnet(network=network, cidr='10.0.0.0/24',
+                             enable_dhcp=False) as subnet:
+                fixed_ips = [{'subnet_id': subnet['subnet']['id'],
+                              'ip_address': '10.0.0.2'}]
+                res = self._create_port(self.fmt, network['network']['id'],
+                                        arg_list=(addr_pair.ADDRESS_PAIRS,
+                                        'fixed_ips'),
+                                        allowed_address_pairs=address_pairs,
+                                        fixed_ips=fixed_ips)
+                self.assertEqual(res.status_int, 201)
+                port = self.deserialize(self.fmt, res)
+                self._delete('ports', port['port']['id'])
