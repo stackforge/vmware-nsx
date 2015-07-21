@@ -16,8 +16,7 @@
 from neutron.tests import base
 
 from vmware_nsx.neutron.plugins.vmware.vshield.common import exceptions
-from vmware_nsx.neutron.plugins.vmware.vshield import vcns
-
+from vmware_nsx.neutron.plugins.vmware.common import utils
 
 def raise_until_attempt(attempt, exception):
     def raises_until():
@@ -34,20 +33,20 @@ class TestMisc(base.BaseTestCase):
     def test_retry_on_exception_one_attempt(self):
         success_on_first_attempt = raise_until_attempt(
             1, exceptions.RequestBad(uri='', response=''))
-        should_return_one = vcns.retry_upon_exception(
+        should_return_one = utils.retry_upon_exception(
             exceptions.RequestBad, max_attempts=1)(success_on_first_attempt)
         self.assertEqual(1, should_return_one())
 
     def test_retry_on_exception_five_attempts(self):
         success_on_fifth_attempt = raise_until_attempt(
             5, exceptions.RequestBad(uri='', response=''))
-        should_return_five = vcns.retry_upon_exception(
+        should_return_five = utils.retry_upon_exception(
             exceptions.RequestBad, max_attempts=10)(success_on_fifth_attempt)
         self.assertEqual(5, should_return_five())
 
     def test_retry_on_exception_exceed_attempts(self):
         success_on_fifth_attempt = raise_until_attempt(
             5, exceptions.RequestBad(uri='', response=''))
-        should_raise = vcns.retry_upon_exception(
+        should_raise = utils.retry_upon_exception(
             exceptions.RequestBad, max_attempts=4)(success_on_fifth_attempt)
         self.assertRaises(exceptions.RequestBad, should_raise)
