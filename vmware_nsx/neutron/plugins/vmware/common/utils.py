@@ -14,9 +14,11 @@
 #    under the License.
 
 import hashlib
+import retrying
 
 from neutron.api.v2 import attributes
 from neutron import version
+from oslo_config import cfg
 from oslo_log import log
 import six
 
@@ -85,3 +87,11 @@ def build_v3_tags_payload(logical_entity):
              "tag": logical_entity.get("tenant_id")},
             {"scope": "os-api-version",
              "tag": version.version_info.release_string()}]
+
+
+def retry_upon_exception(exc, delay=500, max_delay=2000,
+                         max_attempts=cfg.CONF.nsxv.retries):
+    return retrying.retry(retry_on_exception=lambda e: isinstance(e, exc),
+                          wait_exponential_multiplier=delay,
+                          wait_exponential_max=max_delay,
+                          stop_max_attempt_number=max_attempts)
