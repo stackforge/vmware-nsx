@@ -23,3 +23,4 @@ class NsxLibTestCase(unittest.TestCase):
         cfg.CONF.set_override('nsx_controllers', ['1.2.3.4'])
         cfg.CONF.set_override('nsx_user', 'admin')
         cfg.CONF.set_override('nsx_password', 'default')
+        cfg.CONF.set_override('nsx_manager', ['1.2.3.4'], 'nsx_v3')
