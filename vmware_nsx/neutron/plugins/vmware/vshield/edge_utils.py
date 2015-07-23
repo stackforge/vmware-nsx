@@ -44,6 +44,7 @@ from vmware_nsx.neutron.plugins.vmware.vshield import vcns
 
 WORKER_POOL_SIZE = 8
 RP_FILTER_PROPERTY_OFF = 'sysctl.net.ipv4.conf.all.rp_filter=0'
+RP_FILTER_PROPERTY_DEFAULT_OFF = 'sysctl.net.ipv4.conf.default.rp_filter=0'
 LOG = logging.getLogger(__name__)
 
 _uuid = uuidutils.generate_uuid
@@ -914,7 +915,8 @@ class EdgeManager(object):
                 context, self.plugin, resource_id)
 
             self.nsxv_manager.vcns.set_system_control(
-                dhcp_edge_id, RP_FILTER_PROPERTY_OFF)
+                dhcp_edge_id, [RP_FILTER_PROPERTY_OFF,
+                               RP_FILTER_PROPERTY_DEFAULT_OFF])
             nsxv_db.add_vdr_dhcp_binding(context.session, vdr_router_id,
                                          str(resource_id), dhcp_edge_id)
 
