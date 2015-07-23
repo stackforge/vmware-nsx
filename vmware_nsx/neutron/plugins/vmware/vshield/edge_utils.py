@@ -43,9 +43,9 @@ from vmware_nsx.neutron.plugins.vmware.vshield.tasks import tasks
 from vmware_nsx.neutron.plugins.vmware.vshield import vcns
 
 WORKER_POOL_SIZE = 8
-RP_FILTER_PROPERTY_OFF = 'sysctl.net.ipv4.conf.all.rp_filter=0'
-LOG = logging.getLogger(__name__)
+RP_FILTER_PROPERTY_OFF_TEMPLATE = 'sysctl.net.ipv4.conf.%s.rp_filter=0'
 
+LOG = logging.getLogger(__name__)
 _uuid = uuidutils.generate_uuid
 
 
@@ -913,8 +913,6 @@ class EdgeManager(object):
             self.plugin.setup_dhcp_edge_fw_rules(
                 context, self.plugin, resource_id)
 
-            self.nsxv_manager.vcns.set_system_control(
-                dhcp_edge_id, RP_FILTER_PROPERTY_OFF)
             nsxv_db.add_vdr_dhcp_binding(context.session, vdr_router_id,
                                          str(resource_id), dhcp_edge_id)
 
@@ -922,6 +920,42 @@ class EdgeManager(object):
             context, network_id)
         self.update_dhcp_edge_service(
             context, network_id, address_groups=address_groups)
+
+    def set_sysctl_rp_filter_for_vdr_dhcp(self, context, edge_id, network_id):
+        vnic_binding = nsxv_db.get_edge_vnic_binding(
+            context.session, edge_id, network_id)
+
+        if vnic_binding:
+            vnic_id = 'vNic_%d' % vnic_binding.vnic_index
+
+            with locking.LockManager.get_lock(
+                    str(edge_id), lock_file_prefix='nsxv-dhcp-config-',
+                    external=True):
+                sysctl_props = []
+                h, sysctl = self.nsxv_manager.vcns.get_system_control(edge_id)
+                if sysctl:
+                    sysctl_props = sysctl['property']
+                sysctl_props.append(RP_FILTER_PROPERTY_OFF_TEMPLATE % vnic_id)
+                self.nsxv_manager.vcns.set_system_control(
+                    edge_id, sysctl_props)
+
+    def reset_sysctl_rp_filter_for_vdr_dhcp(self, context, edge_id,
+                                            network_id):
+        vnic_binding = nsxv_db.get_edge_vnic_binding(
+            context.session, edge_id, network_id)
+
+        if vnic_binding:
+            vnic_id = 'vNic_%d' % vnic_binding.vnic_index
+            with locking.LockManager.get_lock(
+                    str(edge_id), lock_file_prefix='nsxv-dhcp-config-',
+                    external=True):
+                h, sysctl = self.nsxv_manager.vcns.get_system_control(edge_id)
+                if sysctl:
+                    sysctl_props = sysctl['property']
+                    sysctl_props.remove(
+                        RP_FILTER_PROPERTY_OFF_TEMPLATE % vnic_id)
+                    self.nsxv_manager.vcns.set_system_control(
+                        edge_id, sysctl_props)
 
     def get_plr_by_tlr_id(self, context, router_id):
         lswitch_id = nsxv_db.get_nsxv_router_binding(
