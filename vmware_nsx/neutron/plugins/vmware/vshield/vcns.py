@@ -579,9 +579,7 @@ class Vcns(object):
 
         payload = {
             'featureType': 'systemcontrol',
-            'property': [
-                prop
-            ]
+            'property': prop
         }
         return self.do_request(HTTP_PUT, uri, payload, decode=True)
 
