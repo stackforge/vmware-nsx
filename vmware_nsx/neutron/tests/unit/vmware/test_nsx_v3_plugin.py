@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mock
 from oslo_config import cfg
 
 import neutron.tests.unit.db.test_db_base_plugin_v2 as test_plugin
@@ -36,10 +35,7 @@ class NsxPluginV3TestCase(test_plugin.NeutronDbPluginV2TestCase):
         # Mock entire nsxlib methods as this is the best approach to perform
         # white-box testing on the plugin class
         # TODO(salv-orlando): supply unit tests for nsxlib.v3
-        nsxlib.create_logical_switch = nsx_v3_mocks.create_logical_switch
-        nsxlib.create_logical_port = nsx_v3_mocks.create_logical_port
-        nsxlib.delete_logical_port = mock.Mock()
-        nsxlib.delete_logical_switch = mock.Mock()
+        nsxlib.nsx_manager = nsx_v3_mocks.FakeManager()
 
 
 class TestNetworksV2(test_plugin.TestNetworksV2, NsxPluginV3TestCase):
