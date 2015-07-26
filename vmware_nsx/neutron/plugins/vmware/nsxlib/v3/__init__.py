@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from oslo_config import cfg
 from oslo_log import log
 
 from neutron.i18n import _LI
@@ -21,6 +22,11 @@ from vmware_nsx.neutron.plugins.vmware.common import nsx_constants
 from vmware_nsx.neutron.plugins.vmware.nsxlib.v3 import client
 
 LOG = log.getLogger(__name__)
+
+
+nsx_manager = client.NsxV3Manager(endpoint=cfg.CONF.nsx_v3.nsx_manager,
+                                  username=cfg.CONF.nsx_v3.nsx_user,
+                                  password=cfg.CONF.nsx_v3.nsx_password)
 
 
 def create_logical_switch(display_name, transport_zone_id, tags,
@@ -37,12 +43,12 @@ def create_logical_switch(display_name, transport_zone_id, tags,
             'display_name': display_name,
             'tags': tags}
 
-    return client.create_resource(resource, body)
+    return nsx_manager.create_resource(resource, body)
 
 
 def delete_logical_switch(lswitch_id):
     resource = 'logical-switches/%s?detach=true&cascade=true' % lswitch_id
-    client.delete_resource(resource)
+    nsx_manager.delete_resource(resource)
 
 
 def create_logical_port(lswitch_id, vif_uuid, tags,
@@ -64,12 +70,12 @@ def create_logical_port(lswitch_id, vif_uuid, tags,
     if address_bindings:
         body['address_bindings'] = address_bindings
 
-    return client.create_resource(resource, body)
+    return nsx_manager.create_resource(resource, body)
 
 
 def delete_logical_port(logical_port_id):
     resource = 'logical-ports/%s?detach=true' % logical_port_id
-    client.delete_resource(resource)
+    nsx_manager.delete_resource(resource)
 
 
 def create_logical_router(display_name, edge_cluster_uuid, tags, tier_0=False):
@@ -82,16 +88,16 @@ def create_logical_router(display_name, edge_cluster_uuid, tags, tier_0=False):
             'display_name': display_name,
             'router_type': router_type,
             'tags': tags}
-    return client.create_resource(resource, body)
+    return nsx_manager.create_resource(resource, body)
 
 
 def delete_logical_router(lrouter_id):
     resource = 'logical-routers/%s/' % lrouter_id
 
-    # TODO(salv-orlando): Must handle connection exceptions
+    # TODO(salv-orlando): Must handle connection exception
     try:
-        return client.delete_resource(resource)
-    except client.NsxResourceNotFound:
+        return nsx_manager.delete_resource(resource)
+    except nsx_manager.NsxResourceNotFound:
         LOG.info(_LI("Logical router %s not found on NSX backend"), lrouter_id)
         raise nsx_exc.LogicalRouterNotFound(entity_id=lrouter_id)
 
@@ -108,9 +114,9 @@ def create_logical_router_port(logical_router_id,
                          "ip_addresses": [ip_address]}],
             'linked_logical_switch_port_id': logical_switch_port_id}
 
-    return client.create_resource(resource, body)
+    return nsx_manager.create_resource(resource, body)
 
 
 def delete_logical_router_port(logical_port_id):
     resource = 'logical-router-ports/%s?detach=true' % logical_port_id
-    client.delete_resource(resource)
+    nsx_manager.delete_resource(resource)
