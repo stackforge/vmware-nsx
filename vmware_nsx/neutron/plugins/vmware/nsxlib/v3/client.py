@@ -13,7 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from oslo_config import cfg
+import abc
+import six
+
 from oslo_log import log
 from oslo_serialization import jsonutils
 import requests
@@ -24,6 +26,7 @@ from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 
 LOG = log.getLogger(__name__)
 
+
 NOT_FOUND = 404
 PRECONDITION_FAILED = 412
 
@@ -31,76 +34,111 @@ ERRORS = {NOT_FOUND: nsx_exc.ResourceNotFound,
           PRECONDITION_FAILED: nsx_exc.StaleRevision}
 
 
-def _get_manager_endpoint():
-    manager = _get_manager_ip()
-    username = cfg.CONF.nsx_v3.nsx_user
-    password = cfg.CONF.nsx_v3.nsx_password
-    return "https://%s" % manager, username, password
+@six.add_metaclass(abc.ABCMeta)
+class NsxManagerBase(object):
+
+    @abc.abstractproperty
+    def manager(self):
+        pass
+
+    @abc.abstractproperty
+    def version(self):
+        pass
+
+    def _validate_result(self, result_status_code, expected, operation):
+        if result_status_code not in expected:
+            # Do not reveal internal details in the exception message,
+            # as it will be user-visible
+            LOG.warning(_LW("The HTTP request returned error code %(result)s "
+                            "whereas %(expected)s response codes were "
+                            "expected"),
+                        {'result': result_status_code, 'expected': expected})
+
+            manager_error = ERRORS.get(result_status_code,
+                                       nsx_exc.ManagerError)
+            raise manager_error(manager=self.manager, operation=operation)
+
+    def get_manager_endpoint(self):
+        return 'https://%s/api/%s/' % (self.manager, self.version)
+
+    def get_url(self, resource):
+        manager_endpoint = self.get_manager_endpoint()
+        return '%s/%s' % (manager_endpoint, resource)
+
+    @abc.abstractmethod
+    def get_resource(self, resource):
+        pass
+
+    @abc.abstractmethod
+    def create_resource(self, resource, data):
+        pass
+
+    @abc.abstractmethod
+    def update_resource(self, resource, data):
+        pass
+
+    @abc.abstractmethod
+    def delete_resource(self, resource):
+        pass
 
 
-def _get_manager_ip():
-    # NOTE: In future this may return the IP address from a pool
-    manager = cfg.CONF.nsx_v3.nsx_manager
-    return manager
+class NsxV3Manager(NsxManagerBase):
 
+    def __init__(self, endpoint='', username='', password='', version='v1'):
+        self.username = username
+        self.password = password
+        self._version = version
+        self._manager = endpoint
 
-def _validate_result(result_status_code, expected, operation):
-    if result_status_code not in expected:
-        # Do not reveal internal details in the exception message, as it will
-        # be user-visible
-        LOG.warning(_LW("The HTTP request returned error code %(result)d, "
-                        "whereas %(expected)s response codes were expected"),
-                    {'result': result_status_code,
-                     'expected': '/'.join([str(code) for code in expected])})
+    @property
+    def manager(self):
+        return self._manager
 
-        manager_ip = _get_manager_ip()
+    @property
+    def version(self):
+        return self._version
 
-        manager_error = ERRORS.get(result_status_code, nsx_exc.ManagerError)
-        raise manager_error(manager=manager_ip, operation=operation)
+    def _get_auth(self):
+        return auth.HTTPBasicAuth(self.user, self.password)
 
+    def get_resource(self, resource):
+        url = self.get_url(self.resource)
+        headers = {'Accept': 'application/json'}
 
-def get_resource(resource):
-    manager, user, password = _get_manager_endpoint()
-    url = manager + "/api/v1/%s" % resource
-    headers = {'Accept': 'application/json'}
-    result = requests.get(url, auth=auth.HTTPBasicAuth(user, password),
-                          verify=False, headers=headers)
-    _validate_result(result.status_code, [requests.codes.ok],
-                     _("reading resource: %s") % resource)
-    return result.json()
+        result = requests.get(
+            url, auth=self._get_auth(), verify=False, headers=headers)
+        self.validate_result(result.status_code, [requests.codes.ok],
+                             _("reading resource: %s") % resource)
+        return result.json()
 
+    def create_resource(self, resource, data):
+        url = self.get_url(self.manager, resource)
+        data = jsonutils.dumps(data)
+        headers = {'Content-Type': 'application/json',
+                   'Accept': 'application/json'}
 
-def create_resource(resource, data):
-    manager, user, password = _get_manager_endpoint()
-    url = manager + "/api/v1/%s" % resource
-    headers = {'Content-Type': 'application/json',
-               'Accept': 'application/json'}
-    result = requests.post(url, auth=auth.HTTPBasicAuth(user, password),
-                           verify=False, headers=headers,
-                           data=jsonutils.dumps(data))
-    _validate_result(result.status_code, [requests.codes.created],
-                     _("creating resource at: %s") % resource)
-    return result.json()
+        result = requests.post(url, auth=self._auth(), verify=False,
+                               headers=headers, data=data)
+        self.validate_result(result.status_code, [requests.codes.created],
+                             _("creating resource: %s") % resource)
+        return result.json()
 
+    def update_resource(self, resource, data):
+        url = self.get_url(resource)
+        data = jsonutils.dumps(data)
+        headers = {'Content-Type': 'application/json',
+                   'Accept': 'application/json'}
 
-def update_resource(resource, data):
-    manager, user, password = _get_manager_endpoint()
-    url = manager + "/api/v1/%s" % resource
-    headers = {'Content-Type': 'application/json',
-               'Accept': 'application/json'}
-    result = requests.put(url, auth=auth.HTTPBasicAuth(user, password),
-                          verify=False, headers=headers,
-                          data=jsonutils.dumps(data))
-    _validate_result(result.status_code, [requests.codes.ok],
-                     _("updating resource: %s") % resource)
-    return result.json()
+        result = requests.put(url, auth=self._get_auth(), verify=False,
+                              headers=headers, data=data)
+        self.validate_result(result.status_code, [requests.codes.ok],
+                             _("updating resource: %s") % resource)
+        return result.json()
 
+    def delete_resource(self, resource):
+        url = self.get_url(resource)
+        result = requests.delete(url, auth=self._get_auth(), verify=False)
 
-def delete_resource(resource):
-    manager, user, password = _get_manager_endpoint()
-    url = manager + "/api/v1/%s" % resource
-    result = requests.delete(url, auth=auth.HTTPBasicAuth(user, password),
-                             verify=False)
-    _validate_result(result.status_code, [requests.codes.ok],
-                     _("deleting resource: %s") % resource)
-    return result.json()
+        self.validate_result(result.status_code, [requests.codes.ok],
+                             _("deleting resource: %s") % resource)
+        return result.json()
