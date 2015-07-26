@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import re
+
 from oslo_config import cfg
 from oslo_log import log
 from oslo_serialization import jsonutils
@@ -23,6 +25,20 @@ from neutron.i18n import _LW
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 
 LOG = log.getLogger(__name__)
+
+
+class NsxManagerError(nsx_exc.NsxPluginException):
+    def __init__(self, status_code, err_msg):
+        self.status_code = status_code
+        super(NsxManagerError, self).__init__(err_msg=err_msg)
+
+
+class NsxResourceNotFound(NsxManagerError):
+    pass
+
+
+class NsxStaleResourceRevision(NsxManagerError):
+    pass
 
 
 def _get_manager_endpoint():
@@ -46,8 +62,17 @@ def _validate_result(result, expected, operation):
                         "whereas %(expected)s response codes were expected"),
                     {'result': result.status_code,
                      'expected': '/'.join([str(code) for code in expected])})
-        raise nsx_exc.NsxPluginException(
-            err_msg=_("Unexpected error in backend while %s") % operation)
+
+        err_msg = _("Unexpected error in backend while %s") % operation
+
+        if result.status_code == requests.codes.not_found:
+            raise NsxResourceNotFound(result.status_code, err_msg)
+        elif result.status_code == requests.codes.bad:
+            # REVISIT(roeyc): use designated code (i.e - 409, 412)
+            res_body = result.json()
+            if re.match(r'revision number \d+ is stale', res_body) is not None:
+                raise NsxStaleResourceRevision(result.status_code, err_msg)
+        raise NsxManagerError(result.status_code, err_msg=err_msg)
 
 
 def get_resource(resource):
@@ -58,7 +83,7 @@ def get_resource(resource):
                           verify=False, headers=headers)
     _validate_result(
         result, [requests.codes.ok], _("reading resource: %s") % resource)
-    return result
+    return result.json()
 
 
 def create_resource(resource, data):
@@ -71,7 +96,7 @@ def create_resource(resource, data):
                            data=jsonutils.dumps(data))
     _validate_result(result, [requests.codes.created],
                      _("creating resource at: %s") % resource)
-    return result
+    return result.json()
 
 
 def update_resource(resource, data):
@@ -84,7 +109,7 @@ def update_resource(resource, data):
                           data=jsonutils.dumps(data))
     _validate_result(result, [requests.codes.ok],
                      _("updating resource: %s") % resource)
-    return result
+    return result.json()
 
 
 def delete_resource(resource):
@@ -92,6 +117,6 @@ def delete_resource(resource):
     url = manager + "/api/v1/%s" % resource
     result = requests.delete(url, auth=auth.HTTPBasicAuth(user, password),
                              verify=False)
-    _validate_result(result, [requests.codes.ok, requests.codes.not_found],
+    _validate_result(result, [requests.codes.ok],
                      _("deleting resource: %s") % resource)
-    return result
+    return result.json()
