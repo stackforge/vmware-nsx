@@ -21,14 +21,14 @@ from oslo_log import log
 from vmware_nsx.neutron.plugins.vmware.nsxlib import v3 as nsxlib
 from vmware_nsx.neutron.tests.unit.vmware.nsxlib.v3 import nsxlib_testcase
 from vmware_nsx.neutron.tests.unit.vmware import test_constants_v3
+from vmware_nsx.neutron.plugins.vmware.nsxlib.v3 import client
 
 LOG = log.getLogger(__name__)
 
 
 class NsxLibSwitchTestCase(nsxlib_testcase.NsxLibTestCase):
 
-    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3"
-                ".client.create_resource")
+    @mock.patch.object(client.NsxV3Manager, 'create_resource')
     def test_create_logical_switch(self, mock_create_resource):
         """
         Test creating a switch returns the correct response and 200 status

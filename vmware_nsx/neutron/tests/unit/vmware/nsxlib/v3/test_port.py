@@ -21,19 +21,19 @@ from oslo_log import log
 from vmware_nsx.neutron.plugins.vmware.nsxlib import v3 as nsxlib
 from vmware_nsx.neutron.tests.unit.vmware.nsxlib.v3 import nsxlib_testcase
 from vmware_nsx.neutron.tests.unit.vmware import test_constants_v3
+from vmware_nsx.neutron.plugins.vmware.nsxlib.v3 import client
 
 LOG = log.getLogger(__name__)
 
 
 class NsxLibPortTestCase(nsxlib_testcase.NsxLibTestCase):
 
-    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3"
-                ".client.create_resource")
-    def test_create_logical_port(self, mock_create_rosource):
+    @mock.patch.object(client.NsxV3Manager, 'create_resource')
+    def test_create_logical_port(self, mock_create_resource):
         """
         Test creating a port returns the correct response and 200 status
         """
-        mock_create_rosource.return_value = test_constants_v3.FAKE_PORT
+        mock_create_resource.return_value = test_constants_v3.FAKE_PORT
 
         result = nsxlib.create_logical_port(
             test_constants_v3.FAKE_PORT['logical_switch_id'],
@@ -42,15 +42,14 @@ class NsxLibPortTestCase(nsxlib_testcase.NsxLibTestCase):
 
         self.assertEqual(test_constants_v3.FAKE_PORT, result)
 
-    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3"
-                ".client.create_resource")
-    def test_create_logical_port_admin_down(self, mock_create_rosource):
+    @mock.patch.object(client.NsxV3Manager, 'create_resource')
+    def test_create_logical_port_admin_down(self, mock_create_resource):
         """
         Test creating port with admin_state down
         """
         fake_port = test_constants_v3.FAKE_PORT
         fake_port['admin_state'] = "DOWN"
-        mock_create_rosource.return_value = fake_port
+        mock_create_resource.return_value = fake_port
 
         result = nsxlib.create_logical_port(
             test_constants_v3.FAKE_PORT['logical_switch_id'],
@@ -59,8 +58,7 @@ class NsxLibPortTestCase(nsxlib_testcase.NsxLibTestCase):
 
         self.assertEqual(fake_port, result)
 
-    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3"
-                ".client.delete_resource")
+    @mock.patch.object(client.NsxV3Manager, 'delete_resource')
     def test_delete_logical_port(self, mock_delete_resource):
         """
         Test deleting port
