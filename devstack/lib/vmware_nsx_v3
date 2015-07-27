@@ -17,7 +17,7 @@
 #    under the License.
 
 
-# Neutron VMware NSX plugin
+# Neutron VMware NSX-T plugin
 # -------------------------
 
 # Save trace setting
@@ -26,29 +26,14 @@ set +o xtrace
 
 source $TOP_DIR/lib/neutron_plugins/ovs_base
 
-function setup_integration_bridge {
-    _neutron_ovs_base_setup_bridge $OVS_BRIDGE
-    # Set manager to NSX controller (1st of list)
-    if [[ "$NSX_CONTROLLERS" != "" ]]; then
-        # Get the first controller
-        controllers=(${NSX_CONTROLLERS//,/ })
-        OVS_MGR_IP=${controllers[0]}
-    else
-        die $LINENO "Error - No controller specified. Unable to set a manager for OVS"
-    fi
-    sudo ovs-vsctl set-manager ssl:$OVS_MGR_IP
-}
-
 function is_neutron_ovs_base_plugin {
     # NSX uses OVS, but not the l3-agent
     return 0
 }
 
 function neutron_plugin_create_nova_conf {
-    # if n-cpu is enabled, then setup integration bridge
-    if is_service_enabled n-cpu; then
-        setup_integration_bridge
-    fi
+    # Empty does nothing when called
+    :
 }
 
 function neutron_plugin_install_agent_packages {
@@ -97,7 +82,7 @@ function neutron_plugin_configure_service {
     fi
     # NSX_CONTROLLERS must be a comma separated string
     if [[ "$NSX_CONTROLLERS" != "" ]]; then
-        iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_controllers $NSX_CONTROLLERS
+        iniset /$Q_PLUGIN_CONF_FILE nsx_v3 nsx_controllers $NSX_CONTROLLERS
     else
         die $LINENO "The VMware NSX plugin needs at least an NSX controller."
     fi
