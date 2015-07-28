@@ -103,3 +103,46 @@ def create_logical_port(lswitch_id, vif_uuid, tags,
         ]
     }
     return FAKE_PORT
+
+
+def create_qos_switching_profile(qos_marking, dscp, tags, name=None):
+    FAKE_PROFILE = {
+        "resource_type": "QosSwitchingProfile",
+        "id": uuidutils.generate_uuid(),
+        "display_name": name or FAKE_NAME,
+        "system_defined": false,
+        "dscp": {
+            "priority": dscp,
+            "mode": qos_marking
+        },
+        "class_of_service": 0,
+        "shaper_configuration": [
+            {
+                "resource_type": "IngressRateShaper",
+                "enabled": false,
+                "peak_bandwidth_mbps": 0,
+                "burst_size_bytes": 0,
+                "average_bandwidth_mbps": 0
+            },
+            {
+                "resource_type": "IngressBroadcastRateShaper",
+                "enabled": false,
+                "peak_bandwidth_kbps": 0,
+                "average_bandwidth_kbps": 0,
+                "burst_size_bytes": 0
+            },
+            {
+                "resource_type": "EgressRateShaper",
+                "enabled": false,
+                "peak_bandwidth_mbps": 0,
+                "burst_size_bytes": 0,
+                "average_bandwidth_mbps": 0
+            }
+        ],
+        "_last_modified_user": "admin",
+        "_last_modified_time": 1438383180608,
+        "_create_time": 1438383180608,
+        "_create_user": "admin",
+        "_revision": 0
+    }
+    return FAKE_PROFILE

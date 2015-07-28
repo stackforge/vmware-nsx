@@ -108,3 +108,24 @@ def create_logical_router_port(logical_router_id,
 def delete_logical_router_port(logical_port_id):
     resource = 'logical-router-ports/%s?detach=true' % logical_port_id
     client.delete_resource(resource)
+
+
+def create_qos_switching_profile(qos_marking, dscp, tags, name=None):
+    resource = 'switching-profiles'
+    body = {"resource_type": "QosSwitchingProfile",
+            "tags": tags,
+            "dscp": {"priority": dscp,
+                     "mode": qos_marking}}
+    if name:
+        body["display_name"] = name
+    return client.create_resource(resource, body).json()
+
+
+def get_qos_switching_profile(profile_id):
+    resource = 'switching-profiles/%s' % profile_id
+    return client.get_resource(resource).json()
+
+
+def delete_qos_switching_profile(profile_id):
+    resource = 'switching-profiles/%s' % profile_id
+    return client.delete_resource(resource)
