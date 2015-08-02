@@ -98,8 +98,10 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             network['network']['name'],
             cfg.CONF.default_tz_uuid, tags)
         network['network']['id'] = result['id']
-        network = super(NsxV3Plugin, self).create_network(context,
-                                                          network)
+        tenant_id = self._get_tenant_id_for_create(context, network['network'])
+
+        self._ensure_default_security_group(context, tenant_id)
+        network = super(NsxV3Plugin, self).create_network(context, network)
         # TODO(salv-orlando): Undo logical switch creation on failure
         return network
 
@@ -152,6 +154,11 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                                                          port['port'],
                                                          neutron_db)
 
+            self._ensure_default_security_group_on_port(context, port)
+            sgids = self._get_security_groups_on_port(context, port)
+            self._process_port_create_security_group(
+                context, neutron_db, sgids)
+
             neutron_db[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
         return neutron_db
 
@@ -165,8 +172,14 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
 
     def update_port(self, context, id, port):
         # TODO(arosen) - call to backend
-        return super(NsxV3Plugin, self).update_port(context, id,
-                                                    port)
+        original_port = super(NsxV3Plugin, self).get_port(context, id)
+        with context.session.begin(subtransactions=True):
+            updated_port = super(NsxV3Plugin, self).update_port(context,
+                                                                id, port)
+            self.update_security_group_on_port(
+                context, id, port, original_port, updated_port)
+
+        return updated_port
 
     def create_router(self, context, router):
         tags = utils.build_v3_tags_payload(router['router'])
@@ -264,3 +277,7 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             nsxlib.delete_logical_router_port(nsx_port_id)
         return super(NsxV3Plugin, self).remove_router_interface(
             context, router_id, interface_info)
+
+    def create_security_group_rule_bulk(self, context, security_group_rules):
+        return super(NsxV3Plugin, self).create_security_group_rule_bulk_native(
+            context, security_group_rules)
