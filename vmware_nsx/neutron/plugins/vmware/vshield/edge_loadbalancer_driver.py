@@ -823,7 +823,7 @@ class EdgeLbDriver(object):
             lb_stats = self.vcns.get_loadbalancer_statistics(
                 pool_mapping['edge_id'])
 
-            pools_stats = lb_stats.get('pool', [])
+            pools_stats = lb_stats.get('pool', [])[1]
             for pool_stats in pools_stats:
                 if pool_stats['poolId'] == pool_mapping['edge_pool_id']:
                     return {'bytes_in': pool_stats.get('bytesIn', 0),
