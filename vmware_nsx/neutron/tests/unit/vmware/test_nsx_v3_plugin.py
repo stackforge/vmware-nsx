@@ -34,6 +34,8 @@ class NsxPluginV3TestCase(test_plugin.NeutronDbPluginV2TestCase):
         super(NsxPluginV3TestCase, self).setUp(plugin=plugin,
                                                ext_mgr=ext_mgr)
         cfg.CONF.set_override('nsx_manager', '1.2.3.4', 'nsx_v3')
+        cfg.CONF.set_override('default_tier0_router_uuid',
+                              nsx_v3_mocks.DEFAULT_TIER0_ROUTER_UUID, 'nsx_v3')
         # Mock entire nsxlib methods as this is the best approach to perform
         # white-box testing on the plugin class
         # TODO(salv-orlando): supply unit tests for nsxlib.v3
@@ -41,6 +43,9 @@ class NsxPluginV3TestCase(test_plugin.NeutronDbPluginV2TestCase):
         nsxlib.create_logical_port = nsx_v3_mocks.create_logical_port
         nsxlib.delete_logical_port = mock.Mock()
         nsxlib.delete_logical_switch = mock.Mock()
+        # TODO(berlin): fill valid data
+        nsxlib.get_edge_cluster = nsx_v3_mocks.get_edge_cluster
+        nsxlib.get_logical_router = nsx_v3_mocks.get_logical_router
 
 
 class TestNetworksV2(test_plugin.TestNetworksV2, NsxPluginV3TestCase):
@@ -60,6 +65,8 @@ class SecurityGroupsTestCase(ext_sg.SecurityGroupDBTestCase):
         nsxlib.create_logical_port = nsx_v3_mocks.create_logical_port
         nsxlib.delete_logical_port = mock.Mock()
         nsxlib.delete_logical_switch = mock.Mock()
+        cfg.CONF.set_override('default_tier0_router_uuid',
+                              nsx_v3_mocks.DEFAULT_TIER0_ROUTER_UUID, 'nsx_v3')
 
         super(SecurityGroupsTestCase, self).setUp(plugin=PLUGIN_NAME,
                                                   ext_mgr=ext_mgr)
