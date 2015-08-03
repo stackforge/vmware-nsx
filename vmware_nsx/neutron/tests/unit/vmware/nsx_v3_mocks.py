@@ -20,6 +20,7 @@ from vmware_nsx.neutron.plugins.vmware.common import nsx_constants
 
 
 FAKE_NAME = "fake_name"
+DEFAULT_TIER0_UUID = "fake_default_tier0"
 
 
 def create_logical_switch(display_name, transport_zone_id, tags,
@@ -103,3 +104,19 @@ def create_logical_port(lswitch_id, vif_uuid, tags,
         ]
     }
     return FAKE_PORT
+
+
+def get_edge_cluster(edge_cluster_uuid):
+    FAKE_CLUSTER = {
+        "id": edge_cluster_uuid,
+        "members": [
+            {"member_index": 0},
+            {"member_index": 1}]}
+    return FAKE_CLUSTER
+
+
+def get_logical_router(lrouter_uuid):
+    FAKE_LROUTER = {
+        "id": lrouter_uuid,
+        "edge_cluster_uuid": uuidutils.generate_uuid()}
+    return FAKE_LROUTER
