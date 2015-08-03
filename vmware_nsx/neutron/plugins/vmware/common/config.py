@@ -175,6 +175,8 @@ nsx_v3_opts = [
     cfg.IntOpt('retries',
                default=10,
                help=_('Maximum number of times to retry API request'))]
+    cfg.StrOpt('default_tier0_router_uuid',
+               help=_("Default tier0 router identifier"))]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
 DEFAULT_MINIMUM_POOLED_EDGES = 1
