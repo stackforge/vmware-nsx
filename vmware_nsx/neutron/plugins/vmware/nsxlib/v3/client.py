@@ -68,6 +68,7 @@ def get_resource(resource):
     manager, user, password = _get_manager_endpoint()
     url = manager + "/api/v1/%s" % resource
     headers = {'Accept': 'application/json'}
+    LOG.debug("Nsxv3 call: GET %s", url)
     result = requests.get(url, auth=auth.HTTPBasicAuth(user, password),
                           verify=False, headers=headers)
     _validate_result(result, [requests.codes.ok],
