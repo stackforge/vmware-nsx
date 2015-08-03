@@ -26,15 +26,19 @@ from neutron.api.rpc.agentnotifiers import dhcp_rpc_agent_api
 from neutron.api.rpc.handlers import dhcp_rpc
 from neutron.api.rpc.handlers import metadata_rpc
 from neutron.api.v2 import attributes
+from neutron.extensions import external_net as ext_net_extn
 from neutron.extensions import l3
 from neutron.extensions import portbindings as pbin
+from neutron.extensions import providernet as pnet
 
 from neutron.common import constants as const
+from neutron.common import exceptions as n_exc
 from neutron.common import rpc as n_rpc
 from neutron.common import topics
 from neutron.db import agents_db
 from neutron.db import agentschedulers_db
 from neutron.db import db_base_plugin_v2
+from neutron.db import external_net_db
 from neutron.db import l3_db
 from neutron.db import models_v2
 from neutron.db import portbindings_db
@@ -52,6 +56,7 @@ LOG = log.getLogger(__name__)
 
 class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                   securitygroups_db.SecurityGroupDbMixin,
+                  external_net_db.External_net_db_mixin,
                   l3_db.L3_NAT_dbonly_mixin,
                   portbindings_db.PortBindingMixin,
                   agentschedulers_db.DhcpAgentSchedulerDbMixin):
@@ -65,6 +70,8 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
     supported_extension_aliases = ["quotas",
                                    "binding",
                                    "security-group",
+                                   "provider",
+                                   "external-net",
                                    "router"]
 
     def __init__(self):
@@ -77,6 +84,7 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                 # TODO(rkukura): Replace with new VIF security details
                 pbin.CAP_PORT_FILTER:
                 'security-group' in self.supported_extension_aliases}}
+        self.tier0_groups_dict = {}
         self._setup_rpc()
 
     def _setup_rpc(self):
@@ -95,33 +103,136 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         self.supported_extension_aliases.extend(
             ['agent', 'dhcp_agent_scheduler'])
 
-    def create_network(self, context, network):
-        tags = utils.build_v3_tags_payload(network['network'])
-        result = nsxlib.create_logical_switch(
-            network['network']['name'],
-            cfg.CONF.default_tz_uuid, tags)
-        network['network']['id'] = result['id']
-        tenant_id = self._get_tenant_id_for_create(context, network['network'])
+    def _validate_tier0(self, tier0_uuid):
+        if tier0_uuid in self.tier0_groups_dict.keys():
+            return True
+        try:
+            lrouter = nsxlib.get_logical_router(tier0_uuid)
+            edge_cluster_uuid = lrouter['edge_cluster_uuid']
+            edge_cluster = nsxlib.get_edge_cluster(edge_cluster_uuid)
+            member_index_list = [member['member_index']
+                                 for member in edge_cluster['members']]
+            if not member_index_list:
+                raise nsx_exc.NsxPluginException(
+                    err_msg=_("Unexpected error in backend while reading "
+                              "edge_cluster %s") % edge_cluster_uuid)
+        except nsx_exc.NsxPluginException as e:
+            LOG.debug("Failed to validate tier0 since %s", e.response)
+            return False
+        else:
+            self.tier0_groups_dict['tier0_uuid'] = {
+                'edge_cluster_uuid': edge_cluster_uuid,
+                'member_index_list': member_index_list}
+            return True
 
-        self._ensure_default_security_group(context, tenant_id)
-        network = super(NsxV3Plugin, self).create_network(context, network)
+    def _validate_provider_create(self, net_data):
+        err_msg = None
+        if not attributes.is_attr_set(net_data.get(pnet.PHYSICAL_NETWORK)):
+            tier0_uuid = cfg.CONF.nsx_v3.default_tier0_router_uuid
+            if not tier0_uuid:
+                err_msg = _("Default tier0 router uuid is not specified for "
+                            "the net")
+        else:
+            tier0_uuid = net_data[pnet.PHYSICAL_NETWORK]
+        if not self._validate_tier0(tier0_uuid):
+            err_msg = _("tier0 %s can not be validated") % tier0_uuid
+        if err_msg:
+            raise n_exc.InvalidInput(error_message=err_msg)
+
+    def _extend_network_dict_provider(self, context, network, bindings=None):
+        if not bindings:
+            bindings = nsx_db.get_network_bindings(context.session,
+                                                   network['id'])
+        if bindings:
+            # network came in through provider networks api
+            network[pnet.NETWORK_TYPE] = bindings[0].binding_type
+            network[pnet.PHYSICAL_NETWORK] = bindings[0].phy_uuid
+            network[pnet.SEGMENTATION_ID] = bindings[0].vlan_id
+
+    def create_network(self, context, network):
+        net_data = network['network']
+        self._validate_provider_create(net_data)
+        external = net_data.get(ext_net_extn.EXTERNAL)
+        backend_network = (not attributes.is_attr_set(external) or
+                           attributes.is_attr_set(external) and not external)
+        if backend_network:
+            tags = utils.build_v3_tags_payload(network['network'])
+            result = nsxlib.create_logical_switch(
+                network['network']['name'],
+                cfg.CONF.default_tz_uuid, tags)
+            network['network']['id'] = result['id']
+            tenant_id = self._get_tenant_id_for_create(
+                context, network['network'])
+            self._ensure_default_security_group(context, tenant_id)
+        new_net = super(NsxV3Plugin, self).create_network(context, network)
+        self._process_l3_create(context, new_net, net_data)
+        if attributes.is_attr_set(net_data.get(pnet.PHYSICAL_NETWORK)):
+            net_bindings = []
+            physical_network = net_data.get(pnet.PHYSICAL_NETWORK)
+            net_bindings.append(nsx_db.add_network_binding(
+                context.session, new_net['id'],
+                "l3_ext",
+                physical_network,
+                None))
+            self._extend_network_dict_provider(context, new_net,
+                                               bindings=net_bindings)
         # TODO(salv-orlando): Undo logical switch creation on failure
-        return network
+        return new_net
+
+    def get_network(self, context, id, fields=None):
+        with context.session.begin(subtransactions=True):
+            # goto to the plugin DB and fetch the network
+            network = self._get_network(context, id)
+            # Don't do field selection here otherwise we won't be able
+            # to add provider networks fields
+            net_result = self._make_network_dict(network,
+                                                 context=context)
+            self._extend_network_dict_provider(context, net_result)
+        return self._fields(net_result, fields)
+
+    def get_networks(self, context, filters=None, fields=None,
+                     sorts=None, limit=None, marker=None,
+                     page_reverse=False):
+        filters = filters or {}
+        with context.session.begin(subtransactions=True):
+            networks = (
+                super(NsxV3Plugin, self).get_networks(
+                    context, filters, fields, sorts,
+                    limit, marker, page_reverse))
+            for net in networks:
+                self._extend_network_dict_provider(context, net)
+        return [self._fields(network, fields) for network in networks]
 
     def delete_network(self, context, network_id):
+        external = self._network_is_external(context, network_id)
         # First call DB operation for delete network as it will perform
         # checks on active ports
-        ret_val = super(NsxV3Plugin, self).delete_network(context, network_id)
-        # TODO(salv-orlando): Handle backend failure, possibly without
-        # requiring us to un-delete the DB object. For instance, ignore
-        # failures occuring if logical switch is not found
-        nsxlib.delete_logical_switch(network_id)
-        return ret_val
+        with context.session.begin(subtransactions=True):
+            self._process_l3_delete(context, network_id)
+            nsx_db.delete_network_bindings(context.session, network_id)
+            super(NsxV3Plugin, self).delete_network(context, network_id)
+        if not external:
+            # TODO(salv-orlando): Handle backend failure, possibly without
+            # requiring us to un-delete the DB object. For instance, ignore
+            # failures occuring if logical switch is not found
+            nsxlib.delete_logical_switch(network_id)
+        else:
+            # TODO(berlin): delete subnets public announce on the network
+            pass
 
     def update_network(self, context, network_id, network):
         # TODO(arosen) - call to backend
         return super(NsxV3Plugin, self).update_network(context, network_id,
                                                        network)
+
+    def create_subnet(self, context, subnet):
+        # TODO(berlin): announce external subnet
+        # TODO(berlin): no-gateway is forever fixed for ext subnet
+        return super(NsxV3Plugin, self).create_subnet(context, subnet)
+
+    def delete_subnet(self, context, subnet_id):
+        # TODO(berlin): delete external subnet public announce
+        return super(NsxV3Plugin, self).delete_subnet(context, subnet_id)
 
     def _build_address_bindings(self, port):
         address_bindings = []
@@ -146,36 +257,41 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         with context.session.begin(subtransactions=True):
             neutron_db = super(NsxV3Plugin, self).create_port(context, port)
             port["port"].update(neutron_db)
-            address_bindings = self._build_address_bindings(port['port'])
-            # FIXME(arosen): we might need to pull this out of the transaction
-            # here later.
-            result = nsxlib.create_logical_port(
-                lswitch_id=port['port']['network_id'],
-                vif_uuid=port_id, name=port['port']['name'], tags=tags,
-                admin_state=port['port']['admin_state_up'],
-                address_bindings=address_bindings)
 
-            # TODO(salv-orlando): The logical switch identifier in the mapping
-            # object is not necessary anymore.
-            nsx_db.add_neutron_nsx_port_mapping(
-                context.session, neutron_db['id'],
-                neutron_db['network_id'], result['id'])
-            self._process_portbindings_create_and_update(context,
-                                                         port['port'],
-                                                         neutron_db)
+            external = self._network_is_external(
+                context, port['port']['network_id'])
+            if not external:
+                address_bindings = self._build_address_bindings(port['port'])
+                # FIXME(arosen): we might need to pull this out of the
+                # transaction here later.
+                result = nsxlib.create_logical_port(
+                    lswitch_id=port['port']['network_id'],
+                    vif_uuid=port_id, name=port['port']['name'], tags=tags,
+                    admin_state=port['port']['admin_state_up'],
+                    address_bindings=address_bindings)
 
-            neutron_db[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
+                # TODO(salv-orlando): The logical switch identifier in the
+                # mapping object is not necessary anymore.
+                nsx_db.add_neutron_nsx_port_mapping(
+                    context.session, neutron_db['id'],
+                    neutron_db['network_id'], result['id'])
+                self._process_portbindings_create_and_update(context,
+                                                             port['port'],
+                                                             neutron_db)
 
-            sgids = self._get_security_groups_on_port(context, port)
-            self._process_port_create_security_group(
-                context, neutron_db, sgids)
+                neutron_db[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
 
+                sgids = self._get_security_groups_on_port(context, port)
+                self._process_port_create_security_group(
+                    context, neutron_db, sgids)
         return neutron_db
 
     def delete_port(self, context, port_id, l3_port_check=True):
-        _net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
-            context.session, port_id)
-        nsxlib.delete_logical_port(nsx_port_id)
+        port = self.get_port(context, port_id)
+        if not self._network_is_external(context, port['network_id']):
+            _net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
+                context.session, port_id)
+            nsxlib.delete_logical_port(nsx_port_id)
         ret_val = super(NsxV3Plugin, self).delete_port(context, port_id)
 
         return ret_val
