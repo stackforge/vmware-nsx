@@ -68,6 +68,7 @@ def get_resource(resource):
     manager, user, password = _get_manager_endpoint()
     url = manager + "/api/v1/%s" % resource
     headers = {'Accept': 'application/json'}
+    LOG.debug("GET %s", url)
     result = requests.get(url, auth=auth.HTTPBasicAuth(user, password),
                           verify=False, headers=headers)
     _validate_result(result, [requests.codes.ok],
@@ -78,6 +79,7 @@ def get_resource(resource):
 def create_resource(resource, data):
     manager, user, password = _get_manager_endpoint()
     url = manager + "/api/v1/%s" % resource
+    LOG.debug("POST url: %s, res: %s", url, data)
     headers = {'Content-Type': 'application/json',
                'Accept': 'application/json'}
     result = requests.post(url, auth=auth.HTTPBasicAuth(user, password),
@@ -91,6 +93,7 @@ def create_resource(resource, data):
 def update_resource(resource, data):
     manager, user, password = _get_manager_endpoint()
     url = manager + "/api/v1/%s" % resource
+    LOG.debug("PUT url: %s, res: %s", url, data)
     headers = {'Content-Type': 'application/json',
                'Accept': 'application/json'}
     result = requests.put(url, auth=auth.HTTPBasicAuth(user, password),
@@ -104,6 +107,7 @@ def update_resource(resource, data):
 def delete_resource(resource):
     manager, user, password = _get_manager_endpoint()
     url = manager + "/api/v1/%s" % resource
+    LOG.debug("DELETE %s", url)
     result = requests.delete(url, auth=auth.HTTPBasicAuth(user, password),
                              verify=False)
     _validate_result(result, [requests.codes.ok],
