@@ -100,6 +100,9 @@ function neutron_plugin_configure_service {
         Q_L3_ENABLED=True
         Q_L3_ROUTER_PER_TENANT=True
     fi
+    if [[ "$DEFAULT_TIER0_ROUTER_UUID" != "" ]]; then
+        iniset /$Q_PLUGIN_CONF_FILE nsx_v3 default_tier0_router_uuid $DEFAULT_TIER0_ROUTER_UUID
+    fi
     # NSX_CONTROLLERS must be a comma separated string
     if [[ "$NSX_CONTROLLERS" != "" ]]; then
         iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_controllers $NSX_CONTROLLERS
