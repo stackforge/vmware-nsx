@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
 
 import netaddr
 from oslo_config import cfg
@@ -28,6 +29,7 @@ from neutron.extensions import l3
 from neutron.extensions import portbindings as pbin
 
 from neutron.common import constants as const
+from neutron.common import exceptions as n_exc
 from neutron.common import rpc as n_rpc
 from neutron.common import topics
 from neutron.db import agents_db
@@ -134,6 +136,40 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                  'ip_address': fixed_ip['ip_address']})
         return address_bindings
 
+    def _get_data_from_binding_profile(self, context, port):
+        if (pbin.PROFILE not in port or
+                not attributes.is_attr_set(port[pbin.PROFILE])):
+            return None, None
+
+        parent_name = (
+            port[pbin.PROFILE].get('parent_name'))
+        tag = port[pbin.PROFILE].get('tag')
+        if not any((parent_name, tag)):
+            # An empty profile is fine.
+            return
+        if not all((parent_name, tag)):
+            # If one is set, they both must be set.
+            msg = _('Invalid binding:profile. parent_name and tag are '
+                    'both required.')
+            raise n_exc.InvalidInput(error_message=msg)
+        if not isinstance(parent_name, six.string_types):
+            msg = _('Invalid binding:profile. parent_name "%s" must be '
+                    'a string.') % parent_name
+            raise n_exc.InvalidInput(error_message=msg)
+        try:
+            tag = int(tag)
+            if(tag < 0 or tag > 4095):
+                raise ValueError
+        except ValueError:
+            msg = _('Invalid binding:profile. tag "%s" must be '
+                    'an int between 1 and 4096, inclusive.') % tag
+            raise n_exc.InvalidInput(error_message=msg)
+        # Make sure we can successfully look up the port indicated by
+        # parent_name.  Just let it raise the right exception if there is a
+        # problem.
+        self.get_port(context, parent_name)
+        return parent_name, tag
+
     def create_port(self, context, port):
         port_id = uuidutils.generate_uuid()
         tags = utils.build_v3_tags_payload(port['port'])
@@ -142,7 +178,13 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         self._ensure_default_security_group_on_port(context, port)
         # TODO(salv-orlando): Undo logical switch creation on failure
         with context.session.begin(subtransactions=True):
+            parent_name, tag = self._get_data_from_binding_profile(
+                context, port['port'])
             neutron_db = super(NsxV3Plugin, self).create_port(context, port)
+            self._process_portbindings_create_and_update(context,
+                                                         port['port'],
+                                                         neutron_db)
+
             port["port"].update(neutron_db)
             address_bindings = self._build_address_bindings(port['port'])
             # FIXME(arosen): we might need to pull this out of the transaction
@@ -151,7 +193,8 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                 lswitch_id=port['port']['network_id'],
                 vif_uuid=port_id, name=port['port']['name'], tags=tags,
                 admin_state=port['port']['admin_state_up'],
-                address_bindings=address_bindings)
+                address_bindings=address_bindings,
+                parent_name=parent_name, parent_tag=tag)
 
             # TODO(salv-orlando): The logical switch identifier in the mapping
             # object is not necessary anymore.
@@ -161,9 +204,9 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             self._process_portbindings_create_and_update(context,
                                                          port['port'],
                                                          neutron_db)
-
             neutron_db[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
-
+            if pbin.PROFILE in port['port']:
+                neutron_db[pbin.PROFILE] = port['port'][pbin.PROFILE]
             sgids = self._get_security_groups_on_port(context, port)
             self._process_port_create_security_group(
                 context, neutron_db, sgids)
@@ -289,3 +332,7 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
     def create_security_group_rule_bulk(self, context, security_group_rules):
         return super(NsxV3Plugin, self).create_security_group_rule_bulk_native(
             context, security_group_rules)
+
+    def extend_port_dict_binding(self, port_res, port_db):
+        super(NsxV3Plugin, self).extend_port_dict_binding(port_res, port_db)
+        port_res[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
