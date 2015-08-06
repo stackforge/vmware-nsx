@@ -174,7 +174,7 @@ nsx_v3_opts = [
                help=_("Default edge cluster identifier")),
     cfg.IntOpt('retries',
                default=10,
-               help=_('Maximum number of times to retry API request'))]
+               help=_('Maximum number of times to retry API request')),
     cfg.StrOpt('default_tier0_router_uuid',
                help=_("Default tier0 router identifier"))]
 
