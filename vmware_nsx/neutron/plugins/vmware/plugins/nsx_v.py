@@ -39,6 +39,7 @@ from neutron.db import portbindings_db
 from neutron.db import portsecurity_db
 from neutron.db import quota_db  # noqa
 from neutron.db import securitygroups_db
+from neutron.extensions import dhcpagentscheduler
 from neutron.extensions import external_net as ext_net_extn
 from neutron.extensions import l3
 from neutron.extensions import multiprovidernet as mpnet
@@ -78,6 +79,14 @@ LOG = logging.getLogger(__name__)
 PORTGROUP_PREFIX = 'dvportgroup'
 
 
+class NsxVDhcpAgentScheduler(dhcpagentscheduler.DhcpAgentSchedulerPluginBase):
+    def list_networks_on_dhcp_agent(self, context, id):
+        return {'agents': []}
+
+    def list_dhcp_agents_hosting_network(self, context, network_id):
+        return {'agents': []}
+
+
 class NsxVPluginV2(agents_db.AgentDbMixin,
                    db_base_plugin_v2.NeutronDbPluginV2,
                    rt_rtr.RouterType_mixin,
@@ -87,7 +96,8 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                    portbindings_db.PortBindingMixin,
                    portsecurity_db.PortSecurityDbMixin,
                    securitygroups_db.SecurityGroupDbMixin,
-                   vnic_index_db.VnicIndexDbMixin):
+                   vnic_index_db.VnicIndexDbMixin,
+                   NsxVDhcpAgentScheduler):
 
     supported_extension_aliases = ["agent",
                                    "binding",
