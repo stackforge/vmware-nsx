@@ -170,8 +170,6 @@ nsx_v3_opts = [
                help=_('Password for the NSX manager')),
     cfg.StrOpt('nsx_manager',
                help=_('IP address of the NSX manager')),
-    cfg.StrOpt('default_edge_cluster_uuid',
-               help=_("Default edge cluster identifier")),
     cfg.StrOpt('default_overlay_tz_uuid',
                deprecated_name='default_tz_uuid',
                help=_("This is the UUID of the default NSX overlay transport "
@@ -185,6 +183,10 @@ nsx_v3_opts = [
                       "starting Neutron with the NSX plugin.")),
     cfg.StrOpt('default_edge_cluster_uuid',
                help=_("Default edge cluster identifier")),
+    cfg.StrOpt('default_bridge_cluster_uuid',
+               help=_("Default bridge cluster identifier for L2 gateway. "
+                      "This needs to be created in NSX before using the L2 "
+                      "gateway service plugin")),
     cfg.IntOpt('retries',
                default=10,
                help=_('Maximum number of times to retry API request'))
