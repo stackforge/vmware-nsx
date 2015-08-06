@@ -170,7 +170,13 @@ nsx_v3_opts = [
                help=_('IP address of the NSX manager')),
     cfg.StrOpt('default_edge_cluster_uuid',
                help=_("Default edge cluster identifier")),
+    cfg.StrOpt('default_bridge_cluster_uuid',
+               help=_("Default bridge cluster identifier for L2 gateway. "
+                      "This needs to be created in NSX before using the L2 "
+                      "gateway service plugin")),
     cfg.StrOpt('nsx_l2gw_driver',
+               default='vmware_nsx.neutron.services.l2gateway.nsx_v3_driver.'
+                       'NsxV3Driver',
                help=_("Class path for the L2 gateway backend driver"))]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
