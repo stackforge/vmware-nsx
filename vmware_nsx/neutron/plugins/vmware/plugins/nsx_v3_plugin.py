@@ -27,11 +27,10 @@ from neutron.api.rpc.agentnotifiers import dhcp_rpc_agent_api
 from neutron.api.rpc.handlers import dhcp_rpc
 from neutron.api.rpc.handlers import metadata_rpc
 from neutron.api.v2 import attributes
-from neutron.extensions import extra_dhcp_opt as edo_ext
-from neutron.extensions import l3
-from neutron.extensions import portbindings as pbin
-from neutron.extensions import providernet as pnet
-
+from neutron.callbacks import events
+from neutron.callbacks import exceptions as callback_exc
+from neutron.callbacks import registry
+from neutron.callbacks import resources
 from neutron.common import constants as const
 from neutron.common import exceptions as n_exc
 from neutron.common import rpc as n_rpc
@@ -44,6 +43,10 @@ from neutron.db import l3_db
 from neutron.db import models_v2
 from neutron.db import portbindings_db
 from neutron.db import securitygroups_db
+from neutron.extensions import extra_dhcp_opt as edo_ext
+from neutron.extensions import l3
+from neutron.extensions import portbindings as pbin
+from neutron.extensions import providernet as pnet
 from neutron.i18n import _LE, _LW
 from neutron.plugins.common import constants as plugin_const
 from neutron.plugins.common import utils as n_utils
@@ -368,7 +371,25 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
 
         return neutron_db
 
-    def delete_port(self, context, port_id, l3_port_check=True):
+    def _pre_delete_port_check(self, context, port_id, l2gw_port_check):
+        """Perform checks prior to deleting a port."""
+        try:
+            kwargs = {
+                'context': context,
+                'port_check': l2gw_port_check,
+                'port_id': port_id,
+            }
+            # Send delete port notification to any interested service plugin
+            registry.notify(
+                resources.PORT, events.BEFORE_DELETE, self, **kwargs)
+        except callback_exc.CallbackFailure as e:
+            if len(e.errors) == 1:
+                raise e.errors[0].error
+            raise n_exc.ServicePortInUse(port_id=port_id, reason=e)
+
+    def delete_port(self, context, port_id,
+                    l3_port_check=True, l2gw_port_check=True):
+        self._pre_delete_port_check(context, port_id, l2gw_port_check)
         _net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
             context.session, port_id)
         nsxlib.delete_logical_port(nsx_port_id)
