@@ -15,6 +15,7 @@
 
 
 import netaddr
+import random
 
 from oslo_config import cfg
 from oslo_log import log
@@ -200,10 +201,19 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             LOG.debug("Failed to validate tier0 since %s", e)
             return False
         else:
-            self.tier0_groups_dict['tier0_uuid'] = {
+            self.tier0_groups_dict[tier0_uuid] = {
                 'edge_cluster_uuid': edge_cluster_uuid,
                 'member_index_list': member_index_list}
             return True
+
+    def _get_edge_cluster_and_members(self, tier0_uuid):
+        if self._validate_tier0(tier0_uuid):
+            tier0_info = self.tier0_groups_dict[tier0_uuid]
+            return (tier0_info['edge_cluster_uuid'],
+                    tier0_info['member_index_list'])
+        else:
+            err_msg = _("tier0 %s can not be validated") % tier0_uuid
+            raise nsx_exc.NsxPluginException(err_msg=err_msg)
 
     def _validate_provider_ext_net_create(self, net_data):
         err_msg = None
@@ -467,10 +477,171 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                     raise n_exc.BadRequest(resource='router', msg=msg)
         return gw_info
 
+    def _get_external_attachment_info(self, context, router):
+        gw_port = router.gw_port
+        ipaddress = None
+        netmask = None
+        nexthop = None
+
+        if gw_port:
+            # gw_port may have multiple IPs, only configure the first one
+            if gw_port.get('fixed_ips'):
+                ipaddress = gw_port['fixed_ips'][0]['ip_address']
+
+            network_id = gw_port.get('network_id')
+            if network_id:
+                ext_net = self._get_network(context, network_id)
+                if not ext_net.external:
+                    msg = (_("Network '%s' is not a valid external "
+                             "network") % network_id)
+                    raise n_exc.BadRequest(resource='router', msg=msg)
+                if ext_net.subnets:
+                    ext_subnet = ext_net.subnets[0]
+                    netmask = str(netaddr.IPNetwork(ext_subnet.cidr).netmask)
+                    nexthop = ext_subnet.gateway_ip
+
+        return (ipaddress, netmask, nexthop)
+
+    def _get_tier0_uuid_by_net(self, context, network_id):
+        if not network_id:
+            return
+        network = self.get_network(context.elevated(), network_id)
+        if not network.get(pnet.PHYSICAL_NETWORK):
+            return cfg.CONF.nsx_v3.default_tier0_router_uuid
+        else:
+            return network.get(pnet.PHYSICAL_NETWORK)
+
     def _update_router_gw_info(self, context, router_id, info):
         router = self._get_router(context, router_id)
+        org_ext_net_id = router.gw_port_id and router.gw_port.network_id
+        org_tier0_uuid = self._get_tier0_uuid_by_net(context, org_ext_net_id)
+        org_enable_snat = router.enable_snat
+        new_ext_net_id = info and info.get('network_id')
+        orgaddr, orgmask, _orgnexthop = (
+            self._get_external_attachment_info(
+                context, router))
+
+        # TODO(berlin): For nonat user case, we actually don't need a gw port
+        # which consumes one external ip. But after looking at the DB logic
+        # and we need to make a big change so don't touch it at present.
         super(NsxV3Plugin, self)._update_router_gw_info(
             context, router_id, info, router=router)
+
+        new_ext_net_id = router.gw_port_id and router.gw_port.network_id
+        new_tier0_uuid = self._get_tier0_uuid_by_net(context, new_ext_net_id)
+        new_enable_snat = router.enable_snat
+        newaddr, newmask, _newnexthop = (
+            self._get_external_attachment_info(
+                context, router))
+        nsx_router_id = nsx_db.get_nsx_router_id(context.session, router_id)
+
+        # Remove router link port between tier1 and tier0 if tier0 router link
+        # is removed or changed
+        remove_router_link_port = (org_tier0_uuid and
+                                   (not new_tier0_uuid or
+                                    org_tier0_uuid != new_tier0_uuid))
+
+        # Remove SNAT rules for gw ip if gw ip is deleted/changed or
+        # enable_snat is updated from True to False
+        remove_snat_rules = (org_enable_snat and orgaddr and
+                             (newaddr != orgaddr or
+                              not new_enable_snat))
+
+        # Revocate bgp announce for nonat subnets if tier0 router link is
+        # changed or enable_snat is updated from False to True
+        revocate_bgp_announce = (not org_enable_snat and org_tier0_uuid and
+                                 (new_tier0_uuid != org_tier0_uuid or
+                                  new_enable_snat))
+
+        # Add router link port between tier1 and tier0 if tier0 router link is
+        # added or changed to a new one
+        add_router_link_port = (new_tier0_uuid and
+                                (not org_tier0_uuid or
+                                 org_tier0_uuid != new_tier0_uuid))
+
+        # Add SNAT rules for gw ip if gw ip is add/changed or
+        # enable_snat is updated from False to True
+        add_snat_rules = (new_enable_snat and newaddr and
+                          (newaddr != orgaddr or
+                           not org_enable_snat))
+
+        # Bgp announce for nonat subnets if tier0 router link is changed or
+        # enable_snat is updated from True to False
+        bgp_announce = (new_enable_snat and new_tier0_uuid and
+                        (new_tier0_uuid != org_tier0_uuid or
+                         not org_enable_snat))
+
+        advertise_route_nat_flag = True if new_enable_snat else False
+        advertise_route_connected_flag = True if not new_enable_snat else False
+
+        if revocate_bgp_announce:
+            # revocate bgp announce on org tier0 router
+            pass
+        if remove_snat_rules:
+            self._delete_gw_snat_rule(nsx_router_id, orgaddr)
+        if remove_router_link_port:
+            self._remove_router_link_port(nsx_router_id, org_tier0_uuid)
+        if add_router_link_port:
+            # First update edge cluster info for router
+            edge_cluster_uuid, members = self._get_edge_cluster_and_members(
+                new_tier0_uuid)
+            self._update_router_edge_cluster(nsx_router_id, edge_cluster_uuid)
+            self._add_router_link_port(nsx_router_id, new_tier0_uuid, members)
+        if add_snat_rules:
+            self._add_gw_snat_rule(nsx_router_id, newaddr)
+        if bgp_announce:
+            # bgp announce on new tier0 router
+            pass
+
+        if new_enable_snat != org_enable_snat:
+            self._update_advertisement(nsx_router_id,
+                                       advertise_route_nat_flag,
+                                       advertise_route_connected_flag)
+
+    def _add_router_link_port(self, tier1_uuid, tier0_uuid, edge_members):
+        # Create Tier0 logical router link port
+        tier0_link_port = nsxlib.create_logical_router_port(
+            tier0_uuid, display_name="TIER0-RouterLinkPort",
+            resource_type=nsxlib.LROUTERPORT_LINK,
+            logical_port_id=None,
+            address_groups=None)
+        linked_logical_port_id = tier0_link_port['id']
+
+        edge_cluster_member_index = random.choice(edge_members)
+        # Create Tier1 logical router link port
+        nsxlib.create_logical_router_port(
+            tier1_uuid, display_name="TIER1-RouterLinkPort",
+            resource_type=nsxlib.LROUTERPORT_LINK,
+            logical_port_id=linked_logical_port_id,
+            address_groups=None,
+            edge_cluster_member_index=edge_cluster_member_index)
+
+    def _remove_router_link_port(self, tier1_uuid, tier0_uuid):
+        tier1_link_port = nsxlib.get_tier1_logical_router_link_port(tier1_uuid)
+        tier1_link_port_id = tier1_link_port['id']
+        tier0_link_port_id = tier1_link_port['linked_logical_router_port_id']
+        nsxlib.delete_logical_router_port(tier1_link_port_id)
+        nsxlib.delete_logical_router_port(tier0_link_port_id)
+
+    def _update_advertisement(self, logical_router_id, advertise_route_nat,
+                              advertise_route_connected):
+        return nsxlib.update_logical_router_advertisement(
+            logical_router_id,
+            advertise_nat_routes=advertise_route_nat,
+            advertise_connected_routes=advertise_route_connected)
+
+    def _delete_gw_snat_rule(self, logical_router_id, gw_ip):
+        return nsxlib.delete_nat_rule_by_values(logical_router_id,
+                                                translated_network=gw_ip)
+
+    def _add_gw_snat_rule(self, logical_router_id, gw_ip):
+        return nsxlib.add_nat_rule(logical_router_id, action="SNAT",
+                                   translated_network=gw_ip,
+                                   rule_priority=1000)
+
+    def _update_router_edge_cluster(self, nsx_router_id, edge_cluster_uuid):
+        return nsxlib.update_logical_router(nsx_router_id,
+                                            edge_cluster_id=edge_cluster_uuid)
 
     def create_router(self, context, router):
         # TODO(berlin): admin_state_up support
@@ -503,13 +674,13 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         return self.get_router(context, router['id'])
 
     def delete_router(self, context, router_id):
-        ret_val = super(NsxV3Plugin, self).delete_router(context,
-                                                         router_id)
         # Remove logical router from the NSX backend
         # It is safe to do now as db-level checks for resource deletion were
         # passed (and indeed the resource was removed from the Neutron DB
         nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                  router_id)
+        ret_val = super(NsxV3Plugin, self).delete_router(context,
+                                                         router_id)
         try:
             nsxlib.delete_logical_router(nsx_router_id)
         except nsx_exc.ResourceNotFound:
