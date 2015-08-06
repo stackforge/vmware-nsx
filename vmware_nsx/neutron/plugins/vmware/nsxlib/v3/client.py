@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
+
 from oslo_config import cfg
 from oslo_log import log
 from oslo_serialization import jsonutils
@@ -64,9 +66,16 @@ def _validate_result(result, expected, operation):
         raise manager_error(manager=manager_ip, operation=operation)
 
 
-def get_resource(resource):
+def get_resource(resource, **suffix):
     manager, user, password = _get_manager_endpoint()
     url = manager + "/api/v1/%s" % resource
+    if suffix:
+        suffix_list = []
+        for k, v in six.iteritems(suffix):
+            expr_str = "%s=%s" % (k, v)
+            suffix_list.append(expr_str)
+        suffix_url = "&&".join(suffix_list)
+        url = url + "?" + suffix_url
     headers = {'Accept': 'application/json'}
     LOG.debug("Nsxv3 call: GET %s", url)
     result = requests.get(url, auth=auth.HTTPBasicAuth(user, password),
