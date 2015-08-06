@@ -15,7 +15,9 @@
 
 from oslo_log import log
 
+from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.common import nsx_constants
+from vmware_nsx.neutron.plugins.vmware.common import utils
 from vmware_nsx.neutron.plugins.vmware.nsxlib.v3 import client
 
 LOG = log.getLogger(__name__)
@@ -24,6 +26,15 @@ LOG = log.getLogger(__name__)
 def get_edge_cluster(edge_cluster_uuid):
     resource = "edge-clusters/%s" % edge_cluster_uuid
     return client.get_resource(resource)
+
+
+@utils.retry_upon_exception_nsxv3(nsx_exc.StaleRevision,
+                                  max_attempts=10)
+def update_resource_with_retry(resource, payload):
+    revised_payload = client.get_resource(resource)
+    for key_name in payload.keys():
+        revised_payload[key_name] = payload[key_name]
+    return client.update_resource(resource, revised_payload)
 
 
 def create_logical_switch(display_name, transport_zone_id, tags,
@@ -75,22 +86,29 @@ def delete_logical_port(logical_port_id):
     client.delete_resource(resource)
 
 
-def create_logical_router(display_name, edge_cluster_uuid, tags, tier_0=False):
+def create_logical_router(display_name, tags,
+                          edge_cluster_uuid=None, tier_0=False):
     # TODO(salv-orlando): If possible do not manage edge clusters in the main
     # plugin logic.
     router_type = (nsx_constants.ROUTER_TYPE_TIER0 if tier_0 else
                    nsx_constants.ROUTER_TYPE_TIER1)
     resource = 'logical-routers'
-    body = {'edge_cluster_id': edge_cluster_uuid,
-            'display_name': display_name,
+    body = {'display_name': display_name,
             'router_type': router_type,
             'tags': tags}
+    if edge_cluster_uuid:
+        body['edge_cluster_uuid'] = edge_cluster_uuid
     return client.create_resource(resource, body)
 
 
 def get_logical_router(lrouter_id):
     resource = 'logical-routers/%s' % lrouter_id
     return client.get_resource(resource)
+
+
+def update_logical_router(lrouter_id, **kwargs):
+    resource = 'logical-routers/%s' % lrouter_id
+    return update_resource_with_retry(resource, kwargs)
 
 
 def delete_logical_router(lrouter_id):
@@ -100,19 +118,72 @@ def delete_logical_router(lrouter_id):
     return client.delete_resource(resource)
 
 
-def create_logical_router_port(logical_router_id,
-                               logical_switch_port_id,
-                               resource_type,
-                               cidr_length,
-                               ip_address):
+def get_logical_router_ports_by_name(logical_router_id, display_name):
+    resource = 'logical-router-ports?logical_router_id=%s' % logical_router_id
+    router_ports = client.get_resource(resource)
+    return [port
+            for port in router_ports if port['display_name'] == display_name]
+
+
+def create_logical_router_port_by_name(logical_router_id,
+                                       display_name,
+                                       logical_switch_port_id,
+                                       resource_type,
+                                       address_groups):
+    ports = get_logical_router_ports_by_name(
+        logical_router_id, display_name)
+    if ports:
+        return update_logical_router_port(ports[0]['id'],
+                                          subnets=address_groups)
     resource = 'logical-router-ports'
-    body = {'resource_type': resource_type,
+    body = {'display_name': display_name,
+            'resource_type': resource_type,
             'logical_router_id': logical_router_id,
-            'subnets': [{"prefix_length": cidr_length,
-                         "ip_addresses": [ip_address]}],
+            'subnets': address_groups,
             'linked_logical_switch_port_id': logical_switch_port_id}
 
     return client.create_resource(resource, body)
+
+
+def create_logical_router_port(logical_router_id,
+                               display_name,
+                               logical_switch_port_id,
+                               resource_type,
+                               address_groups):
+    resource = 'logical-router-ports'
+    body = {'display_name': display_name,
+            'resource_type': resource_type,
+            'logical_router_id': logical_router_id,
+            'subnets': address_groups,
+            'linked_logical_switch_port_id': logical_switch_port_id}
+
+    return client.create_resource(resource, body)
+
+
+def update_logical_router_port_by_name(logical_router_id, display_name,
+                                       **payload):
+    ports = get_logical_router_ports_by_name(
+        logical_router_id, display_name)
+    if not ports:
+        raise nsx_exc.ResourceNotFound(manager=None,
+                                       operation="update router port")
+    else:
+        return update_logical_router_port(ports[0]['id'], **payload)
+
+
+def update_logical_router_port(logical_port_id, **kwargs):
+    resource = 'logical-router-ports/%s?detach=true' % logical_port_id
+    return update_resource_with_retry(resource, kwargs)
+
+
+def delete_logical_router_port_by_name(logical_router_id, display_name):
+    ports = get_logical_router_ports_by_name(
+        logical_router_id, display_name)
+    if not ports:
+        raise nsx_exc.ResourceNotFound(manager=None,
+                                       operation="update router port")
+    else:
+        return delete_logical_router_port(ports[0]['id'])
 
 
 def delete_logical_router_port(logical_port_id):
