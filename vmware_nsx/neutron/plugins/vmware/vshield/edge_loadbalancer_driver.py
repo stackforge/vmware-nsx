@@ -167,13 +167,21 @@ def convert_lbaas_monitor(monitor):
     """
     Transform OpenStack health monitor dict to NSXv health monitor dict.
     """
-    return {
+    mon = {
         'type': HEALTH_MONITOR_MAP.get(
             monitor['type'], 'icmp'),
         'interval': monitor['delay'],
         'timeout': monitor['timeout'],
         'maxRetries': monitor['max_retries'],
         'name': monitor['id']}
+
+    if monitor.get('http_method'):
+        mon['method'] = HEALTH_MONITOR_MAP.get(
+            monitor['http_method'], 'icmp')
+
+    if monitor.get('url_path'):
+        mon['url'] = monitor['url_path']
+    return mon
 
 
 def extract_resource_id(location_uri):
