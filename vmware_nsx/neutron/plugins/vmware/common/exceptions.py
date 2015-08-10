@@ -137,3 +137,8 @@ class ResourceNotFound(ManagerError):
 
 class StaleRevision(ManagerError):
     pass
+
+
+class NsxL2GWDeviceNotFound(n_exc.NotFound):
+    message = _('Unable to create L2 gateway. '
+                'Reason: backend device creation failed')
