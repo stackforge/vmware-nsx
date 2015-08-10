@@ -137,3 +137,7 @@ class ResourceNotFound(ManagerError):
 
 class StaleRevision(ManagerError):
     pass
+
+
+class NsxL2GWDeviceNotFound(n_exc.NotFound):
+    message = _('Unable to find backend device for L2 gateway')
