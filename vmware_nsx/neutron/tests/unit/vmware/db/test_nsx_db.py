@@ -14,12 +14,12 @@
 # limitations under the License.
 
 from oslo_db import exception as d_exc
-
 from neutron import context
 from neutron.db import models_v2
-from neutron.plugins.vmware.dbexts import nsx_models
 from neutron.tests.unit import testlib_api
+
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
+from vmware_nsx.neutron.plugins.vmware.dbexts import nsx_models
 
 
 class NsxDBTestCase(testlib_api.SqlTestCase):
