@@ -58,7 +58,6 @@ from neutron.extensions import securitygroup as ext_sg
 from neutron.i18n import _LE, _LI, _LW
 from neutron.plugins.common import constants as plugin_const
 from neutron.plugins.common import utils
-from neutron.plugins.vmware.dbexts import nsx_models
 
 from vmware_nsx.neutron.plugins import vmware
 from vmware_nsx.neutron.plugins.vmware.api_client import exception as api_exc
@@ -71,6 +70,7 @@ from vmware_nsx.neutron.plugins.vmware.common import utils as c_utils
 from vmware_nsx.neutron.plugins.vmware.dbexts import db as nsx_db
 from vmware_nsx.neutron.plugins.vmware.dbexts import maclearning as mac_db
 from vmware_nsx.neutron.plugins.vmware.dbexts import networkgw_db
+from vmware_nsx.neutron.plugins.vmware.dbexts import nsx_models
 from vmware_nsx.neutron.plugins.vmware.dbexts import qos_db
 from vmware_nsx.neutron.plugins.vmware import dhcpmeta_modes
 from vmware_nsx.neutron.plugins.vmware.extensions import maclearning as mac_ext
