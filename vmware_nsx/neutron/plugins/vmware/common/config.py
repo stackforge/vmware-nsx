@@ -78,7 +78,9 @@ base_opts = [
                       "'source' to perform replication locally. This is useful"
                       " if one does not want to deploy a service node(s). "
                       "It must be set to 'service' for leveraging distributed "
-                      "routers."))
+                      "routers.")),
+    cfg.StrOpt('nsx_l2gw_driver',
+               help=_("Class path for the L2 gateway backend driver"))
 ]
 
 sync_opts = [
