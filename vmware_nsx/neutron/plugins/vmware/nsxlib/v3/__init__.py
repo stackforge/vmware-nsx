@@ -136,7 +136,7 @@ def delete_logical_router_port(logical_port_id):
     client.delete_resource(resource)
 
 
-def create_qos_switching_profile(qos_marking, dscp, tags, name=None,
+def create_qos_switching_profile(tags, qos_marking=None, dscp=None, name=None,
                                  description=None):
     resource = 'switching-profiles'
     body = {"resource_type": "QosSwitchingProfile",
@@ -144,6 +144,11 @@ def create_qos_switching_profile(qos_marking, dscp, tags, name=None,
             "dscp": {"priority": dscp,
                      "mode": qos_marking.upper()}}
     # TODO(abhide): Add TrafficShaper configuration.
+    if qos_marking:
+        body["dscp"] = {}
+        body["dscp"]["mode"] = qos_marking.upper()
+        if dscp:
+            body["dscp"]["priority"] = dscp
     if name:
         body["display_name"] = name
     if description:
