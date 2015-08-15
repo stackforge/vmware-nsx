@@ -17,7 +17,7 @@ import mock
 from oslo_config import cfg
 
 from neutron.common import constants
-from neutron.tests.unit.plugins.ml2.drivers.openvswitch.agent import (
+from neutron.tests.unit.db import test_agentschedulers_db #noqa
     test_agent_scheduler)  # noqa
 from vmware_nsx.neutron.plugins.vmware.common import sync
 from vmware_nsx.neutron.plugins.vmware.dhcp_meta import rpc
@@ -27,7 +27,7 @@ from vmware_nsx.neutron.tests.unit.vmware import test_utils
 
 
 class DhcpAgentNotifierTestCase(
-    test_agent_scheduler.OvsDhcpAgentNotifierTestCase):
+    test_agentschedulers_db.OvsDhcpAgentNotifierTestCase):
     plugin_str = vmware.PLUGIN_NAME
 
     def setUp(self):
