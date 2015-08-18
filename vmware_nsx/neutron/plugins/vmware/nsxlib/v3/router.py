@@ -37,6 +37,9 @@ TIER0_ROUTER_LINK_PORT_NAME = "TIER0-RouterLinkPort"
 TIER1_ROUTER_LINK_PORT_NAME = "TIER1-RouterLinkPort"
 ROUTER_INTF_PORT_NAME = "Tier1-RouterDownLinkPort"
 
+FIP_NAT_PRI = 900
+GW_NAT_PRI = 1000
+
 
 def validate_tier0(tier0_groups_dict, tier0_uuid):
     if tier0_uuid in tier0_groups_dict:
@@ -122,7 +125,7 @@ def delete_gw_snat_rule(logical_router_id, gw_ip):
 def add_gw_snat_rule(logical_router_id, gw_ip):
     return nsxlib.add_nat_rule(logical_router_id, action="SNAT",
                                translated_network=gw_ip,
-                               rule_priority=1000)
+                               rule_priority=GW_NAT_PRI)
 
 
 def update_router_edge_cluster(nsx_router_id, edge_cluster_uuid):
@@ -145,3 +148,25 @@ def create_logical_router_intf_port_by_ls_id(logical_router_id,
     else:
         return nsxlib.update_logical_router_port(
             port['id'], subnets=address_groups)
+
+
+def add_fip_nat_rules(logical_router_id, ext_ip, int_ip):
+    nsxlib.add_nat_rule(logical_router_id, action="SNAT",
+                        translated_network=ext_ip,
+                        source_net=int_ip,
+                        rule_priority=FIP_NAT_PRI)
+    nsxlib.add_nat_rule(logical_router_id, action="DNAT",
+                        translated_network=int_ip,
+                        dest_net=ext_ip,
+                        rule_priority=FIP_NAT_PRI)
+
+
+def delete_fip_nat_rules(logical_router_id, ext_ip, int_ip):
+    nsxlib.delete_nat_rule_by_values(logical_router_id,
+                                     action="SNAT",
+                                     translated_network=ext_ip,
+                                     match_source_network=int_ip)
+    nsxlib.delete_nat_rule_by_values(logical_router_id,
+                                     action="DNAT",
+                                     translated_network=int_ip,
+                                     match_destination_network=ext_ip)
