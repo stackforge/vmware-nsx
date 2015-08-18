@@ -229,7 +229,6 @@ def create_logical_router_port_by_ls_id(logical_router_id,
     except nsx_exc.ResourceNotFound:
         return create_logical_router_port(logical_router_id,
                                           "TIER1-RouterDownLinkPort",
-                                          logical_switch_port_id,
                                           resource_type,
                                           logical_switch_port_id,
                                           address_groups)
