@@ -106,3 +106,40 @@ def retry_upon_exception_nsxv3(exc, delay=500, max_delay=2000,
                           wait_exponential_multiplier=delay,
                           wait_exponential_max=max_delay,
                           stop_max_attempt_number=max_attempts)
+
+
+def is_list_equal(list_get, list_expected):
+    if (not isinstance(list_get, list) or
+        not isinstance(list_expected, list) or
+        len(list_get) != len(list_expected)):
+        return False
+    list_get = sorted(list_get)
+    list_expected = sorted(list_expected)
+    for (values, expected) in zip(list_get, list_expected):
+        if isinstance(expected, dict):
+            if not is_dict_equal(values, expected):
+                return False
+        elif isinstance(expected, list):
+            if not is_list_equal(values, expected):
+                return False
+        else:
+            if values != expected:
+                return False
+    return True
+
+
+def is_dict_equal(dict_get, dict_expected):
+    if not isinstance(dict_get, dict) or not isinstance(dict_expected, dict):
+        return False
+    for k, v in dict_expected.items():
+        values = dict_get.get(k)
+        if isinstance(v, dict):
+            if not is_dict_equal(values, v):
+                return False
+        elif isinstance(v, list):
+            if not is_list_equal(values, v):
+                return False
+        else:
+            if values != v:
+                return False
+    return True
