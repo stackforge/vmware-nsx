@@ -215,7 +215,7 @@ def get_logical_router_port_by_ls_id(logical_switch_id):
         return router_ports['results'][0]
     else:
         err_msg = (_("Logical router link port not found on logical "
-                     "switch %s") % ls_id)
+                     "switch %s") % logical_switch_id)
         raise nsx_exc.ResourceNotFound(manager=client._get_manager_ip(),
                                        operation=err_msg)
 
@@ -230,7 +230,6 @@ def create_logical_router_port_by_ls_id(logical_router_id,
     except nsx_exc.ResourceNotFound:
         return create_logical_router_port(logical_router_id,
                                           "TIER1-RouterDownLinkPort",
-                                          logical_switch_port_id,
                                           resource_type,
                                           logical_switch_port_id,
                                           address_groups)
