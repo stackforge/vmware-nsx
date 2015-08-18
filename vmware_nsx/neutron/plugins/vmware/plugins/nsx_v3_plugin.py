@@ -570,6 +570,7 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         # passed (and indeed the resource was removed from the Neutron DB
         nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                  router_id)
+        # TODO(berlin): remove router bindings here
         try:
             nsxlib.delete_logical_router(nsx_router_id)
         except nsx_exc.ResourceNotFound:
@@ -642,26 +643,55 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             address_groups.append(address_group)
         return (ports, address_groups)
 
+    def _validate_multiple_subnets_diff_routers(self, context, network_id):
+        port_filters = {'device_owner': [l3_db.DEVICE_OWNER_ROUTER_INTF],
+                        'network_id': [network_id]}
+        intf_ports = self.get_ports(context, filters=port_filters)
+        router_ids = [port['device_id'] for port in intf_ports]
+        router_id_set = set(router_ids)
+        if len(router_id_set) >= 2:
+            err_msg = _("Nsxv3 Can't support multiple subnets on network %s "
+                        "are attached to different router in case of network "
+                        "topology complexity") % network_id
+            raise n_exc.InvalidInput(error_message=err_msg)
+
     def add_router_interface(self, context, router_id, interface_info):
-        # TODO(berlin): disallow multiple subnets attached to different routers
+
         info = super(NsxV3Plugin, self).add_router_interface(
             context, router_id, interface_info)
-        subnet = self.get_subnet(context, info['subnet_ids'][0])
-        port = self.get_port(context, info['port_id'])
-        network_id = subnet['network_id']
-        nsx_net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
-            context.session, port['id'])
+        try:
+            subnet = self.get_subnet(context, info['subnet_ids'][0])
+            port = self.get_port(context, info['port_id'])
+            network_id = subnet['network_id']
+            # disallow multiple subnets belong to same network are attached to
+            # different routers
+            self._validate_multiple_subnets_diff_routers(context, network_id)
+            nsx_net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
+                context.session, port['id'])
 
-        nsx_router_id = nsx_db.get_nsx_router_id(context.session,
-                                                 router_id)
-        _ports, address_groups = self._get_ports_and_address_groups(
-            context, router_id, network_id)
-        nsxlib.create_logical_router_port_by_ls_id(
-            logical_router_id=nsx_router_id,
-            ls_id=nsx_net_id,
-            logical_switch_port_id=nsx_port_id,
-            resource_type="LogicalRouterDownLinkPort",
-            address_groups=address_groups)
+            nsx_router_id = nsx_db.get_nsx_router_id(context.session,
+                                                     router_id)
+            _ports, address_groups = self._get_ports_and_address_groups(
+                context, router_id, network_id)
+            nsxlib.create_logical_router_port_by_ls_id(
+                logical_router_id=nsx_router_id,
+                ls_id=nsx_net_id,
+                logical_switch_port_id=nsx_port_id,
+                resource_type="LogicalRouterDownLinkPort",
+                address_groups=address_groups)
+
+            # Announce the subnet on tier0 if enable_snat is False
+            router_db = self._get_router(context, router_id)
+            if router_db.gw_port and not router_db.enable_snat:
+                pass
+        except n_exc.InvalidInput:
+            with excutils.save_and_reraise_exception():
+                super(NsxV3Plugin, self).remove_router_interface(
+                    context, router_id, interface_info)
+        except nsx_exc.ManagerError:
+            with excutils.save_and_reraise_exception():
+                self.remove_router_interface(
+                    context, router_id, interface_info)
         return info
 
     def remove_router_interface(self, context, router_id, interface_info):
@@ -695,6 +725,11 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                 raise l3.RouterInterfaceNotFoundForSubnet(router_id=router_id,
                                                           subnet_id=subnet_id)
         try:
+            # Revocate announce the subnet on tier0 if enable_snat is False
+            router_db = self._get_router(context, router_id)
+            if router_db.gw_port and not router_db.enable_snat:
+                pass
+
             nsx_net_id, _nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
                 context.session, port_id)
             subnet = self.get_subnet(context, subnet_id)
