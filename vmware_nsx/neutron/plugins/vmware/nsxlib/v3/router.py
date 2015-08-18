@@ -170,3 +170,20 @@ def delete_fip_nat_rules(logical_router_id, ext_ip, int_ip):
                                      action="DNAT",
                                      translated_network=int_ip,
                                      match_destination_network=ext_ip)
+
+
+def add_static_routes(nsx_router_id, route):
+    return nsxlib.add_static_route(nsx_router_id, route['destination'],
+                                   route['nexthop'])
+
+
+def delete_static_routes(nsx_router_id, route):
+    try:
+        return nsxlib.delete_static_route_by_values(
+            nsx_router_id, dest_cidr=route['destination'],
+            nexthop=route['nexthop'])
+    except nsx_exc.ResourceNotFound:
+        LOG.warning(_LW("route with destination %(dest)s and nexthop: "
+                        "(dest)s not found at the backend"),
+                    {'dest': route['destination'],
+                     'nexthop': route['nexthop']})
