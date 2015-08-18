@@ -15,6 +15,7 @@
 
 from oslo_config import cfg
 from oslo_log import log
+import six
 
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
 from vmware_nsx.neutron.plugins.vmware.common import nsx_constants
@@ -47,30 +48,72 @@ def update_resource_with_retry(resource, payload):
     return client.update_resource(resource, revised_payload)
 
 
-def delete_resource_by_values(resource, res_id='id', skip_not_found=True,
+def _compare_list(list_get, list_expected):
+    if (not isinstance(list_get, list) or
+        not isinstance(list_expected, list) or
+        len(list_get) != len(list_expected)):
+        return False
+    list_get = sorted(list_get)
+    list_expected = sorted(list_expected)
+    for (values, expected) in zip(list_get, list_expected):
+        if isinstance(expected, dict):
+            if not _compare_dict(values, expected):
+                return False
+        elif isinstance(expected, list):
+            if not _compare_list(values, expected):
+                return False
+        else:
+            if values != expected:
+                return False
+    return True
+
+
+def _compare_dict(dict_get, dict_expected):
+    if not isinstance(dict_get, dict) or not isinstance(dict_expected, dict):
+        return False
+    for k, v in six.iteritems(dict_expected):
+        values = dict_get.get(k)
+        if not values:
+            return False
+        elif isinstance(v, dict):
+            if not _compare_dict(values, v):
+                return False
+        elif isinstance(v, list):
+            if not _compare_list(values, v):
+                return False
+        else:
+            if values != v:
+                return False
+    return True
+
+
+def delete_resource_by_values(resource, res_id='id', results_key='results',
+                              skip_not_found=True,
                               **kwargs):
     resources_get = client.get_resource(resource)
-    for res in resources_get['results']:
-        is_matched = True
-        for key in kwargs.keys():
-            if res.get(key) != kwargs[key]:
-                is_matched = False
-                break
-        if is_matched:
+    matched_num = 0
+    for res in resources_get[results_key]:
+        if _compare_dict(res, kwargs):
             LOG.debug("Would delete %s from resource %s", res, resource)
             delete_resource = resource + "/" + str(res[res_id])
             client.delete_resource(delete_resource)
-            return
-    if skip_not_found:
-        LOG.warning(_("No resource in %(res)s matched for values: %(values)s"),
-                    {'res': resource,
-                     'values': kwargs})
-    else:
-        err_msg = (_("No resource in %(res)s matched for values: %(values)s") %
-                   {'res': resource,
-                    'values': kwargs})
-        raise nsx_exc.ResourceNotFound(manager=client._get_manager_ip(),
-                                       operation=err_msg)
+            matched_num = matched_num + 1
+    if matched_num == 0:
+        if skip_not_found:
+            LOG.warning(_("No resource in %(res)s matched for values: "
+                          "%(values)s"), {'res': resource,
+                                          'values': kwargs})
+        else:
+            err_msg = (_("No resource in %(res)s matched for values: "
+                         "%(values)s") % {'res': resource,
+                                          'values': kwargs})
+            raise nsx_exc.ResourceNotFound(manager=client._get_manager_ip(),
+                                           operation=err_msg)
+    elif matched_num > 1:
+        LOG.warning(_("%(num)s resources in %(res)s matched for values: "
+                      "%(values)s"), {'num': matched_num,
+                                      'res': resource,
+                                      'values': kwargs})
 
 
 def create_logical_switch(display_name, transport_zone_id, tags,
@@ -311,6 +354,33 @@ def add_nat_rule(logical_router_id, action, translated_network,
     if rule_priority:
         body['rule_priority'] = rule_priority
     return client.create_resource(resource, body)
+
+
+def add_static_route(logical_router_id, dest_cidr, nexthop):
+    resource = 'logical-routers/%s/routing/static-routes' % logical_router_id
+    body = {}
+    if dest_cidr:
+        body['network'] = dest_cidr
+    if nexthop:
+        body['next_hops'] = [{"ip_address": nexthop}]
+    return client.create_resource(resource, body)
+
+
+def delete_static_route(logical_router_id, static_route_id):
+    resource = 'logical-routers/%s/routing/static-routes/%s' % (
+        logical_router_id, static_route_id)
+    client.delete_resource(resource)
+
+
+def delete_static_route_by_values(logical_router_id,
+                                  dest_cidr=None, nexthop=None):
+    resource = 'logical-routers/%s/routing/static-routes' % logical_router_id
+    kwargs = {}
+    if dest_cidr:
+        kwargs['network'] = dest_cidr
+    if nexthop:
+        kwargs['next_hops'] = [{"ip_address": nexthop}]
+    return delete_resource_by_values(resource, results_key='routes', **kwargs)
 
 
 def delete_nat_rule(logical_router_id, nat_rule_id):
