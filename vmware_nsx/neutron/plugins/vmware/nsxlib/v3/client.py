@@ -94,7 +94,9 @@ def create_resource(resource, data):
     result = requests.post(url, auth=auth.HTTPBasicAuth(user, password),
                            verify=False, headers=headers,
                            data=jsonutils.dumps(data))
-    _validate_result(result, [requests.codes.created],
+    # Add OK here is because posting static routes would return OK
+    _validate_result(result, [requests.codes.created,
+                              requests.codes.ok],
                      _("creating resource at: %s") % resource)
     return result.json()
 
