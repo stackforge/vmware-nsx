@@ -161,3 +161,14 @@ def update_logical_port(lport_id, name=None, admin_state=None):
         else:
             lport['admin_state'] = nsx_constants.ADMIN_STATE_DOWN
     return lport
+
+
+def create_bridge_endpoint(device_name, seg_id, tags):
+    FAKE_BE = {
+        "id": uuidutils.generate_uuid(),
+        "display_name": FAKE_NAME,
+        "resource_type": "BridgeEndpoint",
+        "bridge_endpoint_id": device_name,
+        "vlan": seg_id,
+    }
+    return FAKE_BE
