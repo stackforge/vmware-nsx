@@ -308,6 +308,33 @@ def add_nat_rule(logical_router_id, action, translated_network,
     return client.create_resource(resource, body)
 
 
+def add_static_route(logical_router_id, dest_cidr, nexthop):
+    resource = 'logical-routers/%s/routing/static-routes' % logical_router_id
+    body = {}
+    if dest_cidr:
+        body['network'] = dest_cidr
+    if nexthop:
+        body['next_hops'] = [{"ip_address": nexthop}]
+    return client.create_resource(resource, body)
+
+
+def delete_static_route(logical_router_id, static_route_id):
+    resource = 'logical-routers/%s/routing/static-routes/%s' % (
+        logical_router_id, static_route_id)
+    client.delete_resource(resource)
+
+
+def delete_static_route_by_values(logical_router_id,
+                                  dest_cidr=None, nexthop=None):
+    resource = 'logical-routers/%s/routing/static-routes'
+    kwargs = {}
+    if dest_cidr:
+        kwargs['network'] = dest_cidr
+    if nexthop:
+        kwargs['next_hops'] = [{"ip_address": nexthop}]
+    return delete_resource_by_values(resource, **kwargs)
+
+
 def delete_nat_rule(logical_router_id, nat_rule_id):
     resource = 'logical-routers/%s/nat/rules/%s' % (logical_router_id,
                                                     nat_rule_id)
