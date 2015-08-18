@@ -68,7 +68,7 @@ def _validate_result(result, expected, operation):
 
 
 def get_resource(resource, **suffix):
-    manager, user, password = _get_manager_endpoint()
+    manager, user, password, verify = _get_manager_endpoint()
     url = manager + "/api/v1/%s" % resource
     if suffix:
         suffix_list = []
@@ -95,7 +95,9 @@ def create_resource(resource, data):
                            verify=verify, headers=headers,
                            data=jsonutils.dumps(data),
                            cert=cfg.CONF.nsx_v3.ca_file)
-    _validate_result(result, [requests.codes.created],
+    # Add OK here is because posting static routes would return OK
+    _validate_result(result, [requests.codes.created,
+                              requests.codes.ok],
                      _("creating resource at: %s") % resource)
     return result.json()
 
