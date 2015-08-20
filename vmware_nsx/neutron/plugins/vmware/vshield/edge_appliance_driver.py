@@ -184,6 +184,14 @@ class EdgeApplianceDriver(object):
             {'featureType': 'loadbalancer_4.0',
              'enabled': True})
 
+    def _enable_high_availability(self, edge):
+        if not edge.get('featureConfigs') or (
+            not edge['featureConfigs'].get('features')):
+            edge['featureConfigs'] = {'features': []}
+        edge['featureConfigs']['features'].append(
+            {'featureType': 'highavailability_4.0',
+             'enabled': True})
+
     def get_edge_status(self, edge_id):
         try:
             response = self.vcns.get_edge_status(edge_id)[1]
@@ -459,7 +467,8 @@ class EdgeApplianceDriver(object):
 
     def deploy_edge(self, resource_id, name, internal_network, jobdata=None,
                     dist=False, wait_for_exec=False, loadbalancer_enable=True,
-                    appliance_size=nsxv_constants.LARGE, async=True):
+                    appliance_size=nsxv_constants.LARGE, async=True,
+                    highavailability_enable=True):
         task_name = 'deploying-%s' % name
         edge_name = name
         edge = self._assemble_edge(
@@ -497,6 +506,9 @@ class EdgeApplianceDriver(object):
 
         if not dist and loadbalancer_enable:
             self._enable_loadbalancer(edge)
+
+        if not dist and highavailability_enable:
+            self._enable_high_availability(edge)
 
         if async:
             userdata = {
