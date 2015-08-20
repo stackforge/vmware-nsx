@@ -184,6 +184,14 @@ class EdgeApplianceDriver(object):
             {'featureType': 'loadbalancer_4.0',
              'enabled': True})
 
+    def _enable_highavailability(self, edge):
+        if not edge.get('featureConfigs') or (
+            not edge['featureConfigs'].get('features')):
+            edge['featureConfigs'] = {'features': []}
+        edge['featureConfigs']['features'].append(
+            {'featureType': 'highavailability_4.0',
+             'enabled': True})
+
     def get_edge_status(self, edge_id):
         try:
             response = self.vcns.get_edge_status(edge_id)[1]
@@ -251,9 +259,8 @@ class EdgeApplianceDriver(object):
     def update_interface(self, router_id, edge_id, index, network,
                          tunnel_index=-1, address=None, netmask=None,
                          secondary=None, jobdata=None, is_connected=True,
-                         address_groups=None):
-        LOG.debug("VCNS: update vnic %(index)d: %(addr)s %(netmask)s", {
-            'index': index, 'addr': address, 'netmask': netmask})
+			 address_groups=None):
+        LOG.debug("VCNS: update vnic %(index)d: %(addr)s %(netmask)s", {'index': index, 'addr': address, 'netmask': netmask})
         if index == constants.EXTERNAL_VNIC_INDEX:
             name = constants.EXTERNAL_VNIC_NAME
             intf_type = 'uplink'
@@ -459,7 +466,8 @@ class EdgeApplianceDriver(object):
 
     def deploy_edge(self, resource_id, name, internal_network, jobdata=None,
                     dist=False, wait_for_exec=False, loadbalancer_enable=True,
-                    appliance_size=nsxv_constants.LARGE, async=True):
+                    appliance_size=nsxv_constants.LARGE, async=True,
+                    highavailability_enable=True):
         task_name = 'deploying-%s' % name
         edge_name = name
         edge = self._assemble_edge(
@@ -498,6 +506,11 @@ class EdgeApplianceDriver(object):
         if not dist and loadbalancer_enable:
             self._enable_loadbalancer(edge)
 
+        if not dist and highavailability_enable:
+            self._enable_highavailability(edge)
+
+
+        LOG.info("XXXX: %s" % edge)
         if async:
             userdata = {
                 'dist': dist,
