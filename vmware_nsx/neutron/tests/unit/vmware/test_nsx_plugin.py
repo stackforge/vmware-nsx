@@ -419,7 +419,7 @@ class TestSecurityGroup(ext_sg.TestSecurityGroups, SecurityGroupsTestCase):
         # can't always raise, or create_security_group will hang
         with mock.patch.object(self.plugin,
                                'create_security_group',
-                               side_effect=[db_exc.DBDuplicateEntry(),
+                               side_effect=[db_exc.RetryRequest(),
                                             {'id': 'foo'}]):
             self.plugin.create_network(
                 context.get_admin_context(),
