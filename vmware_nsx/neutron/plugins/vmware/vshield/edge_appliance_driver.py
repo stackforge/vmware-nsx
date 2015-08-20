@@ -177,11 +177,19 @@ class EdgeApplianceDriver(object):
         return status_level
 
     def _enable_loadbalancer(self, edge):
-        if not edge.get('featureConfigs') or (
+        if (not edge.get('featureConfigs') or
             not edge['featureConfigs'].get('features')):
             edge['featureConfigs'] = {'features': []}
         edge['featureConfigs']['features'].append(
             {'featureType': 'loadbalancer_4.0',
+             'enabled': True})
+
+    def _enable_high_availability(self, edge):
+        if (not edge.get('featureConfigs') or
+            not edge['featureConfigs'].get('features')):
+            edge['featureConfigs'] = {'features': []}
+        edge['featureConfigs']['features'].append(
+            {'featureType': 'highavailability_4.0',
              'enabled': True})
 
     def get_edge_status(self, edge_id):
@@ -458,7 +466,7 @@ class EdgeApplianceDriver(object):
             raise e
 
     def deploy_edge(self, resource_id, name, internal_network, jobdata=None,
-                    dist=False, wait_for_exec=False, loadbalancer_enable=True,
+                    dist=False, wait_for_exec=False, enable_load_balancer=True,
                     appliance_size=nsxv_constants.LARGE, async=True):
         task_name = 'deploying-%s' % name
         edge_name = name
@@ -495,8 +503,11 @@ class EdgeApplianceDriver(object):
                 'userName': cfg.CONF.nsxv.edge_appliance_user,
                 'password': cfg.CONF.nsxv.edge_appliance_password}
 
-        if not dist and loadbalancer_enable:
+        if not dist and enable_load_balancer:
             self._enable_loadbalancer(edge)
+
+        if not dist and cfg.CONF.nsxv.edge_ha:
+            self._enable_high_availability(edge)
 
         if async:
             userdata = {
@@ -544,7 +555,7 @@ class EdgeApplianceDriver(object):
                     LOG.exception(_LE("NSXv: deploy edge failed."))
 
     def update_edge(self, router_id, edge_id, name, internal_network,
-                    jobdata=None, dist=False, loadbalancer_enable=True,
+                    jobdata=None, dist=False, enable_load_balancer=True,
                     appliance_size=nsxv_constants.LARGE):
         """Update edge name."""
         task_name = 'update-%s' % name
@@ -577,7 +588,7 @@ class EdgeApplianceDriver(object):
                 constants.INTEGRATION_SUBNET_NETMASK,
                 type="internal")
             edge['vnics']['vnics'].append(internal_vnic)
-        if not dist and loadbalancer_enable:
+        if not dist and enable_load_balancer:
             self._enable_loadbalancer(edge)
         userdata = {
             'edge_id': edge_id,
