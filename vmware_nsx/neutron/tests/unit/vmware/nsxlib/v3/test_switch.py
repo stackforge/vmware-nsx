@@ -84,3 +84,53 @@ class NsxLibSwitchTestCase(nsxlib_testcase.NsxLibTestCase):
         fake_switch = nsx_v3_mocks.make_fake_switch()
         result = nsxlib.delete_logical_switch(fake_switch['id'])
         self.assertIsNone(result)
+
+    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3"
+                ".client.get_resource")
+    def test_get_logical_switch(self, mock_get_resource):
+        """
+        Test reading switch
+        """
+        switch_uuid = uuidutils.generate_uuid()
+        fake_switch = nsx_v3_mocks.make_fake_switch(switch_uuid=switch_uuid)
+        mock_get_resource.return_value = fake_switch
+
+        result = nsxlib.get_logical_switch(switch_uuid)
+        self.assertEqual(fake_switch, result)
+
+    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3"
+                ".client.get_resource")
+    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3"
+                ".client.update_resource")
+    def test_update_logical_switch_name(self, mock_update_resource,
+                                        mock_get_resource):
+        """
+        Test updating switch name
+        """
+        switch_uuid = uuidutils.generate_uuid()
+        fake_switch = nsx_v3_mocks.make_fake_switch(switch_uuid=switch_uuid)
+        mock_get_resource.return_value = fake_switch
+        name = 'updated_name'
+        fake_switch['display_name'] = name
+        mock_update_resource.return_value = fake_switch
+
+        result = nsxlib.update_logical_switch(switch_uuid, name=name)
+        self.assertEqual(fake_switch, result)
+
+    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3"
+                ".client.get_resource")
+    @mock.patch("vmware_nsx.neutron.plugins.vmware.nsxlib.v3"
+                ".client.update_resource")
+    def test_update_logical_switch_admin_down(self, mock_update_resource,
+                                              mock_get_resource):
+        """
+        Test updating switch admin state
+        """
+        switch_uuid = uuidutils.generate_uuid()
+        fake_switch = nsx_v3_mocks.make_fake_switch(switch_uuid=switch_uuid)
+        mock_get_resource.return_value = fake_switch
+        fake_switch['admin_state'] = nsx_constants.ADMIN_STATE_DOWN
+        mock_update_resource.return_value = fake_switch
+
+        result = nsxlib.update_logical_switch(switch_uuid, admin_state=False)
+        self.assertEqual(fake_switch, result)
