@@ -212,8 +212,8 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         with context.session.begin(subtransactions=True):
             # Create network in Neutron
             try:
-                network = super(NsxV3Plugin, self).create_network(context,
-                                                                  network)
+                created_net = super(NsxV3Plugin, self).create_network(context,
+                                                                      network)
             except Exception:
                 with excutils.save_and_reraise_exception():
                     # Undo creation on the backend
@@ -225,7 +225,7 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                 nsx_db.add_network_binding(context.session, net_id, net_type,
                                            physical_net, vlan_id)
 
-        return network
+        return created_net
 
     def delete_network(self, context, network_id):
         # First call DB operation for delete network as it will perform
@@ -237,10 +237,32 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         nsxlib.delete_logical_switch(network_id)
         return ret_val
 
-    def update_network(self, context, network_id, network):
-        # TODO(arosen) - call to backend
-        return super(NsxV3Plugin, self).update_network(context, network_id,
-                                                       network)
+    def update_network(self, context, id, network):
+        original_net = super(NsxV3Plugin, self).get_network(context, id)
+        net_data = network['network']
+        # Neutron does not support changing provider network values
+        pnet._raise_if_updates_provider_attributes(net_data)
+        with context.session.begin(subtransactions=True):
+            updated_net = super(NsxV3Plugin, self).update_network(context, id,
+                                                                  network)
+            # TODO(jwy): Handle making network external (--router:external)
+            if 'name' in net_data or 'admin_state_up' in net_data:
+                try:
+                    nsxlib.update_logical_switch(
+                        id, name=net_data.get('name'),
+                        admin_state=net_data.get('admin_state_up'))
+                    # Backend does not update the admin state of the ports on
+                    # the switch when the switch's admin state changes. Do not
+                    # update the admin state of the ports in neutron either.
+                except nsx_exc.ManagerError:
+                    LOG.exception(_LE("Unable to update NSX backend, rolling "
+                                      "back changes on neutron"))
+                    with excutils.save_and_reraise_exception():
+                        with context.session.begin(subtransactions=True):
+                            super(NsxV3Plugin, self).update_network(
+                                self, context, id, original_net)
+
+        return updated_net
 
     def _build_address_bindings(self, port):
         address_bindings = []
