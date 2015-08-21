@@ -508,6 +508,20 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         if not self._network_is_external(context, port['network_id']):
             _net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
                 context.session, port_id)
+            # Delete security group bindings in the backend
+            try:
+                security.update_lport_with_security_groups(
+                    context, nsx_port_id,
+                    port.get(ext_sg.SECURITYGROUPS, []), [])
+            except nsx_exc.ManagerError:
+                with excutils.save_and_reraise_exception():
+                    # In case if there is a failure on NSX-v3 backend, log the
+                    # exception
+                    LOG.exception(_LE("Unable to delete security group "
+                                      "mappings in NSX backend for port %s") %
+                                  port['id'])
+            # Delete security group bindings in neutron database
+            self._delete_port_security_group_bindings(context, port_id)
             nsxlib.delete_logical_port(nsx_port_id)
         self.disassociate_floatingips(context, port_id)
         ret_val = super(NsxV3Plugin, self).delete_port(context, port_id)
