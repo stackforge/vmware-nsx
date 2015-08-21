@@ -508,6 +508,9 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         if not self._network_is_external(context, port['network_id']):
             _net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
                 context.session, port_id)
+            security.update_lport_with_security_groups(
+                context, nsx_port_id, port.get(ext_sg.SECURITYGROUPS, []), [])
+            self._delete_port_security_group_bindings(context, port_id)
             nsxlib.delete_logical_port(nsx_port_id)
         self.disassociate_floatingips(context, port_id)
         ret_val = super(NsxV3Plugin, self).delete_port(context, port_id)
