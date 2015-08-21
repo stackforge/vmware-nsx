@@ -50,6 +50,7 @@ from neutron.i18n import _LE, _LI, _LW
 from neutron.plugins.common import constants as plugin_const
 from neutron.plugins.common import utils
 
+from vmware_nsx.neutron import constants as v_constants
 from vmware_nsx.neutron.plugins import vmware
 from vmware_nsx.neutron.plugins.vmware.common import config  # noqa
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsx_exc
@@ -117,7 +118,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
 
         self.base_binding_dict = {
             pbin.VNIC_TYPE: pbin.VNIC_NORMAL,
-            pbin.VIF_TYPE: pbin.VIF_TYPE_DVS,
+            pbin.VIF_TYPE: v_constants.VIF_TYPE_DVS,
             pbin.VIF_DETAILS: {
                 # TODO(rkukura): Replace with new VIF security details
                 pbin.CAP_PORT_FILTER:
