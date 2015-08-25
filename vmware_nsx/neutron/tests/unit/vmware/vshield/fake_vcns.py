@@ -168,7 +168,8 @@ class FakeVcns(object):
             'status': 200,
         }
         response = {
-            'systemStatus': 'good'
+            'systemStatus': 'good',
+            'publishStatus': 'APPLIED'
         }
         return (header, response)
 

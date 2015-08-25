@@ -104,7 +104,6 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             router_db = self.plugin._get_router(context, router_id)
             nexthop = self.plugin._get_external_attachment_info(
                 context, router_db)[2]
-            self.plugin._update_subnets_and_dnat_firewall(context, router_db)
             md_gw_data = self._get_metadata_gw_data(context, router_id)
             self.update_routes(context, router_id, nexthop, md_gw_data)
         if 'admin_state_up' in r:
@@ -202,8 +201,6 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             with excutils.save_and_reraise_exception():
                 super(nsx_v.NsxVPluginV2, self.plugin).remove_router_interface(
                     context, router_id, interface_info)
-        # Update edge's firewall rules to accept subnets flows.
-        self.plugin._update_subnets_and_dnat_firewall(context, router_db)
 
         if self.plugin.metadata_proxy_handler:
             self.edge_manager.configure_dhcp_for_vdr_network(
@@ -349,7 +346,6 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                                                             subnet)):
             md_gw_data = self._metadata_route_update(context, router_id)
 
-        self.plugin._update_subnets_and_dnat_firewall(context, router_db)
         # Safly remove interface, VDR can have interface to only one subnet in
         # a given network.
         edge_utils.delete_interface(
