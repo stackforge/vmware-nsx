@@ -68,8 +68,10 @@ def get_resource(resource):
     manager, user, password = _get_manager_endpoint()
     url = manager + "/api/v1/%s" % resource
     headers = {'Accept': 'application/json'}
+    verify = not cfg.CONF.nsx_v3.insecure
     result = requests.get(url, auth=auth.HTTPBasicAuth(user, password),
-                          verify=False, headers=headers)
+                          verify=verify, headers=headers,
+                          cert=cfg.CONF.nsx_v3.ca_file)
     _validate_result(result, [requests.codes.ok],
                      _("reading resource: %s") % resource)
     return result.json()
@@ -80,9 +82,11 @@ def create_resource(resource, data):
     url = manager + "/api/v1/%s" % resource
     headers = {'Content-Type': 'application/json',
                'Accept': 'application/json'}
+    verify = not cfg.CONF.nsx_v3.insecure
     result = requests.post(url, auth=auth.HTTPBasicAuth(user, password),
-                           verify=False, headers=headers,
-                           data=jsonutils.dumps(data))
+                           verify=verify, headers=headers,
+                           data=jsonutils.dumps(data),
+                           cert=cfg.CONF.nsx_v3.ca_file)
     _validate_result(result, [requests.codes.created],
                      _("creating resource at: %s") % resource)
     return result.json()
@@ -93,9 +97,11 @@ def update_resource(resource, data):
     url = manager + "/api/v1/%s" % resource
     headers = {'Content-Type': 'application/json',
                'Accept': 'application/json'}
+    verify = not cfg.CONF.nsx_v3.insecure
     result = requests.put(url, auth=auth.HTTPBasicAuth(user, password),
-                          verify=False, headers=headers,
-                          data=jsonutils.dumps(data))
+                          verify=verify, headers=headers,
+                          data=jsonutils.dumps(data),
+                          cert=cfg.CONF.nsx_v3.ca_file)
     _validate_result(result, [requests.codes.ok],
                      _("updating resource: %s") % resource)
     return result.json()
@@ -104,7 +110,8 @@ def update_resource(resource, data):
 def delete_resource(resource):
     manager, user, password = _get_manager_endpoint()
     url = manager + "/api/v1/%s" % resource
+    verify = not cfg.CONF.nsx_v3.insecure
     result = requests.delete(url, auth=auth.HTTPBasicAuth(user, password),
-                             verify=False)
+                             verify=verify, cert=cfg.CONF.nsx_v3.ca_file)
     _validate_result(result, [requests.codes.ok],
                      _("deleting resource: %s") % resource)
