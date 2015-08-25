@@ -68,6 +68,10 @@ class EdgeApplianceDriver(object):
         else:
             edge['type'] = "distributedRouter"
             edge['interfaces'] = {'interfaces': []}
+            # Version beyond 6.1 can deploy a logical router with no backing VM
+            version = self.vcns.get_version()
+            if version[:3] != '6.1':
+                edge['appliances']['deployAppliances'] = False
 
         if deployment_container_id:
             edge['appliances']['deploymentContainerId'] = (
@@ -391,10 +395,10 @@ class EdgeApplianceDriver(object):
         try:
             response = self.vcns.get_edge_deploy_status(edge_id)[1]
             task.userdata['retries'] = 0
-            system_status = response.get('systemStatus', None)
-            if system_status is None:
+            publish_status = response.get('publishStatus', None)
+            if publish_status is None or publish_status == 'PERSISTED':
                 status = task_constants.TaskStatus.PENDING
-            elif system_status == 'good':
+            elif publish_status == 'APPLIED':
                 status = task_constants.TaskStatus.COMPLETED
             else:
                 status = task_constants.TaskStatus.ERROR
