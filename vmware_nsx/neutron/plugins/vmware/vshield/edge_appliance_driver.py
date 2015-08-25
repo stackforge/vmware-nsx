@@ -68,6 +68,10 @@ class EdgeApplianceDriver(object):
         else:
             edge['type'] = "distributedRouter"
             edge['interfaces'] = {'interfaces': []}
+            # Version beyond 6.1 can deploy a logical router with no backing VM
+            version = self.vcns.get_version()
+            if version[:3] != '6.1':
+                edge['appliances']['deployAppliances'] = False
 
         if deployment_container_id:
             edge['appliances']['deploymentContainerId'] = (
