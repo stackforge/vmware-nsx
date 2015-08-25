@@ -185,7 +185,16 @@ nsx_v3_opts = [
                help=_("Default edge cluster identifier")),
     cfg.IntOpt('retries',
                default=10,
-               help=_('Maximum number of times to retry API request'))
+               help=_('Maximum number of times to retry API request')),
+    cfg.StrOpt('ca_file',
+               help='Specify a CA bundle file to use in verifying the NSX '
+                    'Manager server certificate.'),
+    cfg.BoolOpt('insecure',
+                default=True,
+                help='If true, the NSX Manager server certificate is not '
+                     'verified. If false, then the default CA truststore is '
+                     'used for verification. This option is ignored if '
+                     '"ca_file" is set.'),
 ]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
