@@ -125,8 +125,26 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         self._psec_profile = self._init_port_security_profile()
         if not self._psec_profile:
             msg = (_("Unable to initialize NSX v3 port spoofguard "
-                    "switching profile: %s") % NSX_V3_PSEC_PROFILE_NAME)
+                     "switching profile: %s") % NSX_V3_PSEC_PROFILE_NAME)
             raise nsx_exc.NsxPluginException(msg)
+        LOG.debug("Initializing NSX v3 DHCP switching profile")
+        self._dhcp_profile = self._init_dhcp_switching_profile()
+
+    def _init_dhcp_switching_profile(self):
+        dhcp_profile_uuid = cfg.CONF.nsx_v3.default_switching_profile_dhcp_uuid
+        if not dhcp_profile_uuid:
+            LOG.warning(_LW("Switching profile for DHCP ports not configured "
+                            "in the config file."))
+            return
+        if not uuidutils.is_uuid_like(dhcp_profile_uuid):
+            LOG.warning(_LW("default_switching_profile_dhcp_uuid: %s. DHCP "
+                            "profile must be configured with a UUID"),
+                        dhcp_profile_uuid)
+            return
+        return nsx_resources.SwitchingProfileTypeId(
+            profile_type=(nsx_resources.SwitchingProfileTypes.
+                          SWITCH_SECURITY),
+            profile_id=cfg.CONF.nsx_v3.default_switching_profile_dhcp_uuid)
 
     def _get_port_security_profile_id(self):
         return nsx_resources.SwitchingProfile.build_switch_profile_ids(
@@ -496,6 +514,17 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         profiles = None
         if psec_is_on:
             profiles = [self._get_port_security_profile_id()]
+        if port_data.get('device_owner') == const.DEVICE_OWNER_DHCP:
+            if self._dhcp_profile:
+                if profiles is not None:
+                    profiles.append(self._dhcp_profile)
+                else:
+                    profiles = [self._dhcp_profile]
+            else:
+                LOG.warning(_LW("No DHCP switching profile configured in the "
+                                "config file. DHCP port: %s configured with "
+                                "default profile on the backend"),
+                            port_data['id'])
 
         result = self._port_client.create(
             port_data['network_id'], vif_uuid,
