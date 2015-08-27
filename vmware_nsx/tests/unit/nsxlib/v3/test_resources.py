@@ -16,6 +16,7 @@
 import mock
 
 from oslo_serialization import jsonutils
+from oslo_utils import uuidutils
 
 from vmware_nsx.nsxlib.v3 import client
 from vmware_nsx.nsxlib.v3 import resources
@@ -241,6 +242,28 @@ class LogicalPortTestCase(nsxlib_testcase.NsxClientTestCase):
                 None,
                 client.JSONRESTClient._DEFAULT_HEADERS,
                 nsxlib_testcase.NSX_CERT)
+
+    def test_create_logical_port_dhcp_profile(self):
+        """
+        Test creating DHCP owned port applies DHCP profile
+        """
+        fake_port = test_constants_v3.FAKE_PORT
+        dhcp_profile_uuid = uuidutils.generate_uuid()
+        dhcp_profile = [resources.SwitchingProfileTypeId(
+            profile_type=(resources.SwitchingProfileTypes.
+                          SWITCH_SECURITY),
+            profile_id=dhcp_profile_uuid)]
+        api = resources.LogicalPort(client.NSX3Client())
+        with self.mocked_resource(api) as mocked:
+            mocked.get('post').return_value = mocks.MockRequestsResponse(
+                200, jsonutils.dumps(fake_port))
+
+            result = api.create(
+                test_constants_v3.FAKE_PORT['logical_switch_id'],
+                test_constants_v3.FAKE_PORT['attachment']['id'],
+                tags={}, switch_profile_ids=dhcp_profile)
+
+            self.assertEqual(fake_port, result)
 
 
 class LogicalRouterTestCase(nsxlib_testcase.NsxClientTestCase):
