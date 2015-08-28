@@ -26,7 +26,8 @@ LOG = log.getLogger(__name__)
 
 def create_logical_switch(display_name, transport_zone_id, tags,
                           replication_mode=nsx_constants.MTEP,
-                          admin_state=True, vlan_id=None):
+                          admin_state=True, vlan_id=None,
+                          qos_switching_profile_id=None):
     # TODO(salv-orlando): Validate Replication mode and admin_state
     # NOTE: These checks might be moved to the API client library if one that
     # performs such checks in the client is available
@@ -35,7 +36,8 @@ def create_logical_switch(display_name, transport_zone_id, tags,
     body = {'transport_zone_id': transport_zone_id,
             'replication_mode': replication_mode,
             'display_name': display_name,
-            'tags': tags}
+            'tags': tags,
+            'switching_profile_ids': []}
 
     if admin_state:
         body['admin_state'] = nsx_constants.ADMIN_STATE_UP
@@ -44,6 +46,10 @@ def create_logical_switch(display_name, transport_zone_id, tags,
 
     if vlan_id:
         body['vlan'] = vlan_id
+    if qos_switching_profile_id:
+        body['switching_profile_ids'].append(
+            {"key": "QosSwitchingProfile",
+             "value": qos_switching_profile_id})
 
     return client.create_resource(resource, body)
 
@@ -56,7 +62,8 @@ def delete_logical_switch(lswitch_id):
 def create_logical_port(lswitch_id, vif_uuid, tags,
                         attachment_type=nsx_constants.ATTACHMENT_VIF,
                         admin_state=True, name=None, address_bindings=None,
-                        parent_name=None, parent_tag=None):
+                        parent_name=None, parent_tag=None,
+                        qos_switching_profile_id=None):
 
     # NOTE(arosen): if a parent_name is specified we need to use the
     # CIF's attachment.
@@ -74,13 +81,18 @@ def create_logical_port(lswitch_id, vif_uuid, tags,
     body = {'logical_switch_id': lswitch_id,
             'attachment': {'attachment_type': attachment_type,
                            'id': vif_uuid},
-            'tags': tags}
+            'tags': tags,
+            'switching_profile_ids': []}
     if name:
         body['display_name'] = name
     if admin_state:
         body['admin_state'] = nsx_constants.ADMIN_STATE_UP
     else:
         body['admin_state'] = nsx_constants.ADMIN_STATE_DOWN
+    if qos_switching_profile_id:
+        body['switching_profile_ids'].append(
+            {"key": "QosSwitchingProfile",
+             "value": qos_switching_profile_id})
 
     if key_values:
         body['attachment']['context'] = {'key_values': key_values}
