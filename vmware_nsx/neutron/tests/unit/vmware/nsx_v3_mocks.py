@@ -22,11 +22,14 @@ from vmware_nsx.neutron.plugins.vmware.common import nsx_constants
 FAKE_NAME = "fake_name"
 
 
-def make_fake_switch(switch_uuid=None, tz_uuid=None, name=FAKE_NAME):
+def make_fake_switch(switch_uuid=None, tz_uuid=None, name=FAKE_NAME,
+                     qos_switching_profile_id=None):
     if not switch_uuid:
         switch_uuid = uuidutils.generate_uuid()
     if not tz_uuid:
         tz_uuid = uuidutils.generate_uuid()
+    if not qos_switching_profile_id:
+        qos_switching_profile_id = uuidutils.generate_uuid()
 
     fake_switch = {
         "id": switch_uuid,
@@ -55,7 +58,7 @@ def make_fake_switch(switch_uuid=None, tz_uuid=None, name=FAKE_NAME):
                 "key": "SwitchSecuritySwitchingProfile"
             },
             {
-                "value": "f313290b-eba8-4262-bd93-fab5026e9495",
+                "value": qos_switching_profile_id,
                 "key": "QosSwitchingProfile"
             }
         ],
@@ -65,16 +68,21 @@ def make_fake_switch(switch_uuid=None, tz_uuid=None, name=FAKE_NAME):
 
 def create_logical_switch(display_name, transport_zone_id, tags,
                           replication_mode=nsx_constants.MTEP,
-                          admin_state=True, vlan_id=None):
-    return make_fake_switch()
+                          admin_state=True, vlan_id=None,
+                          qos_switching_profile_id=None):
+    return make_fake_switch(tz_uuid=transport_zone_id,
+                            qos_switching_profile_id=qos_switching_profile_id)
 
 
 def create_logical_port(lswitch_id, vif_uuid, tags,
                         attachment_type=nsx_constants.ATTACHMENT_VIF,
                         admin_state=True, name=None, address_bindings=None,
-                        parent_name=None, parent_tag=None):
+                        parent_name=None, parent_tag=None,
+                        qos_switching_profile_id=None):
     FAKE_SWITCH_UUID = uuidutils.generate_uuid()
     FAKE_PORT_UUID = uuidutils.generate_uuid()
+    if not qos_switching_profile_id:
+        qos_switching_profile_id = uuidutils.generate_uuid()
     FAKE_PORT = {
         "id": FAKE_PORT_UUID,
         "display_name": FAKE_NAME,
@@ -104,7 +112,7 @@ def create_logical_port(lswitch_id, vif_uuid, tags,
                 "key": "SwitchSecuritySwitchingProfile"
             },
             {
-                "value": "f313290b-eba8-4262-bd93-fab5026e9495",
+                "value": qos_switching_profile_id,
                 "key": "QosSwitchingProfile"
             }
         ]
