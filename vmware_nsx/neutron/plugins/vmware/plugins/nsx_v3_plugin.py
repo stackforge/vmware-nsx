@@ -192,6 +192,7 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         net_name = network['network']['name']
         tags = utils.build_v3_tags_payload(network['network'])
         admin_state = network['network'].get('admin_state_up', True)
+        qos_policy_id = network['network'].get('qos_policy_id')
 
         # Create network on the backend
         LOG.debug('create_network: %(net_name)s, %(physical_net)s, %(tags)s, '
@@ -201,9 +202,9 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                    'tags': tags,
                    'admin_state': admin_state,
                    'vlan_id': vlan_id})
-        result = nsxlib.create_logical_switch(net_name, physical_net, tags,
-                                              admin_state=admin_state,
-                                              vlan_id=vlan_id)
+        result = nsxlib.create_logical_switch(
+                     net_name, physical_net, tags, admin_state=admin_state,
+                     vlan_id=vlan_id, qos_switching_profile_id=qos_policy_id)
         net_id = result['id']
         network['network']['id'] = net_id
         tenant_id = self._get_tenant_id_for_create(context, network['network'])
@@ -336,12 +337,14 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             address_bindings = self._build_address_bindings(port['port'])
             # FIXME(arosen): we might need to pull this out of the transaction
             # here later.
+            qos_policy_id = port['port'].get('qos_policy_id')
             result = nsxlib.create_logical_port(
                 lswitch_id=port['port']['network_id'],
                 vif_uuid=port_id, name=port['port']['name'], tags=tags,
                 admin_state=port['port']['admin_state_up'],
                 address_bindings=address_bindings,
-                parent_name=parent_name, parent_tag=tag)
+                parent_name=parent_name, parent_tag=tag,
+                qos_switching_profile_id=qos_policy_id)
 
             # TODO(salv-orlando): The logical switch identifier in the mapping
             # object is not necessary anymore.
