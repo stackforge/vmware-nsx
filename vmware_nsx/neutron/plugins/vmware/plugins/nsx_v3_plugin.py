@@ -89,6 +89,8 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                 pbin.CAP_PORT_FILTER:
                 'security-group' in self.supported_extension_aliases}}
         self._setup_rpc()
+        self.nsgroup_container, self.default_section = (
+            security.init_nsgroup_container_and_default_section_rules())
 
     def _setup_rpc(self):
         self.topic = topics.PLUGIN
@@ -539,6 +541,8 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             # translate and creates firewall rules.
             rules = security.create_firewall_rules(
                 context, firewall_section['id'], ns_group['id'], sg_rules)
+            firewall.add_nsgroup_member(self.nsgroup_container,
+                                        firewall.NSGROUP, ns_group['id'])
         except nsx_exc.ManagerError:
             LOG.exception(_LE("Unable to create security-group %(name)s "
                               "(%(id)s) on backend, rolling back changes in "
