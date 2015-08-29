@@ -28,7 +28,7 @@ LAYER3 = 'LAYER3'
 
 # firewall rule actions
 ALLOW = 'ALLOW'
-DENY = 'DROP'
+DROP = 'DROP'
 REJECT = 'REJECT'
 
 # filtering operators
@@ -42,6 +42,7 @@ IPV6ADDRESS = 'IPv6Address'
 
 IN = 'IN'
 OUT = 'OUT'
+INOUT = 'INOUT'
 
 # NSServices resource types
 L4_PORT_SET_NSSERVICE = 'L4PortSetNSService'
@@ -55,6 +56,7 @@ ICMPV6 = 'ICMPv6'
 
 IPV4 = 'IPV4'
 IPV6 = 'IPV6'
+IPV4_IPV6 = 'IPV4_IPV6'
 
 
 def get_nsservice(resource_type, **properties):
@@ -71,7 +73,7 @@ def create_nsgroup(display_name, description, tags):
 
 
 def list_nsgroups():
-    return nsclient.get_resource('ns-groups')
+    return nsclient.get_resource('ns-groups').get('results', [])
 
 
 @utils.retry_upon_exception_nsxv3(nsx_exc.StaleRevision)
@@ -148,7 +150,7 @@ def read_section(section_id):
 
 def list_sections():
     resource = 'firewall/sections'
-    return nsclient.get_resource(resource)
+    return nsclient.get_resource(resource).get('results', [])
 
 
 def delete_section(section_id):
@@ -167,8 +169,9 @@ def get_ip_cidr_reference(ip_cidr_block, ip_protocol):
             'target_type': target_type}
 
 
-def get_firewall_rule_dict(display_name, source, destination, direction,
-                           ip_protocol, service, action):
+def get_firewall_rule_dict(display_name, source=None, destination=None,
+                           direction=INOUT, ip_protocol=IPV4_IPV6,
+                           service=None, action=ALLOW):
     return {'display_name': display_name,
             'sources': [source] if source else [],
             'destinations': [destination] if destination else [],
