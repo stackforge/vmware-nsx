@@ -1836,112 +1836,184 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # in any case ensure the status is not reset by this method!
         return floatingip_db['status']
 
-    def _update_fip_assoc(self, context, fip, floatingip_db, external_port):
-        """Update floating IP association data.
+    def _nsx_apply_floatingip_configuration(self, context, floatingip_data,
+                                            external_port_id):
+        # Association info are already stored in floatingip_data
+        floating_ip = floatingip_data['floating_ip_address']
+        internal_ip = floatingip_data['fixed_ip_address']
+        internal_port_id = floatingip_data['port_id']
+        router_id = floatingip_data['router_id']
+        if not router_id:
+            # The floating IP is not associated and therefore there's no NAT
+            # rule or IP address to configure
+            return
+        # Clear any previous NAT rule for this floating IP on the router
+        nsx_router_id = nsx_utils.get_nsx_router_id(
+            context.session, self.cluster, router_id)
+        self._retrieve_and_delete_nat_rules(
+            context, floating_ip, internal_ip, nsx_router_id)
 
-        Overrides method from base class.
-        The method is augmented for creating NAT rules in the process.
-        """
-        # Store router currently serving the floating IP
-        old_router_id = floatingip_db.router_id
-        port_id, internal_ip, router_id = self._check_and_get_fip_assoc(
-            context, fip, floatingip_db)
-        floating_ip = floatingip_db['floating_ip_address']
-        # If there's no association router_id will be None
-        if router_id:
-            nsx_router_id = nsx_utils.get_nsx_router_id(
-                context.session, self.cluster, router_id)
-            self._retrieve_and_delete_nat_rules(
-                context, floating_ip, internal_ip, nsx_router_id)
-        nsx_floating_ips = self._build_ip_address_list(
-            context.elevated(), external_port['fixed_ips'])
-        floating_ip = floatingip_db['floating_ip_address']
-        # Retrieve and delete existing NAT rules, if any
-        if old_router_id:
-            nsx_old_router_id = nsx_utils.get_nsx_router_id(
-                context.session, self.cluster, old_router_id)
-            # Retrieve the current internal ip
-            _p, _s, old_internal_ip = self._internal_fip_assoc_data(
-                context, {'id': floatingip_db.id,
-                          'port_id': floatingip_db.fixed_port_id,
-                          'fixed_ip_address': floatingip_db.fixed_ip_address,
-                          'tenant_id': floatingip_db.tenant_id})
+        try:
+            # Setup DNAT rules for the floating IP
+            routerlib.create_lrouter_dnat_rule(
+                self.cluster, nsx_router_id, internal_ip,
+                order=NSX_FLOATINGIP_NAT_RULES_ORDER,
+                match_criteria={'destination_ip_addresses':
+                                floating_ip})
+            # Setup SNAT rules for the floating IP
+            # Create a SNAT rule for enabling connectivity to the
+            # floating IP from the same network as the internal port
+            # Find subnet id for internal_ip from fixed_ips
+            internal_port = self._get_port(context, internal_port_id)
+            subnet_ids = [ip['subnet_id'] for ip in
+                          internal_port['fixed_ips'] if
+                          ip['ip_address'] == internal_ip]
+            internal_subnet_cidr = self._build_ip_address_list(
+                context, internal_port['fixed_ips'],
+                subnet_ids=subnet_ids)[0]
+            routerlib.create_lrouter_snat_rule(
+                self.cluster, nsx_router_id, floating_ip, floating_ip,
+                order=NSX_NOSNAT_RULES_ORDER - 1,
+                match_criteria={'source_ip_addresses':
+                                internal_subnet_cidr,
+                                'destination_ip_addresses':
+                                internal_ip})
+            # setup snat rule such that src ip of a IP packet when
+            # using floating is the floating ip itself.
+            routerlib.create_lrouter_snat_rule(
+                self.cluster, nsx_router_id, floating_ip, floating_ip,
+                order=NSX_FLOATINGIP_NAT_RULES_ORDER,
+                match_criteria={'source_ip_addresses': internal_ip})
+
+            # Add Floating IP address to router_port
+            elevated_ctx = context.elevated()
+            external_port = self._core_plugin.get_port(
+                elevated_ctx, external_port_id)
+            nsx_floating_ips = self._build_ip_address_list(
+                elevated_ctx, external_port['fixed_ips'])
+            nsx_gw_port_id = routerlib.find_router_gw_port(
+                context, self.cluster, nsx_router_id)['uuid']
+            routerlib.update_lrouter_port_ips(
+                self.cluster, nsx_router_id, nsx_gw_port_id,
+                ips_to_add=nsx_floating_ips, ips_to_remove=[])
+        except api_exc.NsxApiException:
+            LOG.exception(_("An error occurred while creating NAT "
+                            "rules on the NSX platform for floating "
+                            "ip:%(floating_ip)s mapped to "
+                            "internal ip:%(internal_ip)s"),
+                          {'floating_ip': floating_ip,
+                           'internal_ip': internal_ip})
+            msg = _("Failed to update NAT rules for floating IP")
+            raise nsx_exc.NsxPluginException(err_msg=msg)
+
+    def _nsx_delete_floatingip_configuration(self, context,
+                                             floating_ip,
+                                             nsx_old_router_id,
+                                             old_internal_ip,
+                                             external_port_id):
+        # Remove rules and ip address from existing router
+        try:
+            if old_internal_ip:
+                self._retrieve_and_delete_nat_rules(
+                    context, floating_ip, old_internal_ip, nsx_old_router_id)
+            elevated_ctx = context.elevated()
+            external_port = self._core_plugin.get_port(
+                elevated_ctx, external_port_id)
+            nsx_floating_ips = self._build_ip_address_list(
+                elevated_ctx, external_port['fixed_ips'])
             nsx_gw_port_id = routerlib.find_router_gw_port(
                 context, self.cluster, nsx_old_router_id)['uuid']
-            self._retrieve_and_delete_nat_rules(
-                context, floating_ip, old_internal_ip, nsx_old_router_id)
             routerlib.update_lrouter_port_ips(
                 self.cluster, nsx_old_router_id, nsx_gw_port_id,
                 ips_to_add=[], ips_to_remove=nsx_floating_ips)
+        except api_exc.NsxApiException:
+            LOG.exception(_("An error occurred while deleting NAT "
+                            "rules on the NSX platform for floating "
+                            "ip:%(floating_ip)s mapped to "
+                            "internal ip:%(internal_ip)s"),
+                          {'floating_ip': floating_ip,
+                           'internal_ip': old_internal_ip})
+            msg = _("Failed to update NAT rules for floating IP")
+            raise nsx_exc.NsxPluginException(err_msg=msg)
 
-        if router_id:
-            nsx_gw_port_id = routerlib.find_router_gw_port(
-                context, self.cluster, nsx_router_id)['uuid']
-            # Re-create NAT rules only if a port id is specified
-            if fip.get('port_id'):
-                try:
-                    # Setup DNAT rules for the floating IP
-                    routerlib.create_lrouter_dnat_rule(
-                        self.cluster, nsx_router_id, internal_ip,
-                        order=NSX_FLOATINGIP_NAT_RULES_ORDER,
-                        match_criteria={'destination_ip_addresses':
-                                        floating_ip})
-                    # Setup SNAT rules for the floating IP
-                    # Create a SNAT rule for enabling connectivity to the
-                    # floating IP from the same network as the internal port
-                    # Find subnet id for internal_ip from fixed_ips
-                    internal_port = self._get_port(context, port_id)
-                    # Cchecks not needed on statements below since otherwise
-                    # _internal_fip_assoc_data would have raised
-                    subnet_ids = [ip['subnet_id'] for ip in
-                                  internal_port['fixed_ips'] if
-                                  ip['ip_address'] == internal_ip]
-                    internal_subnet_cidr = self._build_ip_address_list(
-                        context, internal_port['fixed_ips'],
-                        subnet_ids=subnet_ids)[0]
-                    routerlib.create_lrouter_snat_rule(
-                        self.cluster, nsx_router_id, floating_ip, floating_ip,
-                        order=NSX_NOSNAT_RULES_ORDER - 1,
-                        match_criteria={'source_ip_addresses':
-                                        internal_subnet_cidr,
-                                        'destination_ip_addresses':
-                                        internal_ip})
-                    # setup snat rule such that src ip of a IP packet when
-                    # using floating is the floating ip itself.
-                    routerlib.create_lrouter_snat_rule(
-                        self.cluster, nsx_router_id, floating_ip, floating_ip,
-                        order=NSX_FLOATINGIP_NAT_RULES_ORDER,
-                        match_criteria={'source_ip_addresses': internal_ip})
+    def _nsx_process_floatingip(self, context, floatingip_data,
+        old_router_id=None, old_internal_ip=None):
+        floatingip_id = floatingip_data['id']
+        floatingip_db = self._get_floatingip(context, floatingip_id)
+        external_port_id = floatingip_db['floating_port_id']
+        try:
+            if old_router_id:
+                nsx_old_router_id = nsx_utils.get_nsx_router_id(
+                    context.session, self.cluster, old_router_id)
+                floating_ip = floatingip_data['floating_ip_address']
+                self._nsx_delete_floatingip_configuration(
+                    context,
+                    floating_ip,
+                    nsx_old_router_id,
+                    old_internal_ip,
+                    external_port_id)
+        except nsx_exc.NsxPluginException:
+            # Set this floating IP in error state and stop processing it
+            self.update_floatingip_status(context, floatingip_id,
+                                          constants.FLOATINGIP_STATUS_ERROR)
+            return constants.FLOATINGIP_STATUS_ERROR
 
-                    # Add Floating IP address to router_port
-                    routerlib.update_lrouter_port_ips(
-                        self.cluster, nsx_router_id, nsx_gw_port_id,
-                        ips_to_add=nsx_floating_ips, ips_to_remove=[])
-                except api_exc.NsxApiException:
-                    LOG.exception(_LE("An error occurred while creating NAT "
-                                      "rules on the NSX platform for floating "
-                                      "ip:%(floating_ip)s mapped to "
-                                      "internal ip:%(internal_ip)s"),
-                                  {'floating_ip': floating_ip,
-                                   'internal_ip': internal_ip})
-                    msg = _("Failed to update NAT rules for floatingip update")
-                    raise nsx_exc.NsxPluginException(err_msg=msg)
-        # Update also floating ip status (no need to call base class method)
-        floatingip_db.update(
-            {'fixed_ip_address': internal_ip,
-             'fixed_port_id': port_id,
-             'router_id': router_id,
-             'status': self._floatingip_status(floatingip_db, router_id)})
+        if not floatingip_data['router_id']:
+            # This was a simple disassociation and no further processing is
+            # needed
+            self.update_floatingip_status(context, floatingip_id,
+                                          constants.FLOATINGIP_STATUS_DOWN)
+            return constants.FLOATINGIP_STATUS_DOWN
+        floatingip_db = self._get_floatingip(context, floatingip_id)
+        LOG.info(_LI("Applying floating IP configuration for "
+                     "%(floatingip)s (id:%(floatingip_id)s) "
+                     "to NSX backend"),
+                 {'floatingip': floatingip_data['floating_ip_address'],
+                  'floatingip_id': floatingip_data['id']})
+        try:
+            self._nsx_apply_floatingip_configuration(
+                context, floatingip_data, external_port_id)
+        except nsx_exc.NsxPluginException:
+            # Set this floating IP in error state and stop processing it
+            self.update_floatingip_status(context, floatingip_id,
+                                          constants.FLOATINGIP_STATUS_ERROR)
+            return constants.FLOATINGIP_STATUS_ERROR
+
+        self.update_floatingip_status(context, floatingip_id,
+                                      constants.FLOATINGIP_STATUS_ACTIVE)
+        return constants.FLOATINGIP_STATUS_ACTIVE
 
     @lockutils.synchronized('vmware', 'neutron-')
     def create_floatingip(self, context, floatingip):
-        return super(NsxPluginV2, self).create_floatingip(context, floatingip)
+        result = super(NsxPluginV2, self).create_floatingip(
+            context, floatingip)
+        # Process floating IP on NSX backend; the status will be set to
+        # ERROR in case of failures; ideally here we could rollback the DB
+        # operation, but:
+        # - this would not be consistent with the behaviour of the Neutron API
+        # - it will still be not possible to determine whether some rules for
+        #   the floating IP were still configured on the backend
+        result['status'] = self._nsx_process_floatingip(context, result)
+        return result
 
     @lockutils.synchronized('vmware', 'neutron-')
     def update_floatingip(self, context, floatingip_id, floatingip):
-        return super(NsxPluginV2, self).update_floatingip(context,
-                                                          floatingip_id,
-                                                          floatingip)
+        with context.session.begin():
+            current_floatingip = self._get_floatingip(context, floatingip_id)
+            old_router_id = current_floatingip['router_id']
+            old_internal_ip = current_floatingip['fixed_ip_address']
+            result = super(NsxPluginV2, self).update_floatingip(
+                context, floatingip_id, floatingip)
+        # Process floating IP on NSX backend; the status will be set to
+        # ERROR in case of failures; ideally here we could rollback the DB
+        # operation, but:
+        # - this would not be consistent with the behaviour of the Neutron API
+        # - rolling back the DB operation migth require redoing an association
+        # - it will be difficult to know whether the old configuration on the
+        #   backend is completely removed or not
+        result['status'] = self._nsx_process_floatingip(
+            context, result, old_router_id, old_internal_ip)
+        return result
 
     @lockutils.synchronized('vmware', 'neutron-')
     def delete_floatingip(self, context, id):
