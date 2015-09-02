@@ -1563,16 +1563,17 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
     def delete_router(self, context, router_id):
         with context.session.begin(subtransactions=True):
+            # TODO(salv-orlando): This call should have no effect on delete
+            # router, unless a previous error left some dangling metadata
+            # interfaces on the router. However, it should not happen within
+            # a transaction, and it should be restored on rollback
+            self.handle_router_metadata_access(
+                context, router_id, interface=None)
             # NOTE(salv-orlando): These checks will be repeated anyway when
             # calling the superclass. This is wasteful, but is the simplest
             # way of ensuring a consistent removal of the router both in
             # the neutron Database and in the NSX backend.
             self._ensure_router_not_in_use(context, router_id)
-            # TODO(salv-orlando): This call should have no effect on delete
-            # router, but if it does, it should not happen within a
-            # transaction, and it should be restored on rollback
-            self.handle_router_metadata_access(
-                context, router_id, interface=None)
 
         nsx_router_id = nsx_utils.get_nsx_router_id(
             context.session, self.cluster, router_id)
