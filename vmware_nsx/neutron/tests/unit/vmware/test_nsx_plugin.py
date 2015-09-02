@@ -965,11 +965,10 @@ class TestL3NatTestCase(L3NatTest,
                                        side_effect=side_effect):
                     self._router_interface_action('remove', r['router']['id'],
                                                   s['subnet']['id'], None)
-                # Metadata network and subnet should still be there
-                self._show('networks', meta_net_id,
-                           webob.exc.HTTPOk.code)
-                self._show('ports', meta_port_id,
-                           webob.exc.HTTPOk.code)
+        # Metadata network and subnet should still be there
+        self._show('networks', meta_net_id, webob.exc.HTTPOk.code)
+        self._show('ports', meta_port_id, webob.exc.HTTPOk.code)
+        self._delete('routers', r['router']['id'])
         self._metadata_teardown()
 
     def test_metadata_dhcp_host_route(self):
