@@ -469,8 +469,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
 
     def _add_member_to_security_group(self, sg_id, vnic_id):
         with locking.LockManager.get_lock(
-                str(sg_id), lock_file_prefix='neutron-security-ops',
-                external=True):
+                str(sg_id), lock_file_prefix='neutron-security-ops'):
             try:
                 self.nsx_v.vcns.add_member_to_security_group(
                     sg_id, vnic_id)
@@ -496,8 +495,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
 
     def _remove_member_from_security_group(self, sg_id, vnic_id):
         with locking.LockManager.get_lock(
-                str(sg_id), lock_file_prefix='neutron-security-ops',
-                external=True):
+                str(sg_id), lock_file_prefix='neutron-security-ops'):
             try:
                 h, c = self.nsx_v.vcns.remove_member_from_security_group(
                     sg_id, vnic_id)
@@ -1066,7 +1064,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 raise n_exc.InvalidInput(error_message=err_msg)
 
         with locking.LockManager.get_lock(
-                'nsx-edge-pool', lock_file_prefix='edge-bind-', external=True):
+                'nsx-edge-pool', lock_file_prefix='edge-bind-'):
             s = super(NsxVPluginV2, self).create_subnet(context, subnet)
         if s['enable_dhcp']:
             try:
@@ -1211,8 +1209,8 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 edge_id = self._get_edge_id_by_rtr_id(context, resource_id)
                 if edge_id:
                     with locking.LockManager.get_lock(
-                            str(edge_id), lock_file_prefix='nsxv-dhcp-config-',
-                            external=True):
+                            str(edge_id),
+                            lock_file_prefix='nsxv-dhcp-config-'):
                         if self.metadata_proxy_handler:
                             LOG.debug('Update metadata for resource %s',
                                       resource_id)
