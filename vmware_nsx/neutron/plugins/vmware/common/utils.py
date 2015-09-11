@@ -93,7 +93,7 @@ def build_v3_tags_payload(logical_entity):
         neutron-id:<resource-id>
     """
     return [{"scope": "neutron-id",
-             "tag": logical_entity.get("id")},
+             "tag": logical_entity.get("id") or ""},
             {"scope": "os-tid",
              "tag": logical_entity.get("tenant_id")},
             {"scope": "os-api-version",
