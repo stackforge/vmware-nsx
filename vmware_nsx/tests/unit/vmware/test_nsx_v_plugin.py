@@ -48,6 +48,8 @@ import webob.exc
 from vmware_nsx.common import nsx_constants
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.extensions import (
+    routersize as router_size)
+from vmware_nsx.extensions import (
     routertype as router_type)
 from vmware_nsx.extensions import (
     vnicindex as ext_vnic_idx)
@@ -1159,6 +1161,8 @@ class TestL3ExtensionManager(object):
                 dist_router.EXTENDED_ATTRIBUTES_2_0.get(key, {}))
             l3.RESOURCE_ATTRIBUTE_MAP[key].update(
                 router_type.EXTENDED_ATTRIBUTES_2_0.get(key, {}))
+            l3.RESOURCE_ATTRIBUTE_MAP[key].update(
+                router_size.EXTENDED_ATTRIBUTES_2_0.get(key, {}))
         # Finally add l3 resources to the global attribute map
         attributes.RESOURCE_ATTRIBUTE_MAP.update(
             l3.RESOURCE_ATTRIBUTE_MAP)
