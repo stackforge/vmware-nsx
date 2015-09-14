@@ -18,6 +18,7 @@ from neutron.api.v2 import attributes as attr
 
 from vmware_nsx.neutron.plugins.vmware.common import exceptions as nsxv_exc
 from vmware_nsx.neutron.plugins.vmware.common import locking
+from vmware_nsx.neutron.plugins.vmware.common import nsxv_constants
 from vmware_nsx.neutron.plugins.vmware.dbexts import nsxv_db
 from vmware_nsx.neutron.plugins.vmware.plugins import nsx_v
 from vmware_nsx.neutron.plugins.vmware.plugins.nsx_v_drivers import (
@@ -32,8 +33,10 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
     def get_type(self):
         return "exclusive"
 
-    def create_router(self, context, lrouter, allow_metadata=True):
-        self.edge_manager.create_lrouter(context, lrouter, dist=False)
+    def create_router(self, context, lrouter, allow_metadata=True,
+                      appliance_size=nsxv_constants.XLARGE):
+        self.edge_manager.create_lrouter(
+            context, lrouter, dist=False, appliance_size=appliance_size)
         if allow_metadata:
             self.plugin.metadata_proxy_handler.configure_router_edge(
                 lrouter['id'])

@@ -65,6 +65,8 @@ from vmware_nsx.neutron.plugins.vmware.extensions import (
     advancedserviceproviders as as_providers)
 from vmware_nsx.neutron.plugins.vmware.extensions import (
     vnicindex as ext_vnic_idx)
+from vmware_nsx.neutron.plugins.vmware.extensions import (
+    routersize as rtr_size)
 from vmware_nsx.neutron.plugins.vmware.plugins import managers
 from vmware_nsx.neutron.plugins.vmware.plugins import nsx_v_md_proxy
 from vmware_nsx.neutron.plugins.vmware.vshield.common import (
@@ -103,6 +105,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                                    "router",
                                    "security-group",
                                    "nsxv-router-type",
+                                   "nsxv-router-size",
                                    "vnic-index",
                                    "advanced-service-providers"]
 
@@ -1352,9 +1355,14 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         # First extract the gateway info in case of updating
         # gateway before edge is deployed.
         # TODO(berlin): admin_state_up and routes update
+        r = router['router']
+	if (r.get('router_size') and
+            (r.get('distributed') or r.get('router_type') == "shared")):
+            msg = (_("Cannot specify for shared/distributed router"))
+            raise n_exc.BadRequest(resource='router', msg=msg)
+            
         gw_info = self._extract_external_gw(context, router)
         lrouter = super(NsxVPluginV2, self).create_router(context, router)
-        r = router['router']
         self._decide_router_type(context, r)
         with context.session.begin(subtransactions=True):
             router_db = self._get_router(context, lrouter['id'])
@@ -1364,7 +1372,8 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
             router_driver.create_router(
                 context, lrouter,
                 allow_metadata=(allow_metadata and
-                                self.metadata_proxy_handler))
+                                self.metadata_proxy_handler),
+                appliance_size=r.get("router_size"))
             if gw_info != attr.ATTR_NOT_SPECIFIED:
                 router_driver._update_router_gw_info(
                     context, lrouter['id'], gw_info)
