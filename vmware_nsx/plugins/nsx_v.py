@@ -103,6 +103,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                                    "router",
                                    "security-group",
                                    "nsxv-router-type",
+                                   "nsxv-router-size",
                                    "vnic-index",
                                    "advanced-service-providers"]
 
@@ -1348,22 +1349,41 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
         return gw_info
 
     def create_router(self, context, router, allow_metadata=True):
+        # Check if router-size is specified. router-size can only be specified
+        # for a exclusive non-distributed router; else raise a BadRequest
+        # exception.
+        r = router['router']
+        if (r.get('router_size') != attr.ATTR_NOT_SPECIFIED and
+            (r.get('distributed') or r.get('router-type') == "shared")):
+            msg = (_("Cannot specify router-size for shared/distributed "
+                     "router"))
+            raise n_exc.BadRequest(resource="router", msg=msg)
+        elif (r.get('router_size') == attr.ATTR_NOT_SPECIFIED and
+              r.get('router_type') == "exclusive"):
+            r['router_size'] = "compact"
+
         # First extract the gateway info in case of updating
         # gateway before edge is deployed.
         # TODO(berlin): admin_state_up and routes update
         gw_info = self._extract_external_gw(context, router)
         lrouter = super(NsxVPluginV2, self).create_router(context, router)
-        r = router['router']
         self._decide_router_type(context, r)
         with context.session.begin(subtransactions=True):
             router_db = self._get_router(context, lrouter['id'])
             self._process_nsx_router_create(context, router_db, r)
         try:
             router_driver = self._get_router_driver(context, router_db)
-            router_driver.create_router(
-                context, lrouter,
-                allow_metadata=(allow_metadata and
-                                self.metadata_proxy_handler))
+            if r.get('router_type') == "exclusive":
+                router_driver.create_router(
+                    context, lrouter,
+                    allow_metadata=(allow_metadata and
+                                    self.metadata_proxy_handler),
+                    appliance_size=r.get("router_size"))
+            else:
+                router_driver.create_router(
+                    context, lrouter,
+                    allow_metadata=(allow_metadata and
+                                    self.metadata_proxy_handler))
             if gw_info != attr.ATTR_NOT_SPECIFIED:
                 router_driver._update_router_gw_info(
                     context, lrouter['id'], gw_info)
