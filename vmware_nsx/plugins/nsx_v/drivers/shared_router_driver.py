@@ -23,10 +23,10 @@ from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import locking
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.db import nsxv_models
-from vmware_nsx.plugins import nsx_v
-from vmware_nsx.plugins.nsx_v_drivers import (
+from vmware_nsx.plugins.nsx_v.drivers import (
     abstract_router_driver as router_driver)
-from vmware_nsx.plugins import nsx_v_md_proxy
+from vmware_nsx.plugins.nsx_v import md_proxy as nsx_v_md_proxy
+from vmware_nsx.plugins.nsx_v import plugin as nsx_v
 from vmware_nsx.vshield.common import (
     constants as vcns_const)
 from vmware_nsx.vshield import edge_utils

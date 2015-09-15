@@ -65,8 +65,8 @@ from vmware_nsx.extensions import (
     advancedserviceproviders as as_providers)
 from vmware_nsx.extensions import (
     vnicindex as ext_vnic_idx)
-from vmware_nsx.plugins import managers
-from vmware_nsx.plugins import nsx_v_md_proxy
+from vmware_nsx.plugins.nsx_v import managers
+from vmware_nsx.plugins.nsx_v import md_proxy as nsx_v_md_proxy
 from vmware_nsx.vshield.common import (
     constants as vcns_const)
 from vmware_nsx.vshield.common import (
