@@ -691,7 +691,7 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
         except nsx_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to create backend firewall rules "
-                                  " for security-group %(name)s (%(id)s), "
+                                  "for security-group %(name)s (%(id)s), "
                                   "rolling back changes."), secgroup_db)
                 # default security group deletion requires admin context
                 if default_sg:
