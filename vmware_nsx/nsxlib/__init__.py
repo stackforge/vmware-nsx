@@ -12,12 +12,13 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+import abc
+import six
 
 from neutron.common import exceptions as exception
 from neutron import version
 from oslo_log import log
 from oslo_serialization import jsonutils
-import six
 
 from vmware_nsx.api_client import exception as api_exc
 from vmware_nsx.common import exceptions as nsx_exc
@@ -31,6 +32,40 @@ URI_PREFIX = "/ws.v1"
 NEUTRON_VERSION = version.version_info.release_string()
 
 LOG = log.getLogger(__name__)
+
+
+@six.add_metaclass(abc.ABCMeta)
+class AbstractRESTResource(object):
+
+    def __init__(self, rest_client, *args, **kwargs):
+        self._client = rest_client.new_client_for(self.uri_segment)
+
+    @abc.abstractproperty
+    def uri_segment(self):
+        pass
+
+    def list(self):
+        return self._client.list()
+
+    def get(self, uuid):
+        return self._client.get(uuid)
+
+    def delete(self, uuid):
+        return self._client.delete(uuid)
+
+    @abc.abstractmethod
+    def create(self, *args, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def update(self, uuid, *args, **kwargs):
+        pass
+
+    def find_by_display_name(self, display_name):
+        for resource in self.list()['results']:
+            if resource['display_name'] == display_name:
+                return resource
+        return None
 
 
 def _build_uri_path(resource,
