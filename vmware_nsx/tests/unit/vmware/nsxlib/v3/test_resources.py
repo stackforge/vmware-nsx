@@ -153,35 +153,50 @@ class LogicalPortTestCase(test_client.BaseClientTestCase):
         """
         Test creating a port returns the correct response and 200 status
         """
-        fake_port = test_constants_v3.FAKE_PORT
-        mock_post.return_value = mocks.MockRequestsResponse(
-            200, jsonutils.dumps(fake_port))
+        fake_port = test_constants_v3.FAKE_PORT.copy()
 
-        profile_client = resources.SwitchingProfile(client.NSX3Client())
         profile_dicts = []
         for profile_id in fake_port['switching_profile_ids']:
             profile_dicts.append({'resource_type': profile_id['key'],
                                   'id': profile_id['value']})
 
+        pkt_classifiers = []
+        binding_repr = []
+        for i in range(0, 3):
+            ip = "9.10.11.%s" % i
+            mac = "00:0c:29:35:4a:%sc" % i
+            pkt_classifiers.append(resources.PacketAddressClassifier(
+                ip, mac, None))
+            binding_repr.append({
+                'ip_address': ip,
+                'mac_address': mac
+            })
+
+        fake_port['address_bindings'] = binding_repr
+
+        mock_post.return_value = mocks.MockRequestsResponse(
+            200, jsonutils.dumps(fake_port))
+
+        switch_profile = resources.SwitchingProfile
         result = resources.LogicalPort(client.NSX3Client()).create(
             fake_port['logical_switch_id'],
             fake_port['attachment']['id'],
-            switch_profile_ids=profile_client.build_switch_profile_ids(
-                *profile_dicts))
+            address_bindings=pkt_classifiers,
+            switch_profile_ids=switch_profile.build_switch_profile_ids(
+                client.NSX3Client(), *profile_dicts))
 
         resp_body = {
             'logical_switch_id': fake_port['logical_switch_id'],
+            'switching_profile_ids': fake_port['switching_profile_ids'],
             'attachment': {
                 'attachment_type': 'VIF',
                 'id': fake_port['attachment']['id']
             },
             'admin_state': 'UP',
-            'switching_profile_ids': fake_port['switching_profile_ids']
+            'address_bindings': fake_port['address_bindings']
         }
 
         self.assertEqual(fake_port, result)
-        self.assertEqual(fake_port['switching_profile_ids'],
-                         resp_body['switching_profile_ids'])
         test_client.assert_session_call(
             mock_post,
             'https://1.2.3.4/api/v1/logical-ports',
