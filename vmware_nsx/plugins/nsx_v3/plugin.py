@@ -346,6 +346,13 @@ class NsxV3Plugin(db_base_plugin_v2.NeutronDbPluginV2,
             address_bindings.append(
                 {'mac_address': port['mac_address'],
                  'ip_address': fixed_ip['ip_address']})
+            # NOTE(arosen): Add address_pair allowing src_ip 0.0.0.0 to
+            # leave as this is required for outgoing dhcp request
+            address_bindings.append(
+                {'mac_address': port['mac_address'],
+                 'ip_address': '0.0.0.0'})
+
+
         return address_bindings
 
     def get_network(self, context, id, fields=None):
