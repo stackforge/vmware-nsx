@@ -1,0 +1,22 @@
+running=OS_STDOUT_CAPTURE=${OS_STDOUT_CAPTURE:-1} \
+OS_STDERR_CAPTURE=${OS_STDERR_CAPTURE:-1} \
+OS_TEST_TIMEOUT=${OS_TEST_TIMEOUT:-500} \
+OS_TEST_LOCK_PATH=${OS_TEST_LOCK_PATH:-${TMPDIR:-'/tmp'}} \
+${PYTHON:-python} -m subunit.run discover -t ${OS_TOP_LEVEL:-./} ${OS_TEST_PATH:-./tempest/test_discover} --list 
+tempest.api.network.test_security_groups.SecGroupIPv6Test.test_create_list_update_show_delete_security_group[id-bfd128e5-3c92-44b6-9d66-7fe29d22c802,smoke]
+tempest.api.network.test_security_groups.SecGroupIPv6Test.test_create_security_group_rule_with_additional_args[id-87dfbcf9-1849-43ea-b1e4-efa3eeae9f71]
+tempest.api.network.test_security_groups.SecGroupIPv6Test.test_create_security_group_rule_with_icmp_type_code[id-c9463db8-b44d-4f52-b6c0-8dbda99f26ce]
+tempest.api.network.test_security_groups.SecGroupIPv6Test.test_create_security_group_rule_with_protocol_integer_value[id-0a307599-6655-4220-bebc-fd70c64f2290]
+tempest.api.network.test_security_groups.SecGroupIPv6Test.test_create_security_group_rule_with_remote_group_id[id-c2ed2deb-7a0c-44d8-8b4c-a5825b5c310b]
+tempest.api.network.test_security_groups.SecGroupIPv6Test.test_create_security_group_rule_with_remote_ip_prefix[id-16459776-5da2-4634-bce4-4b55ee3ec188]
+tempest.api.network.test_security_groups.SecGroupIPv6Test.test_create_show_delete_security_group_rule[id-cfb99e0e-7410-4a3d-8a0c-959a63ee77e9,smoke]
+tempest.api.network.test_security_groups.SecGroupIPv6Test.test_list_security_groups[id-e30abd17-fef9-4739-8617-dc26da88e686,smoke]
+tempest.api.network.test_security_groups.SecGroupTest.test_create_list_update_show_delete_security_group[id-bfd128e5-3c92-44b6-9d66-7fe29d22c802,smoke]
+tempest.api.network.test_security_groups.SecGroupTest.test_create_security_group_rule_with_additional_args[id-87dfbcf9-1849-43ea-b1e4-efa3eeae9f71]
+tempest.api.network.test_security_groups.SecGroupTest.test_create_security_group_rule_with_icmp_type_code[id-c9463db8-b44d-4f52-b6c0-8dbda99f26ce]
+tempest.api.network.test_security_groups.SecGroupTest.test_create_security_group_rule_with_protocol_integer_value[id-0a307599-6655-4220-bebc-fd70c64f2290]
+tempest.api.network.test_security_groups.SecGroupTest.test_create_security_group_rule_with_remote_group_id[id-c2ed2deb-7a0c-44d8-8b4c-a5825b5c310b]
+tempest.api.network.test_security_groups.SecGroupTest.test_create_security_group_rule_with_remote_ip_prefix[id-16459776-5da2-4634-bce4-4b55ee3ec188]
+tempest.api.network.test_security_groups.SecGroupTest.test_create_show_delete_security_group_rule[id-cfb99e0e-7410-4a3d-8a0c-959a63ee77e9,smoke]
+tempest.api.network.test_security_groups.SecGroupTest.test_list_security_groups[id-e30abd17-fef9-4739-8617-dc26da88e686,smoke]
+
