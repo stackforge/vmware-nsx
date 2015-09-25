@@ -300,8 +300,9 @@ class NsxV3Mock(object):
                             attachment_type=nsx_constants.ATTACHMENT_VIF,
                             admin_state=True, name=None, address_bindings=None,
                             parent_name=None, parent_tag=None):
+        dummy_client = None
         fake_port = create_logical_port(
-            lswitch_id, vif_uuid, tags,
+            dummy_client, lswitch_id, vif_uuid, tags,
             attachment_type=attachment_type,
             admin_state=admin_state, name=name,
             address_bindings=address_bindings,
@@ -404,7 +405,7 @@ class NsxV3Mock(object):
             for nat_id, nat_body in nat_rules.items():
                 remove_flag = True
                 for k, v in kwargs.items():
-                    if nat_body[k] != v:
+                    if k not in nat_body or nat_body[k] != v:
                         remove_flag = False
                         break
                 if remove_flag:
