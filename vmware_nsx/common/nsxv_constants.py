@@ -35,3 +35,24 @@ INTERNAL_TENANT_ID = 'a1b2c3d4-e5f6-eeff-ffee-6f5e4d3c2b1a'
 
 # L2 gateway edge name prefix
 L2_GATEWAY_EDGE = 'L2 bridging'
+
+# LoadBalancer Certificate constants
+CERT_NAME = 'metadata.nsx.local'
+CERT_ORGANIZATION_NAME = 'Organization'
+CERT_ORGANIZATION_UNIT = 'Unit'
+CERT_LOCALITY = 'Locality'
+CERT_STATE = 'State'
+CERT_COUNTRY = 'US'
+CERT_MESSAGE_ALGORITHM = 'RSA'
+CERT_ALGORITHM_KEY_SIZE = 2048
+CERT_NUMBER_OF_DAYS = 3650
+CSR_REQUEST = ("<csr><subject>"
+               "<attribute><key>CN</key><value>metadata.nsx.local</value>"
+               "</attribute>"
+               "<attribute><key>O</key><value>Organization</value></attribute>"
+               "<attribute><key>OU</key><value>Unit</value></attribute>"
+               "<attribute><key>L</key><value>Locality</value></attribute>"
+               "<attribute><key>ST</key><value>State</value></attribute>"
+               "<attribute><key>C</key><value>US</value></attribute>"
+               "</subject><algorithm>RSA</algorithm><keySize>2048</keySize>"
+               "</csr>")

@@ -21,6 +21,7 @@ import retrying
 import six
 import xml.etree.ElementTree as et
 
+from vmware_nsx.common import nsxv_constants
 from vmware_nsx.plugins.nsx_v.vshield.common import exceptions
 from vmware_nsx.plugins.nsx_v.vshield.common import VcnsApiClient
 
@@ -42,6 +43,7 @@ SECURITYGROUP_PREFIX = '/api/2.0/services/securitygroup'
 VDN_PREFIX = '/api/2.0/vdn'
 SERVICES_PREFIX = '/api/2.0/services'
 SPOOFGUARD_PREFIX = '/api/4.0/services/spoofguard'
+TRUSTSTORE_PREFIX = '%s/%s' % (SERVICES_PREFIX, 'truststore')
 
 #LbaaS Constants
 LOADBALANCER_SERVICE = "loadbalancer/config"
@@ -64,6 +66,9 @@ SYSCTL_SERVICE = 'systemcontrol/config'
 
 # L2 gateway constants
 BRIDGE = "bridging/config"
+
+# Self Signed Certificate constants
+CSR = "csr"
 
 
 def retry_upon_exception(exc, delay=500, max_delay=2000,
@@ -402,6 +407,16 @@ class Vcns(object):
     def get_ipsec_config(self, edge_id):
         uri = self._build_uri_path(edge_id, IPSEC_VPN_SERVICE)
         return self.do_request(HTTP_GET, uri)
+
+    def create_csr(self, edge_id, request=nsxv_constants.CSR_REQUEST):
+        uri = '%s/%s/%s' % (TRUSTSTORE_PREFIX, CSR, edge_id)
+        return self.do_request(HTTP_POST, uri, request, format='xml',
+                               decode=False)
+
+    def create_csr_cert(self, csr_id):
+        uri = '%s/%s/%s?noOfDays=%s' % (TRUSTSTORE_PREFIX, CSR, csr_id,
+                                        nsxv_constants.CERT_NUMBER_OF_DAYS)
+        return self.do_request(HTTP_PUT, uri)
 
     def create_virtual_wire(self, vdn_scope_id, request):
         """Creates a VXLAN virtual wire
