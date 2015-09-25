@@ -38,6 +38,8 @@ from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 METADATA_VSE_NAME = 'MdSrv'
 METADATA_IP_ADDR = '169.254.169.254'
 METADATA_TCP_PORT = 80
+METADATA_HTTPS_PORT = 443
+METADATA_HTTPS_VIP_PORT = 8775
 INTERNAL_SUBNET = '169.254.128.0/17'
 MAX_INIT_THREADS = 3
 
@@ -497,10 +499,23 @@ class NsxVMetadataProxyHandler:
 
         lb_obj = nsxv_lb.NsxvLoadbalancer()
 
+        protocol = 'HTTP'
+        ssl_pass_through = False
+        mon_type = protocol if proxy_lb else 'icmp'
+        # Set protocol to HTTPS with default port of 443 if metadata_insecure
+        # is set to False.
+        if not cfg.CONF.nsxv.metadata_insecure:
+            mon_type = protocol = 'HTTPS'
+            if proxy_lb:
+                v_port = METADATA_HTTPS_VIP_PORT
+            else:
+                v_port = METADATA_HTTPS_PORT
+            ssl_pass_through = proxy_lb
         # Create virtual server
         virt_srvr = nsxv_lb.NsxvLBVirtualServer(
             name=METADATA_VSE_NAME,
             ip_address=vip,
+            protocol=protocol,
             port=v_port)
 
         # For router Edge, we add X-LB-Proxy-ID header
@@ -523,9 +538,12 @@ class NsxVMetadataProxyHandler:
 
         # Create app profile
         #  XFF is inserted in router LBs
+        # enable_poolsite_ssl?
         app_profile = nsxv_lb.NsxvLBAppProfile(
             name='MDSrvProxy',
-            template='HTTP',
+            template=protocol,
+            server_ssl_enabled=not cfg.CONF.nsxv.metadata_insecure,
+            ssl_pass_through=ssl_pass_through,
             insert_xff=not proxy_lb)
 
         virt_srvr.set_app_profile(app_profile)
@@ -534,11 +552,12 @@ class NsxVMetadataProxyHandler:
         pool = nsxv_lb.NsxvLBPool(
             name='MDSrvPool')
 
-        monitor = nsxv_lb.NsxvLBMonitor(
-            name='MDSrvMon', mon_type='http' if proxy_lb else 'icmp')
+        monitor = nsxv_lb.NsxvLBMonitor(name='MDSrvMon',
+                                        mon_type=mon_type.lower())
         pool.add_monitor(monitor)
 
         i = 0
+        # member metadata edge only?
         for member_ip in member_ips:
             i += 1
             member = nsxv_lb.NsxvLBPoolMember(

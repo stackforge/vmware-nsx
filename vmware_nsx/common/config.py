@@ -299,6 +299,11 @@ nsxv_opts = [
     cfg.StrOpt('metadata_shared_secret',
                secret=True,
                help=_('Shared secret to sign metadata requests')),
+    cfg.BoolOpt('metadata_insecure',
+                default=True,
+                help=_('If True, the end to end connection for metadata '
+                       'service is not verified. If False, the default CA '
+                       'truststore is used for verification.')),
     cfg.BoolOpt('spoofguard_enabled',
                 default=True,
                 help=_("If True then plugin will use NSXV spoofguard "
