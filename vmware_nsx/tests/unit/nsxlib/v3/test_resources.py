@@ -163,10 +163,6 @@ class LogicalPortTestCase(test_client.BaseClientTestCase):
             profile_dicts.append({'resource_type': profile_id['key'],
                                   'id': profile_id['value']})
 
-        # Reload resources because resources.LogicalPort.create is overridden
-        # by tests/unit/nsx_v3/test_plugin.py. This is only needed when running
-        # tox on multiple tests.
-        reload(resources)
         result = resources.LogicalPort(client.NSX3Client()).create(
             fake_port['logical_switch_id'],
             fake_port['attachment']['id'],
@@ -205,10 +201,6 @@ class LogicalPortTestCase(test_client.BaseClientTestCase):
         mock_post.return_value = mocks.MockRequestsResponse(
             200, jsonutils.dumps(fake_port))
 
-        # Reload resources because resources.LogicalPort.create is overridden
-        # by tests/unit/nsx_v3/test_plugin.py. This is only needed when running
-        # tox on multiple tests.
-        reload(resources)
         result = resources.LogicalPort(client.NSX3Client()).create(
             test_constants_v3.FAKE_PORT['logical_switch_id'],
             test_constants_v3.FAKE_PORT['attachment']['id'],
@@ -226,10 +218,6 @@ class LogicalPortTestCase(test_client.BaseClientTestCase):
             200, None)
 
         uuid = test_constants_v3.FAKE_PORT['id']
-        # Reload resources because resources.LogicalPort.delete is overridden
-        # by tests/unit/nsx_v3/test_plugin.py. This is only needed when running
-        # tox on multiple tests.
-        reload(resources)
         result = resources.LogicalPort(client.NSX3Client()).delete(uuid)
         self.assertIsNone(result.content)
         test_client.assert_session_call(
