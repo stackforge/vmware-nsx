@@ -302,7 +302,7 @@ class NsxV3Mock(object):
                             admin_state=True, name=None, address_bindings=None,
                             parent_name=None, parent_tag=None):
         fake_port = create_logical_port(
-            lswitch_id, vif_uuid, tags,
+            client=None, lswitch_id=lswitch_id, vif_uuid=vif_uuid, tags=tags,
             attachment_type=attachment_type,
             admin_state=admin_state, name=name,
             address_bindings=address_bindings,
@@ -405,7 +405,10 @@ class NsxV3Mock(object):
             for nat_id, nat_body in nat_rules.items():
                 remove_flag = True
                 for k, v in kwargs.items():
-                    if nat_body[k] != v:
+                    # The two dictionaries may have keys arranged in
+                    # different orders, so check key existence first.
+                    # If key not found, then it is not a matching rule.
+                    if k not in nat_body or nat_body[k] != v:
                         remove_flag = False
                         break
                 if remove_flag:

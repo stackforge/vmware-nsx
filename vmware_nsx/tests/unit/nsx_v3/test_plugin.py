@@ -54,25 +54,55 @@ class NsxPluginV3TestCase(test_plugin.NeutronDbPluginV2TestCase):
         # Mock entire nsxlib methods as this is the best approach to perform
         # white-box testing on the plugin class
         # TODO(salv-orlando): supply unit tests for nsxlib.v3
-        nsxlib.create_logical_switch = nsx_v3_mocks.create_logical_switch
-        nsxlib.delete_logical_switch = mock.Mock()
-        nsxlib.get_logical_switch = nsx_v3_mocks.get_logical_switch
-        nsxlib.update_logical_switch = nsx_v3_mocks.update_logical_switch
-        nsx_resources.LogicalPort.create = nsx_v3_mocks.create_logical_port
-        nsx_resources.LogicalPort.delete = mock.Mock()
-        nsx_resources.LogicalPort.get = nsx_v3_mocks.get_logical_port
-        nsx_resources.LogicalPort.update = nsx_v3_mocks.update_logical_port
-        firewall.add_rules_in_section = nsx_v3_mocks.add_rules_in_section
-        firewall.nsxclient.create_resource = nsx_v3_mocks.create_resource
-        firewall.nsxclient.update_resource = nsx_v3_mocks.update_resource
-        firewall.nsxclient.get_resource = nsx_v3_mocks.get_resource
-        firewall.nsxclient.delete_resource = nsx_v3_mocks.delete_resource
+        mock.patch.object(
+            nsxlib, "create_logical_switch",
+            side_effect=nsx_v3_mocks.create_logical_switch).start()
+        mock.patch.object(
+            nsxlib, "delete_logical_switch",
+            side_effect=mock.Mock()).start()
+        mock.patch.object(
+            nsxlib, "get_logical_switch",
+            side_effect=nsx_v3_mocks.get_logical_switch).start()
+        mock.patch.object(
+            nsxlib, "update_logical_switch",
+            side_effect=nsx_v3_mocks.update_logical_switch).start()
+        mock.patch.object(
+            nsx_resources.LogicalPort, "create", autospec=True,
+            side_effect=nsx_v3_mocks.create_logical_port).start()
+        mock.patch.object(
+            nsx_resources.LogicalPort, "delete", autospec=True,
+            side_effect=mock.Mock()).start()
+        mock.patch.object(
+            nsx_resources.LogicalPort, "get", autospec=True,
+            side_effect=nsx_v3_mocks.get_logical_port).start()
+        mock.patch.object(
+            nsx_resources.LogicalPort, "update", autospec=True,
+            side_effect=nsx_v3_mocks.update_logical_port).start()
+        mock.patch.object(
+            firewall, "add_rules_in_section",
+            side_effect=nsx_v3_mocks.add_rules_in_section).start()
+        mock.patch.object(
+            firewall.nsxclient, "create_resource",
+            side_effect=nsx_v3_mocks.create_resource).start()
+        mock.patch.object(
+            firewall.nsxclient, "update_resource",
+            side_effect=nsx_v3_mocks.update_resource).start()
+        mock.patch.object(
+            firewall.nsxclient, "get_resource",
+            side_effect=nsx_v3_mocks.get_resource).start()
+        mock.patch.object(
+            firewall.nsxclient, "delete_resource",
+            side_effect=nsx_v3_mocks.delete_resource).start()
 
         super(NsxPluginV3TestCase, self).setUp(plugin=plugin,
                                                ext_mgr=ext_mgr)
         self.v3_mock = nsx_v3_mocks.NsxV3Mock()
-        nsxlib.get_edge_cluster = self.v3_mock.get_edge_cluster
-        nsxlib.get_logical_router = self.v3_mock.get_logical_router
+        mock.patch.object(
+            nsxlib, "get_edge_cluster",
+            side_effect=self.v3_mock.get_edge_cluster).start()
+        mock.patch.object(
+            nsxlib, "get_logical_router",
+            side_effect=self.v3_mock.get_logical_router).start()
 
     def _create_network(self, fmt, name, admin_state_up,
                         arg_list=None, providernet_args=None, **kwargs):
@@ -110,23 +140,12 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxPluginV3TestCase):
     pass
 
 
-class SecurityGroupsTestCase(ext_sg.SecurityGroupDBTestCase):
+class SecurityGroupsTestCase(ext_sg.SecurityGroupDBTestCase,
+                             NsxPluginV3TestCase):
 
     def setUp(self,
               plugin=PLUGIN_NAME,
               ext_mgr=None):
-        nsxlib.create_logical_switch = nsx_v3_mocks.create_logical_switch
-        nsxlib.delete_logical_switch = mock.Mock()
-        nsx_resources.LogicalPort.create = nsx_v3_mocks.create_logical_port
-        nsx_resources.LogicalPort.delete = mock.Mock()
-        nsx_resources.LogicalPort.get = nsx_v3_mocks.get_logical_port
-        nsx_resources.LogicalPort.update = nsx_v3_mocks.update_logical_port
-        firewall.add_rules_in_section = nsx_v3_mocks.add_rules_in_section
-        firewall.nsxclient.create_resource = nsx_v3_mocks.create_resource
-        firewall.nsxclient.update_resource = nsx_v3_mocks.update_resource
-        firewall.nsxclient.get_resource = nsx_v3_mocks.get_resource
-        firewall.nsxclient.delete_resource = nsx_v3_mocks.delete_resource
-
         super(SecurityGroupsTestCase, self).setUp(plugin=PLUGIN_NAME,
                                                   ext_mgr=ext_mgr)
 
@@ -194,30 +213,56 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxPluginV3TestCase):
             self.plugin_instance.__module__,
             self.plugin_instance.__class__.__name__)
         self._plugin_class = self.plugin_instance.__class__
-        nsx_resources.LogicalPort.create = self.v3_mock.create_logical_port
-        nsxlib.create_logical_router = self.v3_mock.create_logical_router
-        nsxlib.update_logical_router = self.v3_mock.update_logical_router
-        nsxlib.delete_logical_router = self.v3_mock.delete_logical_router
-        nsxlib.get_logical_router_port_by_ls_id = (
-            self.v3_mock.get_logical_router_port_by_ls_id)
-        nsxlib.create_logical_router_port = (
-            self.v3_mock.create_logical_router_port)
-        nsxlib.update_logical_router_port = (
-            self.v3_mock.update_logical_router_port)
-        nsxlib.delete_logical_router_port = (
-            self.v3_mock.delete_logical_router_port)
-        nsxlib.add_nat_rule = self.v3_mock.add_nat_rule
-        nsxlib.delete_nat_rule = self.v3_mock.delete_nat_rule
-        nsxlib.delete_nat_rule_by_values = (
-            self.v3_mock.delete_nat_rule_by_values)
-        nsxlib.get_logical_router_ports_by_router_id = (
-            self.v3_mock.get_logical_router_ports_by_router_id)
-        nsxlib.update_logical_router_advertisement = (
-            self.v3_mock.update_logical_router_advertisement)
-        nsxlib.add_static_route = self.v3_mock.add_static_route
-        nsxlib.delete_static_route = self.v3_mock.delete_static_route
-        nsxlib.delete_static_route_by_values = (
-            self.v3_mock.delete_static_route_by_values)
+        mock.patch.object(
+            nsx_resources.LogicalPort, "create",
+            side_effect=self.v3_mock.create_logical_port).start()
+        mock.patch.object(
+            nsxlib, "create_logical_router",
+            side_effect=self.v3_mock.create_logical_router).start()
+        mock.patch.object(
+            nsxlib, "update_logical_router",
+            side_effect=self.v3_mock.update_logical_router).start()
+        mock.patch.object(
+            nsxlib, "delete_logical_router",
+            side_effect=self.v3_mock.delete_logical_router).start()
+        mock.patch.object(
+            nsxlib, "get_logical_router_port_by_ls_id",
+            side_effect=self.v3_mock.get_logical_router_port_by_ls_id).start()
+        mock.patch.object(
+            nsxlib, "create_logical_router_port",
+            side_effect=self.v3_mock.create_logical_router_port).start()
+        mock.patch.object(
+            nsxlib, "update_logical_router_port",
+            side_effect=self.v3_mock.update_logical_router_port).start()
+        mock.patch.object(
+            nsxlib, "delete_logical_router_port",
+            side_effect=self.v3_mock.delete_logical_router_port).start()
+        mock.patch.object(
+            nsxlib, "add_nat_rule",
+            side_effect=self.v3_mock.add_nat_rule).start()
+        mock.patch.object(
+            nsxlib, "delete_nat_rule",
+            side_effect=self.v3_mock.delete_nat_rule).start()
+        mock.patch.object(
+            nsxlib, "delete_nat_rule_by_values",
+            side_effect=self.v3_mock.delete_nat_rule_by_values).start()
+        mock.patch.object(
+            nsxlib, "get_logical_router_ports_by_router_id",
+            side_effect=self.v3_mock.get_logical_router_ports_by_router_id
+        ).start()
+        mock.patch.object(
+            nsxlib, "update_logical_router_advertisement",
+            side_effect=self.v3_mock.update_logical_router_advertisement
+        ).start()
+        mock.patch.object(
+            nsxlib, "add_static_route",
+            side_effect=self.v3_mock.add_static_route).start()
+        mock.patch.object(
+            nsxlib, "delete_static_route",
+            side_effect=self.v3_mock.delete_static_route).start()
+        mock.patch.object(
+            nsxlib, "delete_static_route_by_values",
+            side_effect=self.v3_mock.delete_static_route_by_values).start()
 
     def _create_l3_ext_network(
         self, physical_network=nsx_v3_mocks.DEFAULT_TIER0_ROUTER_UUID):
@@ -234,7 +279,6 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxPluginV3TestCase):
 
 class TestL3NatTestCase(L3NatTest,
                         test_l3_plugin.L3NatDBIntTestCase,
-                        NsxPluginV3TestCase,
                         test_ext_route.ExtraRouteDBTestCaseBase):
 
     def _test_create_l3_ext_network(
