@@ -50,8 +50,12 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         self.driver = nsx_v3_driver.NsxV3Driver()
         self.context = context.get_admin_context()
         # Mock NSX lib backend calls
-        nsxlib.create_bridge_endpoint = nsx_v3_mocks.create_bridge_endpoint
-        nsxlib.delete_bridge_endpoint = mock.Mock()
+        mock.patch.object(
+            nsxlib, "create_bridge_endpoint",
+            side_effect=nsx_v3_mocks.create_bridge_endpoint).start()
+        mock.patch.object(
+            nsxlib, "delete_bridge_endpoint",
+            side_effect=mock.Mock()).start()
 
     def test_nsxl2gw_driver_init(self):
         with mock.patch.object(nsx_v3_driver.NsxV3Driver,
