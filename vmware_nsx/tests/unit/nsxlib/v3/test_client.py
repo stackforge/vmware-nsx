@@ -28,14 +28,6 @@ LOG = log.getLogger(__name__)
 
 CLIENT_PKG = 'vmware_nsx.nsxlib.v3.client'
 
-# Cache the pointers to those functions because they are overridden
-# by tests/unit/nsx_v3/test_plugin.py. This is only needed when running
-# tox on multiple tests.
-client_get_resource = client.get_resource
-client_create_resource = client.create_resource
-client_update_resource = client.update_resource
-client_delete_resource = client.delete_resource
-
 
 def assert_session_call(mock_call, url, verify, data, headers, cert):
     mock_call.assert_called_once_with(
@@ -332,7 +324,7 @@ class NsxV3APIClientBridgeTestCase(BaseClientTestCase):
     @mock.patch("%s.%s" % (CLIENT_PKG, 'requests.Session.get'))
     @mock.patch(CLIENT_PKG + '.RESTClient._validate_result')
     def test_get_resource(self, mock_validate, mock_get):
-        client_get_resource('ports')
+        client.get_resource('ports')
 
         assert_session_call(
             mock_get,
@@ -344,7 +336,7 @@ class NsxV3APIClientBridgeTestCase(BaseClientTestCase):
     @mock.patch("%s.%s" % (CLIENT_PKG, 'requests.Session.post'))
     @mock.patch(CLIENT_PKG + '.RESTClient._validate_result')
     def test_create_resource(self, mock_validate, mock_post):
-        client_create_resource('ports', {'resource-name': 'port1'})
+        client.create_resource('ports', {'resource-name': 'port1'})
 
         assert_session_call(
             mock_post,
@@ -356,7 +348,7 @@ class NsxV3APIClientBridgeTestCase(BaseClientTestCase):
     @mock.patch("%s.%s" % (CLIENT_PKG, 'requests.Session.put'))
     @mock.patch(CLIENT_PKG + '.RESTClient._validate_result')
     def test_update_resource(self, mock_validate, mock_put):
-        client_update_resource('ports/1', {'name': 'a-new-name'})
+        client.update_resource('ports/1', {'name': 'a-new-name'})
 
         assert_session_call(
             mock_put,
@@ -368,7 +360,7 @@ class NsxV3APIClientBridgeTestCase(BaseClientTestCase):
     @mock.patch("%s.%s" % (CLIENT_PKG, 'requests.Session.delete'))
     @mock.patch(CLIENT_PKG + '.RESTClient._validate_result')
     def test_delete_resource(self, mock_validate, mock_delete):
-        client_delete_resource('ports/11')
+        client.delete_resource('ports/11')
 
         assert_session_call(
             mock_delete,

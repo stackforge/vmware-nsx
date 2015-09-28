@@ -26,12 +26,6 @@ from vmware_nsx.tests.unit.nsxlib.v3 import nsxlib_testcase
 
 LOG = log.getLogger(__name__)
 
-# Cache the pointers to those functions because they are overridden
-# by tests/unit/nsx_v3/test_plugin.py. This is only needed when running
-# tox on multiple tests.
-nsxlib_create_logical_switch = nsxlib.create_logical_switch
-nsxlib_delete_logical_switch = nsxlib.delete_logical_switch
-
 
 class NsxLibSwitchTestCase(nsxlib_testcase.NsxLibTestCase):
 
@@ -45,7 +39,7 @@ class NsxLibSwitchTestCase(nsxlib_testcase.NsxLibTestCase):
         fake_switch = nsx_v3_mocks.make_fake_switch(tz_uuid=tz_uuid)
         mock_create_resource.return_value = fake_switch
 
-        result = nsxlib_create_logical_switch(nsx_v3_mocks.FAKE_NAME, tz_uuid,
+        result = nsxlib.create_logical_switch(nsx_v3_mocks.FAKE_NAME, tz_uuid,
                                               [])
         self.assertEqual(fake_switch, result)
 
@@ -60,7 +54,7 @@ class NsxLibSwitchTestCase(nsxlib_testcase.NsxLibTestCase):
         fake_switch['admin_state'] = nsx_constants.ADMIN_STATE_DOWN
         mock_create_resource.return_value = fake_switch
 
-        result = nsxlib_create_logical_switch(nsx_v3_mocks.FAKE_NAME, tz_uuid,
+        result = nsxlib.create_logical_switch(nsx_v3_mocks.FAKE_NAME, tz_uuid,
                                               [], admin_state=False)
         self.assertEqual(fake_switch, result)
 
@@ -75,7 +69,7 @@ class NsxLibSwitchTestCase(nsxlib_testcase.NsxLibTestCase):
         fake_switch['vlan_id'] = '123'
         mock_create_resource.return_value = fake_switch
 
-        result = nsxlib_create_logical_switch(nsx_v3_mocks.FAKE_NAME, tz_uuid,
+        result = nsxlib.create_logical_switch(nsx_v3_mocks.FAKE_NAME, tz_uuid,
                                               [])
         self.assertEqual(fake_switch, result)
 
@@ -88,5 +82,5 @@ class NsxLibSwitchTestCase(nsxlib_testcase.NsxLibTestCase):
         mock_delete_resource.return_value = None
 
         fake_switch = nsx_v3_mocks.make_fake_switch()
-        result = nsxlib_delete_logical_switch(fake_switch['id'])
+        result = nsxlib.delete_logical_switch(fake_switch['id'])
         self.assertIsNone(result)
