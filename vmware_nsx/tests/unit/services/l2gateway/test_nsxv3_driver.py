@@ -47,13 +47,15 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
 
         self.core_plugin = importutils.import_object(NSX_V3_PLUGIN_CLASS)
 
-        self.core_plugin._nsx_client = self.client
-        self.core_plugin._port_client._client._session = self.mock_api
-
         self.maxDiff = None
         self.driver = nsx_v3_driver.NsxV3Driver()
         self.l2gw_plugin = l2gw_plugin.NsxL2GatewayPlugin()
         self.context = context.get_admin_context()
+
+    def _get_nw_data(self):
+        net_data = super(TestNsxV3L2GatewayDriver, self)._get_nw_data()
+        net_data['network']['port_security_enabled'] = True
+        return net_data
 
     def test_nsxl2gw_driver_init(self):
         with mock.patch.object(nsx_v3_driver.NsxV3Driver,
