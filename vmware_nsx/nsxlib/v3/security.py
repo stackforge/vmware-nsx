@@ -29,6 +29,9 @@ DEFAULT_SECTION = 'OS default section for security-groups'
 
 
 def _get_l4_protocol_name(proto_num):
+    if proto_num is None:
+        return
+    proto_num = int(proto_num)
     if proto_num == 6:
         return firewall.TCP
     elif proto_num == 17:
