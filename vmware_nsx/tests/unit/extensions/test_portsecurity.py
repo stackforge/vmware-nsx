@@ -22,7 +22,7 @@ from vmware_nsx.tests.unit.nsx_mh.apiclient import fake
 from vmware_nsx.tests.unit import test_utils
 
 
-class PortSecurityTestCase(psec.PortSecurityDBTestCase):
+class PortSecurityTestCaseNSXv2(psec.PortSecurityDBTestCase):
 
     def setUp(self):
         test_utils.override_nsx_ini_test()
@@ -36,11 +36,20 @@ class PortSecurityTestCase(psec.PortSecurityDBTestCase):
         patch_sync.start()
 
         instance.return_value.request.side_effect = self.fc.fake_request
-        super(PortSecurityTestCase, self).setUp(vmware.PLUGIN_NAME)
+        super(PortSecurityTestCaseNSXv2, self).setUp(vmware.PLUGIN_NAME)
         self.addCleanup(self.fc.reset_all)
         self.addCleanup(self.mock_nsx.stop)
         self.addCleanup(patch_sync.stop)
 
 
-class TestPortSecurity(PortSecurityTestCase, psec.TestPortSecurity):
+class TestPortSecurityNSXv2(PortSecurityTestCaseNSXv2, psec.TestPortSecurity):
         pass
+
+
+class PortSecurityTestCaseNSXv3(psec.PortSecurityDBTestCase):
+    pass
+
+
+class TestPortSecurityNSXv3(PortSecurityTestCaseNSXv3,
+                            psec.TestPortSecurity):
+    pass

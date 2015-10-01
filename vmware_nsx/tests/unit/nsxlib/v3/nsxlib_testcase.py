@@ -148,8 +148,17 @@ class NsxClientTestCase(NsxLibTestCase):
                 return client_fn(*args, **kwargs)
             return _client
 
+        def _mock_client_init(*args, **kwargs):
+            return with_client
+
         fn_map = {}
         for fn in BRIDGE_FNS:
             fn_map[fn] = _call_client(fn)
-        fn_map['NSX3Client'] = nsx_client.NSX3Client
+
+        fn_map['NSX3Client'] = _mock_client_init
+        fn_map['JSONRESTClient'] = _mock_client_init
+        fn_map['RESTClient'] = _mock_client_init
+
+        with_client.new_client_for = _mock_client_init
+
         return cls.patch_client_module(in_module, fn_map)
