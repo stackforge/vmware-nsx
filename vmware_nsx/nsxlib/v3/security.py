@@ -43,7 +43,7 @@ def _get_direction(sg_rule):
 
 def _decide_service(sg_rule):
     ip_proto = securitygroups_db.IP_PROTOCOL_MAP.get(sg_rule['protocol'],
-                                                     sg_rule['protocol'])
+                                                     int(sg_rule['protocol']))
     l4_protocol = _get_l4_protocol_name(ip_proto)
     direction = _get_direction(sg_rule)
 
