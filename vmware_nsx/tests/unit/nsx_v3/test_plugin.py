@@ -195,23 +195,24 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxPluginV3TestCase):
             self.plugin_instance.__class__.__name__)
         self._plugin_class = self.plugin_instance.__class__
         nsx_resources.LogicalPort.create = self.v3_mock.create_logical_port
-        nsxlib.create_logical_router = self.v3_mock.create_logical_router
-        nsxlib.update_logical_router = self.v3_mock.update_logical_router
-        nsxlib.delete_logical_router = self.v3_mock.delete_logical_router
-        nsxlib.get_logical_router_port_by_ls_id = (
+        nsx_resources.LogicalRouter.create = self.v3_mock.create_logical_router
+        nsx_resources.LogicalRouter.update = self.v3_mock.update_logical_router
+        nsx_resources.LogicalRouter.delete = self.v3_mock.delete_logical_router
+        nsx_resources.LogicalRouterPort.get_logical_router_port_by_ls_id = (
             self.v3_mock.get_logical_router_port_by_ls_id)
-        nsxlib.create_logical_router_port = (
+        nsx_resources.LogicalRouterPort.create = (
             self.v3_mock.create_logical_router_port)
-        nsxlib.update_logical_router_port = (
+        nsx_resources.LogicalRouterPort.update = (
             self.v3_mock.update_logical_router_port)
-        nsxlib.delete_logical_router_port = (
+        nsx_resources.LogicalRouterPort.delete = (
             self.v3_mock.delete_logical_router_port)
+        nsx_resources.LogicalRouterPort.\
+            get_logical_router_ports_by_router_id = (
+                self.v3_mock.get_logical_router_ports_by_router_id)
         nsxlib.add_nat_rule = self.v3_mock.add_nat_rule
         nsxlib.delete_nat_rule = self.v3_mock.delete_nat_rule
         nsxlib.delete_nat_rule_by_values = (
             self.v3_mock.delete_nat_rule_by_values)
-        nsxlib.get_logical_router_ports_by_router_id = (
-            self.v3_mock.get_logical_router_ports_by_router_id)
         nsxlib.update_logical_router_advertisement = (
             self.v3_mock.update_logical_router_advertisement)
         nsxlib.add_static_route = self.v3_mock.add_static_route
