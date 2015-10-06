@@ -1414,9 +1414,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     r[ROUTER_SIZE] = appliance_size
 
     def create_router(self, context, router, allow_metadata=True):
-        self._validate_router_size(router)
         r = router['router']
         self._decide_router_type(context, r)
+        self._validate_router_size(router)
         # First extract the gateway info in case of updating
         # gateway before edge is deployed.
         # TODO(berlin): admin_state_up and routes update
