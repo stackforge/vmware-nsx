@@ -1181,6 +1181,14 @@ class TestSubnetsV2(NsxVPluginV2TestCase,
             self.assertEqual(ctx_manager.exception.code, 400)
 
 
+class TestSubnetPoolsV2(NsxVPluginV2TestCase, test_plugin.TestSubnetsV2):
+    def setUp(self,
+              plugin=PLUGIN_NAME,
+              ext_mgr=None,
+              service_plugins=None):
+        super(TestSubnetPoolsV2, self).setUp()
+        self.context = context.get_admin_context()
+
 class TestBasicGet(test_plugin.TestBasicGet, NsxVPluginV2TestCase):
     pass
 
