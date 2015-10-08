@@ -55,7 +55,8 @@ class NsxV3RESTClientTestCase(nsxlib_testcase.NsxClientTestCase):
         api = self.new_client(client.RESTClient, url_prefix='/cloud/api')
         with self.mocked_client(api) as mocked:
             mock_get = mocked.get('get')
-            mock_get.return_value = {}
+            mock_get.return_value = mocks.MockRequestsResponse(
+                200, content={})
             api.list()
 
             assert_session_call(
@@ -80,7 +81,8 @@ class NsxV3RESTClientTestCase(nsxlib_testcase.NsxClientTestCase):
         with self.mocked_client(api) as mocked:
             mock_get = mocked.get('get')
 
-            mock_get.return_value = {}
+            mock_get.return_value = mocks.MockRequestsResponse(
+                200, content={})
 
             api.list()
 
