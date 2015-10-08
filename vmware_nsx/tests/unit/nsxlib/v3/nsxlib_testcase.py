@@ -95,6 +95,54 @@ class NsxClientTestCase(NsxLibTestCase):
             return nsx_client.create_resource(
                 resource, data, client=self._client)
 
+    def new_client(
+            self, clazz, host_ip=NSX_MANAGER,
+            user_name=NSX_USER,
+            password=NSX_PASSWORD,
+            insecure=NSX_INSECURE,
+            url_prefix=None,
+            default_headers=None,
+            cert_file=NSX_CERT):
+
+        return clazz(host_ip=host_ip, user_name=user_name,
+                     password=password, insecure=insecure,
+                     url_prefix=url_prefix, default_headers=default_headers,
+                     cert_file=cert_file)
+
+    @contextlib.contextmanager
+    def mocked_client(self, client, mock_validate=True):
+        session = client._session
+        with mock.patch.object(session, 'get') as _get:
+            with mock.patch.object(session, 'post') as _post:
+                with mock.patch.object(session, 'delete') as _delete:
+                    with mock.patch.object(session, 'put') as _put:
+                        rep = {
+                            'get': _get,
+                            'put': _put,
+                            'delete': _delete,
+                            'post': _post
+                        }
+                        if mock_validate:
+                            with mock.patch.object(client, '_validate_result'):
+                                yield rep
+                        else:
+                            yield rep
+
+    @contextlib.contextmanager
+    def mocked_resource(self, resource, mock_validate=True):
+        with self.mocked_client(resource._client,
+                                mock_validate=mock_validate) as _client:
+            yield _client
+
+    @contextlib.contextmanager
+    def mocked_client_bridge(self, client, module, attr, mock_validate=True):
+        mocked_bridge = NsxClientTestCase.MockBridge(client)
+        mocked_bridge.JSONRESTClient = nsx_client.JSONRESTClient
+        with self.mocked_client(client, mock_validate=mock_validate) as mocked:
+            with mock.patch.object(module, attr, new=mocked_bridge):
+                yield mocked
+
+
     class MockNSXClusteredAPI(nsx_cluster.NSXClusteredAPI):
 
         def __init__(self, session_response=None):
