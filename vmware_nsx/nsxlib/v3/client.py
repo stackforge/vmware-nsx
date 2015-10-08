@@ -132,7 +132,7 @@ class RESTClient(object):
 
         do_request = getattr(self._session, method.lower())
 
-        LOG.debug("REST call: %s %s\nHeaders: %s\nBody: %s",
+        LOG.debug("REST request: %s %s\nHeaders: %s\nBody: %s",
                   method, request_url, request_headers, body)
 
         result = do_request(
@@ -141,6 +141,9 @@ class RESTClient(object):
             data=body,
             headers=request_headers,
             cert=self._cert_file)
+
+        LOG.debug("REST response: %s %s\nStatus: %s\nContent: %s",
+                  method, request_url, result.status_code, result.content)
 
         self._validate_result(
             result, RESTClient._VERB_RESP_CODES[method.lower()],
