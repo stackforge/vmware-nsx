@@ -409,8 +409,9 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 pair['ip_address'], pair['mac_address'], None))
 
         # TODO(boden): this default pair is not needed with nsxv3 for dhcp
-        address_bindings.append(nsx_resources.PacketAddressClassifier(
-            '0.0.0.0', port['mac_address'], None))
+        if not address_bindings:
+            address_bindings.append(nsx_resources.PacketAddressClassifier(
+                '0.0.0.0', port['mac_address'], None))
         return address_bindings
 
     def get_network(self, context, id, fields=None):
