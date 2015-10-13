@@ -84,7 +84,8 @@ def list_nsgroups():
 def update_nsgroup(nsgroup_id, display_name, description):
     nsgroup = read_nsgroup(nsgroup_id)
     nsgroup.update({'display_name': display_name,
-                    'description': description})
+                    'description': description,
+                    'members': []})
     return nsxclient.update_resource('ns-groups/%s' % nsgroup_id, nsgroup)
 
 
