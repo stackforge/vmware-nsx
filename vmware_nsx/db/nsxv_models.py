@@ -300,3 +300,13 @@ class NsxvLbaasMonitorBinding(model_base.BASEV2):
     hm_id = sa.Column(sa.String(36), primary_key=True)
     edge_id = sa.Column(sa.String(36), primary_key=True)
     edge_mon_id = sa.Column(sa.String(36), nullable=False)
+
+
+class NsxvLbaasCertificateBinding(model_base.BASEV2):
+    """Mapping between Edge Monitor and LBaaSv2"""
+
+    __tablename__ = 'nsxv_lbaas_certificate_bindings'
+
+    cert_id = sa.Column(sa.String(36), primary_key=True)
+    edge_id = sa.Column(sa.String(36), primary_key=True)
+    edge_cert_id = sa.Column(sa.String(36), nullable=False)
