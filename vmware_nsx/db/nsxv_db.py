@@ -659,3 +659,30 @@ def del_nsxv_lbaas_monitor_binding(session, loadbalancer_id, listener_id,
                       pool_id=pool_id,
                       hm_id=hm_id,
                       edge_id=edge_id).delete())
+
+
+def add_nsxv_lbaas_certificate_binding(session, cert_id, edge_id,
+                                       edge_cert_id):
+    with session.begin(subtransactions=True):
+        binding = nsxv_models.NsxvLbaasCertificateBinding(
+            cert_id=cert_id,
+            edge_id=edge_id,
+            edge_cert_id=edge_cert_id)
+        session.add(binding)
+    return binding
+
+
+def get_nsxv_lbaas_certificate_binding(session, cert_id, edge_id):
+    try:
+        return session.query(
+            nsxv_models.NsxvLbaasCertificateBinding).filter_by(
+            cert_id=cert_id,
+            edge_id=edge_id).one()
+    except exc.NoResultFound:
+        return
+
+
+def del_nsxv_lbaas_certificate_binding(session, cert_id, edge_id):
+    return (session.query(nsxv_models.NsxvLbaasCertificateBinding).
+            filter_by(cert_id=cert_id,
+                      edge_id=edge_id).delete())

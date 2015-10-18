@@ -28,7 +28,7 @@ from vmware_nsx.services.lbaas.nsx_v.v2 import base_mgr
 LOG = logging.getLogger(__name__)
 
 
-def listener_to_edge_app_profile(listener):
+def listener_to_edge_app_profile(listener, edge_cert_id):
     edge_app_profile = {
         'insertXForwardedFor': False,
         'name': listener.id,
@@ -37,10 +37,14 @@ def listener_to_edge_app_profile(listener):
         'template': listener.protocol,
     }
 
-    if listener.default_pool:
-        if listener.protocol == 'HTTPS':
+    if listener.protocol == 'HTTPS':
+        if edge_cert_id:
+            edge_app_profile['clientSsl'] = {
+                'serviceCertificate': [edge_cert_id]}
+        else:
             edge_app_profile['sslPassthrough'] = True
 
+    if listener.default_pool:
         persistence = None
         if listener.pool.sessionpersistence:
             persistence = {
@@ -79,11 +83,32 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
     def __init__(self, vcns_driver):
         super(EdgeListenerManager, self).__init__(vcns_driver)
 
+    def _upload_certificate(self, context, edge_id, cert_id, certificate):
+        cert_binding = nsxv_db.get_nsxv_lbaas_certificate_binding(
+            context.session, cert_id, edge_id)
+        if cert_binding:
+            return cert_binding['edge_cert_id']
+
+        request = {
+            'pemEncoding': certificate.get_certificate(),
+            'privateKey': certificate.get_private_key()}
+        passphrase = certificate.get_private_key_passphrase()
+        if passphrase:
+            request['passphrase'] = passphrase
+        cert_obj = self.vcns.upload_edge_certificate(edge_id, request)[1]
+        edge_cert_id = cert_obj.get('certificates', {})[0].get('objectId')
+        nsxv_db.add_nsxv_lbaas_certificate_binding(
+            context.session, cert_id, edge_id, edge_cert_id)
+        return edge_cert_id
+
     @log_helpers.log_method_call
-    def create(self, context, listener):
+    def create(self, context, listener, certificate=None):
         default_pool = None
 
         lb_id = listener.loadbalancer_id
+        lb_binding = nsxv_db.get_nsxv_lbaas_loadbalancer_binding(
+            context.session, lb_id)
+        edge_id = lb_binding['edge_id']
 
         if listener.default_pool and listener.default_pool.id:
             pool_binding = nsxv_db.get_nsxv_lbaas_pool_binding(
@@ -91,12 +116,15 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
             if pool_binding:
                 default_pool = pool_binding['edge_pool_id']
 
-        app_profile = listener_to_edge_app_profile(listener)
+        edge_cert_id = None
+        if certificate:
+            edge_cert_id = self._upload_certificate(
+                context, edge_id, listener.default_tls_container_id,
+                certificate)
+
+        app_profile = listener_to_edge_app_profile(listener, edge_cert_id)
         app_profile_id = None
 
-        lb_binding = nsxv_db.get_nsxv_lbaas_loadbalancer_binding(
-            context.session, lb_id)
-        edge_id = lb_binding['edge_id']
         try:
             with locking.LockManager.get_lock(edge_id, external=True):
                 h = (self.vcns.create_app_profile(edge_id, app_profile))[0]
@@ -130,7 +158,7 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
                 self.vcns.delete_app_profile(edge_id, app_profile_id)
 
     @log_helpers.log_method_call
-    def update(self, context, old_listener, new_listener):
+    def update(self, context, old_listener, new_listener, certificate=None):
 
         default_pool = None
         if new_listener.default_pool and new_listener.default_pool.id:
@@ -146,8 +174,21 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
             context.session, lb_id)
         edge_id = lb_binding['edge_id']
 
+        edge_cert_id = None
+        if certificate:
+            if (old_listener.default_tls_container_id !=
+                    new_listener.default_tls_container_id):
+                edge_cert_id = self._upload_certificate(
+                    context, edge_id, new_listener.default_tls_container_id,
+                    certificate)
+            else:
+                cert_binding = nsxv_db.get_nsxv_lbaas_certificate_binding(
+                    context.session, new_listener.default_tls_container_id,
+                    edge_id)
+                edge_cert_id = cert_binding['edge_cert_id']
+
         app_profile_id = listener_binding['app_profile_id']
-        app_profile = listener_to_edge_app_profile(new_listener)
+        app_profile = listener_to_edge_app_profile(new_listener, edge_cert_id)
 
         try:
             with locking.LockManager.get_lock(edge_id, external=True):
@@ -163,7 +204,7 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
                 self.vcns.update_vip(edge_id, listener_binding['vse_id'], vse)
 
             self.lbv2_driver.listener.successful_completion(context,
-                                                          new_listener)
+                                                            new_listener)
         except nsxv_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
                 self.lbv2_driver.listener.failed_completion(context,
