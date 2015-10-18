@@ -118,7 +118,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         self._start_rpc_notifiers()
         self._nsx_client = nsx_client.NSX3Client()
         self._port_client = nsx_resources.LogicalPort(self._nsx_client)
-        self.nsgroup_container, self.default_section = (
+        self.no_secgroup, self.default_section = (
             security.init_nsgroup_container_and_default_section_rules())
         self._router_client = nsx_resources.LogicalRouter(self._nsx_client)
         self._router_port_client = nsx_resources.LogicalRouterPort(
@@ -644,12 +644,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             if sgids is not None:
                 self._process_port_create_security_group(
                     context, port_data, sgids)
-                #FIXME(abhiraut): Security group should not be processed for
-                #                 a port belonging to an external network.
-                #                 Below call will fail since there is no lport
-                #                 in the backend.
-                security.update_lport_with_security_groups(
-                    context, lport['id'], [], sgids)
+                security.update_lport_with_security_groups_on_create(
+                    context, self.no_secgroup, lport['id'], sgids)
         return port_data
 
     def _pre_delete_port_check(self, context, port_id, l2gw_port_check):
@@ -792,7 +788,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 switch_profile_ids=switch_profile_ids)
 
             security.update_lport_with_security_groups(
-                context, nsx_lport_id,
+                context, self.no_secgroup, nsx_lport_id,
                 original_port.get(ext_sg.SECURITYGROUPS, []),
                 updated_port.get(ext_sg.SECURITYGROUPS, []))
         except nsx_exc.ManagerError:
@@ -1336,7 +1332,6 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         tags = utils.build_v3_tags_payload(secgroup)
         name = security.get_nsgroup_name(secgroup)
         ns_group = None
-        firewall_section = None
 
         try:
             # NOTE(roeyc): We first create the nsgroup so that once the sg is
@@ -1383,8 +1378,6 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 context, firewall_section['id'], ns_group['id'], sg_rules)
             security.save_sg_rule_mappings(context.session, rules['rules'])
 
-            firewall.add_nsgroup_member(self.nsgroup_container,
-                                        firewall.NSGROUP, ns_group['id'])
         except nsx_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to create backend firewall rules "
