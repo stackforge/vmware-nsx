@@ -19,6 +19,7 @@ from admin.shell import Operations
 from admin.plugins.common import constants
 from admin.plugins.common import formatters
 from admin.plugins.common.utils import output_header
+from admin.plugins.common.utils import query_yes_no
 
 from oslo_config import cfg
 
@@ -95,6 +96,27 @@ def nsx_list_orphaned_edges(resource, event, trigger, **kwargs):
     LOG.info(orphaned_edges)
 
 
+def nsx_delete_orphaned_edges(resource, event, trigger, **kwargs):
+    """ Delete orphaned edges from NSXv backend """
+    orphaned_edges = get_orphaned_edges()
+    LOG.info("Before delete; Orphaned Edges: %s", orphaned_edges)
+
+    if kwargs['force'] is False:
+        if len(orphaned_edges):
+            user_confirm = query_yes_no("Do you want to delete the following "
+                                        "orphaned edges", default="no")
+            if user_confirm is False:
+                LOG.info("NSXv Edge deletion aborted by user")
+                return
+
+    nsxv = init_nsxv_client()
+    for edge in orphaned_edges:
+        LOG.info("Deleting edge: %s", edge)
+        nsxv.delete_edge(edge)
+
+    LOG.info("After delete; Orphaned Edges: %s", get_orphaned_edges())
+
+
 registry.subscribe(nsx_list_edges,
                    constants.EDGES,
                    Operations.LIST.value)
@@ -104,3 +126,6 @@ registry.subscribe(neutron_list_router_edge_bindings,
 registry.subscribe(nsx_list_orphaned_edges,
                    constants.EDGES,
                    Operations.LIST.value)
+registry.subscribe(nsx_delete_orphaned_edges,
+                   constants.EDGES,
+                   Operations.CLEAN.value)
