@@ -44,6 +44,7 @@ from oslo_config import cfg
 from oslo_log import _options
 
 from admin.plugins.common import constants
+
 from admin import version
 
 # Suppress the Insecure request warning
@@ -65,7 +66,7 @@ class Operations(Enum):
 
 class Resources(Enum):
     SECURITY_GROUPS = 'security-groups'
-
+    EDGES = "edges"
 
 def get_plugin():
     plugin = cfg.CONF.core_plugin
