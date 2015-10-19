@@ -40,11 +40,12 @@ from oslo_config import cfg
 from oslo_log import _options
 
 from admin.plugins.nsxv3.resources import securitygroups as sg
+from admin.plugins.nsxv.resources import edges
 from admin import version
+
 
 # Suppress the Insecure request warning
 requests.packages.urllib3.disable_warnings()
-
 
 class Operations(Enum):
     LIST = 'list'
@@ -59,8 +60,7 @@ class Operations(Enum):
 
 class Resources(Enum):
     SECURITY_GROUPS = 'security-groups'
-    EDGES = 'edges'
-
+    EDGES = "edges"
 
 cli_opts = [cfg.StrOpt('neutron_conf',
                        default='/etc/neutron/neutron.conf',
@@ -126,6 +126,15 @@ def init_registry():
     registry.subscribe(sg.nsx_clean_security_groups,
                        Resources.SECURITY_GROUPS.value,
                        Operations.CLEAN.value)
+    registry.subscribe(edges.nsx_list_edges,
+                       Resources.EDGES.value,
+                       Operations.LIST.value)
+    registry.subscribe(edges.neutron_list_router_edge_bindings,
+                       Resources.EDGES.value,
+                       Operations.LIST.value)
+    registry.subscribe(edges.nsx_list_orphaned_edges,
+                       Resources.EDGES.value,
+                       Operations.LIST.value)
 
 
 def main(argv=sys.argv[1:]):
