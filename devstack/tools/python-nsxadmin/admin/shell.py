@@ -135,6 +135,9 @@ def init_registry():
     registry.subscribe(edges.nsx_list_orphaned_edges,
                        Resources.EDGES.value,
                        Operations.LIST.value)
+    registry.subscribe(edges.nsx_delete_orphaned_edges,
+                       Resources.EDGES.value,
+                       Operations.CLEAN.value)
 
 
 def main(argv=sys.argv[1:]):
