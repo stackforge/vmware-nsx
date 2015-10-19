@@ -16,3 +16,4 @@
 FIREWALL_SECTIONS = 'Firewall Sections'
 FIREWALL_NSX_GROUPS = 'Firewall NS Groups'
 SECURITY_GROUPS = 'Security Groups'
+NSXV_EDGES = "NSXv Edges"
