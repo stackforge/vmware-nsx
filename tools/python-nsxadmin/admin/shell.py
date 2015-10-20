@@ -67,6 +67,7 @@ class Operations(Enum):
 class Resources(Enum):
     SECURITY_GROUPS = 'security-groups'
     EDGES = "edges"
+    SPOOFGUARD_POLICIES = "spoofguard-policies"
 
 def get_plugin():
     plugin = cfg.CONF.core_plugin
