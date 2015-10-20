@@ -20,41 +20,24 @@ from admin.shell import Resources
 from admin.plugins.common import constants
 from admin.plugins.common import formatters
 from admin.plugins.common.utils import output_header
+import admin.plugins.nsxv.resources.utils as utils
 
-from oslo_config import cfg
-
-from neutron import context as neutron_context
 from neutron.callbacks import registry
-from neutron.db import common_db_mixin as common_db
+
 from vmware_nsx.db import nsxv_db
-from vmware_nsx.plugins.nsx_v.vshield import vcns
 
 LOG = logging.getLogger(__name__)
 
-class EdgeApi(common_db.CommonDbMixin):
-    def __init__(self):
-        super(EdgeApi, self)
-        self.context = neutron_context.get_admin_context()
-
-
-def init_nsxv_client():
-    return vcns.Vcns(
-        address=cfg.CONF.nsxv.manager_uri,
-        user=cfg.CONF.nsxv.user,
-        password=cfg.CONF.nsxv.password,
-        ca_file=cfg.CONF.nsxv.ca_file,
-        insecure=cfg.CONF.nsxv.insecure)
-
 
 def get_nsxv_edges():
-    nsxv = init_nsxv_client()
+    nsxv = utils.get_nsxv_client()
     edges = nsxv.get_edges()[1]
     return edges['edgePage'].get('data', [])
 
 
 @output_header
 def nsx_list_edges(resource, event, trigger, **kwargs):
-    """ List edges from NSXv backend """
+    """List edges from NSXv backend"""
     edges = get_nsxv_edges()
     LOG.info(formatters.output_formatter(
                  constants.NSXV_EDGES, edges,
@@ -62,13 +45,13 @@ def nsx_list_edges(resource, event, trigger, **kwargs):
 
 
 def get_router_edge_bindings():
-    edgeapi = EdgeApi()
+    edgeapi = utils.NeutronDbClient()
     return nsxv_db.get_nsxv_router_bindings(edgeapi.context)
 
 
 @output_header
 def neutron_list_router_edge_bindings(resource, event, trigger, **kwargs):
-    """ List NSXv edges from Neutron DB """
+    """List NSXv edges from Neutron DB"""
     edges = get_router_edge_bindings()
     LOG.info(formatters.output_formatter(
                  constants.NSXV_EDGES, edges, ['edge_id', 'router_id']))
@@ -88,20 +71,22 @@ def get_orphaned_edges():
 
 @output_header
 def nsx_list_orphaned_edges(resource, event, trigger, **kwargs):
-    """
-    List orphaned Edges on NSXv. Orphaned edges are NSXv edges that exist
-    on NSXv backend but don't have a corresponding binding in Neutron DB
+    """List orphaned Edges on NSXv.
+
+    Orphaned edges are NSXv edges that exist on NSXv backend but
+    don't have a corresponding binding in Neutron DB
     """
     orphaned_edges = get_orphaned_edges()
     LOG.info(orphaned_edges)
 
 
+@output_header
 def nsx_delete_orphaned_edges(resource, event, trigger, **kwargs):
-    """ Delete orphaned edges from NSXv backend """
+    """Delete orphaned edges from NSXv backend"""
     orphaned_edges = get_orphaned_edges()
     LOG.info("Before delete; Orphaned Edges: %s" % orphaned_edges)
 
-    nsxv = init_nsxv_client()
+    nsxv = utils.get_nsxv_client()
     for edge in orphaned_edges:
         LOG.info("Deleting edge: %s" % edge)
         nsxv.delete_edge(edge)
