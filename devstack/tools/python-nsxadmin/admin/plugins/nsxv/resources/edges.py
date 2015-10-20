@@ -18,33 +18,17 @@ import logging
 from admin.plugins.common import constants
 from admin.plugins.common import formatters
 from admin.plugins.common.utils import output_header
+import admin.plugins.nsxv.resources.utils as utils
 
 from oslo_config import cfg
 
-from neutron import context as neutron_context
-from neutron.db import common_db_mixin as common_db
 from vmware_nsx.db import nsxv_db
-from vmware_nsx.plugins.nsx_v.vshield import vcns
 
 LOG = logging.getLogger(__name__)
 
-class EdgeApi(common_db.CommonDbMixin):
-    def __init__(self):
-        super(EdgeApi, self)
-        self.context = neutron_context.get_admin_context()
-
-
-def init_nsxv_client():
-    return vcns.Vcns(
-        address=cfg.CONF.nsxv.manager_uri,
-        user=cfg.CONF.nsxv.user,
-        password=cfg.CONF.nsxv.password,
-        ca_file=cfg.CONF.nsxv.ca_file,
-        insecure=cfg.CONF.nsxv.insecure)
-
 
 def get_nsxv_edges():
-    nsxv = init_nsxv_client()
+    nsxv = utils.get_nsxv_client()
     edges = nsxv.get_edges()[1]
     return edges['edgePage'].get('data', [])
    
@@ -59,7 +43,7 @@ def nsx_list_edges(resource, event, trigger, **kwargs):
 
 
 def get_router_edge_bindings():
-    edgeapi = EdgeApi()
+    edgeapi = utils.NeutronDbClient()
     return nsxv_db.get_nsxv_router_bindings(edgeapi.context)
 
 
@@ -99,7 +83,7 @@ def nsx_delete_orphaned_edges(resource, event, trigger, **kwargs):
     orphaned_edges = get_orphaned_edges()
     LOG.info("Before delete; Orphaned Edges: %s" % orphaned_edges)
 
-    nsxv = init_nsxv_client()
+    nsxv = utils.get_nsxv_client()
     for edge in orphaned_edges:
         LOG.info("Deleting edge: %s" % edge)
         nsxv.delete_edge(edge)

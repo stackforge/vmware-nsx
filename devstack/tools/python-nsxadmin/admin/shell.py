@@ -41,6 +41,7 @@ from oslo_log import _options
 
 from admin.plugins.nsxv3.resources import securitygroups as sg
 from admin.plugins.nsxv.resources import edges
+from admin.plugins.nsxv.resources import spoofguard_policy as sgp
 from admin import version
 
 
@@ -61,6 +62,7 @@ class Operations(Enum):
 class Resources(Enum):
     SECURITY_GROUPS = 'security-groups'
     EDGES = "edges"
+    SPOOFGUARD_POLICIES = "spoofguard-policies"
 
 cli_opts = [cfg.StrOpt('neutron_conf',
                        default='/etc/neutron/neutron.conf',
@@ -79,6 +81,7 @@ cli_opts = [cfg.StrOpt('neutron_conf',
             cfg.StrOpt('fmt',
                        short='f',
                        default='psql',
+                       choices=['psql', 'json'],
                        help='Supported output formats: json, psql')
             ]
 
@@ -138,6 +141,12 @@ def init_registry():
     registry.subscribe(edges.nsx_delete_orphaned_edges,
                        Resources.EDGES.value,
                        Operations.CLEAN.value)
+    registry.subscribe(sgp.nsx_list_spoofguard_policies,
+                       Resources.SPOOFGUARD_POLICIES.value,
+                       Operations.LIST.value)
+    registry.subscribe(sgp.neutron_list_spoofguard_policy_mappings,
+                       Resources.SPOOFGUARD_POLICIES.value,
+                       Operations.LIST.value)
 
 
 def main(argv=sys.argv[1:]):
