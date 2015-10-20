@@ -12,11 +12,24 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-NSXV3_PLUGIN = 'vmware_nsx.plugin.NsxV3Plugin'
-NSXV_PLUGIN = 'vmware_nsx.plugin.NsxVPlugin'
 
-FIREWALL_SECTIONS = 'Firewall Sections'
-FIREWALL_NSX_GROUPS = 'Firewall NS Groups'
-SECURITY_GROUPS = 'Security Groups'
-NSXV_EDGES = "NSXv Edges"
-SPOOFGUARD_POLICIES = "NSXv SpoofGuard Policies"
+from oslo_config import cfg
+
+from neutron import context as neutron_context
+from neutron.db import common_db_mixin as common_db
+from vmware_nsx.plugins.nsx_v.vshield import vcns
+
+
+def get_nsxv_client():
+    return vcns.Vcns(
+        address=cfg.CONF.nsxv.manager_uri,
+        user=cfg.CONF.nsxv.user,
+        password=cfg.CONF.nsxv.password,
+        ca_file=cfg.CONF.nsxv.ca_file,
+        insecure=cfg.CONF.nsxv.insecure)
+
+
+class NeutronDbClient(common_db.CommonDbMixin):
+    def __init__(self):
+        super(NeutronDbClient, self)
+        self.context = neutron_context.get_admin_context()
