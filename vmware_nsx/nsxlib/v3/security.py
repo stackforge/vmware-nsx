@@ -238,9 +238,15 @@ def _init_default_section(name, description, nsgroup_id):
                                              l4_protocol=firewall.UDP,
                                              source_ports=[67],
                                              destination_ports=[68])
-        dhcp_client_rule = firewall.get_firewall_rule_dict(
-            'DHCP-Client', direction=firewall.IN, service=dhcp_client)
-        firewall.add_rules_in_section([dhcp_client_rule, block_rule],
+        dhcp_client_rule_in = firewall.get_firewall_rule_dict(
+            'DHCP-Client-IN', direction=firewall.IN, service=dhcp_client)
+        (dhcp_client['service']['source_ports'],
+         dhcp_client['service']['destination_ports']) = ([68], [67])
+        dhcp_client_rule_out = firewall.get_firewall_rule_dict(
+            'DHCP-Client-OUT', direction=firewall.OUT, service=dhcp_client)
+        firewall.add_rules_in_section([dhcp_client_rule_out,
+                                       dhcp_client_rule_in,
+                                       block_rule],
                                       section['id'])
 
     return section['id']
