@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import collections
 import logging
 import sys
 
@@ -32,6 +33,16 @@ def output_header(func):
         return func(*args, **kwargs)
     func_desc.__name__ = func.func_name
     return func_desc
+
+
+def parse_multi_keyval_opt(opt_list):
+    """Converts a MutliStrOpt to a key-value dict"""
+
+    result = collections.defaultdict()
+    for opt_value in opt_list:
+        key, value = opt_value.split('=')
+        result[key] = value
+    return result
 
 
 def query_yes_no(question, default="yes"):
