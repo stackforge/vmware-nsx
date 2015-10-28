@@ -24,3 +24,4 @@ SECURITY_GROUPS = 'security-groups'
 # NSXV Resource Constants
 EDGES = 'edges'
 SPOOFGUARD_POLICY = 'spoofguard-policy'
+DHCP = 'dhcp'
