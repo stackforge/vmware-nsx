@@ -395,6 +395,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 created_net = super(NsxV3Plugin, self).create_network(context,
                                                                       network)
 
+                if psec.PORTSECURITY not in net_data:
+                    net_data[psec.PORTSECURITY] = True
                 self._process_network_port_security_create(
                     context, net_data, created_net)
                 self._process_l3_create(context, created_net, net_data)
@@ -634,12 +636,12 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         # TODO(salv-orlando): Undo logical switch creation on failure
         with context.session.begin(subtransactions=True):
             neutron_db = super(NsxV3Plugin, self).create_port(context, port)
-            port["port"].update(neutron_db)
+            port_data.update(neutron_db)
 
             (is_psec_on, has_ip) = self._create_port_preprocess_security(
                 context, port, port_data, neutron_db)
             self._process_portbindings_create_and_update(
-                context, port['port'], port_data)
+                context, port_data, neutron_db)
             self._process_port_create_extra_dhcp_opts(
                 context, port_data, dhcp_opts)
 
