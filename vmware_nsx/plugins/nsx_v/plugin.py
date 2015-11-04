@@ -1851,7 +1851,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 # Delete the created nsx security-group and the fw section
                 self._delete_section(section_uri)
                 self._delete_nsx_security_group(nsx_sg_id)
-                LOG.exception(_('Failed to create security group'))
+                LOG.exception(_LE('Failed to create security group'))
         return new_security_group
 
     def update_security_group(self, context, id, security_group):
@@ -1893,7 +1893,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
 
         except Exception:
             with excutils.save_and_reraise_exception():
-                LOG.exception(_("Failed to delete security group"))
+                LOG.exception(_LE("Failed to delete security group"))
 
     def _create_nsx_rule(self, context, rule, nsx_sg_id=None):
         src = None
@@ -2006,7 +2006,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 for nsx_rule_id in [p['nsx_id'] for p in rule_pairs]:
                     self.nsx_v.vcns.remove_rule_from_section(
                         section_uri, nsx_rule_id)
-                LOG.exception(_("Failed to create security group rule"))
+                LOG.exception(_LE("Failed to create security group rule"))
         return new_rule_list
 
     def delete_security_group_rule(self, context, id):
@@ -2027,7 +2027,7 @@ class NsxVPluginV2(agents_db.AgentDbMixin,
                 context.session.delete(rule_db)
         except Exception:
             with excutils.save_and_reraise_exception():
-                LOG.exception(_("Failed to delete security group rule"))
+                LOG.exception(_LE("Failed to delete security group rule"))
 
     def _check_for_duplicate_rules(self, context, rules):
         # Remove rule id's before comparing between rules
