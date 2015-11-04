@@ -379,6 +379,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
     def create_network(self, context, network):
         net_data = network['network']
         external = net_data.get(ext_net_extn.EXTERNAL)
+        print "NETWORK CREATE: %s" % net_data
         if attributes.is_attr_set(external) and external:
             is_provider_net, net_type, physical_net, vlan_id = (
                 self._validate_external_net_create(net_data))
@@ -395,6 +396,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 created_net = super(NsxV3Plugin, self).create_network(context,
                                                                       network)
 
+                if psec.PORTSECURITY not in net_data:
+                    net_data[psec.PORTSECURITY] = True
                 self._process_network_port_security_create(
                     context, net_data, created_net)
                 self._process_l3_create(context, created_net, net_data)
@@ -630,16 +633,17 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
     def create_port(self, context, port, l2gw_port_check=False):
         port_data = port['port']
         dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS, [])
+        print "PORT CREATE: %s" % port_data
 
         # TODO(salv-orlando): Undo logical switch creation on failure
         with context.session.begin(subtransactions=True):
             neutron_db = super(NsxV3Plugin, self).create_port(context, port)
-            port["port"].update(neutron_db)
+            port_data.update(neutron_db)
 
             (is_psec_on, has_ip) = self._create_port_preprocess_security(
                 context, port, port_data, neutron_db)
             self._process_portbindings_create_and_update(
-                context, port['port'], port_data)
+                context, port_data, port_data)
             self._process_port_create_extra_dhcp_opts(
                 context, port_data, dhcp_opts)
 
