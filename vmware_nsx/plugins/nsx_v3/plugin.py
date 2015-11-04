@@ -109,6 +109,10 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         super(NsxV3Plugin, self).__init__()
         LOG.info(_("Starting NsxV3Plugin"))
 
+        self._api_cluster = nsx_client.NSXClusteredAPI()
+        self._nsx_client = nsx_client.NSX3Client(self._api_cluster)
+        nsx_client._set_default_api_cluster(self._api_cluster)
+
         self.base_binding_dict = {
             pbin.VIF_TYPE: pbin.VIF_TYPE_OVS,
             pbin.VIF_DETAILS: {
@@ -118,7 +122,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         self.tier0_groups_dict = {}
         self._setup_dhcp()
         self._start_rpc_notifiers()
-        self._nsx_client = nsx_client.NSX3Client()
+
         self._port_client = nsx_resources.LogicalPort(self._nsx_client)
         self.nsgroup_container, self.default_section = (
             security.init_nsgroup_container_and_default_section_rules())
