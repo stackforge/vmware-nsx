@@ -169,10 +169,13 @@ class LogicalPort(AbstractRESTResource):
 
     def _build_body_attrs(
             self, display_name=None,
-            admin_state=True, tags=[],
-            address_bindings=[],
-            switch_profile_ids=[]):
+            admin_state=True, tags=None,
+            address_bindings=None,
+            switch_profile_ids=None):
 
+        tags = tags or []
+        address_bindings = address_bindings or []
+        switch_profile_ids = switch_profile_ids or []
         body = {}
         if tags:
             body['tags'] = tags
@@ -208,12 +211,13 @@ class LogicalPort(AbstractRESTResource):
 
         return body
 
-    def create(self, lswitch_id, vif_uuid, tags=[],
+    def create(self, lswitch_id, vif_uuid, tags=None,
                attachment_type=nsx_constants.ATTACHMENT_VIF,
                admin_state=True, name=None, address_bindings=None,
                parent_name=None, parent_tag=None,
                switch_profile_ids=None):
 
+        tags = tags or []
         # NOTE(arosen): if a parent_name is specified we need to use the
         # CIF's attachment.
         key_values = None
@@ -363,8 +367,9 @@ class LogicalRouterPort(AbstractRESTResource):
         else:
             err_msg = (_("Logical router link port not found on logical "
                          "switch %s") % logical_switch_id)
-            raise nsx_exc.ResourceNotFound(manager=client._get_manager_ip(),
-                                           operation=err_msg)
+            raise nsx_exc.ResourceNotFound(
+                manager=client._get_nsx_managers_from_conf(),
+                operation=err_msg)
 
     def update_by_lswitch_id(self, logical_router_id, ls_id, **payload):
         port = self.get_by_lswitch_id(ls_id)
@@ -385,5 +390,5 @@ class LogicalRouterPort(AbstractRESTResource):
             if port['resource_type'] == nsx_constants.LROUTERPORT_LINKONTIER1:
                 return port
         raise nsx_exc.ResourceNotFound(
-            manager=client._get_manager_ip(),
+            manager=client._get_nsx_managers_from_conf(),
             operation="get router link port")
