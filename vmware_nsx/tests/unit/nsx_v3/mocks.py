@@ -161,6 +161,7 @@ class MockRequestSessionApi(object):
         content['id'] = resource_id
 
         self._store["%s%s" % (url, resource_id)] = content.copy()
+
         return content
 
     def post(self, url, **kwargs):
@@ -191,6 +192,9 @@ class MockRequestSessionApi(object):
                     response_content[resource_name].append(created_resource)
         else:
             response_content = self._create(url, body, **kwargs)
+
+        if isinstance(response_content, MockRequestsResponse):
+            return response_content
 
         return self._build_response(
             url, content=response_content,
