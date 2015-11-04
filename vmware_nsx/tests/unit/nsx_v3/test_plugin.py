@@ -133,7 +133,7 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin):
                                  data['port']['fixed_ips'])
 
 
-class TestSecurityGroups(ext_sg.TestSecurityGroups, NsxV3PluginTestCaseMixin):
+class TestSecurityGroups(NsxV3PluginTestCaseMixin, ext_sg.TestSecurityGroups):
     pass
 
 
