@@ -176,8 +176,12 @@ nsx_v3_opts = [
                default='default',
                secret=True,
                help=_('Password for the NSX manager')),
-    cfg.StrOpt('nsx_manager',
-               help=_('IP address of the NSX manager')),
+    cfg.ListOpt('nsx_managers',
+                deprecated_name='nsx_manager',
+                help=_('IP address of one or more NSX managers separated '
+                       'by commas. The IP address can optionally specify a '
+                       'scheme (e.g. http or https) and port using the format '
+                       '<scheme>://<ip_address>:<port>')),
     cfg.StrOpt('default_overlay_tz_uuid',
                deprecated_name='default_tz_uuid',
                help=_("This is the UUID of the default NSX overlay transport "
@@ -207,6 +211,20 @@ nsx_v3_opts = [
                        'verified. If false, then the default CA truststore is '
                        'used for verification. This option is ignored if '
                        '"ca_file" is set.')),
+    cfg.IntOpt('http_timeout',
+               default=75,
+               help=_('Time before aborting a HTTP request to a '
+                      'NSX manager.')),
+    cfg.IntOpt('concurrent_connections', default=10,
+               help=_("Maximum concurrent connections to each NSX "
+                      "manager.")),
+    cfg.IntOpt('conn_idle_timeout',
+               default=60,
+               help=_('Ensure connectivity to the NSX manager if a connection '
+                      'is not used within timeout seconds.')),
+    cfg.IntOpt('redirects',
+               default=2,
+               help=_('Number of times a HTTP redirect should be followed.')),
     cfg.StrOpt('default_tier0_router_uuid',
                help=_("Default tier0 router identifier")),
 ]
