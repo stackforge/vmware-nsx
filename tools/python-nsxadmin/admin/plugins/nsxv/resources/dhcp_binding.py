@@ -17,11 +17,12 @@ import logging
 
 from admin.plugins.common import constants
 from admin.plugins.common.utils import output_header
+from admin.plugins.common.utils import parse_multi_keyval_opt
 import admin.plugins.nsxv.resources.utils as utils
 from admin.shell import Operations
 
 from neutron.callbacks import registry
-from neutron.i18n import _LI
+from neutron.i18n import _LE, _LI
 
 from vmware_nsx.db import nsxv_db
 
@@ -80,6 +81,22 @@ def list_missing_dhcp_bindings(resource, event, trigger, **kwargs):
         LOG.info(neutron_dhcp_static_bindings - nsx_dhcp_static_bindings)
 
 
+@output_header
+def nsx_update_dhcp_edge_binding(resource, event, trigger, **kwargs):
+    """Resync DHCP bindings on NSXv Edge"""
+
+    if not kwargs['property']:
+        LOG.error(_LE("Need to specify edge-id parameter"))
+        return
+    else:
+        properties = parse_multi_keyval_opt(kwargs['property'])
+        LOG.info(_LI("Updating NSXv Edge: %s"), properties.get('edge-id'))
+        LOG.info(properties)
+
+
 registry.subscribe(list_missing_dhcp_bindings,
                    constants.DHCP_BINDING,
                    Operations.LIST.value)
+registry.subscribe(nsx_update_dhcp_edge_binding,
+                   constants.DHCP_BINDING,
+                   Operations.NSX_UPDATE.value)
