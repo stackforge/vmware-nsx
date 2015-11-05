@@ -958,10 +958,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                                          port['port'],
                                                          ret_port)
 
+            update_assigned_addresses = False
             if addr_pair.ADDRESS_PAIRS in attrs:
-                self.update_address_pairs_on_port(context, id, port,
-                                                  original_port,
-                                                  ret_port)
+                update_assigned_addresses = self.update_address_pairs_on_port(
+                    context, id, port, original_port, ret_port)
 
         if comp_owner_update:
             # Create dhcp bindings, the port is now owned by an instance
@@ -969,7 +969,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         # Processing compute port update
         vnic_idx = original_port.get(ext_vnic_idx.VNIC_INDEX)
-        if attr.is_attr_set(vnic_idx) and is_compute_port:
+        if (is_compute_port and
+            (attr.is_attr_set(vnic_idx) or update_assigned_addresses)):
             vnic_id = self._get_port_vnic_id(vnic_idx, device_id)
             curr_sgids = original_port.get(ext_sg.SECURITYGROUPS)
             if ret_port['device_id'] != device_id:
@@ -984,7 +985,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 self._delete_dhcp_static_binding(context, original_port)
             else:
                 # Update vnic with the newest approved IP addresses
-                if has_port_security and updates_fixed_ips:
+                if (has_port_security and
+                    (updates_fixed_ips or update_assigned_addresses)):
                     LOG.debug("Updating vnic port fixed-ips: port %s, vnic "
                               "%s, fixed-ips %s",
                               id, vnic_id, ret_port['fixed_ips'])
