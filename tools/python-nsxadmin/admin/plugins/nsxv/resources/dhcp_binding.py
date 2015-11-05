@@ -17,13 +17,18 @@ import logging
 
 from admin.plugins.common import constants
 from admin.plugins.common.utils import output_header
+from admin.plugins.common.utils import parse_multi_keyval_opt
 import admin.plugins.nsxv.resources.utils as utils
 from admin.shell import Operations
 
 from neutron.callbacks import registry
-from neutron.i18n import _LI
+from neutron.db import db_base_plugin_v2
+from neutron.i18n import _LE, _LI
 
 from vmware_nsx.db import nsxv_db
+from vmware_nsx.plugins.nsx_v.vshield import edge_utils
+from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
+
 
 LOG = logging.getLogger(__name__)
 nsxv = utils.get_nsxv_client()
@@ -80,6 +85,30 @@ def list_missing_dhcp_bindings(resource, event, trigger, **kwargs):
         LOG.info(neutron_dhcp_static_bindings - nsx_dhcp_static_bindings)
 
 
+@output_header
+def nsx_update_dhcp_edge_binding(resource, event, trigger, **kwargs):
+    """Resync DHCP bindings on NSXv Edge"""
+
+    if not kwargs.get('property'):
+        LOG.error(_LE("Need to specify edge-id parameter"))
+        return
+
+    properties = parse_multi_keyval_opt(kwargs['property'])
+    LOG.info(_LI("Updating NSXv Edge: %s"), properties.get('edge-id'))
+    LOG.info(properties)
+    # Need to create a NeutronDbPlugin object; so that we are able to
+    # do neutron list-ports.
+    plugin = db_base_plugin_v2.NeutronDbPluginV2()
+    nsxv_manager = vcns_driver.VcnsDriver(
+                       edge_utils.NsxVCallbacks(plugin))
+    edge_manager = edge_utils.EdgeManager(nsxv_manager, plugin)
+    edge_manager.update_dhcp_service_config(
+        neutron_db.context, properties.get('edge-id'))
+
+
 registry.subscribe(list_missing_dhcp_bindings,
                    constants.DHCP_BINDING,
                    Operations.LIST.value)
+registry.subscribe(nsx_update_dhcp_edge_binding,
+                   constants.DHCP_BINDING,
+                   Operations.NSX_UPDATE.value)
