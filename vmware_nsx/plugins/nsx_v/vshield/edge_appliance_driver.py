@@ -590,6 +590,8 @@ class EdgeApplianceDriver(object):
             edge['vnics']['vnics'].append(internal_vnic)
         if not dist and loadbalancer_enable:
             self._enable_loadbalancer(edge)
+        if not dist and cfg.CONF.nsxv.edge_ha:
+            self._enable_high_availability(edge)
         userdata = {
             'edge_id': edge_id,
             'request': edge,
