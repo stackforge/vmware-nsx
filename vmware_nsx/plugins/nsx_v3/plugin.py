@@ -656,9 +656,9 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             sgids = self._get_security_groups_on_port(context, port)
             self._process_port_create_security_group(
                 context, port_data, sgids)
-            if sgids:
-                security.update_lport_with_security_groups(
-                    context, self.no_secgroup, lport['id'], [], sgids)
+            if sgids is not None:
+                security.update_lport_with_security_groups_on_create(
+                    context, self.no_secgroup, lport['id'], sgids)
         return port_data
 
     def _pre_delete_port_check(self, context, port_id, l2gw_port_check):
