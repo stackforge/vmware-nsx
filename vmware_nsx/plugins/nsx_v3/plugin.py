@@ -661,7 +661,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             sgids = self._get_security_groups_on_port(context, port)
             self._process_port_create_security_group(
                 context, port_data, sgids)
-            if sgids:
+            if sgids is not None:
                 security.update_lport_with_security_groups(
                     context, lport['id'], [], sgids)
         return port_data
@@ -835,8 +835,6 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                         self.update_security_group_on_port(
                             context, id, {'port': original_port}, updated_port,
                             original_port)
-
-        #TODO(roeyc): add port to nsgroups
 
         return updated_port
 
