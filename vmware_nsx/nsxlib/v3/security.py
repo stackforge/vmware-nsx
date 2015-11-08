@@ -250,7 +250,7 @@ def _init_default_section(no_secgroup_id):
             applied_tos=[no_secgroup_id])
         block_rule = firewall.get_firewall_rule_dict(
             'Block All', action=firewall.DROP)
-        # TODO(roeyc): Add aditional rules to allow IPV6 NDP.
+        # TODO(roeyc): Add additional rules to allow IPV6 NDP.
         dhcp_client = firewall.get_nsservice(firewall.L4_PORT_SET_NSSERVICE,
                                              l4_protocol=firewall.UDP,
                                              source_ports=[67],
