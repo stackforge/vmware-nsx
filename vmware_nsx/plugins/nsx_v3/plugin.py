@@ -14,6 +14,7 @@
 #    under the License.
 import netaddr
 import six
+from sqlalchemy.orm import exc
 
 from neutron.api.rpc.agentnotifiers import dhcp_rpc_agent_api
 from neutron.api.rpc.handlers import dhcp_rpc
@@ -694,7 +695,10 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             # backend and change it's admin state to DOWN
             updated_port = {'port': {ext_sg.SECURITYGROUPS: [],
                                      'admin_state_up': False}}
-            self.update_port(context, port_id, updated_port)
+            try:
+                self.update_port(context, port_id, updated_port)
+            except exc.StaleDataError:
+                LOG.debug("Ignoring StaleDataError for port %s.", port_id)
             self._port_client.delete(nsx_port_id)
         self.disassociate_floatingips(context, port_id)
         ret_val = super(NsxV3Plugin, self).delete_port(context, port_id)
