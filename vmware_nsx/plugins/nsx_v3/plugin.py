@@ -1436,6 +1436,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         super(NsxV3Plugin, self).delete_security_group(context, id)
         firewall.delete_section(section_id)
         firewall.delete_nsgroup(nsgroup_id)
+        firewall.remove_nsgroup_member(self.nsgroup_container, nsgroup_id)
 
     def create_security_group_rule(self, context, security_group_rule):
         bulk_rule = {'security_group_rules': [security_group_rule]}
