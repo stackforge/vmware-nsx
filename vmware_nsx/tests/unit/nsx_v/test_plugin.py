@@ -1180,6 +1180,9 @@ class TestSubnetsV2(NsxVPluginV2TestCase,
             super(TestSubnetsV2, self).test_create_subnet_ipv6_gw_values()
             self.assertEqual(ctx_manager.exception.code, 400)
 
+    def test_create_subnet_only_ip_version_v6_old(self):
+        self.skipTest('Currently not supported')
+
 
 class TestSubnetPoolsV2(NsxVPluginV2TestCase, test_plugin.TestSubnetsV2):
     def setUp(self,
