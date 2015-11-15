@@ -880,7 +880,7 @@ class FakeVcns(object):
             if k not in ('ids', 'names') and v['name'] == sg_name:
                 return k
 
-    def create_section(self, type, request):
+    def create_section(self, type, request, insert_before=None):
         section = ET.fromstring(request)
         section_name = section.attrib.get('name')
         if section_name in self._sections['names']:

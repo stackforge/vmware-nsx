@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import re
 import xml.etree.ElementTree as et
 
 from oslo_log import log as logging
@@ -142,3 +143,7 @@ class NsxSecurityGroupUtils(object):
 
     def get_nsx_section_name(self, nsx_sg_name):
         return 'SG Section: %s' % nsx_sg_name
+
+    def parse_and_get_section_id(section_xml):
+        matches = re.match(r'<section .*?id="(section-[0-9]+)".*', section_xml)
+        return matches.group(1)
