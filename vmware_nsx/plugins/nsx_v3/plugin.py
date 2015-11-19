@@ -838,6 +838,48 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return updated_port
 
+    def get_ports(self, context, filters=None, fields=None,
+                  sorts=None, limit=None, marker=None,
+                  page_reverse=False):
+        filters_copy = filters.copy()
+        ports = super(NsxV3Plugin, self).get_ports(
+            context, filters, fields, sorts, limit, marker, page_reverse)
+        if not ports:
+            # Check if the filters contain an internal metadata network.
+            networks = filters_copy.get('network_id', [])
+            if len(networks) == 1:
+                subnets = self.get_subnets_by_network(context, networks[0])
+                if (len(subnets) == 1 and
+                    subnets[0]['cidr'] == "169.254.169.252/30"):
+                    # Find the peer router port connected to the gateway port
+                    # in the metadata network.
+                    gw_filters = {
+                        'device_owner': [const.DEVICE_OWNER_ROUTER_INTF],
+                        'fixed_ips': {
+                            'subnet_id': [subnets[0]['id']],
+                            'ip_address': [subnets[0]['gateway_ip']]
+                        }
+                    }
+                    gw_ports = super(NsxV3Plugin, self).get_ports(
+                        context, gw_filters)
+                    if len(gw_ports) == 1:
+                        # Find all the networks connected to the router.
+                        router_filters = {
+                            'device_owner': [const.DEVICE_OWNER_ROUTER_INTF],
+                            'device_id': [gw_ports[0]['device_id']]
+                        }
+                        router_ports = super(NsxV3Plugin, self).get_ports(
+                            context, router_filters)
+                        # Search the port again in additional networks.
+                        filters = filters_copy
+                        filters['network_id'] = (
+                            set(p['network_id'] for p in router_ports) -
+                            set(networks))
+                        ports = super(NsxV3Plugin, self).get_ports(
+                            context, filters, fields, sorts, limit, marker,
+                            page_reverse)
+        return ports
+
     def _extract_external_gw(self, context, router, is_extract=True):
         r = router['router']
         gw_info = attributes.ATTR_NOT_SPECIFIED
