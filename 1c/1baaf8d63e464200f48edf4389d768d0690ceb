@@ -1,0 +1,12 @@
+Verified+2: Jenkins
+Code-Review+2: Aaron Rosen <aaronorosen@gmail.com>
+Code-Review+1: Abhishek Raut <rauta@vmware.com>
+Code-Review+1: Janet Yu <jwy@cs.stanford.edu>
+Code-Review+2: Ihar Hrachyshka <ihrachys@redhat.com>
+Workflow+1: Ihar Hrachyshka <ihrachys@redhat.com>
+Code-Review+1: Akash Gangil <akashg1611@gmail.com>
+Submitted-by: Jenkins
+Submitted-at: Fri, 20 Nov 2015 14:30:36 +0000
+Reviewed-on: https://review.openstack.org/247820
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/liberty
