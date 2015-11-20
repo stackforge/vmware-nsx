@@ -581,7 +581,12 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 virtual_wire = {"name": net_data['id'],
                                 "tenantId": "virtual wire tenant"}
                 config_spec = {"virtualWireCreateSpec": virtual_wire}
-                h, c = self.nsx_v.vcns.create_virtual_wire(self.vdn_scope_id,
+                vdn_scope_id = self.vdn_scope_id
+                if provider_type:
+                    segment = net_data[mpnet.SEGMENTS][0]
+                    if attr.is_attr_set(segment.get(pnet.PHYSICAL_NETWORK)):
+                        vdn_scope_id = segment.get(pnet.PHYSICAL_NETWORK)
+                h, c = self.nsx_v.vcns.create_virtual_wire(vdn_scope_id,
                                                            config_spec)
                 net_moref = c
             elif network_type == c_utils.NsxVNetworkTypes.PORTGROUP:
