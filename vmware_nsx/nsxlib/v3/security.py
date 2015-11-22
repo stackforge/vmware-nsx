@@ -18,14 +18,18 @@
 NSX-V3 Plugin security integration module
 """
 
+from oslo_log import log
 from neutron.db import securitygroups_db
 
+from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.db import nsx_models
 from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 
+LOG = log.getLogger(__name__)
 
-NSGROUP_CONTAINER = 'NSGroup Container'
+NESTED_GROUP = 'Nested NSGroup'
 DEFAULT_SECTION = 'OS default section for security-groups'
+NUM_OF_NESTED_GROUPS = 5
 
 
 def _get_l4_protocol_name(protocol_number):
@@ -195,7 +199,7 @@ def update_lport_with_security_groups(context, lport_id, original, updated):
             nsgroup_id, lport_id)
 
 
-def init_nsgroup_container_and_default_section_rules():
+def init_nested_groups_and_default_section_rules():
     # REVISIT(roeyc): Should handle Neutron active-active
     # deployment scenario.
     nsgroup_description = ('This NSGroup is necessary for OpenStack '
@@ -203,34 +207,32 @@ def init_nsgroup_container_and_default_section_rules():
     section_description = ("This section is handled by OpenStack to contain "
                            "default rules on security-groups.")
 
-    nsgroup_id = _init_nsgroup_container(NSGROUP_CONTAINER,
-                                         nsgroup_description)
+    nested_groups = _init_nested_groups(NESTED_GROUP, nsgroup_description)
     section_id = _init_default_section(
-        DEFAULT_SECTION, section_description, nsgroup_id)
-    return nsgroup_id, section_id
+        DEFAULT_SECTION, section_description, nested_groups)
+    return nested_groups, section_id
 
 
-def _init_nsgroup_container(name, description):
-    nsgroups = firewall.list_nsgroups()
-    for nsg in nsgroups:
-        if nsg['display_name'] == name:
-            # NSGroup container exists.
-            break
-    else:
-        # Need to create the nsgroup container and the OS default
-        # security-groups section.
-        nsg = firewall.create_nsgroup(name, description, [])
-    return nsg['id']
+def _init_nested_groups(name, description):
+    nested_groups = [nsg['id']
+                     for nsg in firewall.list_nsgroups()
+                     if nsg['display_name'] == name]
+    if not nested_groups:
+        # Need to create the nested groups
+        for i in range(NUM_OF_NESTED_GROUPS):
+            ng = firewall.create_nsgroup(name, description, [])
+            nested_groups.append(ng['id'])
+    return nested_groups
 
 
-def _init_default_section(name, description, nsgroup_id):
+def _init_default_section(name, description, nested_groups):
     fw_sections = firewall.list_sections()
     for section in fw_sections:
         if section.get('display_name') == name:
             break
     else:
         section = firewall.create_empty_section(
-            name, description, [nsgroup_id], [])
+            name, description, nested_groups, [])
         block_rule = firewall.get_firewall_rule_dict(
             'Block All', action=firewall.DROP)
         # TODO(roeyc): Add additional rules to allow IPV6 NDP.
@@ -254,3 +256,35 @@ def _init_default_section(name, description, nsgroup_id):
                                        block_rule],
                                       section['id'])
     return section['id']
+
+
+def _select_nested_group_index(nsgroup_id, trial):
+    nsgroup_id = nsgroup_id.replace('-', '')
+    index = hash(nsgroup_id) % NUM_OF_NESTED_GROUPS
+    return (index + trial) % NUM_OF_NESTED_GROUPS
+
+
+def add_to_nested_group(nested_groups, nsgroup_id):
+    for trial in range(len(nested_groups)):
+        index = _select_nested_group_index(nsgroup_id, trial)
+        try:
+            firewall.add_nsgroup_member(
+                nested_groups[index], firewall.NSGROUP, nsgroup_id)
+        except firewall.NSGroupIsFull:
+            LOG.debug("Nested group %s is full, searching for a different "
+                      "nested group to add %s.",
+                      nested_groups[index], nsgroup_id)
+            continue
+        return
+    raise nsx_exc.NsxPluginException(
+        err_msg="Can't create more security-groups")
+
+
+def remove_from_nested_group(nested_groups, nsgroup_id):
+    for trial in range(len(nested_groups)):
+        index = _select_nested_group_index(nsgroup_id, trial)
+        try:
+            firewall.remove_nsgroup_member(
+                nested_groups[index], nsgroup_id, verify=True)
+        except firewall.NSGroupMemberNotFound:
+            continue
