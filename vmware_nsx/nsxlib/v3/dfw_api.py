@@ -63,6 +63,14 @@ IPV6 = 'IPV6'
 IPV4_IPV6 = 'IPV4_IPV6'
 
 
+class NSGroupMemberNotFound(Exception):
+    pass
+
+
+class NSGroupIsFull(Exception):
+    pass
+
+
 def get_nsservice(resource_type, **properties):
     service = {'resource_type': resource_type}
     service.update(properties)
@@ -103,12 +111,14 @@ def add_nsgroup_member(nsgroup_id, target_type, target_id):
 
 
 @utils.retry_upon_exception_nsxv3(nsx_exc.StaleRevision)
-def remove_nsgroup_member(nsgroup_id, target_id):
+def remove_nsgroup_member(nsgroup_id, target_id, verify=False):
     nsgroup = read_nsgroup(nsgroup_id)
     for i, member in enumerate(nsgroup.get('members', [])):
         if target_id == member['value']:
             break
     else:
+        if verify:
+            raise NSGroupMemberNotFound()
         return
     del nsgroup['members'][i]
     return nsxclient.update_resource('ns-groups/%s' % nsgroup_id, nsgroup)

@@ -428,7 +428,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         if not self._network_is_external(context, network_id):
             # TODO(salv-orlando): Handle backend failure, possibly without
             # requiring us to un-delete the DB object. For instance, ignore
-            # failures occurring if logical switch is not found
+            # failures occuring if logical switch is not found
             nsxlib.delete_logical_switch(network_id)
         else:
             # TODO(berlin): delete subnets public announce on the network
@@ -537,7 +537,12 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             msg = _('Invalid binding:profile. parent_name "%s" must be '
                     'a string.') % parent_name
             raise n_exc.InvalidInput(error_message=msg)
-        if not n_utils.is_valid_vlan_tag(tag):
+        try:
+            # FIXME(arosen): use neutron.plugins.common.utils.is_valid_vlan_tag
+            tag = int(tag)
+            if(tag < 0 or tag > 4095):
+                raise ValueError
+        except ValueError:
             msg = _('Invalid binding:profile. tag "%s" must be '
                     'an int between 1 and 4096, inclusive.') % tag
             raise n_exc.InvalidInput(error_message=msg)
@@ -1370,7 +1375,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     tags, operation=firewall.INSERT_BEFORE,
                     other_section=self.default_section))
 
-            # REVISIT(roeyc): Ideally, at this point we need not be under an
+            # REVISIT(roeyc): Idealy, at this point we need not be under an
             # open db transactions, however, unittests fail if omitting
             # subtransactions=True.
             with context.session.begin(subtransactions=True):
@@ -1403,8 +1408,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 context, firewall_section['id'], ns_group['id'], sg_rules)
             security.save_sg_rule_mappings(context.session, rules['rules'])
 
-            firewall.add_nsgroup_member(self.nsgroup_container,
-                                        firewall.NSGROUP, ns_group['id'])
+            self.nsgroup_container.add_nsgroup(ns_group['id'])
         except nsx_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to create backend firewall rules "
@@ -1446,7 +1450,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         nsgroup_id, section_id = security.get_sg_mappings(context.session, id)
         super(NsxV3Plugin, self).delete_security_group(context, id)
         firewall.delete_section(section_id)
-        firewall.remove_nsgroup_member(self.nsgroup_container, nsgroup_id)
+        self.nsgroup_container.remove_nsgroup(nsgroup_id)
         firewall.delete_nsgroup(nsgroup_id)
 
     def create_security_group_rule(self, context, security_group_rule):

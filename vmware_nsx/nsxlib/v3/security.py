@@ -19,10 +19,25 @@ NSX-V3 Plugin security integration module
 """
 
 from neutron.db import securitygroups_db
+from neutron.i18n import _LE, _LW
+from oslo_log import log
 
+from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.db import nsx_models
 from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 
+
+LOG = log.getLogger(__name__)
+
+MAX_NUMBER_OF_SECURITY_GROUPS = 500
+MAX_NUMBER_OF_NSGROUP_MEMBERS = 100
+MAX_NUMBER_OF_CONTAINER_GROUPS = 128
+# The maximum average capacity in a container.
+CONTAINER_LOAD_FACTOR = 0.6
+NUM_OF_CONTAINER_GROUPS = min((MAX_NUMBER_OF_SECURITY_GROUPS /
+                               int(CONTAINER_LOAD_FACTOR *
+                                   MAX_NUMBER_OF_NSGROUP_MEMBERS)),
+                              MAX_NUMBER_OF_CONTAINER_GROUPS)
 
 NSGROUP_CONTAINER = 'NSGroup Container'
 DEFAULT_SECTION = 'OS default section for security-groups'
@@ -203,34 +218,22 @@ def init_nsgroup_container_and_default_section_rules():
     section_description = ("This section is handled by OpenStack to contain "
                            "default rules on security-groups.")
 
-    nsgroup_id = _init_nsgroup_container(NSGROUP_CONTAINER,
-                                         nsgroup_description)
+    nsgroup_container = NSGroupContainerManager(NUM_OF_CONTAINER_GROUPS,
+                                                NSGROUP_CONTAINER,
+                                                nsgroup_description)
     section_id = _init_default_section(
-        DEFAULT_SECTION, section_description, nsgroup_id)
-    return nsgroup_id, section_id
+        DEFAULT_SECTION, section_description, nsgroup_container)
+    return nsgroup_container, section_id
 
 
-def _init_nsgroup_container(name, description):
-    nsgroups = firewall.list_nsgroups()
-    for nsg in nsgroups:
-        if nsg['display_name'] == name:
-            # NSGroup container exists.
-            break
-    else:
-        # Need to create the nsgroup container and the OS default
-        # security-groups section.
-        nsg = firewall.create_nsgroup(name, description, [])
-    return nsg['id']
-
-
-def _init_default_section(name, description, nsgroup_id):
+def _init_default_section(name, description, nsgroup_container):
     fw_sections = firewall.list_sections()
     for section in fw_sections:
         if section.get('display_name') == name:
             break
     else:
         section = firewall.create_empty_section(
-            name, description, [nsgroup_id], [])
+            name, description, nsgroup_container._containers, [])
         block_rule = firewall.get_firewall_rule_dict(
             'Block All', action=firewall.DROP)
         # TODO(roeyc): Add additional rules to allow IPV6 NDP.
@@ -254,3 +257,57 @@ def _init_default_section(name, description, nsgroup_id):
                                        block_rule],
                                       section['id'])
     return section['id']
+
+
+class NSGroupContainerManager(object):
+    def __init__(self, size, name, description):
+        self.size = size
+        self._containers = self._init_container_groups(name, description)
+
+    def _init_container_groups(self, name, description):
+        containers = [nsg['id'] for nsg in firewall.list_nsgroups()
+                      if nsg['name'] == name]
+
+        if not containers:
+            for i in range(self.size):
+                cont = firewall.create_nsgroup(name, description, [])
+                containers.append(cont['id'])
+        return containers
+
+    def _get_available_container(self, uuid):
+        index = hash(uuid.replace('-', '')) % self.size
+        yield self._containers[index]
+
+        # yield other buckets, one a time.
+        for i in range(1, self.size):
+            index = (index + i) % self.size
+            yield self._containers[index]
+
+    def add_nsgroup(self, nsgroup_id):
+        for container in self._get_available_container(nsgroup_id):
+            try:
+                LOG.debug("Adding NSGroup %s to container group %s",
+                          nsgroup_id, container)
+                firewall.add_nsgroup_member(container,
+                                            firewall.NSGROUP, nsgroup_id)
+                break
+            except firewall.NSGroupIsFull:
+                LOG.debug("Container group %s is full, tryng the next one...",
+                          container, nsgroup_id)
+        else:
+            raise nsx_exc.NsxPluginException(
+                err_msg=_LE("Reached the maximum supported amount number of "
+                            "security-groups (%s)."
+                            ) % MAX_NUMBER_OF_SECURITY_GROUPS)
+
+    def remove_nsgroup(self, nsgroup_id):
+        for container in self._get_available_container(nsgroup_id):
+            try:
+                firewall.remove_nsgroup_member(
+                    container, nsgroup_id, verify=True)
+                break
+            except firewall.NSGroupMemberNotFound:
+                continue
+        else:
+            LOG.warning(_LW("NSGroup %s was marked for removal, but it's "
+                            "refrence is missing.") % nsgroup_id)
