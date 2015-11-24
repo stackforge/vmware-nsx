@@ -638,7 +638,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                 subnet = self.plugin.get_subnet(context, info['subnet_id'])
                 network_id = subnet['network_id']
                 # Collect all conflict networks whose cidr are overlapped
-                # with networks attached to the router and conflct routers
+                # with networks attached to the router and conflict routers
                 # which has same network with the router's.
                 conflict_network_ids, conflict_router_ids, _ = (
                     self._get_conflict_network_and_router_ids_by_intf(
@@ -695,7 +695,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
         else:
             info = super(nsx_v.NsxVPluginV2, self.plugin).add_router_interface(
                 context, router_id, interface_info)
-            # bind and configure routing servie on an availab edge
+            # bind and configure routing service on an available edge
             self._bind_router_on_available_edge(
                 context, router_id, router_db.admin_state_up)
             edge_id = edge_utils.get_router_edge_id(context, router_id)
