@@ -19,13 +19,20 @@ NSX-V3 Plugin security integration module
 """
 
 from neutron.db import securitygroups_db
+from neutron.i18n import _LW
+from oslo_log import log
 
+from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.db import nsx_models
 from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 
 
-NSGROUP_CONTAINER = 'NSGroup Container'
-DEFAULT_SECTION = 'OS default section for security-groups'
+LOG = log.getLogger(__name__)
+
+NUM_OF_CONTAINER_GROUPS = 8
+
+NSGROUP_CONTAINER = 'Neutron Security-Group Container'
+DEFAULT_SECTION = 'OS Default section for Neutron Security-Groups'
 
 
 def _get_l4_protocol_name(protocol_number):
@@ -203,34 +210,22 @@ def init_nsgroup_container_and_default_section_rules():
     section_description = ("This section is handled by OpenStack to contain "
                            "default rules on security-groups.")
 
-    nsgroup_id = _init_nsgroup_container(NSGROUP_CONTAINER,
-                                         nsgroup_description)
+    nsgroup_container = NSGroupContainerManager(NUM_OF_CONTAINER_GROUPS,
+                                                NSGROUP_CONTAINER,
+                                                nsgroup_description)
     section_id = _init_default_section(
-        DEFAULT_SECTION, section_description, nsgroup_id)
-    return nsgroup_id, section_id
+        DEFAULT_SECTION, section_description, nsgroup_container)
+    return nsgroup_container, section_id
 
 
-def _init_nsgroup_container(name, description):
-    nsgroups = firewall.list_nsgroups()
-    for nsg in nsgroups:
-        if nsg['display_name'] == name:
-            # NSGroup container exists.
-            break
-    else:
-        # Need to create the nsgroup container and the OS default
-        # security-groups section.
-        nsg = firewall.create_nsgroup(name, description, [])
-    return nsg['id']
-
-
-def _init_default_section(name, description, nsgroup_id):
+def _init_default_section(name, description, nsgroup_container):
     fw_sections = firewall.list_sections()
     for section in fw_sections:
         if section.get('display_name') == name:
             break
     else:
         section = firewall.create_empty_section(
-            name, description, [nsgroup_id], [])
+            name, description, nsgroup_container._containers, [])
         block_rule = firewall.get_firewall_rule_dict(
             'Block All', action=firewall.DROP)
         # TODO(roeyc): Add additional rules to allow IPV6 NDP.
@@ -254,3 +249,74 @@ def _init_default_section(name, description, nsgroup_id):
                                        block_rule],
                                       section['id'])
     return section['id']
+
+
+class NSGroupContainerManager(object):
+    """
+    This class assists with NSX integration for Neutron security-groups,
+    Each Neutron security-group is associated with NSX NSGroup object.
+    Some specific security policies are the same across all security-groups,
+    i.e - Default drop rule, DHCP. In order to bind these rules to all
+    NSGroups (security-groups), we create a nested NSGroup (which it's members
+    are NSGroup themselves, "NSGroup container" hereafter) to group the other
+    NSGroups and associate it with these rules, however, one NSGroup container
+    can't contain all the other NSGroups, as it is limited in space.
+    To overcome the limited space challange, we create several NSGroup
+    containers instead of just one, then evenly distribute NSGroups
+    (security-groups) between them.
+    By using an hashing function on the NSGroup uuid we determine in which
+    container it should be added, when deleting an NSGroup (security-group), we
+    use the same hash function to find the container which holds this NSGroup.
+    """
+    def __init__(self, size, name, description):
+        self.size = size
+        self._containers = self._init_container_groups(name, description)
+
+    def _init_container_groups(self, name, description):
+        containers = [nsg['id'] for nsg in firewall.list_nsgroups()
+                      if nsg['display_name'] == name]
+        if not containers:
+            for i in range(self.size):
+                cont = firewall.create_nsgroup(name, description, [])
+                containers.append(cont['id'])
+        return containers
+
+    def _get_available_container(self, uuid):
+        # First yields the container id to which `uuid` is mapped to, will
+        # deterministically yield other containers, one at a time, if called
+        # again (in case where the previous suggested containers are full).
+        index = hash(uuid.replace('-', '')) % self.size
+        yield self._containers[index]
+
+        # yield other containers, one a time.
+        for i in range(1, self.size):
+            index = (index + i) % self.size
+            yield self._containers[index]
+
+    def add_nsgroup(self, nsgroup_id):
+        for container in self._get_available_container(nsgroup_id):
+            try:
+                LOG.debug("Adding NSGroup %s to container group %s",
+                          nsgroup_id, container)
+                firewall.add_nsgroup_member(container,
+                                            firewall.NSGROUP, nsgroup_id)
+                break
+            except firewall.NSGroupIsFull:
+                LOG.debug("Container group %s is full, tryng the next one...",
+                          container, nsgroup_id)
+        else:
+            raise nsx_exc.NsxPluginException(
+                err_msg=_("Reached the maximum supported amount of "
+                          "security-groups."))
+
+    def remove_nsgroup(self, nsgroup_id):
+        for container in self._get_available_container(nsgroup_id):
+            try:
+                firewall.remove_nsgroup_member(
+                    container, nsgroup_id, verify=True)
+                break
+            except firewall.NSGroupMemberNotFound:
+                continue
+        else:
+            LOG.warning(_LW("NSGroup %s was marked for removal, but it's "
+                            "refrence is missing.") % nsgroup_id)
