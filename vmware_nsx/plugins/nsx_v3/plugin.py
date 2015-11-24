@@ -1454,8 +1454,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 context, firewall_section['id'], ns_group['id'], sg_rules)
             security.save_sg_rule_mappings(context.session, rules['rules'])
 
-            firewall.add_nsgroup_member(self.nsgroup_container,
-                                        firewall.NSGROUP, ns_group['id'])
+            self.nsgroup_container.add_nsgroup(ns_group['id'])
         except nsx_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to create backend firewall rules "
@@ -1497,7 +1496,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         nsgroup_id, section_id = security.get_sg_mappings(context.session, id)
         super(NsxV3Plugin, self).delete_security_group(context, id)
         firewall.delete_section(section_id)
-        firewall.remove_nsgroup_member(self.nsgroup_container, nsgroup_id)
+        self.nsgroup_container.remove_nsgroup(nsgroup_id)
         firewall.delete_nsgroup(nsgroup_id)
 
     def create_security_group_rule(self, context, security_group_rule):
