@@ -235,7 +235,7 @@ class LogicalPort(AbstractRESTResource):
             body['attachment'] = {'attachment_type': attachment_type,
                                   'id': vif_uuid}
 
-        if key_values:
+        if key_values and body.get('attachment'):
             body['attachment']['context'] = {'key_values': key_values}
             body['attachment']['context']['resource_type'] = \
                 nsx_constants.CIF_RESOURCE_TYPE
