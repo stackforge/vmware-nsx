@@ -94,6 +94,9 @@ def add_nsgroup_member(nsgroup_id, target_type, target_id):
     nsgroup = read_nsgroup(nsgroup_id)
     if 'members' not in nsgroup:
         nsgroup['members'] = []
+    for member in nsgroup['members']:
+        if not member.get('resource_type'):
+            member['resource_type'] = NSGROUP_SIMPLE_EXPRESSION
     nsgroup['members'].append({"resource_type": NSGROUP_SIMPLE_EXPRESSION,
                                'target_property': 'id',
                                'target_type': target_type,
