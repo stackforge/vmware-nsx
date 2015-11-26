@@ -251,6 +251,6 @@ def _init_default_section(name, description, nsgroup_id):
 
         firewall.add_rules_in_section([dhcp_client_rule_out,
                                        dhcp_client_rule_in,
-                                       block_rule],
+                                       block_rule].reverse(),
                                       section['id'])
     return section['id']
