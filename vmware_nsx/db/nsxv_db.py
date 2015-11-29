@@ -583,6 +583,15 @@ def get_nsxv_lbaas_loadbalancer_binding(session, loadbalancer_id):
         return
 
 
+def get_nsxv_lbaas_loadbalancer_binding_by_edge(session, edge_id):
+    try:
+        return session.query(
+            nsxv_models.NsxvLbaasLoadbalancerBinding).filter_by(
+            edge_id=edge_id).all()
+    except exc.NoResultFound:
+        return
+
+
 def del_nsxv_lbaas_loadbalancer_binding(session, loadbalancer_id):
     return (session.query(nsxv_models.NsxvLbaasLoadbalancerBinding).
             filter_by(loadbalancer_id=loadbalancer_id).delete())
