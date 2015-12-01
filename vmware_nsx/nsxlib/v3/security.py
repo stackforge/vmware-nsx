@@ -26,6 +26,7 @@ from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 
 NSGROUP_CONTAINER = 'NSGroup Container'
 DEFAULT_SECTION = 'OS default section for security-groups'
+DEFAULT_SECTION_TAG_NAME = 'neutron_default_dfw_section'
 
 
 def _get_l4_protocol_name(protocol_number):
@@ -230,7 +231,11 @@ def _init_default_section(name, description, nsgroup_id):
             break
     else:
         section = firewall.create_empty_section(
-            name, description, [nsgroup_id], [])
+            name, description, [nsgroup_id],
+            tags=utils.build_v3_tags_payload({
+                'id': DEFAULT_SECTION_TAG_NAME,
+                'tenant_id': 'neutron-nsx-plugin'}),
+            [])
         block_rule = firewall.get_firewall_rule_dict(
             'Block All', action=firewall.DROP)
         # TODO(roeyc): Add additional rules to allow IPV6 NDP.
