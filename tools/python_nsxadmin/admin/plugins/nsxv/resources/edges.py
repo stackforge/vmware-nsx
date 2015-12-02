@@ -15,13 +15,14 @@
 
 import logging
 
-from admin.plugins.common import constants
-from admin.plugins.common import formatters
-from admin.plugins.common.utils import output_header
-from admin.plugins.common.utils import parse_multi_keyval_opt
-from admin.plugins.common.utils import query_yes_no
-import admin.plugins.nsxv.resources.utils as utils
-from admin.shell import Operations
+from tools.python_nsxadmin.admin.plugins.common import constants
+from tools.python_nsxadmin.admin.plugins.common import formatters
+from tools.python_nsxadmin.admin.plugins.common.utils import output_header
+from tools.python_nsxadmin.admin.plugins.common.utils import \
+    parse_multi_keyval_opt
+from tools.python_nsxadmin.admin.plugins.common.utils import query_yes_no
+import tools.python_nsxadmin.admin.plugins.nsxv.resources.utils as utils
+from tools.python_nsxadmin.admin.shell import Operations
 
 from neutron.callbacks import registry
 

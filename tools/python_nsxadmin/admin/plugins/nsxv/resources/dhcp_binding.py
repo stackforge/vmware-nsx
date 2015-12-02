@@ -15,10 +15,10 @@
 
 import logging
 
-from admin.plugins.common import constants
-from admin.plugins.common.utils import output_header
-import admin.plugins.nsxv.resources.utils as utils
-from admin.shell import Operations
+from tools.python_nsxadmin.admin.plugins.common import constants
+from tools.python_nsxadmin.admin.plugins.common.utils import output_header
+import tools.python_nsxadmin.admin.plugins.nsxv.resources.utils as utils
+from tools.python_nsxadmin.admin.shell import Operations
 
 from neutron.callbacks import registry
 
