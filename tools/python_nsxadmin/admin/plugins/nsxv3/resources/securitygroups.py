@@ -14,11 +14,11 @@
 
 import logging
 
-from admin.plugins.common import constants
-from admin.plugins.common import formatters
-from admin.plugins.common.utils import output_header
-from admin.plugins.common.utils import query_yes_no
-from admin.shell import Operations
+from tools.python_nsxadmin.admin.plugins.common import constants
+from tools.python_nsxadmin.admin.plugins.common import formatters
+from tools.python_nsxadmin.admin.plugins.common.utils import output_header
+from tools.python_nsxadmin.admin.plugins.common.utils import query_yes_no
+from tools.python_nsxadmin.admin.shell import Operations
 
 from neutron.callbacks import registry
 from neutron import context as neutron_context
