@@ -16,11 +16,13 @@
 #
 
 import abc
+import base64
 import copy
 import socket
 import time
 
 import eventlet
+from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import excutils
 import six
@@ -109,9 +111,10 @@ class ApiRequest(object):
                     conn.sock.settimeout(self._http_timeout)
 
                 headers = copy.copy(self._headers)
-                cookie = self._api_client.auth_cookie(conn)
-                if cookie:
-                    headers["Cookie"] = cookie
+                auth = base64.encodestring('%s:%s' %
+                    (cfg.CONF.nsx_user,
+                     cfg.CONF.nsx_password)).replace('\n', '')
+                headers['Authorization'] = "Basic " + auth
 
                 gen = self._api_client.config_gen
                 if gen:
