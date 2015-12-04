@@ -320,6 +320,15 @@ class TestL3NatTestCase(L3NatTest,
     def test_create_router_gateway_fails(self):
         self.skipTest('not supported')
 
+    def test_router_remove_ipv6_subnet_from_interface(self):
+        self.skipTest('not supported')
+
+    def test_router_add_interface_multiple_ipv6_subnets_same_net(self):
+        self.skipTest('not supported')
+
+    def test_router_add_interface_multiple_ipv4_subnets(self):
+        self.skipTest('not supported')
+
 
 class ExtGwModeTestCase(L3NatTest,
                         test_ext_gw_mode.ExtGwModeIntTestCase):
