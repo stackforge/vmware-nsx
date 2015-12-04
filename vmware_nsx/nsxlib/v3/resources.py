@@ -258,6 +258,27 @@ class LogicalPort(AbstractRESTResource):
                tags=None):
         lport = self.get(lport_id)
 
+        # Exclude LOGICALROUTER attachment in the request because
+        # backend blocks operations related to LOGICALROUTER attachment.
+        # The potential problem is a race condition could happen when
+        # backend changes the attachment between the GET and PUT requests.
+        #
+        # For example, the plugin received LOGICALROUTER attachment
+        # for the GET request from the backend and uses it in the
+        # following PUT request. In the meantime, backend removed
+        # the attachment. So when the PUT request arrives at the
+        # backend, it causes inconsistency and backend thinks the
+        # PUT request wants to add the LOGICALROUTER attachment and
+        # denies it.
+        #
+        # We may consider removing the whole attachment attribute
+        # regardless attachment type in the PUT request because
+        # we will never change it here.
+        if ('attachment' in lport and
+            lport['attachment']['attachment_type'] ==
+            nsx_constants.ATTACHMENT_LR):
+            del lport['attachment']
+
         lport.update(self._build_body_attrs(
             display_name=name,
             admin_state=admin_state, tags=tags,
