@@ -155,3 +155,7 @@ class NsxL2GWDeviceNotFound(n_exc.NotFound):
 
 class NsxL2GWInUse(n_exc.InUse):
     message = _("L2 Gateway '%(gateway_id)s' has been used")
+
+
+class AdminUtilityOutOfSync(NsxPluginException):
+    message = _("Configuration between Neutron and NSX is out of sync.")

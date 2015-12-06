@@ -37,10 +37,12 @@ from neutron.common import config as neutron_config
 
 from vmware_nsx._i18n import _LE, _LI
 from vmware_nsx.common import config  # noqa
+from vmware_nsx.common import exceptions as nsx_exc
 
 from oslo_config import cfg
 from oslo_log import _options
 
+from tools.python_nsxadmin.admin import callbacks_manager
 from tools.python_nsxadmin.admin.plugins.common import constants
 from tools.python_nsxadmin.admin import version
 
@@ -48,6 +50,7 @@ from tools.python_nsxadmin.admin import version
 requests.packages.urllib3.disable_warnings()
 
 LOG = logging.getLogger(__name__)
+registry.CALLBACK_MANAGER = callbacks_manager.CallbacksManager()
 
 
 class Operations(enum.Enum):
@@ -213,9 +216,11 @@ def main(argv=sys.argv[1:]):
 
     _validate_resource_choice(cfg.CONF.resource, nsx_plugin_in_use)
     _validate_op_choice(cfg.CONF.operation, nsx_plugin_in_use)
-
-    registry.notify(cfg.CONF.resource, cfg.CONF.operation, 'nsxadmin',
-                    force=cfg.CONF.force, property=cfg.CONF.property)
+    try:
+        registry.notify(cfg.CONF.resource, cfg.CONF.operation, 'nsxadmin',
+                        force=cfg.CONF.force, property=cfg.CONF.property)
+    except nsx_exc.AdminUtilityOutOfSync:
+        return 1
 
 
 if __name__ == "__main__":

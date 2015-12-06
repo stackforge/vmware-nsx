@@ -25,6 +25,7 @@ import tools.python_nsxadmin.admin.shell as shell
 from neutron.callbacks import registry
 
 from vmware_nsx._i18n import _LI
+from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.db import nsxv_db
 
 LOG = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ def list_missing_dhcp_bindings(resource, event, trigger, **kwargs):
     Missing DHCP bindings are those that exist in Neutron DB;
     but are not present on corresponding NSXv Edge.
     """
-
+    out_of_sync = False
     for (edge_id, _) in nsxv_db.get_nsxv_dhcp_bindings_count_per_edge(
             neutron_db.context.session):
         LOG.info(_LI("%s"), "=" * 60)
@@ -79,7 +80,15 @@ def list_missing_dhcp_bindings(resource, event, trigger, **kwargs):
         LOG.info(_LI("# of DHCP bindings on NSXv backend: %s"),
                  len(nsx_dhcp_static_bindings))
         LOG.info(_LI("Missing DHCP bindings:"))
-        LOG.info(neutron_dhcp_static_bindings - nsx_dhcp_static_bindings)
+        missing_dhcp_bindings = (neutron_dhcp_static_bindings -
+                                 nsx_dhcp_static_bindings)
+        if not missing_dhcp_bindings:
+            LOG.info(_LI("\nNo missing DHCP bindings for edge: %s"), edge_id)
+        else:
+            out_of_sync = True
+            LOG.info(missing_dhcp_bindings)
+    if out_of_sync:
+        raise nsx_exc.AdminUtilityOutOfSync()
 
 
 registry.subscribe(list_missing_dhcp_bindings,
