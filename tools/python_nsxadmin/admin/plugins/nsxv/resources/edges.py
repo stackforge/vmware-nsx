@@ -25,6 +25,7 @@ import tools.python_nsxadmin.admin.shell as shell
 from neutron.callbacks import registry
 
 from vmware_nsx._i18n import _LE, _LI
+from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.db import nsxv_db
 
 LOG = logging.getLogger(__name__)
@@ -84,6 +85,7 @@ def nsx_list_orphaned_edges(resource, event, trigger, **kwargs):
                      "\nNeutron DB and NSXv backend are in sync\n"))
     else:
         LOG.info(orphaned_edges)
+        raise nsx_exc.AdminUtilityOutOfSync()
 
 
 @admin_utils.output_header

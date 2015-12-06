@@ -26,6 +26,7 @@ import tools.python_nsxadmin.admin.shell as shell
 from neutron.callbacks import registry
 
 from vmware_nsx._i18n import _LI
+from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.db import nsxv_db
 
 LOG = logging.getLogger(__name__)
@@ -86,6 +87,7 @@ def nsx_list_missing_spoofguard_policies(resource, event, trigger,
     else:
         LOG.info(formatters.output_formatter(
             constants.SPOOFGUARD_POLICY, missing_policies, ['policy_id']))
+        raise nsx_exc.AdminUtilityOutOfSync()
 
 
 registry.subscribe(neutron_list_spoofguard_policy_mappings,
