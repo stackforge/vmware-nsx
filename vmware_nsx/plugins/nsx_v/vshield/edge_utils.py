@@ -31,7 +31,7 @@ from neutron import context as q_context
 from neutron.extensions import l3
 from neutron.plugins.common import constants as plugin_const
 
-from vmware_nsx._i18n import _LE, _LW
+from vmware_nsx._i18n import _, _LE, _LW
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import locking
 from vmware_nsx.common import nsxv_constants
