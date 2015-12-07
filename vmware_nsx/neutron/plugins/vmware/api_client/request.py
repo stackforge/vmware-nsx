@@ -111,6 +111,8 @@ class ApiRequest(object):
                 cookie = self._api_client.auth_cookie(conn)
                 if cookie:
                     headers["Cookie"] = cookie
+                elif hasattr(conn, '_redirect_cookie'):
+                    headers["Cookie"] = conn._redirect_cookie
 
                 gen = self._api_client.config_gen
                 if gen:
