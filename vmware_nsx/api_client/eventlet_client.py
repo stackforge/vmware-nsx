@@ -89,6 +89,7 @@ class EventletApiClient(base.ApiClientBase):
                  returned.
         """
         result_conn = None
+        redirect_sem = None
         data = self._get_provider_data(conn_params)
         if data:
             # redirect target already exists in provider data and connections
@@ -114,24 +115,18 @@ class EventletApiClient(base.ApiClientBase):
                 conn.no_release = True
                 result_conn = conn
         else:
-            #redirect target not already known, setup provider lists
-            self._api_providers.update([conn_params])
-            self._set_provider_data(conn_params,
-                                    (eventlet.semaphore.Semaphore(1), None))
-            # redirects occur during cluster upgrades, i.e. results to old
-            # redirects to new, so give redirect targets highest priority
-            priority = 0
-            for i in range(self._concurrent_connections):
-                conn = self._create_connection(*conn_params)
-                conn.priority = priority
-                if i == self._concurrent_connections - 1:
-                    break
-                self._conn_pool.put((priority, conn))
+            # If we get a redirect and it's not in the list of api_providers
+            # create a connection as a one time use.
+            conn = self._create_connection(*conn_params)
+            conn.priority = 0  # redirect connections have highest priority
+            conn.no_release = True
             result_conn = conn
+            redirect_sem = eventlet.semaphore.Semaphore(1)
+
         if result_conn:
             result_conn.last_used = time.time()
             if auto_login and self.auth_cookie(conn) is None:
-                self._wait_for_login(result_conn, headers)
+                self._wait_for_login(result_conn, headers, redirect_sem)
         return result_conn
 
     def _login(self, conn=None, headers=None):
