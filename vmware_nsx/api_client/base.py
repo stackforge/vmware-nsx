@@ -176,19 +176,26 @@ class ApiClientBase(object):
                   {'rid': rid, 'conn': api_client.ctrl_conn_to_str(http_conn),
                    'qsize': self._conn_pool.qsize()})
 
-    def _wait_for_login(self, conn, headers=None):
+    def _wait_for_login(self, conn, headers=None, redirect_sem=None):
         '''Block until a login has occurred for the current API provider.'''
 
         data = self._get_provider_data(conn)
-        if data is None:
+        if redirect_sem:
+            provider_sem = redirect_sem
+        elif data is None:
             LOG.error(_LE("Login request for an invalid connection: '%s'"),
                       api_client.ctrl_conn_to_str(conn))
             return
-        provider_sem = data[0]
+        else:
+            provider_sem = data[0]
         if provider_sem.acquire(blocking=False):
             try:
                 cookie = self._login(conn, headers)
-                self.set_auth_cookie(conn, cookie)
+                # if a redirect_sem was passed set cookie on conn instead
+                if redirect_sem:
+                    conn._redirect_cookie = cookie
+                else:
+                    self.set_auth_cookie(conn, cookie)
             finally:
                 provider_sem.release()
         else:
