@@ -71,6 +71,7 @@ from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 from vmware_nsx.nsxlib.v3 import resources as nsx_resources
 from vmware_nsx.nsxlib.v3 import router
 from vmware_nsx.nsxlib.v3 import security
+from vmware_nsx.plugins.nsx_v3 import md_proxy
 
 
 LOG = log.getLogger(__name__)
@@ -133,6 +134,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             self._nsx_client)
         self._routerlib = router.RouterLib(self._router_client,
                                            self._router_port_client)
+        self._metadata_proxy_handler = md_proxy.NsxV3MetadataProxyHandler(self)
 
         LOG.debug("Initializing NSX v3 port spoofguard switching profile")
         self._switching_profiles = nsx_resources.SwitchingProfile(
@@ -641,6 +643,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         with context.session.begin(subtransactions=True):
             neutron_db = super(NsxV3Plugin, self).create_port(context, port)
             port["port"].update(neutron_db)
+            self._metadata_proxy_handler.handle_port_metadata_access(
+                context, neutron_db)
 
             (is_psec_on, has_ip) = self._create_port_preprocess_security(
                 context, port, port_data, neutron_db)
@@ -705,6 +709,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                          [], [])
             self._port_client.delete(nsx_port_id)
         self.disassociate_floatingips(context, port_id)
+        self._metadata_proxy_handler.handle_port_metadata_access(
+            context, port, is_delete=True)
         ret_val = super(NsxV3Plugin, self).delete_port(context, port_id)
 
         return ret_val
@@ -1011,6 +1017,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         return self.get_router(context, router['id'])
 
     def delete_router(self, context, router_id):
+        self._metadata_proxy_handler.handle_router_metadata_access(
+            context, router_id, is_delete=True)
         router = self.get_router(context, router_id)
         if router.get(l3.EXTERNAL_GW_INFO):
             self._update_router_gw_info(context, router_id, {})
@@ -1185,6 +1193,11 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 # TODO(berlin): Announce the subnet on tier0 if enable_snat
                 # is False
                 pass
+            # Ensure the NSX logical router has a connection to a
+            # 'metadata access' network (with a proxy listening on
+            # its DHCP port), by creating it if needed.
+            self._metadata_proxy_handler.handle_router_metadata_access(
+                context, router_id)
         except nsx_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 self.remove_router_interface(
@@ -1251,8 +1264,13 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                           "%(net_id)s not found at the backend"),
                       {'router_id': router_id,
                        'net_id': subnet['network_id']})
-        return super(NsxV3Plugin, self).remove_router_interface(
+        info = super(NsxV3Plugin, self).remove_router_interface(
             context, router_id, interface_info)
+        # Ensure the connection to the 'metadata access network' is removed
+        # (with the network) if this the last subnet on the router.
+        self._metadata_proxy_handler.handle_router_metadata_access(
+            context, router_id, is_delete=True)
+        return info
 
     def create_floatingip(self, context, floatingip):
         new_fip = super(NsxV3Plugin, self).create_floatingip(
