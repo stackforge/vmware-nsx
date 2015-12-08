@@ -14,8 +14,10 @@
 
 
 import logging
+import pprint
 
 from tools.python_nsxadmin.admin.plugins.common import constants
+from tools.python_nsxadmin.admin.plugins.common import formatters
 import tools.python_nsxadmin.admin.plugins.common.utils as admin_utils
 import tools.python_nsxadmin.admin.plugins.nsxv.resources.utils as utils
 
@@ -81,8 +83,13 @@ def list_missing_dhcp_bindings(resource, event, trigger, **kwargs):
                  len(neutron_dhcp_static_bindings))
         LOG.info(_LI("# of DHCP bindings on NSXv backend: %s"),
                  len(nsx_dhcp_static_bindings))
-        LOG.info(_LI("Missing DHCP bindings:"))
-        LOG.info(neutron_dhcp_static_bindings - nsx_dhcp_static_bindings)
+        missing = neutron_dhcp_static_bindings - nsx_dhcp_static_bindings
+        if not missing:
+            LOG.info(_LI("\nNo missing DHCP bindings found."
+                         "\nNeutron DB and NSXv backend are in sync\n"))
+        else:
+            LOG.info(_LI("Missing DHCP bindings:\n%s"),
+                pprint.pformat(missing))
 
 
 @admin_utils.output_header
