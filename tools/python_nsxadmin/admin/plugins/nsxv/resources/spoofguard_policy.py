@@ -86,6 +86,7 @@ def nsx_list_missing_spoofguard_policies(resource, event, trigger,
     else:
         LOG.info(formatters.output_formatter(
             constants.SPOOFGUARD_POLICY, missing_policies, ['policy_id']))
+        shell.OUT_OF_SYNC.append(constants.SPOOFGUARD_POLICY_OUT_OF_SYNC)
 
 
 registry.subscribe(neutron_list_spoofguard_policy_mappings,

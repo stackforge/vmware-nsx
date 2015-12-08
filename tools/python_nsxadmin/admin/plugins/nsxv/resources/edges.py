@@ -84,6 +84,7 @@ def nsx_list_orphaned_edges(resource, event, trigger, **kwargs):
                      "\nNeutron DB and NSXv backend are in sync\n"))
     else:
         LOG.info(orphaned_edges)
+        shell.OUT_OF_SYNC.append(constants.FOUND_ORPHANED_EDGE)
 
 
 @admin_utils.output_header

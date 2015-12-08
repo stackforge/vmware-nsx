@@ -48,6 +48,7 @@ from tools.python_nsxadmin.admin import version
 requests.packages.urllib3.disable_warnings()
 
 LOG = logging.getLogger(__name__)
+OUT_OF_SYNC = []
 
 
 class Operations(enum.Enum):
@@ -209,6 +210,9 @@ def main(argv=sys.argv[1:]):
 
     registry.notify(cfg.CONF.resource, cfg.CONF.operation, 'nsxadmin',
                     force=cfg.CONF.force, property=cfg.CONF.property)
+    if OUT_OF_SYNC:
+        return OUT_OF_SYNC[0]
+    return 0
 
 
 if __name__ == "__main__":
