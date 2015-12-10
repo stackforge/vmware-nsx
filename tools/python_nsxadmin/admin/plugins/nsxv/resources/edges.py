@@ -14,6 +14,8 @@
 
 
 import logging
+import pprint
+import prettytable
 
 from tools.python_nsxadmin.admin.plugins.common import constants
 from tools.python_nsxadmin.admin.plugins.common import formatters
@@ -78,13 +80,17 @@ def nsx_list_orphaned_edges(resource, event, trigger, **kwargs):
     don't have a corresponding binding in Neutron DB
     """
     LOG.info(_LI("NSXv edges present on NSXv backend but not present "
-                 "in Neutron DB"))
+                 "in Neutron DB\n"))
     orphaned_edges = get_orphaned_edges()
     if not orphaned_edges:
         LOG.info(_LI("\nNo orphaned edges found."
                      "\nNeutron DB and NSXv backend are in sync\n"))
     else:
-        LOG.info(orphaned_edges)
+        table = prettytable.PrettyTable(['edge-id'])
+        for edge in orphaned_edges:
+            table.add_row([edge])
+        LOG.info(constants.ORPHANED_EDGES)
+        LOG.info(table)
 
 
 @admin_utils.output_header
@@ -107,7 +113,8 @@ def nsx_delete_orphaned_edges(resource, event, trigger, **kwargs):
         LOG.info(_LI("Deleting edge: %s"), edge)
         nsxv.delete_edge(edge)
 
-    LOG.info(_LI("After delete; Orphaned Edges: %s"), get_orphaned_edges())
+    LOG.info(_LI("After delete; Orphaned Edges: \n%s"),
+        pprint.pformat(get_orphaned_edges()))
 
 
 @admin_utils.output_header
@@ -138,15 +145,15 @@ def nsx_update_edge(resource, event, trigger, **kwargs):
 
 registry.subscribe(nsx_list_edges,
                    constants.EDGES,
-                   shell.Operations.LIST.value)
+                   shell.Operations.NSX_LIST.value)
 registry.subscribe(neutron_list_router_edge_bindings,
                    constants.EDGES,
-                   shell.Operations.LIST.value)
+                   shell.Operations.NEUTRON_LIST.value)
 registry.subscribe(nsx_list_orphaned_edges,
-                   constants.EDGES,
+                   constants.ORPHANED_EDGES,
                    shell.Operations.LIST.value)
 registry.subscribe(nsx_delete_orphaned_edges,
-                   constants.EDGES,
+                   constants.ORPHANED_EDGES,
                    shell.Operations.CLEAN.value)
 registry.subscribe(nsx_update_edge,
                    constants.EDGES,
