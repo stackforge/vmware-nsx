@@ -203,7 +203,7 @@ nsx_v3_opts = [
                 default=True,
                 help=_('If true, the NSX Manager server certificate is not '
                        'verified. If false, then the default CA truststore is '
-                       'used for verification. This option is ignored if '
+                       'used for verification. This option is ignored if the '
                        '"ca_file" is set.')),
     cfg.StrOpt('default_tier0_router_uuid',
                help=_("Default tier0 router identifier")),
