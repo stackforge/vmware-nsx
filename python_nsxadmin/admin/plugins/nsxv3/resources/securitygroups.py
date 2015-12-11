@@ -14,10 +14,10 @@
 
 import logging
 
-from tools.python_nsxadmin.admin.plugins.common import constants
-from tools.python_nsxadmin.admin.plugins.common import formatters
-from tools.python_nsxadmin.admin.plugins.common import utils as admin_utils
-from tools.python_nsxadmin.admin import shell
+from python_nsxadmin.admin.plugins.common import constants
+from python_nsxadmin.admin.plugins.common import formatters
+from python_nsxadmin.admin.plugins.common import utils as admin_utils
+from python_nsxadmin.admin import shell
 
 from neutron.callbacks import registry
 from neutron import context as neutron_context

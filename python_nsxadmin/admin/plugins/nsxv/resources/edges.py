@@ -16,12 +16,12 @@
 import logging
 import pprint
 
-from tools.python_nsxadmin.admin.plugins.common import constants
-from tools.python_nsxadmin.admin.plugins.common import formatters
+from python_nsxadmin.admin.plugins.common import constants
+from python_nsxadmin.admin.plugins.common import formatters
 
-import tools.python_nsxadmin.admin.plugins.common.utils as admin_utils
-import tools.python_nsxadmin.admin.plugins.nsxv.resources.utils as utils
-import tools.python_nsxadmin.admin.shell as shell
+import python_nsxadmin.admin.plugins.common.utils as admin_utils
+import python_nsxadmin.admin.plugins.nsxv.resources.utils as utils
+import python_nsxadmin.admin.shell as shell
 
 from neutron.callbacks import registry
 from neutron.common import exceptions
