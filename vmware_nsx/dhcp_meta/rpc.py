@@ -48,6 +48,8 @@ def handle_port_dhcp_access(plugin, context, port_data, action):
 
 
 def handle_port_metadata_access(plugin, context, port, is_delete=False):
+    # For instances supporting DHCP option 121 and created in a
+    # DHCP-enabled but isolated network.
     if (cfg.CONF.NSX.metadata_mode == config.MetadataModes.INDIRECT and
         port.get('device_owner') == const.DEVICE_OWNER_DHCP):
         if port.get('fixed_ips', []) or is_delete:
@@ -83,6 +85,8 @@ def handle_port_metadata_access(plugin, context, port, is_delete=False):
 
 
 def handle_router_metadata_access(plugin, context, router_id, interface=None):
+    # For instances created in a DHCP-disabled network but connected to
+    # a router.
     if cfg.CONF.NSX.metadata_mode != config.MetadataModes.DIRECT:
         LOG.debug("Metadata access network is disabled")
         return
