@@ -75,7 +75,7 @@ def _decide_service(sg_rule):
                                       l4_protocol=l4_protocol,
                                       source_ports=source_ports,
                                       destination_ports=destination_ports)
-    elif l4_protocol == firewall.ICMPV4:
+    elif l4_protocol == firewall.ICMPV4 and sg_rule['port_range_min']:
         return firewall.get_nsservice(firewall.ICMP_TYPE_NSSERVICE,
                                       protocol=l4_protocol,
                                       icmp_type=sg_rule['port_range_min'],
