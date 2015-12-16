@@ -26,7 +26,7 @@ class NSXClient(object):
     API_VERSION = "v1"
 
     def __init__(self, host, username, password, *args, **kwargs):
-        self.host = host
+        self.host = host.split(',')[0]
         self.username = username
         self.password = password
         self.version = None
