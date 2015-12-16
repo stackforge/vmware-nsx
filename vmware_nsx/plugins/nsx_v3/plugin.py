@@ -373,15 +373,19 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         # have a UUID for the logical switch, set that as the neutron network
         # id in the switch's tags. Note errors but no rollback is needed here.
         network_id = result['id']
-        net_data['id'] = network_id
         network_tags = result['tags']
         for tag in network_tags:
             if tag['scope'] == 'os-neutron-id':
                 tag['tag'] = network_id
         try:
-            nsxlib.update_logical_switch(network_id, tags=network_tags)
-        except nsx_exc.ManagerError:
-            LOG.exception(_LE("Unable to update network tags on NSX backend"))
+            nsxlib.update_logical_switch(
+                network_id,
+                name=utils.get_name_and_uuid(net_data.get('name'),
+                                             network_id),
+                tags=network_tags)
+        except Exception:
+            LOG.exception(_LE("Unable to update network name and tags on NSX "
+                              "backend for network %s"), network_id)
 
         return (is_provider_net, net_type, physical_net, vlan_id)
 
