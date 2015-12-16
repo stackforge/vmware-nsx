@@ -384,8 +384,9 @@ class TestNsxV3Utils(NsxV3PluginTestCaseMixin):
     def test_build_v3_tags_payload(self):
         result = utils.build_v3_tags_payload(
             {'id': 'fake_id',
-             'tenant_id': 'fake_tenant_id'})
-        expected = [{'scope': 'os-neutron-id', 'tag': 'fake_id'},
+             'tenant_id': 'fake_tenant_id'},
+            resource='maldini')
+        expected = [{'scope': 'maldini', 'tag': 'fake_id'},
                     {'scope': 'os-project-id', 'tag': 'fake_tenant_id'},
                     {'scope': 'os-api-version',
                      'tag': version.version_info.release_string()}]
