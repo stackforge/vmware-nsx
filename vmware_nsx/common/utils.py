@@ -99,18 +99,18 @@ def build_v3_api_version_tag():
              'tag': version.version_info.release_string()}]
 
 
-def build_v3_tags_payload(logical_entity):
+def build_v3_tags_payload(resource, resource_type):
     """
     Construct the tags payload that will be pushed to NSX-v3
     Add os-project-id:<tenant-id>, os-api-version:<neutron-api-version>,
         os-neutron-id:<resource-id>
     """
-    return [{"scope": "os-neutron-id",
-             "tag": logical_entity.get("id", "")},
-            {"scope": "os-project-id",
-             "tag": logical_entity.get("tenant_id", "")},
-            {"scope": "os-api-version",
-             "tag": version.version_info.release_string()}]
+    return [{'scope': resource_type,
+             'tag': resource.get('id', '')},
+            {'scope': 'os-project-id',
+             'tag': resource.get('tenant_id', '')},
+            {'scope': 'os-api-version',
+             'tag': version.version_info.release_string()}]
 
 
 def retry_upon_exception_nsxv3(exc, delay=500, max_delay=2000,
