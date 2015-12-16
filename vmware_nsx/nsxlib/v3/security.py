@@ -236,7 +236,8 @@ def _init_default_section(name, description, nsgroup_id):
             name, description, [nsgroup_id],
             utils.build_v3_tags_payload({
                 'id': DEFAULT_SECTION_TAG_NAME,
-                'tenant_id': nsx_constants.SHARED_TAG_TENANT_ID}))
+                'tenant_id': nsx_constants.SHARED_TAG_TENANT_ID},
+                resource='os-neutron-default-section'))
         block_rule = firewall.get_firewall_rule_dict(
             'Block All', action=firewall.DROP)
         # TODO(roeyc): Add additional rules to allow IPV6 NDP.
