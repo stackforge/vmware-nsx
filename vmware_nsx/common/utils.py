@@ -99,7 +99,7 @@ def build_v3_api_version_tag():
              'tag': version.version_info.release_string()}]
 
 
-def build_v3_tags_payload(resource, resource_type):
+def build_v3_tags_payload(resource, resource_type, resource_project):
     """
     Construct the tags payload that will be pushed to NSX-v3
     Add os-project-id:<tenant-id>, os-api-version:<neutron-api-version>,
@@ -109,6 +109,8 @@ def build_v3_tags_payload(resource, resource_type):
              'tag': resource.get('id', '')},
             {'scope': 'os-project-id',
              'tag': resource.get('tenant_id', '')},
+            {'scope': 'os-project-name',
+             'tag': resource_project},
             {'scope': 'os-api-version',
              'tag': version.version_info.release_string()}]
 
