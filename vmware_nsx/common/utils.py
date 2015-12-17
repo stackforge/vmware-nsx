@@ -98,6 +98,8 @@ def build_v3_tags_payload(logical_entity):
              "tag": logical_entity.get("id", "")},
             {"scope": "os-project-id",
              "tag": logical_entity.get("tenant_id", "")},
+            {"scope": "os-project-name",
+             "tag": logical_entity.get("tenant_name", "")},
             {"scope": "os-api-version",
              "tag": version.version_info.release_string()}]
 

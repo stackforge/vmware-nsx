@@ -173,6 +173,8 @@ class NsxV3Driver(l2gateway_db.L2GatewayMixin):
             seg_id = devices[0]['interfaces'][0].get('segmentation_id')
         self._validate_segment_id(seg_id)
         try:
+            if 'tenant_name' not in gw_connection:
+                gw_connection['tenant_name'] = context.tenant_name
             tags = nsx_utils.build_v3_tags_payload(gw_connection)
             bridge_endpoint = nsxlib.create_bridge_endpoint(
                 device_name=device_name,

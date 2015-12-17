@@ -186,7 +186,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     NSX_V3_DHCP_PROFILE_NAME, 'Neutron DHCP Security Profile',
                     tags=utils.build_v3_tags_payload({
                         'id': NSX_V3_DHCP_PROFILE_NAME,
-                        'tenant_id': nsx_constants.SHARED_TAG_TENANT_ID}))
+                        'tenant_id': nsx_constants.SHARED_TAG_TENANT_ID,
+                        'tenant_name': nsx_constants.SHARED_TAG_TENANT_NAME}))
             return self._get_dhcp_security_profile()
 
     def _get_dhcp_security_profile(self):
@@ -227,7 +228,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 whitelist_ports=True, whitelist_switches=False,
                 tags=utils.build_v3_tags_payload({
                     'id': NSX_V3_PSEC_PROFILE_NAME,
-                    'tenant_id': nsx_constants.SHARED_TAG_TENANT_ID}))
+                    'tenant_id': nsx_constants.SHARED_TAG_TENANT_ID,
+                    'tenant_name': nsx_constants.SHARED_TAG_TENANT_NAME}))
 
         return self._get_port_security_profile()
 
@@ -353,6 +355,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         net_type, physical_net, vlan_id = self._validate_provider_create(
             context, net_data)
         net_name = net_data['name']
+        if 'tenant_name' not in net_data:
+            net_data['tenant_name'] = context.tenant_name
         tags = utils.build_v3_tags_payload(net_data)
         admin_state = net_data.get('admin_state_up', True)
 
@@ -558,6 +562,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
     def _create_port_at_the_backend(self, context, neutron_db,
                                     port_data, l2gw_port_check,
                                     psec_is_on):
+        if 'tenant_name' not in port_data:
+            port_data['tenant_name'] = context.tenant_name
         tags = utils.build_v3_tags_payload(port_data)
         parent_name, tag = self._get_data_from_binding_profile(
             context, port_data)
@@ -978,6 +984,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
     def create_router(self, context, router):
         # TODO(berlin): admin_state_up support
         gw_info = self._extract_external_gw(context, router, is_extract=True)
+        if 'tenant_name' not in router['router']:
+            router['router']['tenant_name'] = context.tenant_name
         tags = utils.build_v3_tags_payload(router['router'])
         result = self._router_client.create(
             display_name=router['router'].get('name'),
@@ -1360,6 +1368,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
     def create_security_group(self, context, security_group, default_sg=False):
         secgroup = security_group['security_group']
         secgroup['id'] = uuidutils.generate_uuid()
+        if 'tenant_name' not in secgroup:
+            secgroup['tenant_name'] = context.tenant_name
 
         tags = utils.build_v3_tags_payload(secgroup)
         name = security.get_nsgroup_name(secgroup)
