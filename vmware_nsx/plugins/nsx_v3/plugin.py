@@ -349,7 +349,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             context, net_data)
         net_name = net_data['name']
         tags = utils.build_v3_tags_payload(
-            net_data, resource_type='os-neutron-network-id')
+            net_data, resource_type='os-neutron-network-id',
+            resource_project=context.tenant_name)
         admin_state = net_data.get('admin_state_up', True)
 
         # Create network on the backend
@@ -574,7 +575,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                     port_data, l2gw_port_check,
                                     psec_is_on):
         tags = utils.build_v3_tags_payload(
-            port_data, resource_type='os-neutron-port-id')
+            port_data, resource_type='os-neutron-port-id',
+            resource_project=context.tenant_name)
         parent_name, tag = self._get_data_from_binding_profile(
             context, port_data)
         address_bindings = self._build_address_bindings(port_data)
@@ -995,7 +997,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         # TODO(berlin): admin_state_up support
         gw_info = self._extract_external_gw(context, router, is_extract=True)
         tags = utils.build_v3_tags_payload(
-            router['router'], resource_type='os-neutron-router-id')
+            router['router'], resource_type='os-neutron-router-id',
+            resource_project=context.tenant_name)
         result = self._router_client.create(
             display_name=router['router'].get('name'),
             tags=tags)
@@ -1377,6 +1380,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
     def create_security_group(self, context, security_group, default_sg=False):
         secgroup = security_group['security_group']
         secgroup['id'] = uuidutils.generate_uuid()
+        if 'tenant_name' not in secgroup:
+            secgroup['tenant_name'] = context.tenant_name
 
         tags = utils.build_v3_tags_payload(
             secgroup, resource_type='os-neutron-security-group-id')

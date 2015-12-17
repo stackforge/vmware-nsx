@@ -385,9 +385,11 @@ class TestNsxV3Utils(NsxV3PluginTestCaseMixin):
         result = utils.build_v3_tags_payload(
             {'id': 'fake_id',
              'tenant_id': 'fake_tenant_id'},
-            resource='maldini')
+            resource_type='maldini',
+            resource_project='fake_tenant_name')
         expected = [{'scope': 'maldini', 'tag': 'fake_id'},
                     {'scope': 'os-project-id', 'tag': 'fake_tenant_id'},
+                    {'scope': 'os-project-name', 'tag': 'fake_tenant_name'},
                     {'scope': 'os-api-version',
                      'tag': version.version_info.release_string()}]
         self.assertEqual(expected, result)
