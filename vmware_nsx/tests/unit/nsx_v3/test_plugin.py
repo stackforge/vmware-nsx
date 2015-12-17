@@ -19,6 +19,7 @@ from neutron.api.v2 import attributes
 from neutron.common import constants
 from neutron.common import exceptions as n_exc
 from neutron import context
+from neutron.extensions import availability_zone as az_ext
 from neutron.extensions import external_net
 from neutron.extensions import extraroute
 from neutron.extensions import l3
@@ -137,8 +138,8 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
         attrs = kwargs
         if providernet_args:
             attrs.update(providernet_args)
-        for arg in (('admin_state_up', 'tenant_id', 'shared') +
-                    (arg_list or ())):
+        for arg in (('admin_state_up', 'tenant_id', 'shared',
+                     'availability_zone_hints') + (arg_list or ())):
             # Arg must be present
             if arg in kwargs:
                 data['network'][arg] = kwargs[arg]
@@ -151,7 +152,17 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
 
 
 class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
-    pass
+
+    @mock.patch.object(nsx_plugin.NsxV3Plugin, 'validate_availability_zones')
+    def test_create_network_with_zone(self, mock_validate_az):
+        name = 'net-with-zone'
+        zone = ['zone1']
+
+        mock_validate_az.return_value = None
+        with self.network(name=name, availability_zone_hints=zone) as net:
+            az_hints = net['network']['availability_zone_hints']
+            az_hints_list = az_ext.convert_az_string_to_list(az_hints)
+            self.assertListEqual(az_hints_list, zone)
 
 
 class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
