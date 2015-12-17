@@ -137,8 +137,8 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
         attrs = kwargs
         if providernet_args:
             attrs.update(providernet_args)
-        for arg in (('admin_state_up', 'tenant_id', 'shared') +
-                    (arg_list or ())):
+        for arg in (('admin_state_up', 'tenant_id', 'shared',
+                     'availability_zone_hints') + (arg_list or ())):
             # Arg must be present
             if arg in kwargs:
                 data['network'][arg] = kwargs[arg]
@@ -151,8 +151,18 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
 
 
 class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
-    pass
 
+    def test_create_network_with_zone(self):
+        name = 'net-with-zone'
+        zone = 'zone1'
+        keys = [('subnets', []), ('name', name), ('admin_state_up', True),
+                ('status', self.net_create_status), ('shared', False),
+                ('availability_zone_hints': zone)]
+
+        with self.network(name=name, availability_zone_hints=zone) as net:
+            for k, v in keys:
+                self.assertEqual(net['network'][k], v)
+ 
 
 class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
                   test_bindings.PortBindingsTestCase,
