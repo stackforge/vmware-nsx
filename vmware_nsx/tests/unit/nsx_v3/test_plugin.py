@@ -410,7 +410,7 @@ class TestNsxV3Utils(NsxV3PluginTestCaseMixin):
                      'tag': version.version_info.release_string()}]
         self.assertEqual(expected, result)
 
-    def test_build_v3_tags_payloadi_invalid_length(self):
+    def test_build_v3_tags_payload_invalid_length(self):
         self.assertRaises(n_exc.InvalidInput,
                           utils.build_v3_tags_payload,
                           {'id': 'fake_id',
