@@ -206,6 +206,9 @@ class EdgeLbDriver(object):
         try:
             with locking.LockManager.get_lock(pool_mapping['edge_id'],
                                               external=True):
+                curr_pool = self.vcns.get_pool(pool_mapping['edge_id'],
+                                               pool_mapping['edge_pool_id'])[1]
+                curr_pool.update(edge_pool)
                 self.vcns.update_pool(pool_mapping['edge_id'],
                                       pool_mapping['edge_pool_id'],
                                       edge_pool)
