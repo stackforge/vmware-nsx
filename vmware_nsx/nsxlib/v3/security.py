@@ -194,7 +194,7 @@ def update_lport_with_security_groups(context, lport_id, original, updated):
     for sg_id in removed:
         nsgroup_id, _ = get_sg_mappings(context.session, sg_id)
         firewall.remove_nsgroup_member(
-            nsgroup_id, lport_id)
+            nsgroup_id, firewall.LOGICAL_PORT, lport_id)
 
 
 def init_nsgroup_container_and_default_section_rules():

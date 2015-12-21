@@ -34,11 +34,11 @@ ALLOW = 'ALLOW'
 DROP = 'DROP'
 REJECT = 'REJECT'
 
-# filtering operators
+# filtering operators and expressions
 EQUALS = 'EQUALS'
+NSGROUP_SIMPLE_EXPRESSION = 'NSGroupSimpleExpression'
 
 NSGROUP = 'NSGroup'
-NSGROUP_SIMPLE_EXPRESSION = 'NSGroupSimpleExpression'
 LOGICAL_SWITCH = 'LogicalSwitch'
 LOGICAL_PORT = 'LogicalPort'
 IPV4ADDRESS = 'IPv4Address'
@@ -89,38 +89,30 @@ def update_nsgroup(nsgroup_id, display_name, description):
     return nsxclient.update_resource('ns-groups/%s' % nsgroup_id, nsgroup)
 
 
-@utils.retry_upon_exception_nsxv3(nsx_exc.StaleRevision)
+def get_nsgroup_member_expression(target_type, target_id):
+    return {'resource_type': NSGROUP_SIMPLE_EXPRESSION,
+            'target_property': 'id',
+            'target_type': target_type,
+            'op': EQUALS,
+            'value': target_id}
+
+
 def add_nsgroup_member(nsgroup_id, target_type, target_id):
-    nsgroup = read_nsgroup(nsgroup_id)
-    if 'members' not in nsgroup:
-        nsgroup['members'] = []
-    nsgroup['members'].append({"resource_type": NSGROUP_SIMPLE_EXPRESSION,
-                               'target_property': 'id',
-                               'target_type': target_type,
-                               'op': EQUALS,
-                               'value': target_id})
-    return nsxclient.update_resource('ns-groups/%s' % nsgroup_id, nsgroup)
+    member_expr = get_nsgroup_member_expression(target_type, target_id)
+    data = {'members': [member_expr]}
+    add_members = 'ns-groups/%s?action=add_members' % nsgroup_id
+    return nsxclient.update_resource(add_members, data)
 
 
-@utils.retry_upon_exception_nsxv3(nsx_exc.StaleRevision)
-def remove_nsgroup_member(nsgroup_id, target_id):
-    nsgroup = read_nsgroup(nsgroup_id)
-    for i, member in enumerate(nsgroup.get('members', [])):
-        if target_id == member['value']:
-            break
-    else:
-        return
-    del nsgroup['members'][i]
-    return nsxclient.update_resource('ns-groups/%s' % nsgroup_id, nsgroup)
+def remove_nsgroup_member(nsgroup_id, target_type, target_id):
+    member_expr = get_nsgroup_member_expression(target_type, target_id)
+    data = {'members': [member_expr]}
+    remove_members = 'ns-groups/%s?action=remove_members' % nsgroup_id
+    return nsxclient.update_resource(remove_members, data)
 
 
 def read_nsgroup(nsgroup_id):
-    nsgroup = nsxclient.get_resource('ns-groups/%s' % nsgroup_id)
-    # NSX API will not specify the 'members' attribute if its empty, but
-    # requires it on update.
-    if 'members' not in nsgroup:
-        nsgroup['members'] = []
-    return nsgroup
+    return nsxclient.get_resource('ns-groups/%s' % nsgroup_id)
 
 
 def delete_nsgroup(nsgroup_id):

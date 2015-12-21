@@ -76,7 +76,7 @@ class TestSecurityGroups(test_nsxv3.NsxV3PluginTestCaseMixin,
                  mock.call(NSG_IDS[2], mock.ANY, mock.ANY)]
         add_member_mock.assert_has_calls(calls, any_order=True)
 
-        remove_member_mock.assert_called_with(NSG_IDS[0], mock.ANY)
+        remove_member_mock.assert_called_with(NSG_IDS[0], mock.ANY, mock.ANY)
 
     @mock.patch.object(nsx_plugin.security.firewall, 'remove_nsgroup_member')
     @mock.patch.object(nsx_plugin.security.firewall, 'add_nsgroup_member')
@@ -92,4 +92,4 @@ class TestSecurityGroups(test_nsxv3.NsxV3PluginTestCaseMixin,
               self).test_update_port_remove_security_group_empty_list()
 
         add_member_mock.assert_called_with(NSG_ID, mock.ANY, mock.ANY)
-        remove_member_mock.assert_called_with(NSG_ID, mock.ANY)
+        remove_member_mock.assert_called_with(NSG_ID, mock.ANY, mock.ANY)
