@@ -85,7 +85,7 @@ class TestSecurityGroups(test_nsxv3.NsxV3PluginTestCaseMixin,
                  mock.call(NSG_IDS[2], mock.ANY, mock.ANY)]
         add_member_mock.assert_has_calls(calls, any_order=True)
 
-        remove_member_mock.assert_called_with(NSG_IDS[0], mock.ANY)
+        remove_member_mock.assert_called_with(NSG_IDS[0], mock.ANY, mock.ANY)
 
     @_mock_create_and_list_nsgroups
     @mock.patch.object(firewall, 'remove_nsgroup_member')

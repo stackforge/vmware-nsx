@@ -740,6 +740,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         self.disassociate_floatingips(context, port_id)
         nsx_rpc.handle_port_metadata_access(self, context, port,
                                             is_delete=True)
+        security.update_lport_with_security_groups(
+            context, nsx_port_id, port.get(ext_sg.SECURITYGROUPS, []), [])
         ret_val = super(NsxV3Plugin, self).delete_port(context, port_id)
 
         return ret_val
