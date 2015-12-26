@@ -651,7 +651,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                             segmentation_id = 0
                         physical_network = tz.get(pnet.PHYSICAL_NETWORK, '')
                         physical_net_set = attr.is_attr_set(physical_network)
-                        if not physical_net_set:
+                        if (not physical_net_set or
+                            (physical_net_set and
+                             network_type==c_utils.NsxVNetworkTypes.VXLAN)):
                             physical_network = self.dvs_id
                         net_bindings.append(nsxv_db.add_network_binding(
                             context.session, new_net['id'],
