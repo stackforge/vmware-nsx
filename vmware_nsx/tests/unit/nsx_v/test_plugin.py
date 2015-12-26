@@ -306,13 +306,15 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxVPluginV2TestCase):
         expected = [('subnets', []), ('name', name), ('admin_state_up', True),
                     ('status', 'ACTIVE'), ('shared', False),
                     (pnet.NETWORK_TYPE, 'vxlan'),
-                    (pnet.PHYSICAL_NETWORK, 'vdnscope-2')]
+                    (pnet.PHYSICAL_NETWORK, 'fake_dvs_id')]
         providernet_args = {pnet.NETWORK_TYPE: 'vxlan',
                             pnet.PHYSICAL_NETWORK: 'vdnscope-2'}
         with self.network(name=name,
                           providernet_args=providernet_args,
                           arg_list=(pnet.NETWORK_TYPE,
                                     pnet.PHYSICAL_NETWORK)) as net:
+            # Expected value for physical network attr is the dvs-id
+            # instead of transport zone id passed in from the API.
             for k, v in expected:
                 self.assertEqual(net['network'][k], v)
 
