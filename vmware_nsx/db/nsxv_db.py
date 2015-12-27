@@ -715,3 +715,29 @@ def del_nsxv_lbaas_certificate_binding(session, cert_id, edge_id):
     return (session.query(nsxv_models.NsxvLbaasCertificateBinding).
             filter_by(cert_id=cert_id,
                       edge_id=edge_id).delete())
+
+
+def add_subnet_binding(session, subnet_id, search_domain):
+    with session.begin(subtransactions=True):
+        binding = nsxv_models.NsxvSubnetExtAttributes(
+            subnet_id=subnet_id,
+            search_domain=search_domain)
+        session.add(binding)
+    return binding
+
+
+def get_subnet_binding(session, subnet_id):
+    try:
+        return session.query(
+            nsxv_models.NsxvSubnetExtAttributes).filter_by(
+            subnet_id=subnet_id).one()
+    except exc.NoResultFound:
+        return
+
+
+def update_subnet_binding(session, subnet_id, search_domain):
+    with session.begin(subtransactions=True):
+        binding = (session.query(nsxv_models.NsxvSubnetExtAttributes).
+                   filter_by(subnet_id=subnet_id).one())
+        binding['search_domain'] = search_domain
+    return binding

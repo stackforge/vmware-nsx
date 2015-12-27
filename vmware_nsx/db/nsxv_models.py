@@ -310,3 +310,14 @@ class NsxvLbaasCertificateBinding(model_base.BASEV2):
     cert_id = sa.Column(sa.String(36), primary_key=True)
     edge_id = sa.Column(sa.String(36), primary_key=True)
     edge_cert_id = sa.Column(sa.String(36), nullable=False)
+
+
+class NsxvSubnetExtAttributes(model_base.BASEV2):
+    """Subnet attributes managed by NSX plugin extensions."""
+
+    __tablename__ = 'nsxv_subnet_ext_attributes'
+
+    subnet_id = sa.Column(sa.String(36),
+                          sa.ForeignKey('subnets.id', ondelete="CASCADE"),
+                          primary_key=True)
+    search_domain = sa.Column(sa.String(255), nullable=False)

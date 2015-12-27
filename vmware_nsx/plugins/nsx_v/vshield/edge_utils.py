@@ -37,6 +37,7 @@ from vmware_nsx.common import locking
 from vmware_nsx.common import nsxv_constants
 from vmware_nsx.db import db as nsx_db
 from vmware_nsx.db import nsxv_db
+from vmware_nsx.extensions import search_domain as ext_search_domain
 from vmware_nsx.plugins.nsx_v.vshield.common import (
     constants as vcns_const)
 from vmware_nsx.plugins.nsx_v.vshield.tasks import (
@@ -679,6 +680,7 @@ class EdgeManager(object):
             <defaultGateway></defaultGateway> <!--optional.-->
             <primaryNameServer></primaryNameServer> <!--optional-->
             <secondaryNameServer></secondaryNameServer> <!--optional-->
+            <domainName></domainName> <!--optional-->
         </staticBinding>
         """
         static_bindings = []
@@ -709,6 +711,11 @@ class EdgeManager(object):
             elif len(name_servers) >= 2:
                 static_config['primaryNameServer'] = name_servers[0]
                 static_config['secondaryNameServer'] = name_servers[1]
+            # Set search domain for static binding
+            sub_binding = nsxv_db.get_subnet_binding(context.session,
+                                                     subnet_id)
+            if sub_binding:
+                static_config['domainName'] = sub_binding.search_domain
 
             static_bindings.append(static_config)
         return static_bindings
