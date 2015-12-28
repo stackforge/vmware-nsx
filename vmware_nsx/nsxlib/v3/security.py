@@ -21,6 +21,7 @@ NSX-V3 Plugin security integration module
 import uuid
 
 from neutron.db import securitygroups_db
+from oslo_config import cfg
 from oslo_log import log
 
 from vmware_nsx._i18n import _, _LW
@@ -31,9 +32,6 @@ from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 
 
 LOG = log.getLogger(__name__)
-
-# TODO(roeyc): Make this number configurable
-NUM_OF_NESTED_GROUPS = 8
 
 DEFAULT_SECTION = 'OS Default Section for Neutron Security-Groups'
 DEFAULT_SECTION_TAG_NAME = 'neutron_default_dfw_section'
@@ -212,7 +210,7 @@ def init_nsgroup_manager_and_default_section_rules():
     section_description = ("This section is handled by OpenStack to contain "
                            "default rules on security-groups.")
 
-    nsgroup_manager = NSGroupManager(NUM_OF_NESTED_GROUPS)
+    nsgroup_manager = NSGroupManager(cfg.CONF.nsx_v3.number_of_nested_groups)
     section_id = _init_default_section(
         DEFAULT_SECTION, section_description, nsgroup_manager.nested_groups)
     return nsgroup_manager, section_id
