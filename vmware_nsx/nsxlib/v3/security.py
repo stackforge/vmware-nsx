@@ -21,6 +21,7 @@ NSX-V3 Plugin security integration module
 import uuid
 
 from neutron.db import securitygroups_db
+from oslo_config import cfg
 from oslo_log import log
 
 from vmware_nsx._i18n import _, _LW
@@ -31,9 +32,6 @@ from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 
 
 LOG = log.getLogger(__name__)
-
-# TODO(roeyc): Make this number configurable
-NUM_OF_NESTED_GROUPS = 8
 
 DEFAULT_SECTION = 'OS Default Section for Neutron Security-Groups'
 DEFAULT_SECTION_TAG_NAME = 'neutron_default_dfw_section'
@@ -212,7 +210,7 @@ def init_nsgroup_manager_and_default_section_rules():
     section_description = ("This section is handled by OpenStack to contain "
                            "default rules on security-groups.")
 
-    nsgroup_manager = NSGroupManager(NUM_OF_NESTED_GROUPS)
+    nsgroup_manager = NSGroupManager(cfg.CONF.nsx_v3.number_of_nested_groups)
     section_id = _init_default_section(
         DEFAULT_SECTION, section_description, nsgroup_manager.nested_groups)
     return nsgroup_manager, section_id
@@ -296,7 +294,7 @@ class NSGroupManager(object):
         absent_groups = set(range(self.size)) - set(nested_groups.keys())
         if absent_groups:
             LOG.warning(
-                _LW("Missing %(num_present)s Nested Groups, "
+                _LW("Found %(num_present)s Nested Groups, "
                     "creating %(num_absent)s more."),
                 {'num_present': len(nested_groups),
                  'num_absent': len(absent_groups)})
@@ -307,7 +305,8 @@ class NSGroupManager(object):
         return nested_groups
 
     def _get_nested_group_index_from_name(self, nested_group):
-        return int(nested_group['display_name'][-1]) - 1
+        # The name format is "Nested Group <index+1>"
+        return int(nested_group['display_name'].split()[-1]) - 1
 
     def _create_nested_group(self, index):
         name_prefix = NSGroupManager.NESTED_GROUP_NAME
@@ -327,7 +326,7 @@ class NSGroupManager(object):
         yield self.nested_groups[index]
 
         for i in range(1, self.size):
-            index = (index + i) % self.size
+            index = (index + 1) % self.size
             yield self.nested_groups[index]
 
     def add_nsgroup(self, nsgroup_id):
