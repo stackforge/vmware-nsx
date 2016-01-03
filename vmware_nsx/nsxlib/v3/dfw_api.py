@@ -227,8 +227,9 @@ def add_rule_in_section(rule, section_id):
 
 
 def add_rules_in_section(rules, section_id):
-    resource = 'firewall/sections/%s/rules?action=create_multiple' % section_id
-    return nsxclient.create_resource(resource, {'rules': rules})
+    resource = 'firewall/sections/%s/rules' % section_id
+    params = '?action=create_multiple&operation=inser_bottom'
+    return nsxclient.create_resource(resource + params, {'rules': rules})
 
 
 def delete_rule(section_id, rule_id):
