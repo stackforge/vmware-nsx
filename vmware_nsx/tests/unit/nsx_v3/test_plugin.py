@@ -447,8 +447,8 @@ class TestNsxV3Utils(NsxV3PluginTestCaseMixin):
         short_name = utils.get_name_and_uuid('maldini', uuid)
         self.assertEqual(expected, short_name)
 
-        name = 'X' * 255
-        expected = '%s%s' % ('X' * (80 - len(suffix)), suffix)
+        name = 'X' * 512
+        expected = '%s%s' % ('X' * (255 - len(suffix)), suffix)
         short_name = utils.get_name_and_uuid(name, uuid)
         self.assertEqual(expected, short_name)
 
