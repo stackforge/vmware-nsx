@@ -116,19 +116,23 @@ def build_v3_api_version_tag():
              'tag': version.version_info.release_string()}]
 
 
+def _validate_scope_length(scope):
+    # Add in a validation to ensure that we catch this at build time
+    if len(scope) > MAX_RESOURCE_TYPE_LEN:
+        raise exceptions.InvalidInput(
+            error_message=(_('Tag scope name cannot exceed %(max_len)s '
+                             'characters: %(scope)s') %
+                           {'max_len': MAX_RESOURCE_TYPE_LEN,
+                            'scope': scope}))
+
+
 def build_v3_tags_payload(resource, resource_type, project_name):
     """
     Construct the tags payload that will be pushed to NSX-v3
     Add <resource_type>:<resource-id>, os-project-id:<tenant-id>,
     os-project-name:<project_name> os-api-version:<neutron-api-version>
     """
-    # Add in a validation to ensure that we catch this at build time
-    if len(resource_type) > MAX_RESOURCE_TYPE_LEN:
-        raise exceptions.InvalidInput(
-            error_message=(_('Tag scope name cannot exceed %(max_len)s '
-                             'characters: %(scope)s') %
-                           {'max_len': MAX_RESOURCE_TYPE_LEN,
-                            'scope': resource_type}))
+    _validate_scope_length(resource_type)
     # There may be cases when the plugin creates the port, for example DHCP
     if not project_name:
         project_name = 'NSX Neutron plugin'
@@ -140,6 +144,12 @@ def build_v3_tags_payload(resource, resource_type, project_name):
              'tag': project_name[:MAX_TAG_LEN]},
             {'scope': 'os-api-version',
              'tag': version.version_info.release_string()[:MAX_TAG_LEN]}]
+
+
+def add_v3_tag(tags, scope, tag):
+    _validate_scope_length(scope)
+    tags.append({'scope': scope, 'tag': tag[:MAX_TAG_LEN]})
+    return tags
 
 
 def retry_upon_exception_nsxv3(exc, delay=500, max_delay=2000,
