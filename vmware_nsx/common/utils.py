@@ -30,6 +30,7 @@ LOG = log.getLogger(__name__)
 MAX_DISPLAY_NAME_LEN = 40
 MAX_RESOURCE_TYPE_LEN = 20
 MAX_TAG_LEN = 40
+MAX_NAME_LEN = 255
 NEUTRON_VERSION = version.version_info.release_string()
 NSX_NEUTRON_PLUGIN = 'NSX Neutron plugin'
 OS_NEUTRON_ID_SCOPE = 'os-neutron-id'
@@ -200,7 +201,7 @@ def read_file(path):
                       "%(path)s: %(err)s"), {'path': path, 'err': str(e)})
 
 
-def get_name_and_uuid(name, uuid, tag=None, maxlen=80):
+def get_name_and_uuid(name, uuid, tag=None, maxlen=MAX_NAME_LEN):
     short_uuid = '_' + uuid[:5] + '...' + uuid[-5:]
     maxlen = maxlen - len(short_uuid)
     if tag:
