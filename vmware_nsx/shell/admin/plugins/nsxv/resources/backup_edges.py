@@ -94,9 +94,30 @@ def nsx_clean_backup_edge(resource, event, trigger, **kwargs):
             LOG.error(_LE("%s"), str(e))
 
 
+@admin_utils.output_header
+def nsx_list_name_mismatches(resource, event, trigger, **kwargs):
+    edges = nsxv.get_edges()[1]
+    edges = edges['edgePage'].get('data', [])
+    plugin_nsx_mismatch = []
+    edgeapi = utils.NeutronDbClient()
+    edge_binds = nsxv_db.get_nsxv_router_bindings(edgeapi.context.session)
+    for edge in edges:
+        rtr_binding = nsxv_db.get_nsxv_router_binding_by_edge(
+                edgeapi.context.session, edge['id'])
+
+        if (edge['name'].startswith('backup-')
+            and rtr_binding['router_id'] != edge['name']):
+            plugin_nsx_mismatch.append(edge['id'])
+
+    LOG.info(formatters.tabulate_results(plugin_nsx_mismatch))
+
+
 registry.subscribe(nsx_list_backup_edges,
                    constants.BACKUP_EDGES,
                    shell.Operations.LIST.value)
 registry.subscribe(nsx_clean_backup_edge,
                    constants.BACKUP_EDGES,
                    shell.Operations.CLEAN.value)
+registry.subscribe(nsx_list_name_mismatches,
+                   constants.BACKUP_EDGES,
+                   shell.Operations.LIST_MISMATCHES.value)
