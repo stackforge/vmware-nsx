@@ -157,3 +157,8 @@ class NsxL2GWDeviceNotFound(n_exc.NotFound):
 
 class NsxL2GWInUse(n_exc.InUse):
     message = _("L2 Gateway '%(gateway_id)s' has been used")
+
+
+class InvalidIPAddress(n_exc.InvalidInput):
+    message = _("'%(ip_address)s' must be an IPv4 IP address "
+                "in dotted-decimal notation")
