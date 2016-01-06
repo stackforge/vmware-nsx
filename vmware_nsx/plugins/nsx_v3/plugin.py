@@ -625,7 +625,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         if device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF and device_id:
             router = self._get_router(context, device_id)
             name = utils.get_name_and_uuid(
-                router['name'], port_data['id'], tag='_port_')
+                router['name'], port_data['id'], tag='port')
         elif device_owner == const.DEVICE_OWNER_DHCP:
             network = self.get_network(context, port_data['network_id'])
             name = utils.get_name_and_uuid('%s-%s' % ('dhcp', network['name']),
