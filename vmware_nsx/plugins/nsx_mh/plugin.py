@@ -193,6 +193,17 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self.nsx_sync_opts.min_chunk_size,
             self.nsx_sync_opts.max_random_sync_delay)
 
+    def _get_tenant_id_for_create(self, context, resource):
+        if context.is_admin and 'tenant_id' in resource:
+            tenant_id = resource['tenant_id']
+        elif ('tenant_id' in resource and
+              resource['tenant_id'] != context.tenant_id):
+            reason = _('Cannot create resource for another tenant')
+            raise n_exc.AdminRequired(reason=reason)
+        else:
+            tenant_id = context.tenant_id
+        return tenant_id
+
     def _ensure_default_network_gateway(self):
         if self._is_default_net_gw_in_sync:
             return

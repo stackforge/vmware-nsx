@@ -153,6 +153,17 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             raise nsx_exc.NsxPluginException(msg)
         self._unsubscribe_callback_events()
 
+    def _get_tenant_id_for_create(self, context, resource):
+        if context.is_admin and 'tenant_id' in resource:
+            tenant_id = resource['tenant_id']
+        elif ('tenant_id' in resource and
+              resource['tenant_id'] != context.tenant_id):
+            reason = _('Cannot create resource for another tenant')
+            raise n_exc.AdminRequired(reason=reason)
+        else:
+            tenant_id = context.tenant_id
+        return tenant_id
+
     def _unsubscribe_callback_events(self):
         # l3_db explicitly subscribes to the port delete callback. This
         # callback is unsubscribed here since l3 APIs are handled by
