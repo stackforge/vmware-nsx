@@ -439,7 +439,7 @@ class NetworkGatewayMixin(networkgw.NetworkGatewayPluginBase):
     def create_gateway_device(self, context, gateway_device,
                               initial_status=STATUS_UNKNOWN):
         device_data = gateway_device[self.device_resource]
-        tenant_id = self._get_tenant_id_for_create(context, device_data)
+        tenant_id = device_data['tenant_id']
         with context.session.begin(subtransactions=True):
             device_db = nsx_models.NetworkGatewayDevice(
                 id=device_data.get('id', uuidutils.generate_uuid()),
