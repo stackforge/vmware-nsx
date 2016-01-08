@@ -159,6 +159,17 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self.metadata_proxy_handler = (
                 nsx_v_md_proxy.NsxVMetadataProxyHandler(self))
 
+    def _get_tenant_id_for_create(self, context, resource):
+        if context.is_admin and 'tenant_id' in resource:
+            tenant_id = resource['tenant_id']
+        elif ('tenant_id' in resource and
+              resource['tenant_id'] != context.tenant_id):
+            reason = _('Cannot create resource for another tenant')
+            raise n_exc.AdminRequired(reason=reason)
+        else:
+            tenant_id = context.tenant_id
+        return tenant_id
+
     def _create_security_group_container(self):
         name = "OpenStack Security Group container"
         container_id = self.nsx_v.vcns.get_security_group_id(name)

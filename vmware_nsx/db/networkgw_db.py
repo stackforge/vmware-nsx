@@ -474,3 +474,14 @@ class NetworkGatewayMixin(networkgw.NetworkGatewayPluginBase):
             device_db = self._get_gateway_device(context, device_id)
             context.session.delete(device_db)
         LOG.debug("Deleted network gateway device: %s.", device_id)
+
+    def _get_tenant_id_for_create(self, context, resource):
+        if context.is_admin and 'tenant_id' in resource:
+            tenant_id = resource['tenant_id']
+        elif ('tenant_id' in resource and
+              resource['tenant_id'] != context.tenant_id):
+            reason = _('Cannot create resource for another tenant')
+            raise exceptions.AdminRequired(reason=reason)
+        else:
+            tenant_id = context.tenant_id
+        return tenant_id
