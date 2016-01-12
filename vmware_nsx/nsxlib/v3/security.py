@@ -291,7 +291,7 @@ class NSGroupManager(object):
             if utils.is_internal_resource(nsgroup)}
 
         if nested_groups:
-            size = max(requested_size, max(nested_groups) + 1)
+            size = max(requested_size, len(nested_groups))
             if size > requested_size:
                 LOG.warning(_LW("Lowering the value of "
                                 "nsx_v3:number_of_nested_groups isn't "
@@ -309,7 +309,7 @@ class NSGroupManager(object):
                 cont = self._create_nested_group(i)
                 nested_groups[i] = cont['id']
 
-        return nested_groups
+        return nested_groups.values()
 
     def _get_nested_group_index_from_name(self, nested_group):
         # The name format is "Nested Group <index+1>"
