@@ -1,0 +1,9 @@
+Code-Review+2: Ihar Hrachyshka <ihrachys@redhat.com>
+Code-Review+2: garyk <gkotton@vmware.com>
+Workflow+1: garyk <gkotton@vmware.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 12 Jan 2016 18:19:26 +0000
+Reviewed-on: https://review.openstack.org/266503
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/liberty
