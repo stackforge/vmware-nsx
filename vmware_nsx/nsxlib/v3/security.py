@@ -309,7 +309,7 @@ class NSGroupManager(object):
                 cont = self._create_nested_group(i)
                 nested_groups[i] = cont['id']
 
-        return nested_groups
+        return nested_groups.values()
 
     def _get_nested_group_index_from_name(self, nested_group):
         # The name format is "Nested Group <index+1>"
