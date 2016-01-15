@@ -883,8 +883,7 @@ class EdgeApplianceDriver(object):
         if gateway:
             request["defaultRoute"] = {
                 "description": "default-gateway",
-                "gatewayAddress": gateway,
-                "vnic": gateway_vnic_index
+                "gatewayAddress": gateway
             }
         try:
             self.vcns.update_routes(edge_id, request)
