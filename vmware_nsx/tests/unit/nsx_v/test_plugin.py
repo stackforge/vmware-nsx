@@ -1058,6 +1058,18 @@ class TestSubnetsV2(NsxVPluginV2TestCase,
     def test_update_subnet_ipv6_cannot_disable_dhcp(self):
         self.skipTest('No DHCP v6 Support yet')
 
+    def test_create_subnet_V6_pd_slaac(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_V6_pd_stateless(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_V6_pd_statefull(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_V6_pd_no_mode(self):
+        self.skipTest('No DHCP v6 Support yet')
+
     def _create_subnet_bulk(self, fmt, number, net_id, name,
                             ip_version=4, **kwargs):
         base_data = {'subnet': {'network_id': net_id,
