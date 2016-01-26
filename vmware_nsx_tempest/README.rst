@@ -26,10 +26,17 @@ Installation:
 
 Installed at your own development env, for example /opt/devtest/:
 
-   cd /opt/devtest
-   git clone https://github.com/openstack/vmware-nsx
+    # install your own tempest development env at /opt/devtest/os-tempest
+    cd /opt/devtest
+    git clone https://github.com/openstack/tempest os-tempest
+    cd os-tempest
+    python tools/install_venv.python
 
-Assume the tempest directory is at /opt/devtest/os-tempest.
+    # install vmware-nsx master branch at /opt/devtest/vmware-nsx
+    cd /opt/devtest 
+    git clone https://github.com/openstack/vmware-nsx
+
+Install vmware_nsx_tempest to your tempest development environment:
 
     cd /opt/devtest/os-tempest
     source .venv/bin/activate
