@@ -235,6 +235,9 @@ nsx_v3_opts = [
     cfg.IntOpt('number_of_nested_groups',
                default=8,
                help=_("The number of nested NSGroups to use.")),
+    cfg.StrOpt('nsx_api_managers_state_file',
+               default='/tmp/nsx_api_manager.db',
+               help=_("File path to use for caching NSX API manager state."))
 ]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000

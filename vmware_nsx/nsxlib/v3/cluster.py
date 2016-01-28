@@ -22,6 +22,7 @@ import logging
 import random
 import requests
 import six
+import sqlite3
 import urlparse
 
 from eventlet import greenpool
@@ -174,11 +175,23 @@ class Endpoint(object):
     to the underlying connections.
     """
 
-    def __init__(self, provider, pool):
+    def __init__(self, provider, pool, cache_db=None):
         self.provider = provider
         self.pool = pool
         self._state = EndpointState.INITIALIZED
         self._last_updated = datetime.datetime.now()
+        self._cache = cache_db
+
+    def reload_from_cache(self):
+        if self._cache:
+            for ep in self._cache.load_endpoints():
+                if ep.provider.id == self.provider.id:
+                    self.set_state(ep.state)
+                    break
+
+    def save_to_cache(self):
+        if self._cache:
+            self._cache.save_endpoints([self])
 
     @property
     def last_updated(self):
@@ -206,6 +219,78 @@ class Endpoint(object):
         return "[%s] %s" % (self.state, self.provider)
 
 
+@six.add_metaclass(abc.ABCMeta)
+class AbstractEndpointDatabase(object):
+
+    @abc.abstractproperty
+    def database_id(self):
+        pass
+
+    @abc.abstractmethod
+    def load_endpoints(self):
+        pass
+
+    @abc.abstractmethod
+    def save_endpoints(self, endpoints):
+        pass
+
+
+class Sqlite3EndpointDatabase(AbstractEndpointDatabase):
+
+    def __init__(self, state_file_path, in_memory=False):
+        if in_memory:
+            state_file_path = ':memory:'
+
+        self._db = sqlite3.connect(state_file_path)
+        self._init_db()
+
+    def _init_db(self):
+        query = self._db.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name='endpoints';")
+        if not query.fetchall():
+            self._db.execute(
+                    '''CREATE TABLE endpoints
+                    (endpoint CHAR(64) PRIMARY KEY NOT NULL,
+                    state CHAR(16));''')
+            self._db.commit()
+            LOG.debug("Created sqlite3 API manager state cache")
+
+    @property
+    def database_id(self):
+        return "sqlite3 %s" % sqlite3.version
+
+    def save_endpoints(self, endpoints):
+        for ep in endpoints:
+            ep_id, ep_state = ep.provider.id, ep._state
+            try:
+                self._db.execute(
+                        '''INSERT INTO endpoints(endpoint, state)
+                        VALUES (:id, :state)''',
+                        {'id': ep_id,
+                         'state': ep_state})
+                self._db.commit()
+            except sqlite3.IntegrityError:
+                self._db.execute(
+                        '''UPDATE endpoints SET state=:state
+                        WHERE endpoint=:id''',
+                        {'state': ep_state,
+                         'id': ep_id})
+                self._db.commit()
+
+    def load_endpoints(self):
+        endpoints = []
+        cursor = self._db.cursor()
+        cursor.execute("SELECT * FROM endpoints")
+        for row in cursor.fetchall():
+            ep_id, ep_state = row
+            ep = Endpoint(Provider(ep_id, ep_id), None)
+            ep._state = ep_state
+            endpoints.append(ep)
+        cursor.close()
+        return endpoints
+
+
 class EndpointConnection(object):
     """Simple data holder which contains an endpoint and
     a connection for that endpoint.
@@ -228,8 +313,11 @@ class ClusteredAPI(object):
                  http_provider,
                  min_conns_per_pool=1,
                  max_conns_per_pool=500,
-                 keepalive_interval=33):
+                 keepalive_interval=33,
+                 endpoint_db=None):
 
+        self._endpoint_db = endpoint_db or Sqlite3EndpointDatabase(
+                'mem', in_memory=True)
         self._http_provider = http_provider
         self._keepalive_interval = keepalive_interval
 
@@ -247,7 +335,8 @@ class ClusteredAPI(object):
                 order_as_stack=True,
                 create=_create_conn(provider))
 
-            endpoint = Endpoint(provider, pool)
+            endpoint = Endpoint(provider, pool,
+                                cache_db=self._endpoint_db)
             self._endpoints[provider.id] = endpoint
 
         # duck type to proxy http invocations
@@ -285,6 +374,12 @@ class ClusteredAPI(object):
             return self._keepalive_interval
         return self._keepalive_interval - delta.seconds
 
+    def _refresh_cached_state(self):
+        for cached_ep in self._endpoint_db.load_endpoints():
+            ep = self._endpoints.get(cached_ep.provider.id)
+            if ep:
+                ep.set_state(cached_ep.state)
+
     @property
     def providers(self):
         return [ep.provider for ep in self._endpoints.values()]
@@ -301,6 +396,7 @@ class ClusteredAPI(object):
     def health(self):
         down = 0
         up = 0
+        self._refresh_cached_state()
         for endpoint in self._endpoints.values():
             if endpoint.state != EndpointState.UP:
                 down += 1
@@ -323,9 +419,11 @@ class ClusteredAPI(object):
             with endpoint.pool.item() as conn:
                 self._http_provider.validate_connection(self, endpoint, conn)
                 endpoint.set_state(EndpointState.UP)
+                endpoint.save_to_cache()
                 LOG.debug("Validated API cluster endpoint: %s", endpoint)
         except Exception as e:
             endpoint.set_state(EndpointState.DOWN)
+            endpoint.save_to_cache()
             LOG.warning(_LW("Failed to validate API cluster endpoint "
                             "'%(ep)s' due to: %(err)s"),
                         {'ep': endpoint, 'err': e})
@@ -333,6 +431,7 @@ class ClusteredAPI(object):
     def _select_endpoint(self, revalidate=False):
         connected = {}
         for provider_id, endpoint in self._endpoints.items():
+            endpoint.reload_from_cache()
             if endpoint.state == EndpointState.UP:
                 connected[provider_id] = endpoint
                 if endpoint.pool.free():
@@ -445,11 +544,19 @@ class NSXClusteredAPI(ClusteredAPI):
 
         self._http_provider = http_provider or NSXRequestsHTTPProvider()
 
+        cache = Sqlite3EndpointDatabase('mem', in_memory=True)
+        if cfg.CONF.api_workers > 1:
+            cache = Sqlite3EndpointDatabase(
+                    cfg.CONF.nsx_v3.nsx_api_managers_state_file,
+                    in_memory=False)
+            LOG.debug("Using stateful endpoint cache %s" % cache.database_id)
+
         super(NSXClusteredAPI, self).__init__(
             self._build_conf_providers(),
             self._http_provider,
             max_conns_per_pool=self.conns_per_pool,
-            keepalive_interval=self.conn_idle_timeout)
+            keepalive_interval=self.conn_idle_timeout,
+                endpoint_db=cache)
 
         LOG.debug("Created NSX clustered API with '%s' "
                   "provider", self._http_provider.provider_id)
