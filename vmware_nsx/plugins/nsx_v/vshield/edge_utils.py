@@ -137,7 +137,8 @@ class EdgeManager(object):
             lrouter['id'], lrouter['name'], internal_network=None,
             jobdata=jobdata, wait_for_exec=True,
             appliance_size=appliance_size,
-            dist=(edge_type == nsxv_constants.VDR_EDGE), async=async)
+            dist=(edge_type == nsxv_constants.VDR_EDGE), async=async,
+            description="foobar")
         return task
 
     def _deploy_backup_edges_on_db(self, context, num,
@@ -1395,7 +1396,8 @@ def create_lrouter(nsxv_manager, context, lrouter, lswitch=None, dist=False):
     # as we're not in a database transaction now
     task = nsxv_manager.deploy_edge(
         router_id, router_name, internal_network=None,
-        dist=dist, jobdata=jobdata, appliance_size=appliance_size)
+        dist=dist, jobdata=jobdata, appliance_size=appliance_size,
+        description="foobar")
     task.wait(task_const.TaskState.RESULT)
 
 
@@ -1427,7 +1429,8 @@ def create_dhcp_service(context, nsxv_manager, network):
     # Deploy an Edge for dhcp service
     return nsxv_manager.deploy_edge(
         network['id'], edge_name, nsx_network_id, jobdata=jobdata,
-        appliance_size=vcns_const.SERVICE_SIZE_MAPPING['dhcp'])
+        appliance_size=vcns_const.SERVICE_SIZE_MAPPING['dhcp'],
+        description="foobar")
 
 
 def delete_dhcp_service(context, nsxv_manager, network_id):
