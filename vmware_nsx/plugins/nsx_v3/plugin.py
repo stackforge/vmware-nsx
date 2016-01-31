@@ -739,8 +739,18 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             self._process_port_create_security_group(
                 context, port_data, sgids)
             if sgids:
-                security.update_lport_with_security_groups(
-                    context, lport['id'], [], sgids)
+                try:
+                    security.update_lport_with_security_groups(
+                        context, lport['id'], [], sgids)
+                except nsx_exc.SecurityGroupMaximumCapcityReached:
+                    with excutils.save_and_reraise_exception():
+                        LOG.debug("Couldn't associate port %s with "
+                                  "one or more security-groups, reverting "
+                                  "reverting logical-port creation (%s).",
+                                  port_data['id'], lport['id'])
+                        self._port_client.delete(lport['id'])
+
+
 
         nsx_rpc.handle_port_metadata_access(self, context, neutron_db)
         return port_data
