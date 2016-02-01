@@ -202,7 +202,7 @@ nsx_v3_opts = [
                       "This needs to be created in NSX before using the L2 "
                       "gateway service plugin.")),
     cfg.IntOpt('retries',
-               default=10,
+               default=3,
                help=_('Maximum number of times to retry API request')),
     cfg.StrOpt('ca_file',
                help=_('Specify a CA bundle file to use in verifying the NSX '
@@ -217,7 +217,7 @@ nsx_v3_opts = [
                        '"ca_file" will be used or if unsest the default '
                        'system root CAs will be used.')),
     cfg.IntOpt('http_timeout',
-               default=75,
+               default=10,
                help=_('Time before aborting a HTTP connection to a '
                       'NSX manager.')),
     cfg.IntOpt('http_read_timeout',
