@@ -961,6 +961,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         has_security_groups = self._check_update_has_security_groups(port)
         comp_owner_update = ('device_owner' in port_data and
                              port_data['device_owner'].startswith('compute:'))
+        port_ip_change = port_data.get('fixed_ips') is not None
 
         with context.session.begin(subtransactions=True):
             ret_port = super(NsxVPluginV2, self).update_port(
@@ -1006,6 +1007,16 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if comp_owner_update:
             # Create dhcp bindings, the port is now owned by an instance
             self._create_dhcp_static_binding(context, ret_port)
+        elif port_ip_change:
+            # If port IP has changed we should update according to device
+            # owner
+            if is_compute_port:
+                # This is an instance port, so update DHCP entry
+                self.edge_manager.update_dhcp_edge_bindings(
+                    context, ret_port['network_id'])
+            elif original_port['device_owner'].startswith('network'):
+                # This is a network port, so update the edge appliance
+                pass
 
         # Processing compute port update
         vnic_idx = original_port.get(ext_vnic_idx.VNIC_INDEX)
