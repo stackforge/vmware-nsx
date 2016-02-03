@@ -332,7 +332,7 @@ class ClusteredAPI(object):
                             "'%(ep)s' due to: %(err)s"),
                         {'ep': endpoint, 'err': e})
 
-    def _select_endpoint(self, revalidate=False):
+    def _select_endpoint(self):
         connected = {}
         for provider_id, endpoint in self._endpoints.items():
             if endpoint.state == EndpointState.UP:
@@ -340,12 +340,6 @@ class ClusteredAPI(object):
                 if endpoint.pool.free():
                     # connection can be used now
                     return endpoint
-
-        if not connected and revalidate:
-            LOG.debug("All endpoints DOWN; revalidating.")
-            # endpoints may have become available, try to revalidate
-            self.revalidate_endpoints()
-            return self._select_endpoint(revalidate=False)
 
         # no free connections; randomly select a connected endpoint
         # which will likely wait on pool.item() until a connection frees up
@@ -371,8 +365,10 @@ class ClusteredAPI(object):
 
     @contextlib.contextmanager
     def endpoint_connection(self):
-        endpoint = self._select_endpoint(revalidate=True)
+        endpoint = self._select_endpoint()
         if not endpoint:
+            # all endpoints are DOWN and will have their next
+            # state updated as per _endpoint_keepalive()
             raise nsx_exc.ServiceClusterUnavailable(
                 cluster_id=self.cluster_id)
 
