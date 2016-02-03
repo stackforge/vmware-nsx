@@ -171,7 +171,9 @@ class NsxClientTestCase(NsxLibTestCase):
                 if self._session_response:
                     # consumer has setup a response for the session
                     cluster_api.record_call(request, **kwargs)
-                    return self._session_response
+                    return (self._session_response()
+                            if hasattr(self._session_response, '__call__')
+                            else self._session_response)
 
                 # bypass requests redirect handling for mock
                 kwargs['allow_redirects'] = False
