@@ -1,0 +1,9 @@
+Verified+1: VMware NSX CI
+Code-Review+2: Alex Kang <akang@vmware.com>
+Workflow+1: Tong Liu <tongl@vmware.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 04 Feb 2016 06:19:33 +0000
+Reviewed-on: https://review.openstack.org/275040
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
