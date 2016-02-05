@@ -67,6 +67,7 @@ from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils
 from vmware_nsx.db import db as nsx_db
 from vmware_nsx.dhcp_meta import rpc as nsx_rpc
+from vmware_nsx.extensions import transportzone
 from vmware_nsx.nsxlib import v3 as nsxlib
 from vmware_nsx.nsxlib.v3 import client as nsx_client
 from vmware_nsx.nsxlib.v3 import cluster as nsx_cluster
@@ -111,7 +112,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                    "extraroute",
                                    "router",
                                    "availability_zone",
-                                   "network_availability_zone"]
+                                   "network_availability_zone",
+                                   "transport_zone"]
 
     def __init__(self):
         super(NsxV3Plugin, self).__init__()
@@ -269,6 +271,18 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         if not attributes.is_attr_set(physical_net):
             physical_net = None
 
+        transport_zone = network_data.get(transportzone.TRANSPORT_ZONE)
+        if not attributes.is_attr_set(transport_zone):
+            transport_zone = None
+
+        if physical_net and transport_zone:
+            err_msg = _('Physical network and transport zone cannot both'
+                        'be specified')
+            raise n_exc.InvalidInput(error_message=err_msg)
+        elif not physical_net and transport_zone:
+            # Use transport zone extension if physical network is not provided.
+            physical_net = transport_zone
+
         vlan_id = network_data.get(pnet.SEGMENTATION_ID)
         if not attributes.is_attr_set(vlan_id):
             vlan_id = None
@@ -340,12 +354,15 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 tier0_info['member_index_list'])
 
     def _validate_external_net_create(self, net_data):
-        is_provider_net = False
-        if not attributes.is_attr_set(net_data.get(pnet.PHYSICAL_NETWORK)):
-            tier0_uuid = cfg.CONF.nsx_v3.default_tier0_router_uuid
-        else:
-            tier0_uuid = net_data[pnet.PHYSICAL_NETWORK]
+        tier0_uuid = net_data.get(pnet.PHYSICAL_NETWORK)
+        if attributes.is_attr_set(tier0_uuid):
             is_provider_net = True
+        else:
+            is_provider_net = False
+            # Use transport_zone extension if provided.
+            tier0_uuid = net_data.get(transportzone.TRANSPORT_ZONE)
+            if not attributes.is_attr_set(tier0_uuid):
+                tier0_uuid = cfg.CONF.nsx_v3.default_tier0_router_uuid
         self._routerlib.validate_tier0(self.tier0_groups_dict, tier0_uuid)
         return (is_provider_net, utils.NetworkTypes.L3_EXT, tier0_uuid, 0)
 
@@ -426,6 +443,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 created_net = super(NsxV3Plugin, self).create_network(context,
                                                                       network)
 
+                created_net[transportzone.TRANSPORT_ZONE] = physical_net
                 if psec.PORTSECURITY not in net_data:
                     net_data[psec.PORTSECURITY] = True
                 self._process_network_port_security_create(
