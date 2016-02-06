@@ -67,6 +67,7 @@ from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils
 from vmware_nsx.db import db as nsx_db
 from vmware_nsx.dhcp_meta import rpc as nsx_rpc
+from vmware_nsx.extensions import transportzone as tzone
 from vmware_nsx.nsxlib import v3 as nsxlib
 from vmware_nsx.nsxlib.v3 import client as nsx_client
 from vmware_nsx.nsxlib.v3 import cluster as nsx_cluster
@@ -111,7 +112,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                    "extraroute",
                                    "router",
                                    "availability_zone",
-                                   "network_availability_zone"]
+                                   "network_availability_zone",
+                                   "transport_zone"]
 
     def __init__(self):
         super(NsxV3Plugin, self).__init__()
@@ -268,6 +270,10 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         physical_net = network_data.get(pnet.PHYSICAL_NETWORK)
         if not attributes.is_attr_set(physical_net):
             physical_net = None
+            transport_zone = network_data.get(tzone.TRANSPORT_ZONE)
+            if attributes.is_attr_set(transport_zone):
+                # Use transport zone if physical network is not provided.
+                physical_net = transport_zone
 
         vlan_id = network_data.get(pnet.SEGMENTATION_ID)
         if not attributes.is_attr_set(vlan_id):
@@ -381,6 +387,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         # id in the switch's tags. Note errors but no rollback is needed here.
         network_id = result['id']
         net_data['id'] = network_id
+        net_data[tzone.TRANSPORT_ZONE] = physical_net
         network_tags = result['tags']
         for tag in network_tags:
             if tag['scope'] == 'os-neutron-net-id':
@@ -410,6 +417,11 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
     def create_network(self, context, network):
         net_data = network['network']
+        if (attributes.is_attr_set(net_data.get(pnet.PHYSICAL_NETWORK)) and
+            attributes.is_attr_set(net_data.get(tzone.TRANSPORT_ZONE))):
+            err_msg = _('Physical network and transport zone cannot both'
+                        'be specified')
+            raise n_exc.InvalidInput(error_message=err_msg)
         external = net_data.get(ext_net_extn.EXTERNAL)
         if attributes.is_attr_set(external) and external:
             is_provider_net, net_type, physical_net, vlan_id = (
@@ -425,7 +437,9 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             try:
                 created_net = super(NsxV3Plugin, self).create_network(context,
                                                                       network)
-
+                if tzone.TRANSPORT_ZONE in net_data:
+                    created_net[tzone.TRANSPORT_ZONE] = net_data[
+                        tzone.TRANSPORT_ZONE]
                 if psec.PORTSECURITY not in net_data:
                     net_data[psec.PORTSECURITY] = True
                 self._process_network_port_security_create(
