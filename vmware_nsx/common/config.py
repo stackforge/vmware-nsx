@@ -377,6 +377,11 @@ nsxv_opts = [
                       "router. This edge_appliance_size will be picked up if "
                       "--router-size parameter is not specified while doing "
                       "neutron router-create")),
+    cfg.ListOpt('name_servers',
+                default=[],
+                help=_('List of nameserver to configure for the DHCP binding '
+                       'entries. These will be used if there are no '
+                       'nameservers defined on the subnet.')),
 ]
 
 # Register the configuration options
