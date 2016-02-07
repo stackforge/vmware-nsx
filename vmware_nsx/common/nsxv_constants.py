@@ -55,3 +55,5 @@ CSR_REQUEST = ("<csr><subject>"
                "<attribute><key>C</key><value>US</value></attribute>"
                "</subject><algorithm>RSA</algorithm><keySize>2048</keySize>"
                "</csr>")
+
+RESERVED_IPS = ["169.254.128.0/17", "169.254.1.0/24"]
