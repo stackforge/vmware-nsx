@@ -117,6 +117,9 @@ class MetaDataTestCase(object):
                 'id': mock.ANY,
                 'mtu': mock.ANY
             }
+            if ('transport_zone' in
+                self._plugin_class.supported_extension_aliases):
+                expected_meta_net['transport_zone'] = mock.ANY
             f.assert_any_call(mock.ANY, expected_meta_net)
         self._metadata_teardown()
 

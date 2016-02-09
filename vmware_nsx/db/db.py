@@ -47,10 +47,11 @@ def delete_network_bindings(session, network_id):
             filter_by(network_id=network_id).delete())
 
 
-def add_network_binding(session, network_id, binding_type, phy_uuid, vlan_id):
+def add_network_binding(session, network_id, binding_type, phy_uuid, vlan_id,
+                        provider=True):
     with session.begin(subtransactions=True):
         binding = nsx_models.TzNetworkBinding(network_id, binding_type,
-                                          phy_uuid, vlan_id)
+                                              phy_uuid, vlan_id, provider)
         session.add(binding)
     return binding
 

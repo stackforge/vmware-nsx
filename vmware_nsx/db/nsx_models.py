@@ -42,23 +42,28 @@ class TzNetworkBinding(model_base.BASEV2):
                            primary_key=True)
     # 'flat', 'vlan', stt' or 'gre'
     binding_type = sa.Column(sa.Enum('flat', 'vlan', 'stt', 'gre', 'l3_ext',
-                             name='tz_network_bindings_binding_type'),
+                                     'vxlan', '',
+                                     name='tz_network_bindings_binding_type'),
                              nullable=False, primary_key=True)
     phy_uuid = sa.Column(sa.String(36), primary_key=True, default='')
     vlan_id = sa.Column(sa.Integer, primary_key=True,
                         autoincrement=False, default=0)
+    provider = sa.Column(sa.Boolean(), default=True)
 
-    def __init__(self, network_id, binding_type, phy_uuid, vlan_id):
+    def __init__(self, network_id, binding_type, phy_uuid, vlan_id,
+                 provider=True):
         self.network_id = network_id
         self.binding_type = binding_type
         self.phy_uuid = phy_uuid
         self.vlan_id = vlan_id
+        self.provider = provider
 
     def __repr__(self):
-        return "<NetworkBinding(%s,%s,%s,%s)>" % (self.network_id,
-                                                  self.binding_type,
-                                                  self.phy_uuid,
-                                                  self.vlan_id)
+        return "<NetworkBinding(%s,%s,%s,%s,%s)>" % (self.network_id,
+                                                     self.binding_type,
+                                                     self.phy_uuid,
+                                                     self.vlan_id,
+                                                     self.provider)
 
 
 class NeutronNsxNetworkMapping(model_base.BASEV2):
