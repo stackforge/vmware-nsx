@@ -88,6 +88,9 @@ class SwitchingProfile(AbstractRESTResource):
     def uri_segment(self):
         return 'switching-profiles'
 
+    def list(self):
+        return self._client.url_get('?include_system_owned=True')
+
     def create(self, profile_type, display_name=None,
                description=None, **api_args):
         body = {
@@ -277,6 +280,9 @@ class LogicalPort(AbstractRESTResource):
                attachment_type=nsx_constants.ATTACHMENT_VIF,
                parent_name=None, parent_tag=None):
         lport = self.get(lport_id)
+        if address_bindings == []:
+            # explicitly clear out address bindings
+            lport['address_bindings'] = []
         tags = lport.get('tags', [])
         if resources:
             tags = utils.update_v3_tags(tags, resources)
