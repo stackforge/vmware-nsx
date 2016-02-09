@@ -101,6 +101,41 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
         edge_utils.update_routes(self.nsx_v, context, target_router_id,
                                  all_routes, nexthop)
 
+    def _get_other_vnic_indices(self, context, this_router_id, router_ids):
+        vnic_indices = []
+
+        if len(router_ids) <= 1:
+            # there are no other routers
+            return vnic_indices
+
+        ports_qry = context.session.query(models_v2.Port)
+        intf_ports = ports_qry.filter_by(
+            device_owner=l3_db.DEVICE_OWNER_ROUTER_INTF).all()
+        edge_id = edge_utils.get_router_edge_id(context, this_router_id)
+        edge_vnic_bindings = nsxv_db.get_edge_vnic_bindings_by_edge(
+            context.session, edge_id)
+
+        # Go over all other routers, and get the vnic_indices
+        for other_router_id in router_ids:
+            if this_router_id == other_router_id:
+                continue
+            # get networks IDs for this router
+            router_net_ids = list(
+                set([port['network_id'] for port in intf_ports
+                     if port['device_id'] == other_router_id]))
+
+            # get vnic index for each network
+            for net_id in router_net_ids:
+                vnic_indices.extend([edge_vnic_binding.vnic_index
+                                     for edge_vnic_binding
+                                     in edge_vnic_bindings
+                                     if edge_vnic_binding.network_id == net_id
+                                     ])
+
+        # make sure the list is unique:
+        vnic_indices = list(set(vnic_indices))
+        return vnic_indices
+
     def _update_nat_rules_on_routers(self, context,
                                      target_router_id, router_ids):
         snats = []
@@ -112,6 +147,18 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                 snat, dnat = self.plugin._get_nat_rules(context, router)
                 snats.extend(snat)
                 dnats.extend(dnat)
+                # Copy each DNAT rule to all vnics of the other routers,
+                # to allow NAT-ed traffic between routers
+                other_vnics = self._get_other_vnic_indices(context,
+                                                         router_id,
+                                                         router_ids)
+                for rule in dnat:
+                    for vnic_index in other_vnics:
+                        new_rule = rule.copy()
+                        # use explicit vnic_index
+                        new_rule['vnic_index'] = vnic_index
+                        dnats.extend([new_rule])
+
         edge_utils.update_nat_rules(
             self.nsx_v, context, target_router_id, snats, dnats)
 
