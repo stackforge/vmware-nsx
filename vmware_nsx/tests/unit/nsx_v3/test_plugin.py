@@ -139,11 +139,11 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
         if external_net.EXTERNAL in kwargs:
             arg_list = (external_net.EXTERNAL, ) + (arg_list or ())
 
-        attrs = kwargs
         if providernet_args:
-            attrs.update(providernet_args)
+            kwargs.update(providernet_args)
         for arg in (('admin_state_up', 'tenant_id', 'shared',
-                     'availability_zone_hints') + (arg_list or ())):
+                     'availability_zone_hints', 'transport_zone') +
+                    (arg_list or ())):
             # Arg must be present
             if arg in kwargs:
                 data['network'][arg] = kwargs[arg]
@@ -164,7 +164,7 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
 class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
 
     @mock.patch.object(nsx_plugin.NsxV3Plugin, 'validate_availability_zones')
-    def test_create_network_with_zone(self, mock_validate_az):
+    def test_create_network_with_availability_zone(self, mock_validate_az):
         name = 'net-with-zone'
         zone = ['zone1']
 
@@ -173,6 +173,18 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
             az_hints = net['network']['availability_zone_hints']
             az_hints_list = az_ext.convert_az_string_to_list(az_hints)
             self.assertListEqual(az_hints_list, zone)
+
+    def test_create_network_with_transport_zone(self):
+        name = 'net-with-zone'
+        zone_id = uuidutils.generate_uuid()
+        with self.network(name=name, transport_zone=zone_id) as net:
+            self.assertEqual(zone_id, net['network']['transport_zone'])
+
+    def test_create_network_with_default_transport_zone(self):
+        name = 'net-with-def-zone'
+        with self.network(name=name) as net:
+            self.assertEqual(cfg.CONF.nsx_v3.default_overlay_tz_uuid,
+                             net['network']['transport_zone'])
 
 
 class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,

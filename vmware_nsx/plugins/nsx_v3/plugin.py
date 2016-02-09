@@ -67,6 +67,7 @@ from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils
 from vmware_nsx.db import db as nsx_db
 from vmware_nsx.dhcp_meta import rpc as nsx_rpc
+from vmware_nsx.extensions import transportzone as tzone
 from vmware_nsx.nsxlib import v3 as nsxlib
 from vmware_nsx.nsxlib.v3 import client as nsx_client
 from vmware_nsx.nsxlib.v3 import cluster as nsx_cluster
@@ -111,7 +112,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                    "extraroute",
                                    "router",
                                    "availability_zone",
-                                   "network_availability_zone"]
+                                   "network_availability_zone",
+                                   "transport_zone"]
 
     def __init__(self):
         super(NsxV3Plugin, self).__init__()
@@ -328,8 +330,14 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             raise n_exc.InvalidInput(error_message=err_msg)
 
         if physical_net is None:
-            # Default to transport type overlay
-            physical_net = cfg.CONF.nsx_v3.default_overlay_tz_uuid
+            transport_zone = network_data.get(tzone.TRANSPORT_ZONE)
+            if attributes.is_attr_set(transport_zone):
+                # Use transport zone if provider network is not specified.
+                physical_net = transport_zone
+            else:
+                # Default to transport type overlay
+                physical_net = cfg.CONF.nsx_v3.default_overlay_tz_uuid
+                net_type = utils.NsxV3NetworkTypes.VXLAN
 
         return net_type, physical_net, vlan_id
 
@@ -403,10 +411,13 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                                    network['id'])
         # With NSX plugin, "normal" overlay networks will have no binding
         if bindings:
-            # Network came in through provider networks API
-            network[pnet.NETWORK_TYPE] = bindings[0].binding_type
-            network[pnet.PHYSICAL_NETWORK] = bindings[0].phy_uuid
-            network[pnet.SEGMENTATION_ID] = bindings[0].vlan_id
+            if bindings[0].provider_net:
+                # Network came in through provider networks API
+                network[pnet.NETWORK_TYPE] = bindings[0].binding_type
+                network[pnet.PHYSICAL_NETWORK] = bindings[0].phy_uuid
+                network[pnet.SEGMENTATION_ID] = bindings[0].vlan_id
+            elif bindings[0].binding_type != utils.NetworkTypes.L3_EXT:
+                network[tzone.TRANSPORT_ZONE] = bindings[0].phy_uuid
 
     def create_network(self, context, network):
         net_data = network['network']
@@ -425,7 +436,6 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             try:
                 created_net = super(NsxV3Plugin, self).create_network(context,
                                                                       network)
-
                 if psec.PORTSECURITY not in net_data:
                     net_data[psec.PORTSECURITY] = True
                 self._process_network_port_security_create(
@@ -450,13 +460,12 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     if net_type != utils.NetworkTypes.L3_EXT:
                         nsxlib.delete_logical_switch(created_net['id'])
 
-            if is_provider_net:
-                # Save provider network fields, needed by get_network()
-                net_bindings = [nsx_db.add_network_binding(
-                    context.session, created_net['id'],
-                    net_type, physical_net, vlan_id)]
-                self._extend_network_dict_provider(context, created_net,
-                                                   bindings=net_bindings)
+            # Save provider network fields, needed by get_network()
+            net_bindings = [nsx_db.add_network_binding(
+                context.session, created_net['id'],
+                net_type or '', physical_net, vlan_id, is_provider_net)]
+            self._extend_network_dict_provider(context, created_net,
+                                               bindings=net_bindings)
 
         return created_net
 
@@ -465,6 +474,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         # checks on active ports
         with context.session.begin(subtransactions=True):
             self._process_l3_delete(context, network_id)
+            nsx_db.delete_network_bindings(context.session, network_id)
             ret_val = super(NsxV3Plugin, self).delete_network(
                 context, network_id)
         if not self._network_is_external(context, network_id):
