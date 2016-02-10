@@ -724,8 +724,9 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 context, port['port'], port_data)
             self._process_port_create_extra_dhcp_opts(
                 context, port_data, dhcp_opts)
-
-            if not self._network_is_external(context, port_data['network_id']):
+            is_net_external = self._network_is_external(
+                context, port_data['network_id'])
+            if not is_net_external:
                 lport = self._create_port_at_the_backend(
                     context, neutron_db, port_data,
                     l2gw_port_check, is_psec_on)
@@ -738,7 +739,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             sgids = self._get_security_groups_on_port(context, port)
             self._process_port_create_security_group(
                 context, port_data, sgids)
-            if sgids:
+            if sgids and not is_net_external:
                 try:
                     security.update_lport_with_security_groups(
                         context, lport['id'], [], sgids)
