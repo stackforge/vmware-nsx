@@ -1435,7 +1435,10 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
     def create_floatingip(self, context, floatingip):
         new_fip = super(NsxV3Plugin, self).create_floatingip(
-            context, floatingip)
+            context, floatingip, initial_status=(
+                const.FLOATINGIP_STATUS_ACTIVE
+                if floatingip['floatingip']['port_id']
+                else const.FLOATINGIP_STATUS_DOWN))
         router_id = new_fip['router_id']
         if not router_id:
             return new_fip
@@ -1472,8 +1475,13 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
     def update_floatingip(self, context, fip_id, floatingip):
         old_fip = self.get_floatingip(context, fip_id)
         old_port_id = old_fip['port_id']
+        status = (const.FLOATINGIP_STATUS_ACTIVE
+                  if floatingip['floatingip']['port_id']
+                  else const.FLOATINGIP_STATUS_DOWN)
         new_fip = super(NsxV3Plugin, self).update_floatingip(
             context, fip_id, floatingip)
+        if new_fip['status'] != status:
+            self.update_floatingip_status(context, fip_id, status)
         router_id = new_fip['router_id']
         try:
             # Delete old router's fip rules if old_router_id is not None.
@@ -1508,8 +1516,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             with excutils.save_and_reraise_exception():
                 super(NsxV3Plugin, self).update_floatingip(
                     context, fip_id, {'floatingip': {'port_id': old_port_id}})
-                self._set_floatingip_status(
-                    context, const.FLOATINGIP_STATUS_ERROR)
+                self.update_floatingip_status(context, fip_id,
+                                              const.FLOATINGIP_STATUS_ERROR)
         return new_fip
 
     def disassociate_floatingips(self, context, port_id):
@@ -1519,6 +1527,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         for fip_db in fip_dbs:
             if not fip_db.router_id:
                 continue
+            self.update_floatingip_status(context, fip_db.id,
+                                          const.FLOATINGIP_STATUS_DOWN)
             try:
                 nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                          fip_db.router_id)
