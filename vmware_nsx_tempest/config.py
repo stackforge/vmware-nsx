@@ -47,6 +47,12 @@ NetworkGroup = [
                 default={},
                 help="dict version of l2gw_switch:"
                      "device_name:,interfaces:,segmentation_id:,"),
+    cfg.StrOpt('search_domain_exist',
+               default='eng.vmware.com',
+               help="valid domain in test environment."),
+    cfg.StrOpt('search_domain_not_exist',
+               default='beer.vmware.com',
+               help="non-exist domain in test environment."),
 ]
 
 nsxv_group = cfg.OptGroup(name='nsxv',
