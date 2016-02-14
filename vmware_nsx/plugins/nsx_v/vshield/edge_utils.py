@@ -479,7 +479,6 @@ class EdgeManager(object):
                                  appliance_size=nsxv_constants.LARGE,
                                  dist=False):
         """Try to allocate one available edge from pool."""
-
         edge_type = (nsxv_constants.VDR_EDGE if dist else
                      nsxv_constants.SERVICE_EDGE)
         lrouter = {'id': resource_id,
