@@ -98,6 +98,14 @@ nsxv_resources = {
     constants.DHCP_BINDING: Resource(constants.DHCP_BINDING,
                                      [Operations.LIST.value,
                                       Operations.NSX_UPDATE.value]),
+    constants.SECURITY_GROUPS: Resource(constants.SECURITY_GROUPS,
+                                        [Operations.LIST.value]),
+    constants.FIREWALL_SECTIONS: Resource(constants.FIREWALL_SECTIONS,
+                                          [Operations.LIST.value,
+                                           Operations.LIST_MISMATCHES.value]),
+    constants.FIREWALL_NSX_GROUPS: Resource(constants.FIREWALL_NSX_GROUPS,
+                                            [Operations.LIST.value,
+                                             Operations.LIST_MISMATCHES.value]),
 }
 
 nsxv3_resources_names = map(lambda res: res.name, nsxv3_resources.itervalues())
