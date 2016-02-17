@@ -1,6 +1,8 @@
 #!/bin/bash
 
+#
 set -eu
+#
 
 function usage {
   echo "Usage: $0 [OPTION]..."
