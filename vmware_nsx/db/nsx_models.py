@@ -42,7 +42,8 @@ class TzNetworkBinding(model_base.BASEV2):
                            primary_key=True)
     # 'flat', 'vlan', stt' or 'gre'
     binding_type = sa.Column(sa.Enum('flat', 'vlan', 'stt', 'gre', 'l3_ext',
-                             name='tz_network_bindings_binding_type'),
+                                     'vxlan', '',
+                                     name='tz_network_bindings_binding_type'),
                              nullable=False, primary_key=True)
     phy_uuid = sa.Column(sa.String(36), primary_key=True, default='')
     vlan_id = sa.Column(sa.Integer, primary_key=True,
