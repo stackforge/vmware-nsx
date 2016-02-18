@@ -446,7 +446,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     # Save provider network fields, needed by get_network()
                     net_bindings = [nsx_db.add_network_binding(
                         context.session, created_net['id'],
-                        net_type, physical_net, vlan_id)]
+                        net_type or '', physical_net, vlan_id)]
                     self._extend_network_dict_provider(context, created_net,
                                                        bindings=net_bindings)
         except Exception:
@@ -505,6 +505,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         # First call DB operation for delete network as it will perform
         # checks on active ports
         self._retry_delete_network(context, network_id)
+        nsx_db.delete_network_bindings(context.session, network_id)
         if not self._network_is_external(context, network_id):
             # TODO(salv-orlando): Handle backend failure, possibly without
             # requiring us to un-delete the DB object. For instance, ignore
