@@ -446,7 +446,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     # Save provider network fields, needed by get_network()
                     net_bindings = [nsx_db.add_network_binding(
                         context.session, created_net['id'],
-                        net_type, physical_net, vlan_id)]
+                        net_type or '', physical_net, vlan_id)]
                     self._extend_network_dict_provider(context, created_net,
                                                        bindings=net_bindings)
         except Exception:
