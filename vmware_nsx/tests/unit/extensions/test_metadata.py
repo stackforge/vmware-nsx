@@ -34,6 +34,24 @@ class MetaDataTestCase(object):
     def _metadata_teardown(self):
         cfg.CONF.set_override('metadata_mode', None, 'NSX')
 
+    def _check_metadata(self, expected_subnets=2, expected_ports=1):
+        subnets = self._list('subnets')['subnets']
+        self.assertEqual(len(subnets), expected_subnets)
+        meta_net_id, meta_sub_id = None, None
+        meta_cidr = netaddr.IPNetwork('169.254.0.0/16')
+        for subnet in subnets:
+            cidr = netaddr.IPNetwork(subnet['cidr'])
+            if meta_cidr == cidr or meta_cidr in cidr.supernet(16):
+                meta_sub_id = subnet['id']
+                meta_net_id = subnet['network_id']
+                break
+        ports = self._list(
+            'ports',
+            query_params='network_id=%s' % meta_net_id)['ports']
+        self.assertEqual(len(ports), expected_ports)
+        meta_port_id = ports[0]['id'] if ports else None
+        return meta_net_id, meta_sub_id, meta_port_id
+
     def test_router_add_interface_subnet_with_metadata_access(self):
         self._metadata_setup()
         self.test_router_add_interface_subnet()
@@ -76,7 +94,7 @@ class MetaDataTestCase(object):
 
     def test_delete_port_with_metadata(self):
         self._metadata_setup(config.MetadataModes.INDIRECT)
-        with self.subnet() as s:
+        with self.subnet(enable_dhcp=False) as s:
             with self.port(subnet=s, fixed_ips=[], device_id='1234',
                            device_owner=constants.DEVICE_OWNER_DHCP) as port:
                 self._delete('ports', port['port']['id'])
@@ -86,7 +104,7 @@ class MetaDataTestCase(object):
         self._metadata_setup()
         with mock.patch.object(self._plugin_class, 'schedule_network') as f:
             with self.router() as r:
-                with self.subnet() as s:
+                with self.subnet(enable_dhcp=False) as s:
                     self._router_interface_action('add',
                                                   r['router']['id'],
                                                   s['subnet']['id'],
@@ -123,7 +141,7 @@ class MetaDataTestCase(object):
     def test_metadata_network_create_rollback_on_create_subnet_failure(self):
         self._metadata_setup()
         with self.router() as r:
-            with self.subnet() as s:
+            with self.subnet(enable_dhcp=False) as s:
                 # Raise a NeutronException (eg: NotFound).
                 with mock.patch.object(self._plugin_class,
                                        'create_subnet',
@@ -143,7 +161,7 @@ class MetaDataTestCase(object):
     def test_metadata_network_create_rollback_on_add_rtr_iface_failure(self):
         self._metadata_setup()
         with self.router() as r:
-            with self.subnet() as s:
+            with self.subnet(enable_dhcp=False) as s:
                 # Save function being mocked.
                 real_func = self._plugin_class.add_router_interface
                 plugin_instance = manager.NeutronManager.get_plugin()
@@ -175,22 +193,10 @@ class MetaDataTestCase(object):
     def test_metadata_network_removed_with_router_interface_remove(self):
         self._metadata_setup()
         with self.router() as r:
-            with self.subnet() as s:
+            with self.subnet(enable_dhcp=False) as s:
                 self._router_interface_action('add', r['router']['id'],
                                               s['subnet']['id'], None)
-                subnets = self._list('subnets')['subnets']
-                self.assertEqual(len(subnets), 2)
-                meta_cidr = netaddr.IPNetwork('169.254.0.0/16')
-                for subnet in subnets:
-                    cidr = netaddr.IPNetwork(subnet['cidr'])
-                    if meta_cidr == cidr or meta_cidr in cidr.supernet(16):
-                        meta_sub_id = subnet['id']
-                        meta_net_id = subnet['network_id']
-                ports = self._list(
-                    'ports',
-                    query_params='network_id=%s' % meta_net_id)['ports']
-                self.assertEqual(len(ports), 1)
-                meta_port_id = ports[0]['id']
+                meta_net_id, meta_sub_id, meta_port_id = self._check_metadata()
                 self._router_interface_action('remove', r['router']['id'],
                                               s['subnet']['id'], None)
                 self._show('networks', meta_net_id,
@@ -204,7 +210,7 @@ class MetaDataTestCase(object):
     def test_metadata_network_remove_rollback_on_failure(self):
         self._metadata_setup()
         with self.router() as r:
-            with self.subnet() as s:
+            with self.subnet(enable_dhcp=False) as s:
                 self._router_interface_action('add', r['router']['id'],
                                               s['subnet']['id'], None)
                 networks = self._list('networks')['networks']
@@ -237,6 +243,52 @@ class MetaDataTestCase(object):
                 self._show('networks', meta_net_id,
                            webob.exc.HTTPOk.code)
                 self._show('ports', meta_port_id,
+                           webob.exc.HTTPOk.code)
+        self._metadata_teardown()
+
+    def test_metadata_network_with_update_subnet_dhcp_enable(self):
+        self._metadata_setup()
+        with self.router() as r:
+            # Create a DHCP-disabled subnet.
+            with self.subnet(enable_dhcp=False) as s:
+                self._router_interface_action('add', r['router']['id'],
+                                              s['subnet']['id'], None)
+                meta_net_id, meta_sub_id, meta_port_id = self._check_metadata()
+                # Update subnet to DHCP-enabled.
+                data = {'subnet': {'enable_dhcp': True}}
+                req = self.new_update_request('subnets', data,
+                                              s['subnet']['id'])
+                res = self.deserialize(self.fmt, req.get_response(self.api))
+                self.assertEqual(True, res['subnet']['enable_dhcp'])
+                self._check_metadata(expected_subnets=1, expected_ports=0)
+                self._show('networks', meta_net_id,
+                           webob.exc.HTTPNotFound.code)
+                self._show('ports', meta_port_id,
+                           webob.exc.HTTPNotFound.code)
+                self._show('subnets', meta_sub_id,
+                           webob.exc.HTTPNotFound.code)
+        self._metadata_teardown()
+
+    def test_metadata_network_with_update_subnet_dhcp_disable(self):
+        self._metadata_setup()
+        with self.router() as r:
+            # Create a DHCP-enabled subnet.
+            with self.subnet(enable_dhcp=True) as s:
+                self._router_interface_action('add', r['router']['id'],
+                                              s['subnet']['id'], None)
+                self._check_metadata(expected_subnets=1, expected_ports=0)
+                # Update subnet to DHCP-disabled.
+                data = {'subnet': {'enable_dhcp': False}}
+                req = self.new_update_request('subnets', data,
+                                              s['subnet']['id'])
+                res = self.deserialize(self.fmt, req.get_response(self.api))
+                self.assertEqual(False, res['subnet']['enable_dhcp'])
+                meta_net_id, meta_sub_id, meta_port_id = self._check_metadata()
+                self._show('networks', meta_net_id,
+                           webob.exc.HTTPOk.code)
+                self._show('ports', meta_port_id,
+                           webob.exc.HTTPOk.code)
+                self._show('subnets', meta_sub_id,
                            webob.exc.HTTPOk.code)
         self._metadata_teardown()
 

@@ -90,7 +90,8 @@ def handle_port_metadata_access(plugin, context, port, is_delete=False):
             context.session.add(route)
 
 
-def handle_router_metadata_access(plugin, context, router_id, interface=None):
+def handle_router_metadata_access(plugin, context, router_id, interface=None,
+                                  on_demand=False):
     # For instances created in a DHCP-disabled network but connected to
     # a router.
     if cfg.CONF.NSX.metadata_mode != config.MetadataModes.DIRECT:
@@ -108,12 +109,17 @@ def handle_router_metadata_access(plugin, context, router_id, interface=None):
         plugin, ctx_elevated, filters=device_filter)
     try:
         if ports:
-            if (interface and
-                not _find_metadata_port(plugin, ctx_elevated, ports)):
-                _create_metadata_access_network(
-                    plugin, ctx_elevated, router_id)
-            elif len(ports) == 1:
-                # The only port left might be the metadata port
+            if interface:
+                if not _find_metadata_port(plugin, ctx_elevated, ports):
+                    _create_metadata_access_network(
+                        plugin, ctx_elevated, router_id)
+            elif (len(ports) == 1 and _find_metadata_port(
+                plugin, ctx_elevated, ports)) or (
+                on_demand and not _find_dhcp_disabled_subnet(
+                    plugin, ctx_elevated, ports)):
+                # Delete the internal metadata network if the router port
+                # is the last port left or no more DHCP-disabled subnet
+                # attached to the router.
                 _destroy_metadata_access_network(
                     plugin, ctx_elevated, router_id, ports)
         else:
@@ -137,6 +143,14 @@ def _find_metadata_port(plugin, context, ports):
                 plugin.get_subnet(context, fixed_ip['subnet_id'])['cidr'])
             if cidr in netaddr.IPNetwork(METADATA_SUBNET_CIDR):
                 return port
+
+
+def _find_dhcp_disabled_subnet(plugin, context, ports):
+    for port in ports:
+        for fixed_ip in port['fixed_ips']:
+            subnet = plugin.get_subnet(context, fixed_ip['subnet_id'])
+            if not subnet['enable_dhcp']:
+                return subnet
 
 
 def _create_metadata_access_network(plugin, context, router_id):

@@ -582,6 +582,22 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         # TODO(berlin): cancel public external subnet announcement
         return super(NsxV3Plugin, self).delete_subnet(context, subnet_id)
 
+    def update_subnet(self, context, subnet_id, subnet):
+        updated_subnet = super(NsxV3Plugin, self).update_subnet(
+            context, subnet_id, subnet)
+        # If enable_dhcp is changed on a subnet attached to a router,
+        # update internal metadata network.
+        if 'enable_dhcp' in subnet['subnet']:
+            port_filters = {'device_owner': const.ROUTER_INTERFACE_OWNERS,
+                            'fixed_ips': {'subnet_id': [subnet_id]}}
+            ports = self.get_ports(context, filters=port_filters)
+            for port in ports:
+                nsx_rpc.handle_router_metadata_access(
+                    self, context, port['device_id'],
+                    interface=not updated_subnet['enable_dhcp'],
+                    on_demand=True)
+        return updated_subnet
+
     def _build_address_bindings(self, port):
         address_bindings = []
         for fixed_ip in port['fixed_ips']:
@@ -1247,8 +1263,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         return self.get_router(context, router['id'])
 
     def delete_router(self, context, router_id):
-        nsx_rpc.handle_router_metadata_access(self, context, router_id,
-                                              interface=None)
+        nsx_rpc.handle_router_metadata_access(
+            self, context, router_id, interface=None, on_demand=True)
         router = self.get_router(context, router_id)
         if router.get(l3.EXTERNAL_GW_INFO):
             self._update_router_gw_info(context, router_id, {})
@@ -1440,8 +1456,9 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             # Ensure the NSX logical router has a connection to a
             # 'metadata access' network (with a proxy listening on
             # its DHCP port), by creating it if needed.
-            nsx_rpc.handle_router_metadata_access(self, context, router_id,
-                                                  interface=info)
+            if not subnet['enable_dhcp']:
+                nsx_rpc.handle_router_metadata_access(
+                    self, context, router_id, interface=info, on_demand=True)
         except nsx_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 self.remove_router_interface(
@@ -1512,8 +1529,11 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         info = super(NsxV3Plugin, self).remove_router_interface(
             context, router_id, interface_info)
         # Ensure the connection to the 'metadata access network' is removed
-        # (with the network) if this the last subnet on the router.
-        nsx_rpc.handle_router_metadata_access(self, context, router_id)
+        # (with the network) if this is the last DHCP-disabled subnet on the
+        # router.
+        if not subnet['enable_dhcp']:
+            nsx_rpc.handle_router_metadata_access(
+                self, context, router_id, interface=None, on_demand=True)
         return info
 
     def create_floatingip(self, context, floatingip):

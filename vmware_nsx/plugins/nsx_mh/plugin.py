@@ -1750,7 +1750,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             # is removed  (with the network) if this the last subnet
             # on the router
             self.handle_router_metadata_access(
-                context, router_id, interface=info)
+                context, router_id, interface=None)
             if not subnet:
                 subnet = self._get_subnet(context, subnet_id)
             router = self._get_router(context, router_id)
