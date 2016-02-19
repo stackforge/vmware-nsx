@@ -363,6 +363,14 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                       pnet.SEGMENTATION_ID))
         net_type, physical_net, vlan_id = self._validate_provider_create(
             context, net_data)
+        if is_provider_net and not net_type:
+            # Ideally provider-network attributes should be checked at the
+            # NSX backend. For now, the network_type is required, so the
+            # plugin can do a quick check locally.
+            err_msg = (_('%s is required for creating a provider network') %
+                       pnet.NETWORK_TYPE)
+            raise n_exc.InvalidInput(error_message=err_msg)
+
         neutron_net_id = uuidutils.generate_uuid()
         # update the network name to indicate the neutron id too.
         net_name = utils.get_name_and_uuid(net_data['name'] or 'network',
