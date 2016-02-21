@@ -16,8 +16,8 @@
 #
 
 from neutron.common import constants as const
-from neutron.common import exceptions as n_exc
 from neutron.extensions import external_net
+from neutron_lib import exceptions as n_exc
 from oslo_log import log as logging
 
 from vmware_nsx._i18n import _, _LE

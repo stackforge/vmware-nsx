@@ -30,7 +30,6 @@ from neutron.callbacks import events
 from neutron.callbacks import registry
 from neutron.callbacks import resources
 from neutron.common import constants
-from neutron.common import exceptions as n_exc
 from neutron.db import agents_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
 from neutron.db import db_base_plugin_v2
@@ -54,6 +53,8 @@ from neutron.extensions import providernet as pnet
 from neutron.extensions import securitygroup as ext_sg
 from neutron.plugins.common import constants as plugin_const
 from neutron.plugins.common import utils
+
+from neutron_lib import exceptions as n_exc
 
 import vmware_nsx
 from vmware_nsx._i18n import _, _LE, _LI, _LW

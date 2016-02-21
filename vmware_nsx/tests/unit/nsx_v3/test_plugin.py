@@ -17,7 +17,6 @@ import six
 
 from neutron.api.v2 import attributes
 from neutron.common import constants
-from neutron.common import exceptions as n_exc
 from neutron import context
 from neutron.db import models_v2
 from neutron.extensions import availability_zone as az_ext
@@ -39,6 +38,8 @@ from neutron.tests.unit.extensions \
 from neutron.tests.unit.scheduler \
     import test_dhcp_agent_scheduler as test_dhcpagent
 from neutron import version
+
+from neutron_lib import exceptions as n_exc
 
 from oslo_config import cfg
 from oslo_serialization import jsonutils

@@ -22,12 +22,12 @@ from oslo_utils import timeutils
 import six
 
 from neutron.common import constants
-from neutron.common import exceptions
 from neutron import context
 from neutron.db import external_net_db
 from neutron.db import l3_db
 from neutron.db import models_v2
 from neutron.extensions import l3
+from neutron_lib import exceptions
 
 from vmware_nsx._i18n import _, _LE, _LI, _LW
 from vmware_nsx.api_client import exception as api_exc

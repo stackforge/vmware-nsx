@@ -24,12 +24,12 @@ from oslo_serialization import jsonutils
 
 from neutron.api.v2 import attributes as attr
 from neutron.common import constants
-from neutron.common import exceptions as n_exc
 from neutron import context
 from neutron.extensions import l3
 from neutron.tests import base
 from neutron.tests.unit.api.v2 import test_base
 from neutron.tests.unit import testlib_api
+from neutron_lib import exceptions as n_exc
 
 from vmware_nsx.api_client import client
 from vmware_nsx.api_client import exception as api_exc

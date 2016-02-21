@@ -29,7 +29,6 @@ from neutron.api import extensions as neutron_extensions
 from neutron.api.v2 import attributes as attr
 from neutron.api.v2 import base
 from neutron.common import constants
-from neutron.common import exceptions as n_exc
 from neutron import context as q_context
 from neutron.db import agentschedulers_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
@@ -58,6 +57,8 @@ from neutron.extensions import providernet as pnet
 from neutron.extensions import securitygroup as ext_sg
 from neutron.plugins.common import constants as plugin_const
 from neutron.plugins.common import utils
+
+from neutron_lib import exceptions as n_exc
 
 import vmware_nsx
 from vmware_nsx._i18n import _, _LE, _LI, _LW

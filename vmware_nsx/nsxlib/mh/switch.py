@@ -19,7 +19,7 @@ from oslo_log import log
 from oslo_serialization import jsonutils
 
 from neutron.common import constants
-from neutron.common import exceptions as exception
+from neutron_lib import exceptions as exception
 
 from vmware_nsx._i18n import _, _LE, _LI, _LW
 from vmware_nsx.api_client import exception as api_exc

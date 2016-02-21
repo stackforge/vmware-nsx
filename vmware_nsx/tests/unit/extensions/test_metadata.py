@@ -19,8 +19,8 @@ from oslo_config import cfg
 import webob.exc
 
 from neutron.common import constants
-from neutron.common import exceptions as n_exc
 from neutron import manager
+from neutron_lib import exceptions as n_exc
 
 from vmware_nsx.api_client import exception as api_exc
 from vmware_nsx.common import config

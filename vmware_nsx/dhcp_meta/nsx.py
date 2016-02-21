@@ -21,10 +21,10 @@ from oslo_utils import excutils
 
 from neutron.api.v2 import attributes as attr
 from neutron.common import constants as const
-from neutron.common import exceptions as n_exc
 from neutron.db import db_base_plugin_v2
 from neutron.db import l3_db
 from neutron.extensions import external_net
+from neutron_lib import exceptions as n_exc
 
 from vmware_nsx._i18n import _, _LE, _LI
 from vmware_nsx.common import exceptions as p_exc

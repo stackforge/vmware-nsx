@@ -17,10 +17,10 @@ import mock
 from oslo_config import cfg
 
 from neutron.common import constants as n_consts
-from neutron.common import exceptions as n_exc
 from neutron import context
 from neutron.tests import base
 from neutron.tests.unit import testlib_api
+from neutron_lib import exceptions as n_exc
 
 from vmware_nsx.api_client import exception
 from vmware_nsx.common import exceptions as p_exc
