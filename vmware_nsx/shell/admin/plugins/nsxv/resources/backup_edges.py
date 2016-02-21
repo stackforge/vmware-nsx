@@ -16,7 +16,7 @@
 import logging
 
 from neutron.callbacks import registry
-from neutron.common import exceptions
+from neutron_lib import exceptions
 from neutron.db import l3_db
 from oslo_utils import uuidutils
 
