@@ -761,6 +761,18 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             neutron_db = super(NsxV3Plugin, self).create_port(context, port)
             port["port"].update(neutron_db)
 
+            # NOTE(arosen): ports on external networks are nat rules and do
+            # and do not result in ports on the backend.
+            is_external_net = self._network_is_external(
+                context, port_data['network_id'])
+            if is_external_net:
+                device_owner = port_data.get('device_owner')
+                # prevent "nova boot" prt-create on an external network
+                if device_owner.startswith(const.DEVICE_OWNER_COMPUTE_PREFIX):
+                    err_msg = \
+                        _("Unable to create a port with an external network")
+                    raise n_exc.InvalidInput(error_message=err_msg)
+
             (is_psec_on, has_ip) = self._create_port_preprocess_security(
                 context, port, port_data, neutron_db)
             self._process_portbindings_create_and_update(
@@ -776,11 +788,6 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             sgids = self._get_security_groups_on_port(context, port)
             self._process_port_create_security_group(
                 context, port_data, sgids)
-
-            # NOTE(arosen): ports on external networks are nat rules and do
-            # and do not result in ports on the backend.
-            is_external_net = self._network_is_external(
-                context, port_data['network_id'])
 
         # Operations to backend should be done outside of DB transaction.
         if not is_external_net:
