@@ -124,23 +124,24 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
 
     def test_get_vlan_network_name(self):
         p = manager.NeutronManager.get_plugin()
-        id = uuidutils.generate_uuid()
+        net_id = uuidutils.generate_uuid()
+        dvs_id = 'dvs-10'
         net = {'name': '',
-               'id': id}
-        expected = id
+               'id': net_id}
+        expected = '%s-%s' % (dvs_id, net_id)
         self.assertEqual(expected,
-                         p._get_vlan_network_name(net))
+                         p._get_vlan_network_name(net, dvs_id))
         net = {'name': 'pele',
-               'id': id}
-        expected = '%s-%s' % ('pele', id)
+               'id': net_id}
+        expected = '%s-%s-%s' % (dvs_id, 'pele', net_id)
         self.assertEqual(expected,
-                         p._get_vlan_network_name(net))
+                         p._get_vlan_network_name(net, dvs_id))
         name = 'X' * 500
         net = {'name': name,
-               'id': id}
-        expected = '%s-%s' % (name[:43], id)
+               'id': net_id}
+        expected = '%s-%s-%s' % (dvs_id, name[:43], net_id)
         self.assertEqual(expected,
-                         p._get_vlan_network_name(net))
+                         p._get_vlan_network_name(net, dvs_id))
 
     def test_create_port_anticipating_allocation(self):
         with self.network(shared=True) as network:
@@ -533,14 +534,14 @@ class TestPortsV2(NsxVPluginV2TestCase,
                 self.fc2.inactivate_vnic_assigned_addresses = (
                     mock.Mock().inactivate_vnic_assigned_addresses)
 
-                policy_id = nsxv_db.get_spoofguard_policy_id(
+                policy_ids = nsxv_db.get_spoofguard_policy_ids(
                     q_context.session, port['port']['network_id'])
 
                 res = self._update_port_index(port['port']['id'], '', None)
 
                 vnic_id = '%s.%03d' % (device_id, vnic_index)
                 (self.fc2.inactivate_vnic_assigned_addresses.
-                 assert_called_once_with(policy_id, vnic_id))
+                 assert_called_once_with(policy_ids[0], vnic_id))
                 self.assertTrue(delete_dhcp_binding.called)
 
     def test_update_port_with_compute_device_owner(self):

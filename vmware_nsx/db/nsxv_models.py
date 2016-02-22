@@ -239,7 +239,24 @@ class NsxvSpoofGuardPolicyNetworkMapping(model_base.BASEV2):
                            sa.ForeignKey('networks.id', ondelete='CASCADE'),
                            primary_key=True,
                            nullable=False)
-    policy_id = sa.Column(sa.String(36), nullable=False)
+    policy_id = sa.Column(sa.String(36),
+                          nullable=False,
+                          primary_key=True)
+
+
+class NsxvSpoofGuardPolicyNsxSwitchMapping(model_base.BASEV2):
+    """Mapping between SpoofGuard and nsx switch network morefs"""
+
+    __tablename__ = 'nsxv_spoofguard_policy_nsx_switch_id_mappings'
+
+    nsx_switch_id = sa.Column(sa.String(36),
+                              nullable=False)
+    policy_id = sa.Column(
+        sa.String(36),
+        sa.ForeignKey('nsxv_spoofguard_policy_network_mappings.policy_id',
+                      ondelete='CASCADE'),
+        nullable=False,
+        primary_key=True)
 
 
 class NsxvVdrDhcpBinding(model_base.BASEV2):
