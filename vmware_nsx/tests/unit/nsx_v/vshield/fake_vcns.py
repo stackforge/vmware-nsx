@@ -1028,9 +1028,9 @@ class FakeVcns(object):
             headers = {'status': 200}
         return (headers, response)
 
-    def create_spoofguard_policy(self, enforcement_point, name, enable):
+    def create_spoofguard_policy(self, enforcement_points, name, enable):
         policy = {'name': name,
-                  'enforcement_point': enforcement_point,
+                  'enforcement_point': enforcement_points[0],
                   'operationMode': 'MANUAL' if enable else 'DISABLE'}
         policy_id = len(self._spoofguard_policies)
         self._spoofguard_policies.append(policy)
