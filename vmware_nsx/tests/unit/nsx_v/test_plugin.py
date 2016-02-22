@@ -124,23 +124,24 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
 
     def test_get_vlan_network_name(self):
         p = manager.NeutronManager.get_plugin()
-        id = uuidutils.generate_uuid()
+        net_id = uuidutils.generate_uuid()
+        dvs_id = 'dvs-10'
         net = {'name': '',
-               'id': id}
-        expected = id
+               'id': net_id}
+        expected = '%s-%s' % (dvs_id, net_id)
         self.assertEqual(expected,
-                         p._get_vlan_network_name(net))
+                         p._get_vlan_network_name(net, dvs_id))
         net = {'name': 'pele',
-               'id': id}
-        expected = '%s-%s' % ('pele', id)
+               'id': net_id}
+        expected = '%s-%s-%s' % (dvs_id, 'pele', net_id)
         self.assertEqual(expected,
-                         p._get_vlan_network_name(net))
+                         p._get_vlan_network_name(net, dvs_id))
         name = 'X' * 500
         net = {'name': name,
-               'id': id}
-        expected = '%s-%s' % (name[:43], id)
+               'id': net_id}
+        expected = '%s-%s-%s' % (dvs_id, name[:35], net_id)
         self.assertEqual(expected,
-                         p._get_vlan_network_name(net))
+                         p._get_vlan_network_name(net, dvs_id))
 
     def test_create_port_anticipating_allocation(self):
         with self.network(shared=True) as network:
