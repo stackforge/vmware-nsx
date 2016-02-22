@@ -238,7 +238,9 @@ class NsxvSpoofGuardPolicyNetworkMapping(model_base.BASEV2):
                            sa.ForeignKey('networks.id', ondelete='CASCADE'),
                            primary_key=True,
                            nullable=False)
-    policy_id = sa.Column(sa.String(36), nullable=False)
+    policy_id = sa.Column(sa.String(36),
+                          nullable=False,
+                          primary_key=True)
 
 
 class NsxvVdrDhcpBinding(model_base.BASEV2):
