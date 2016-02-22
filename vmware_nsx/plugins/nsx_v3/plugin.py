@@ -744,6 +744,13 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             self._get_security_groups_on_port(context, port))
         return port_security, has_ip
 
+    def _is_compute_device_owner(self, context, data):
+        device_owner = data.get('device_owner')
+        if (device_owner is not None and
+                device_owner.startswith(const.DEVICE_OWNER_COMPUTE_PREFIX)):
+            return True
+        return False
+
     def create_port(self, context, port, l2gw_port_check=False):
         port_data = port['port']
         dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS, [])
@@ -752,6 +759,17 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         with context.session.begin(subtransactions=True):
             neutron_db = super(NsxV3Plugin, self).create_port(context, port)
             port["port"].update(neutron_db)
+
+            # NOTE(arosen): ports on external networks are nat rules and do
+            # and do not result in ports on the backend.
+            is_external_net = self._network_is_external(
+                context, port_data['network_id'])
+            if is_external_net:
+                if self._is_compute_device_owner(context, port_data):
+                    err_msg = _("Unable to create a port with an external "
+                                "network")
+                    LOG.warning(err_msg)
+                    raise n_exc.InvalidInput(error_message=err_msg)
 
             (is_psec_on, has_ip) = self._create_port_preprocess_security(
                 context, port, port_data, neutron_db)
@@ -768,11 +786,6 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             sgids = self._get_security_groups_on_port(context, port)
             self._process_port_create_security_group(
                 context, port_data, sgids)
-
-            # NOTE(arosen): ports on external networks are nat rules and do
-            # and do not result in ports on the backend.
-            is_external_net = self._network_is_external(
-                context, port_data['network_id'])
 
         # Operations to backend should be done outside of DB transaction.
         if not is_external_net:
@@ -970,9 +983,19 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
     def update_port(self, context, id, port):
         original_port = super(NsxV3Plugin, self).get_port(context, id)
-        _, nsx_lport_id = nsx_db.get_nsx_switch_and_port_id(
+        nsx_net_id, nsx_lport_id = nsx_db.get_nsx_switch_and_port_id(
             context.session, id)
         switch_profile_ids = None
+
+        is_external_net = self._network_is_external(
+            context, original_port['network_id'])
+        if is_external_net:
+            port_data = port['port']
+            if self._is_compute_device_owner(context, port_data):
+                err_msg = _("Unable to update a port with an external "
+                            "network")
+                LOG.warning(err_msg)
+                raise n_exc.InvalidInput(error_message=err_msg)
 
         with context.session.begin(subtransactions=True):
             updated_port = super(NsxV3Plugin, self).update_port(context,
@@ -1001,37 +1024,43 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         if port_security and address_bindings:
             switch_profile_ids = [self._get_port_security_profile_id()]
 
-        try:
-            self._update_port_on_backend(context, nsx_lport_id,
-                                         original_port, updated_port,
-                                         address_bindings,
-                                         switch_profile_ids)
-        except (nsx_exc.ManagerError,
-                nsx_exc.SecurityGroupMaximumCapacityReached):
-            # In case if there is a failure on NSX-v3 backend, rollback the
-            # previous update operation on neutron side.
-            LOG.exception(_LE("Unable to update NSX backend, rolling back "
-                              "changes on neutron"))
-            with excutils.save_and_reraise_exception():
-                with context.session.begin(subtransactions=True):
-                    super(NsxV3Plugin, self).update_port(
-                        context, id, {'port': original_port})
+        # update the port in the backend, only if it exists in the DB
+        if nsx_lport_id is not None:
+            try:
+                self._update_port_on_backend(context, nsx_lport_id,
+                                             original_port, updated_port,
+                                             address_bindings,
+                                             switch_profile_ids)
+            except (nsx_exc.ManagerError,
+                    nsx_exc.SecurityGroupMaximumCapacityReached):
+                # In case if there is a failure on NSX-v3 backend, rollback the
+                # previous update operation on neutron side.
+                LOG.exception(_LE("Unable to update NSX backend, rolling back "
+                                  "changes on neutron"))
+                with excutils.save_and_reraise_exception():
+                    with context.session.begin(subtransactions=True):
+                        super(NsxV3Plugin, self).update_port(
+                            context, id, {'port': original_port})
 
-                    # revert allowed address pairs
-                    if port_security:
-                        orig_pair = original_port.get(addr_pair.ADDRESS_PAIRS)
-                        updated_pair = updated_port.get(
-                            addr_pair.ADDRESS_PAIRS)
-                        if orig_pair != updated_pair:
-                            self._delete_allowed_address_pairs(context, id)
-                        if orig_pair:
-                            self._process_create_allowed_address_pairs(
-                                context, original_port, orig_pair)
+                        # revert allowed address pairs
+                        if port_security:
+                            orig_pair = original_port.get(
+                                addr_pair.ADDRESS_PAIRS)
+                            updated_pair = updated_port.get(
+                                addr_pair.ADDRESS_PAIRS)
+                            if orig_pair != updated_pair:
+                                self._delete_allowed_address_pairs(context, id)
+                            if orig_pair:
+                                self._process_create_allowed_address_pairs(
+                                    context, original_port, orig_pair)
 
-                    if sec_grp_updated:
-                        self.update_security_group_on_port(
-                            context, id, {'port': original_port}, updated_port,
-                            original_port)
+                        if sec_grp_updated:
+                            self.update_security_group_on_port(
+                                context,
+                                id,
+                                {'port': original_port},
+                                updated_port,
+                                original_port)
 
         return updated_port
 
