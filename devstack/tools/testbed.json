@@ -1,0 +1,183 @@
+{
+    "esx": {
+        "1": {
+            "build": "ob-3380126", 
+            "configure_package": {
+                "execution_type": "cli", 
+                "maintenance": 1, 
+                "operation": "install", 
+                "resource": [
+                    "nsx-transformers:master:beta:official:esx60.*nsx-lcp.*\\.zip"
+                ], 
+                "signaturecheck": 0
+            }, 
+            "installtype": "linkedclone", 
+            "instance": "linb-jarvis-vdnet-esx-ob-3380126-1-NSXT100", 
+            "ip": "10.160.182.22", 
+            "runid": "1", 
+            "vmnic": {
+                "1": {
+                    "driver": "e1000e", 
+                    "network": "network.[1]"
+                }
+            }
+        }, 
+        "100": {
+            "build": "ob-3380126", 
+            "configure_package": {
+                "maintenance": 1, 
+                "operation": "install", 
+                "resource": [
+                    "nsx-transformers:master:beta:official:esx60.*nsx-lcp.*\\.zip"
+                ], 
+                "signaturecheck": 0
+            }, 
+            "cpus": {
+                "cores": 8
+            }, 
+            "installtype": "linkedclone", 
+            "instance": "linb-jarvis-vdnet-esx-ob-3380126-100-NSXT100", 
+            "ip": "10.160.70.132", 
+            "runid": "100", 
+            "vmnic": {
+                "1": {
+                    "driver": "e1000e", 
+                    "network": "network.[1]"
+                }
+            }
+        }, 
+        "2": {
+            "build": "ob-3380126", 
+            "configure_package": {
+                "execution_type": "cli", 
+                "maintenance": 1, 
+                "operation": "install", 
+                "resource": [
+                    "nsx-transformers:master:beta:official:esx60.*nsx-lcp.*\\.zip"
+                ], 
+                "signaturecheck": 0
+            }, 
+            "installtype": "linkedclone", 
+            "instance": "linb-jarvis-vdnet-esx-ob-3380126-2-NSXT100", 
+            "ip": "10.160.163.169", 
+            "runid": "2", 
+            "vmnic": {
+                "1": {
+                    "driver": "e1000e", 
+                    "network": "network.[1]"
+                }
+            }
+        }
+    }, 
+    "kvm": {
+        "3": {
+            "build": "ubuntu1404OpenStack", 
+            "configure_package": {
+                "execution_type": "cmd", 
+                "operation": "install", 
+                "resource": [
+                    "nsx-transformers:master:beta:official:trusty_amd64.*nsx-lcp.*tar\\.gz"
+                ], 
+                "timeout": 600
+            }, 
+            "instance": "linb-jarvis-vdnet-kvm-ubuntu1404OpenStack-3-NSXT100", 
+            "ip": "10.160.47.247", 
+            "password": "ca$hc0w", 
+            "pif": {
+                "1": {
+                    "interface": "eth1", 
+                    "network": "network.[1]"
+                }
+            }, 
+            "runid": "3", 
+            "username": "root"
+        }, 
+        "4": {
+            "build": "ubuntu1404OpenStack", 
+            "configure_package": {
+                "execution_type": "cmd", 
+                "operation": "install", 
+                "resource": [
+                    "nsx-transformers:master:beta:official:trusty_amd64.*nsx-lcp.*tar\\.gz"
+                ], 
+                "timeout": 600
+            }, 
+            "instance": "linb-jarvis-vdnet-kvm-ubuntu1404OpenStack-4-NSXT100", 
+            "ip": "10.160.6.188", 
+            "password": "ca$hc0w", 
+            "pif": {
+                "1": {
+                    "interface": "eth1", 
+                    "network": "network.[1]"
+                }
+            }, 
+            "runid": "4", 
+            "username": "root"
+        }
+    }, 
+    "network": {
+        "1": {
+            "instance": "isolated-06", 
+            "name": "isolated-06", 
+            "runid": "1"
+        }
+    }, 
+    "nsxcontroller": {
+        "1": {
+            "build": "ob-3556609", 
+            "cmd_password": "default", 
+            "cmd_username": "root", 
+            "instance": "linb-jarvis-vdnet-nsxcontroller-ob-3556609-1-NSXT100", 
+            "ip": "10.160.79.240", 
+            "ovfurl": "http://buildweb.eng.vmware.com/ob/api/3556609/deliverable/?file=publish/nsx-controller/exports/ovf/nsx-controller-1.0.0.0.0.3556612.ovf", 
+            "password": "default", 
+            "runid": "1", 
+            "username": "admin"
+        }
+    }, 
+    "nsxedge": {
+        "1": {
+            "build": "ob-3556609", 
+            "deploymentoption": "medium", 
+            "dummy_vss_vlan_id": 4095, 
+            "dummy_vss_vmnic": "vmnic1", 
+            "esx": "esx.[100]", 
+            "installtype": "nested", 
+            "instance": "linb-jarvis-vdnet-nsxedge-ob-3556609-1-NSXT100", 
+            "internal_network": "internal", 
+            "ip": "10.160.94.117", 
+            "management_network": "VM Network", 
+            "ovfurl": "http://buildweb.eng.vmware.com/ob/api/3556609/deliverable/?file=publish/nsx-edgenode/exports/ovf/nsx-edge-1.0.0.0.0.3556614.ovf", 
+            "password": "C@shc0w12345", 
+            "runid": "1", 
+            "uplink_network": "internal", 
+            "username": "admin"
+        }
+    }, 
+    "nsxmanager": {
+        "1": {
+            "build": "ob-3556609", 
+            "instance": "linb-jarvis-vdnet-nsxmanager-ob-3556609-1-NSXT100", 
+            "ip": "10.162.38.69", 
+            "ovfurl": "http://buildweb.eng.vmware.com/ob/api/3556609/deliverable/?file=publish/nsx-manager/exports/ovf/nsx-manager-1.0.0.0.0.3556613.ovf", 
+            "password": "default", 
+            "runid": "1", 
+            "username": "admin"
+        }
+    }, 
+    "vc": {
+        "1": {
+            "build": "2800573", 
+            "instance": "linb-jarvis-vdnet-vc-2800573-1-NSXT100", 
+            "ip": "10.160.180.122", 
+            "password": "Admin!23", 
+            "runid": "1", 
+            "username": "Administrator@vsphere.local"
+        }
+    }, 
+    "vm": {
+        "-1": {
+            "template": "ubuntu_1404_srv_64"
+        }
+    }
+}
