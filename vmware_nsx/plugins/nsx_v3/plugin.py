@@ -752,9 +752,25 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             self._get_security_groups_on_port(context, port))
         return port_security, has_ip
 
+    def _assert_on_external_net_with_compute(self, port_data):
+        # code to check and fail on ext net in case the device owner prefix
+        # is 'compute' (meaning called from nova boot)
+        device_owner = port_data.get('device_owner')
+        if (device_owner is not None and
+                device_owner.startswith(const.DEVICE_OWNER_COMPUTE_PREFIX)):
+            err_msg = _("Unable to update/create a port with an external "
+                        "network")
+            LOG.warning(err_msg)
+            raise n_exc.InvalidInput(error_message=err_msg)
+
     def create_port(self, context, port, l2gw_port_check=False):
         port_data = port['port']
         dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS, [])
+
+        is_external_net = self._network_is_external(
+            context, port_data['network_id'])
+        if is_external_net:
+            self._assert_on_external_net_with_compute(port_data)
 
         # TODO(salv-orlando): Undo logical switch creation on failure
         with context.session.begin(subtransactions=True):
@@ -777,12 +793,9 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             self._process_port_create_security_group(
                 context, port_data, sgids)
 
-            # NOTE(arosen): ports on external networks are nat rules and do
-            # and do not result in ports on the backend.
-            is_external_net = self._network_is_external(
-                context, port_data['network_id'])
-
         # Operations to backend should be done outside of DB transaction.
+        # NOTE(arosen): ports on external networks are nat rules and do
+        # not result in ports on the backend.
         if not is_external_net:
             try:
                 lport = self._create_port_at_the_backend(
@@ -978,9 +991,14 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
     def update_port(self, context, id, port):
         original_port = super(NsxV3Plugin, self).get_port(context, id)
-        _, nsx_lport_id = nsx_db.get_nsx_switch_and_port_id(
+        nsx_net_id, nsx_lport_id = nsx_db.get_nsx_switch_and_port_id(
             context.session, id)
         switch_profile_ids = None
+
+        is_external_net = self._network_is_external(
+            context, original_port['network_id'])
+        if is_external_net:
+            self._assert_on_external_net_with_compute(port['port'])
 
         with context.session.begin(subtransactions=True):
             updated_port = super(NsxV3Plugin, self).update_port(context,
@@ -1033,19 +1051,21 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
                         # revert allowed address pairs
                         if port_security:
-                            orig_pair = original_port.get(addr_pair.ADDRESS_PAIRS)
+                            orig_pair = original_port.get(
+                                addr_pair.ADDRESS_PAIRS)
                             updated_pair = updated_port.get(
                                 addr_pair.ADDRESS_PAIRS)
                             if orig_pair != updated_pair:
-                                self._delete_allowed_address_pairs(context, id)
+                                self._delete_allowed_address_pairs(
+                                    context, id)
                             if orig_pair:
                                 self._process_create_allowed_address_pairs(
                                     context, original_port, orig_pair)
 
                         if sec_grp_updated:
                             self.update_security_group_on_port(
-                                context, id, {'port': original_port}, updated_port,
-                                original_port)
+                                context, id, {'port': original_port},
+                                updated_port, original_port)
 
         return updated_port
 
