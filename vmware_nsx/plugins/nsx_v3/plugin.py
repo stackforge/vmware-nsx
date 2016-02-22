@@ -719,8 +719,9 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         else:
             name = port_data['name']
 
+        nsx_net_id = self._get_network_nsx_id(context, port_data['network_id'])
         result = self._port_client.create(
-            port_data['network_id'], vif_uuid,
+            nsx_net_id, vif_uuid,
             tags=tags,
             name=name,
             admin_state=port_data['admin_state_up'],
@@ -733,7 +734,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         # mapping object is not necessary anymore.
         nsx_db.add_neutron_nsx_port_mapping(
             context.session, neutron_db['id'],
-            neutron_db['network_id'], result['id'])
+            nsx_net_id, result['id'])
         return result
 
     def _validate_address_pairs(self, address_pairs):
