@@ -719,8 +719,9 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         else:
             name = port_data['name']
 
+        nsx_net_id = self._get_network_nsx_id(context, port_data['network_id'])
         result = self._port_client.create(
-            port_data['network_id'], vif_uuid,
+            nsx_net_id, vif_uuid,
             tags=tags,
             name=name,
             admin_state=port_data['admin_state_up'],
@@ -733,7 +734,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         # mapping object is not necessary anymore.
         nsx_db.add_neutron_nsx_port_mapping(
             context.session, neutron_db['id'],
-            neutron_db['network_id'], result['id'])
+            nsx_net_id, result['id'])
         return result
 
     def _validate_address_pairs(self, address_pairs):
@@ -1117,14 +1118,14 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         if not network.get(pnet.PHYSICAL_NETWORK):
             return cfg.CONF.nsx_v3.default_tier0_router_uuid
         else:
-            return network.get(pnet.PHYSICAL_NETWORK)
+            return self._get_network_nsx_id(
+                       context, network.get(pnet.PHYSICAL_NETWORK))
 
     def _update_router_gw_info(self, context, router_id, info):
         router = self._get_router(context, router_id)
         org_ext_net_id = router.gw_port_id and router.gw_port.network_id
         org_tier0_uuid = self._get_tier0_uuid_by_net(context, org_ext_net_id)
         org_enable_snat = router.enable_snat
-        new_ext_net_id = info and info.get('network_id')
         orgaddr, orgmask, _orgnexthop = (
             self._get_external_attachment_info(
                 context, router))
