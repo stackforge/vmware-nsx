@@ -124,23 +124,24 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
 
     def test_get_vlan_network_name(self):
         p = manager.NeutronManager.get_plugin()
-        id = uuidutils.generate_uuid()
+        net_id = uuidutils.generate_uuid()
+        dvs_id = 'dvs-10'
         net = {'name': '',
-               'id': id}
-        expected = id
+               'id': net_id}
+        expected = '%s-%s' % (dvs_id, net_id)
         self.assertEqual(expected,
-                         p._get_vlan_network_name(net))
+                         p._get_vlan_network_name(net, dvs_id))
         net = {'name': 'pele',
-               'id': id}
-        expected = '%s-%s' % ('pele', id)
+               'id': net_id}
+        expected = '%s-%s-%s' % (dvs_id, 'pele', net_id)
         self.assertEqual(expected,
-                         p._get_vlan_network_name(net))
+                         p._get_vlan_network_name(net, dvs_id))
         name = 'X' * 500
         net = {'name': name,
-               'id': id}
-        expected = '%s-%s' % (name[:43], id)
+               'id': net_id}
+        expected = '%s-%s-%s' % (dvs_id, name[:35], net_id)
         self.assertEqual(expected,
-                         p._get_vlan_network_name(net))
+                         p._get_vlan_network_name(net, dvs_id))
 
     def test_create_port_anticipating_allocation(self):
         with self.network(shared=True) as network:
@@ -299,6 +300,62 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxVPluginV2TestCase):
                                         pnet.PHYSICAL_NETWORK)) as net1:
                 for k, v in expected_same_vlan:
                     self.assertEqual(net1['network'][k], v)
+
+    def test_create_vlan_network_with_multiple_dvs(self):
+        name = 'multi-dvs-vlan-net'
+        providernet_args = {pnet.NETWORK_TYPE: 'vlan',
+                            pnet.SEGMENTATION_ID: 100,
+                            pnet.PHYSICAL_NETWORK: 'dvs-1, dvs-2, dvs-3'}
+        p = manager.NeutronManager.get_plugin()
+        with mock.patch.object(
+            p, '_create_vlan_network_at_backend',
+            # Return three netmorefs as side effect
+            side_effect=[_uuid(), _uuid(), _uuid()]) as vlan_net_call:
+            with self.network(name=name,
+                              providernet_args=providernet_args,
+                              arg_list=(pnet.NETWORK_TYPE,
+                                        pnet.SEGMENTATION_ID,
+                                        pnet.PHYSICAL_NETWORK)) as net:
+                # _create_vlan_network_at_backend is expected to be called
+                # three times since we have three DVS IDs in the physical
+                # network attribute.
+                self.assertEqual(3, vlan_net_call.call_count)
+
+    def test_create_vlan_network_with_multiple_dvs_backend_failure(self):
+        net_data = {'name': 'vlan-net',
+                    'tenant_id': self._tenant_id,
+                    pnet.NETWORK_TYPE: 'vlan',
+                    pnet.SEGMENTATION_ID: 100,
+                    pnet.PHYSICAL_NETWORK: 'dvs-1, dvs-2, dvs-3'}
+        network  = {'network': net_data}
+        p = manager.NeutronManager.get_plugin()
+        with mock.patch.object(
+            p, '_create_vlan_network_at_backend',
+            # Return two successful netmorefs and fail on the backend
+            # for the third netmoref creation as side effect.
+            side_effect=[_uuid(), _uuid(),
+                         n_exc.InvalidInput(error_message='')]):
+            with mock.patch.object(
+                p, '_delete_backend_network') as delete_net_call:
+                self.assertRaises(n_exc.InvalidInput,
+                                  p.create_network,
+                                  context.get_admin_context(),
+                                  network)
+                # Two successfully created port groups should be rolled back
+                # on the failure of third port group creation.
+                self.assertEqual(2, delete_net_call.call_count)
+
+    def test_get_dvs_ids_for_multiple_dvs_vlan_network(self):
+        p = manager.NeutronManager.get_plugin()
+        # If no DVS-ID is provided as part of physical network, return
+        # global DVS-ID configured in nsx.ini
+        physical_network = attributes.ATTR_NOT_SPECIFIED
+        self.assertEqual(['fake_dvs_id'], p._get_dvs_ids(physical_network))
+        # If DVS-IDs are provided as part of physical network as a comma
+        # separated string, return them as a list of DVS-IDs.
+        physical_network = 'dvs-1,dvs-2, dvs-3'
+        expected_dvs_ids = ['dvs-1', 'dvs-2', 'dvs-3']
+        self.assertEqual(expected_dvs_ids, p._get_dvs_ids(physical_network))
 
     def test_create_vxlan_with_tz_provider_network(self):
         name = 'provider_net_vxlan'
