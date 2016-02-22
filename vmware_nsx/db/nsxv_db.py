@@ -503,6 +503,23 @@ def cleanup_nsxv_edge_firewallrule_binding(session, edge_id):
                 edge_id=edge_id).delete()
 
 
+def map_spoofguard_policy_for_nsx_switch(session, nsx_switch_id, policy_id):
+    with session.begin(subtransactions=True):
+        mapping = nsxv_models.NsxvSpoofGuardPolicyNsxSwitchMapping(
+            nsx_switch_id=nsx_switch_id, policy_id=policy_id)
+        session.add(mapping)
+    return mapping
+
+
+def get_spoofguard_policy_nsx_switch_mapping(session, policy_id):
+    try:
+        return session.query(
+            nsxv_models.NsxvSpoofGuardPolicyNsxSwitchMapping).filter_by(
+            policy_id=policy_id).one()
+    except exc.NoResultFound:
+        return
+
+
 def map_spoofguard_policy_for_network(session, network_id, policy_id):
     with session.begin(subtransactions=True):
         mapping = nsxv_models.NsxvSpoofGuardPolicyNetworkMapping(
@@ -511,15 +528,10 @@ def map_spoofguard_policy_for_network(session, network_id, policy_id):
     return mapping
 
 
-def get_spoofguard_policy_id(session, network_id):
-    try:
-        mapping = (session.query(
-            nsxv_models.NsxvSpoofGuardPolicyNetworkMapping).
-            filter_by(network_id=network_id).one())
-        return mapping['policy_id']
-    except exc.NoResultFound:
-        LOG.debug("SpoofGuard Policy for network %s was not found",
-                  network_id)
+def get_spoofguard_policy_ids(session, network_id):
+    return [mapping['policy_id'] for mapping in
+            (session.query(nsxv_models.NsxvSpoofGuardPolicyNetworkMapping).
+             filter_by(network_id=network_id))]
 
 
 def get_nsxv_spoofguard_policy_network_mappings(session, filters=None,

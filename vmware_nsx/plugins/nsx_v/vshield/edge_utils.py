@@ -324,6 +324,7 @@ class EdgeManager(object):
             if (not binding['binding_type'] == c_utils.NsxVNetworkTypes.VXLAN
                 and binding['phy_uuid'] != ''):
                 phys_net = binding['phy_uuid']
+        #NOTE(abhiraut): Return list of dvs-ids for VLAN network type
         return phys_net
 
     def _create_sub_interface(self, context, network_id, network_name,
@@ -345,6 +346,7 @@ class EdgeManager(object):
                          'networkType': 'Isolation'}
             config_spec = {'networkSpec': portgroup}
             dvs_id = self._get_physical_provider_network(context, network_id)
+            #NOTE(abhiraut): Create the pg on all dvs
             pg, port_group_id = self.nsxv_manager.vcns.create_port_group(
                 dvs_id, config_spec)
 
@@ -390,6 +392,8 @@ class EdgeManager(object):
                 job_id = objuri[objuri.rfind("/") + 1:]
                 dvs_id = self._get_physical_provider_network(context,
                                                              network_id)
+                #NOTE(abhiraut): Delete portgroup on all dvs for VLAN
+                #                network type
                 self.nsxv_manager.delete_portgroup(dvs_id,
                                                    port_group_id,
                                                    job_id)
