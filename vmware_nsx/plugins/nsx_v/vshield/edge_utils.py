@@ -316,15 +316,21 @@ class EdgeManager(object):
         bindings = nsxv_db.get_network_bindings(context.session, network_id)
         # Set the return value as global DVS-ID of the mgmt/edge cluster
         phys_net = self.dvs_id
+        network_type = None
         if bindings:
             binding = bindings[0]
+            network_type = binding['binding_type']
+            if (network_type == c_utils.NsxVNetworkTypes.VLAN
+                and binding['phy_uuid'] != ''):
+                if ',' not in binding['phy_uuid']:
+                    phys_net = binding['phy_uuid']
             # Return user input physical network value for all network types
             # except VXLAN networks. The DVS-ID of the mgmt/edge cluster must
             # be returned for VXLAN network types.
-            if (not binding['binding_type'] == c_utils.NsxVNetworkTypes.VXLAN
-                and binding['phy_uuid'] != ''):
+            elif (not network_type == c_utils.NsxVNetworkTypes.VXLAN
+                  and binding['phy_uuid'] != ''):
                 phys_net = binding['phy_uuid']
-        return phys_net
+        return phys_net, network_type
 
     def _create_sub_interface(self, context, network_id, network_name,
                               tunnel_index, address_groups,
@@ -344,7 +350,14 @@ class EdgeManager(object):
                          'networkBindingType': 'Static',
                          'networkType': 'Isolation'}
             config_spec = {'networkSpec': portgroup}
-            dvs_id = self._get_physical_provider_network(context, network_id)
+            dvs_id, network_type = self._get_physical_provider_network(
+                context, network_id)
+            if network_type == c_utils.NsxVNetworkTypes.VLAN:
+                # If network is of type VLAN and multiple dvs associated with
+                # one neutron network, retrieve the logical network id for the
+                # edge/mgmt cluster's DVS.
+                vcns_network_id = nsx_db.get_nsx_switch_id_for_dvs(
+                    context.session, network_id, dvs_id)
             pg, port_group_id = self.nsxv_manager.vcns.create_port_group(
                 dvs_id, config_spec)
 
@@ -388,8 +401,8 @@ class EdgeManager(object):
             if port_group_id:
                 objuri = header['location']
                 job_id = objuri[objuri.rfind("/") + 1:]
-                dvs_id = self._get_physical_provider_network(context,
-                                                             network_id)
+                dvs_id, net_type = self._get_physical_provider_network(
+                    context, network_id)
                 self.nsxv_manager.delete_portgroup(dvs_id,
                                                    port_group_id,
                                                    job_id)
