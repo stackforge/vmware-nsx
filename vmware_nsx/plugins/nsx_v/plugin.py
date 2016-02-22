@@ -472,13 +472,48 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         else:
             self.nsx_v.delete_virtual_wire(moref)
 
-    def _get_vlan_network_name(self, net_data):
+    def _get_vlan_network_name(self, net_data, dvs_id):
         if net_data['name'] == '':
-            return net_data['id']
+            # Include only the first 8 characters from the dvs-id.
+            return '%s-%s' % (dvs_id[:8], net_data['id'])
         else:
             # Maximum name length is 80 characters. 'id' length is 36
-            # maximum prefix for name is 43
-            return '%s-%s' % (net_data['name'][:43], net_data['id'])
+            # maximum prefix for name plus dvs-id is 43
+            return '%s-%s-%s' % (dvs_id[:8], net_data['name'][:35],
+                                 net_data['id'])
+
+    def _create_vlan_network_at_backend(self, net_data, dvs_id):
+        network_name = self._get_vlan_network_name(net_data, dvs_id)
+        segment = net_data[mpnet.SEGMENTS][0]
+        vlan_tag = 0
+        if (segment.get(pnet.NETWORK_TYPE) ==
+            c_utils.NsxVNetworkTypes.VLAN):
+            vlan_tag = segment.get(pnet.SEGMENTATION_ID, 0)
+        portgroup = {'vlanId': vlan_tag,
+                     'networkBindingType': 'Static',
+                     'networkName': network_name,
+                     'networkType': 'Isolation'}
+        config_spec = {'networkSpec': portgroup}
+        try:
+            h, c = self.nsx_v.vcns.create_port_group(dvs_id,
+                                                     config_spec)
+            return c
+        except Exception as e:
+            LOG.debug("Failed to create port group: %s",
+                      e.response)
+            err_msg = (_("Physical network %s is not an existing DVS")
+                       % dvs_id)
+            raise n_exc.InvalidInput(error_message=err_msg)
+
+    def _get_dvs_ids(self, physical_network):
+        """Extract DVS-IDs provided in the physical network field.
+
+        Return a list of DVS-IDs. If physical network attribute is not set,
+        return the pre configured dvs-id from nsx.ini file.
+        """
+        if not attr.is_attr_set(physical_network):
+            return [self.dvs_id]
+        return [dvs_id.strip() for dvs_id in physical_network.split(',')]
 
     def _get_default_security_group(self, context, tenant_id):
         return self._ensure_default_security_group(context, tenant_id)
@@ -597,41 +632,45 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                 res_id=vdn_scope_id)
                 h, c = self.nsx_v.vcns.create_virtual_wire(vdn_scope_id,
                                                            config_spec)
-                net_moref = c
+                net_morefs = [c]
             elif network_type == c_utils.NsxVNetworkTypes.PORTGROUP:
                 segment = net_data[mpnet.SEGMENTS][0]
-                net_moref = segment.get(pnet.PHYSICAL_NETWORK)
+                net_morefs = [segment.get(pnet.PHYSICAL_NETWORK)]
             else:
-                network_name = self._get_vlan_network_name(net_data)
-                vlan_tag = 0
                 segment = net_data[mpnet.SEGMENTS][0]
-                if (segment.get(pnet.NETWORK_TYPE) ==
-                    c_utils.NsxVNetworkTypes.VLAN):
-                    vlan_tag = segment.get(pnet.SEGMENTATION_ID, 0)
                 physical_network = segment.get(pnet.PHYSICAL_NETWORK)
-                dvs_id = (physical_network if attr.is_attr_set(
-                    physical_network) else self.dvs_id)
-                portgroup = {'vlanId': vlan_tag,
-                             'networkBindingType': 'Static',
-                             'networkName': network_name,
-                             'networkType': 'Isolation'}
-                config_spec = {'networkSpec': portgroup}
-                try:
-                    h, c = self.nsx_v.vcns.create_port_group(dvs_id,
-                                                             config_spec)
-                    net_moref = c
-                except Exception as e:
-                    LOG.debug("Failed to create port group: %s",
-                              e.response)
-                    err_msg = (_("Physical network %s is not an existing DVS")
-                               % dvs_id)
-                    raise n_exc.InvalidInput(error_message=err_msg)
+                # Retrieve the list of dvs-ids from physical network.
+                # If physical_network attr is not set, retrieve a list
+                # consisting of a single dvs-id pre-configured in nsx.ini
+                dvs_ids = self._get_dvs_ids(physical_network)
+                # Save the list of netmorefs from the backend
+                net_morefs = []
+                for dvs_id in dvs_ids:
+                    net_morefs.append(self._create_vlan_network_at_backend(
+                        dvs_id=dvs_id,
+                        net_data=net_data)
+                    )
         try:
             # Create SpoofGuard policy for network anti-spoofing
             if cfg.CONF.nsxv.spoofguard_enabled and backend_network:
-                sg_policy_id = None
-                s, sg_policy_id = self.nsx_v.vcns.create_spoofguard_policy(
-                    net_moref, net_data['id'], net_data[psec.PORTSECURITY])
+                # Save the list of spoofguard policy IDs returned from
+                # backend for each of the networks created on configured DVSes.
+                sg_policy_ids = []
+                # Store the mapping between policy_id and the nsx_switch_id
+                # to be used during network updates.
+                sg_policy_netmoref_mappings = {}
+                for net_moref in net_morefs:
+                    # In case mulitple DVSes are configured for a VLAN backed
+                    # provider network, one neutron network will map to multiple
+                    # port groups in the backend. Thus, one network will now map
+                    # to multiple spoofguard policies. In any other case, there
+                    # will be only one spoofguard policy.
+                    # Store all spoofguard policies related to this network.
+                    policy_id = self.nsx_v.vcns.create_spoofguard_policy(
+                        net_moref, net_data['id'],
+                        net_data[psec.PORTSECURITY])[1]
+                    sg_policy_netmoref_mappings[policy_id] = net_moref
+                    sg_policy_ids.append(policy_id)
 
             with context.session.begin(subtransactions=True):
                 new_net = super(NsxVPluginV2, self).create_network(context,
@@ -668,20 +707,32 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                                        net_bindings)
                 if backend_network:
                     # Save moref in the DB for future access
-                    nsx_db.add_neutron_nsx_network_mapping(
-                        context.session, new_net['id'],
-                        net_moref)
+                    for net_moref in net_morefs:
+                        nsx_db.add_neutron_nsx_network_mapping(
+                            context.session, new_net['id'],
+                            net_moref)
                     if cfg.CONF.nsxv.spoofguard_enabled:
-                        nsxv_db.map_spoofguard_policy_for_network(
-                            context.session, new_net['id'], sg_policy_id)
+                        for sg_policy_id in sg_policy_ids:
+                            nsxv_db.map_spoofguard_policy_for_network(
+                                context.session, new_net['id'], sg_policy_id)
+                            # Save policy ID to netmoref mapping in DB for
+                            # future use.
+                            nsxv_db.map_spoofguard_policy_for_nsx_switch(
+                                context.session,
+                                sg_policy_netmoref_mappings.get(sg_policy_id),
+                                sg_policy_id)
 
         except Exception:
             with excutils.save_and_reraise_exception():
                 # Delete the backend network
                 if backend_network:
-                    if cfg.CONF.nsxv.spoofguard_enabled and sg_policy_id:
-                        self.nsx_v.vcns.delete_spoofguard_policy(sg_policy_id)
-                    self._delete_backend_network(net_moref)
+                    if (cfg.CONF.nsxv.spoofguard_enabled and
+                        len(sg_policy_ids) > 0):
+                        for sg_policy_id in sg_policy_ids:
+                            self.nsx_v.vcns.delete_spoofguard_policy(
+                                sg_policy_id)
+                    for net_moref in net_morefs:
+                        self._delete_backend_network(net_moref)
                 LOG.exception(_LE('Failed to create network'))
 
         # this extra lookup is necessary to get the
@@ -716,13 +767,19 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             context, network_id, address_groups=address_groups)
 
     def _delete_dhcp_edge_service(self, context, id):
-        self.edge_manager.delete_dhcp_edge_service(context, id)
+        self.edge_manager.deletcp_edge_service(context, id)
 
     def delete_network(self, context, id):
         mappings = nsx_db.get_nsx_switch_ids(context.session, id)
         bindings = nsxv_db.get_network_bindings(context.session, id)
         if cfg.CONF.nsxv.spoofguard_enabled:
-            sg_policy_id = nsxv_db.get_spoofguard_policy_id(
+            # In case mulitple DVSes are configured for a VLAN backed
+            # provider network, one neutron network will map to multiple
+            # port groups in the backend. Thus, one network will now map
+            # to multiple spoofguard policies. In any other case, there
+            # will be only one spoofguard policy.
+            # Retrieve all spoofguard policies related to this network.
+            sg_policy_ids = nsxv_db.get_spoofguard_policy_ids(
                 context.session, id)
 
         # Update the DHCP edge for metadata and clean the vnic in DHCP edge
@@ -750,18 +807,27 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # an external network
         if (bindings and
             bindings[0].binding_type == c_utils.NsxVNetworkTypes.PORTGROUP):
-            if cfg.CONF.nsxv.spoofguard_enabled and sg_policy_id:
-                self.nsx_v.vcns.delete_spoofguard_policy(sg_policy_id)
+            if cfg.CONF.nsxv.spoofguard_enabled and len(sg_policy_ids) > 0:
+                for sg_policy_id in sg_policy_ids:
+                    self.nsx_v.vcns.delete_spoofguard_policy(sg_policy_id)
             return
 
         # Delete the backend network if necessary. This is done after
         # the base operation as that may throw an exception in the case
         # that there are ports defined on the network.
         if mappings:
-            if cfg.CONF.nsxv.spoofguard_enabled and sg_policy_id:
-                self.nsx_v.vcns.delete_spoofguard_policy(sg_policy_id)
+            if cfg.CONF.nsxv.spoofguard_enabled and len(sg_policy_ids > 0):
+                # In case mulitple DVSes are configured for a VLAN backed
+                # provider network, one neutron network will map to multiple
+                # port groups in the backend. Thus, one network will now map
+                # to multiple spoofguard policies. In any other case, there
+                # will be only one spoofguard policy.
+                # Delete all spoofguard policies associated with this network.
+                for sg_policy_id in sg_policy_ids:
+                    self.nsx_v.vcns.delete_spoofguard_policy(sg_policy_id)
             edge_utils.check_network_in_use_at_backend(context, id)
-            self._delete_backend_network(mappings[0])
+            for mapping in mappings:
+                self._delete_backend_network(mapping)
 
     def get_network(self, context, id, fields=None):
         with context.session.begin(subtransactions=True):
@@ -818,12 +884,22 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # Updating SpoofGuard policy if exists, on failure revert to network
         # old state
         if cfg.CONF.nsxv.spoofguard_enabled and psec_update:
-            policy_id = nsxv_db.get_spoofguard_policy_id(context.session, id)
-            net_moref = nsx_db.get_nsx_switch_ids(context.session, id)
+            # In case mulitple DVSes are configured for a VLAN backed
+            # provider network, one neutron network will map to multiple
+            # port groups in the backend. Thus, one network will now map
+            # to multiple spoofguard policies. In any other case, there
+            # will be only one spoofguard policy.
+            # Retrieve all spoofguard policies associated with this network.
+            policy_ids = nsxv_db.get_spoofguard_policy_ids(context.session, id)
             try:
-                self.nsx_v.vcns.update_spoofguard_policy(
-                    policy_id, net_moref[0], id,
-                    net_attrs[psec.PORTSECURITY])
+                for policy_id in policy_ids:
+                    mapping = nsxv_db.get_spoofguard_policy_nsx_switch_mapping(
+                        context.session,
+                        policy_id)
+                    if mapping:
+                        self.nsx_v.vcns.update_spoofguard_policy(
+                            policy_id, mapping.nsx_switch_id, id,
+                            net_attrs[psec.PORTSECURITY])
             except Exception:
                 with excutils.save_and_reraise_exception():
                     revert_update = self._fields(original_network,
@@ -2164,20 +2240,35 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         super(NsxVPluginV2, self)._check_for_duplicate_rules(context, rules)
 
     def _remove_vnic_from_spoofguard_policy(self, session, net_id, vnic_id):
-        policy_id = nsxv_db.get_spoofguard_policy_id(session, net_id)
-        self.nsx_v.vcns.inactivate_vnic_assigned_addresses(policy_id, vnic_id)
+        policy_ids = nsxv_db.get_spoofguard_policy_ids(session, net_id)
+        # In case mulitple DVSes are configured for a VLAN backed
+        # provider network, one neutron network will map to multiple
+        # port groups in the backend. Thus, one network will now map
+        # to multiple spoofguard policies. In any other case, there
+        # will be only one spoofguard policy.
+        # Remove vnic from all spoofguard policies related to this network.
+        for policy_id in policy_ids:
+            self.nsx_v.vcns.inactivate_vnic_assigned_addresses(policy_id,
+                                                               vnic_id)
 
     def _update_vnic_assigned_addresses(self, session, port, vnic_id):
-        sg_policy_id = nsxv_db.get_spoofguard_policy_id(
-            session, port['network_id'])
         mac_addr = port['mac_address']
         approved_addrs = [addr['ip_address'] for addr in port['fixed_ips']]
         # add in the address pair
         approved_addrs.extend(
             addr['ip_address'] for addr in port[addr_pair.ADDRESS_PAIRS])
-        self.nsx_v.vcns.approve_assigned_addresses(
-            sg_policy_id, vnic_id, mac_addr, approved_addrs)
-        self.nsx_v.vcns.publish_assigned_addresses(sg_policy_id, vnic_id)
+        # In case mulitple DVSes are configured for a VLAN backed
+        # provider network, one neutron network will map to multiple
+        # port groups in the backend. Thus, one network will now map
+        # to multiple spoofguard policies. In any other case, there
+        # will be only one spoofguard policy.
+        # Update vnic for all spoofguard policies related to this network.
+        sg_policy_ids = nsxv_db.get_spoofguard_policy_ids(
+            session, port['network_id'])
+        for sg_policy_id in sg_policy_ids:
+            self.nsx_v.vcns.approve_assigned_addresses(
+                sg_policy_id, vnic_id, mac_addr, approved_addrs)
+            self.nsx_v.vcns.publish_assigned_addresses(sg_policy_id, vnic_id)
 
     def _is_compute_port(self, port):
         try:
