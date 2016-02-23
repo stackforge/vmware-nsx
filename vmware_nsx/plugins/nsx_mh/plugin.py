@@ -1076,6 +1076,23 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         return net
 
+    def update_subnet(self, context, subnet_id, subnet):
+        updated_subnet = super(NsxPluginV2, self).update_subnet(
+            context, subnet_id, subnet)
+        if cfg.CONF.NSX.metadata_on_demand:
+            # If enable_dhcp is changed on a subnet attached to a router,
+            # update internal metadata network accordingly.
+            if 'enable_dhcp' in subnet['subnet']:
+                port_filters = {
+                    'device_owner': constants.ROUTER_INTERFACE_OWNERS,
+                    'fixed_ips': {'subnet_id': [subnet_id]}}
+                ports = self.get_ports(context, filters=port_filters)
+                for port in ports:
+                    self.handle_router_metadata_access(
+                        context, port['device_id'],
+                        interface=not updated_subnet['enable_dhcp'])
+        return updated_subnet
+
     def create_port(self, context, port):
         # If PORTSECURITY is not the default value ATTR_NOT_SPECIFIED
         # then we pass the port to the policy engine. The reason why we don't
@@ -1750,7 +1767,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             # is removed  (with the network) if this the last subnet
             # on the router
             self.handle_router_metadata_access(
-                context, router_id, interface=info)
+                context, router_id, interface=None)
             if not subnet:
                 subnet = self._get_subnet(context, subnet_id)
             router = self._get_router(context, router_id)
