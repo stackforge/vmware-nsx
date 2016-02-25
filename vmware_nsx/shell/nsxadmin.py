@@ -99,7 +99,8 @@ nsxv_resources = {
                                      [Operations.LIST.value,
                                       Operations.NSX_UPDATE.value]),
     constants.NETWORKS: Resource(constants.NETWORKS,
-                                 [Operations.LIST.value]),
+                                 [Operations.LIST.value,
+                                  Operations.NSX_UPDATE.value]),
 }
 
 nsxv3_resources_names = map(lambda res: res.name, nsxv3_resources.itervalues())
