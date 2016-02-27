@@ -21,6 +21,7 @@ from neutron.api.v2 import attributes
 from neutron.common import constants
 from neutron.common import exceptions as n_exc
 from neutron import context
+from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.extensions import dvr as dist_router
 from neutron.extensions import external_net
 from neutron.extensions import l3
@@ -2649,6 +2650,23 @@ class TestNSXvAllowedAddressPairs(NsxVPluginV2TestCase,
 
     def test_get_vlan_network_name(self):
         pass
+
+    def _test_create_port_remove_allowed_address_pairs(self, update_value):
+        with self.network() as net:
+            address_pairs = [{'mac_address': '00:00:00:00:00:01',
+                              'ip_address': '10.0.0.1'}]
+            res = self._create_port(
+                self.fmt, net['network']['id'],
+                arg_list=(addr_pair.ADDRESS_PAIRS, 'mac_address'),
+                mac_address=address_pairs[0]['mac_address'],
+                allowed_address_pairs=address_pairs)
+            port = self.deserialize(self.fmt, res)
+            update_port = {'port': {addr_pair.ADDRESS_PAIRS: update_value}}
+            req = self.new_update_request('ports', update_port,
+                                          port['port']['id'])
+            port = self.deserialize(self.fmt, req.get_response(self.api))
+            self.assertEqual([], port['port'][addr_pair.ADDRESS_PAIRS])
+            self._delete('ports', port['port']['id'])
 
 
 class TestNSXPortSecurity(test_psec.TestPortSecurity,
