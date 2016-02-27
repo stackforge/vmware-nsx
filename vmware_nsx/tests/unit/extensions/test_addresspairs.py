@@ -173,3 +173,20 @@ class TestAllowedAddressPairsNSXv(test_nsx_v_plugin.NsxVPluginV2TestCase,
             self.assertEqual(port['port'][addr_pair.ADDRESS_PAIRS],
                              address_pairs)
             self._delete('ports', port['port']['id'])
+
+    def _test_create_port_remove_allowed_address_pairs(self, update_value):
+        with self.network() as net:
+            address_pairs = [{'mac_address': '00:00:00:00:00:01',
+                              'ip_address': '10.0.0.1'}]
+            res = self._create_port(
+                self.fmt, net['network']['id'],
+                arg_list=(addr_pair.ADDRESS_PAIRS, 'mac_address'),
+                mac_address=address_pairs[0]['mac_address'],
+                allowed_address_pairs=address_pairs)
+            port = self.deserialize(self.fmt, res)
+            update_port = {'port': {addr_pair.ADDRESS_PAIRS: update_value}}
+            req = self.new_update_request('ports', update_port,
+                                          port['port']['id'])
+            port = self.deserialize(self.fmt, req.get_response(self.api))
+            self.assertEqual([], port['port'][addr_pair.ADDRESS_PAIRS])
+            self._delete('ports', port['port']['id'])

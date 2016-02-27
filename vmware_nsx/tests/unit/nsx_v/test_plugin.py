@@ -32,7 +32,6 @@ from neutron.extensions import securitygroup as secgrp
 from neutron import manager
 
 from neutron.tests.unit import _test_extension_portbindings as test_bindings
-import neutron.tests.unit.db.test_allowedaddresspairs_db as test_addr_pair
 import neutron.tests.unit.db.test_db_base_plugin_v2 as test_plugin
 import neutron.tests.unit.extensions.test_l3 as test_l3_plugin
 import neutron.tests.unit.extensions.test_l3_ext_gw_mode as test_ext_gw_mode
@@ -2612,43 +2611,6 @@ class TestVdrTestCase(L3NatTest, L3NatTestCaseBase,
 
     def test_create_router_gateway_fails(self):
         self.skipTest('not supported')
-
-
-class TestNSXvAllowedAddressPairs(NsxVPluginV2TestCase,
-                                  test_addr_pair.TestAllowedAddressPairs):
-
-    def setUp(self, plugin=PLUGIN_NAME):
-        super(TestNSXvAllowedAddressPairs, self).setUp(plugin=plugin)
-
-    # NOTE: the tests below are skipped due to the fact that they update the
-    # mac address. The NSX|V does not support address pairs when a MAC address
-    # is configured.
-    def test_create_port_allowed_address_pairs(self):
-        pass
-
-    def test_update_add_address_pairs(self):
-        pass
-
-    def test_equal_to_max_allowed_address_pair(self):
-        pass
-
-    def test_update_port_security_off_address_pairs(self):
-        pass
-
-    def test_create_port_security_true_allowed_address_pairs(self):
-        pass
-
-    def test_create_port_security_false_allowed_address_pairs(self):
-        pass
-
-    def test_create_port_remove_allowed_address_pairs(self):
-        pass
-
-    def test_create_overlap_with_fixed_ip(self):
-        pass
-
-    def test_get_vlan_network_name(self):
-        pass
 
 
 class TestNSXPortSecurity(test_psec.TestPortSecurity,
