@@ -793,15 +793,18 @@ class Vcns(object):
             return False
         return True
 
-    def get_version(self):
-        uri = '/api/1.0/appliance-management/summary/system'
+    def _get_version(self):
+        uri = '/api/2.0/services/vsmconfig'
         h, c = self.do_request(HTTP_GET, uri, decode=True)
-        version = '%s.%s.%s' % (c['versionInfo']['majorVersion'],
-                                c['versionInfo']['minorVersion'],
-                                c['versionInfo']['patchVersion'])
-        LOG.debug("NSX Version: %s, Build: %s",
-                  version, c['versionInfo']['buildNumber'])
+        version = c['vsmConfig']['version']
+        LOG.debug("NSX Version: %s", version)
         return version
+
+    def get_version(self):
+        try:
+            return _get_version()
+        except Exception:
+            return '0.0.0'
 
     def get_tuning_configration(self):
         uri = '/api/4.0/edgePublish/tuningConfiguration'
