@@ -1134,6 +1134,25 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         return False
 
+    def is_dhcp_metadata(self, context, subnet_id):
+        subnet = self.get_subnet(context, subnet_id)
+        if not subnet['enable_dhcp'] or not self.metadata_proxy_handler:
+            return False
+
+        if cfg.CONF.nsxv.dhcp_force_metadata:
+            return True
+
+        if cfg.CONF.nsxv.dhcp_enable_isolated_metadata:
+            if not subnet.get('gateway_ip'):
+                return True
+            filters = {'fixed_ips': {'subnet_id': [subnet['id']],
+                                     'ip_address': [subnet['gateway_ip']]},
+                       'device_owner': [l3_db.DEVICE_OWNER_ROUTER_INTF]}
+            intf_ports = self.get_ports(context, filters)
+            if not intf_ports:
+                return True
+        return False
+
     def create_subnet(self, context, subnet):
         """Create subnet on nsx_v provider network.
 
@@ -1747,15 +1766,57 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             else:
                 edge_utils.update_internal_interface(*update_args)
 
+    def _get_intf_subnets_and_dhcp_meta_map(self, context, interface_info):
+        subnet_ids = []
+        subnets_meta_mappings = {}
+        if interface_info and 'port_id' in interface_info:
+            port_id = interface_info['port_id']
+            port = self.get_port(context, port_id)
+            for fixed_ip in port['fixed_ips']:
+                subnet_ids.append(fixed_ip['subnet_id'])
+        elif interface_info and 'subnet_id' in interface_info:
+            subnet_ids = [interface_info['subnet_id']]
+        for subnet_id in subnet_ids:
+            subnets_meta_mappings[subnet_id] = self.is_dhcp_metadata(
+                context, subnet_id)
+        return subnet_ids, subnets_meta_mappings
+
+    def _handle_intf_subnets_dhcp_meta(self, context,
+                                       subnet_ids, subnets_meta_mappings):
+        networks_dhcp_meta_update = []
+        for subnet_id in subnet_ids:
+            new_dhcp_metadata = self.is_dhcp_metadata(context, subnet_id)
+            if new_dhcp_metadata != subnets_meta_mappings[subnet_id]:
+                network_id = self.get_subnet(context, subnet_id)['network_id']
+                networks_dhcp_meta_update.append(network_id)
+        for network_id in list(set(networks_dhcp_meta_update)):
+            address_groups = self._create_network_dhcp_address_group(
+                context, network_id)
+            self._update_dhcp_edge_service(context, network_id, address_groups)
+
     def add_router_interface(self, context, router_id, interface_info):
+        subnet_ids, subnets_meta_mappings = (
+            self._get_intf_subnets_and_dhcp_meta_map(context, interface_info))
+
         router_driver = self._find_router_driver(context, router_id)
-        return router_driver.add_router_interface(
+        rc = router_driver.add_router_interface(
             context, router_id, interface_info)
 
+        self._handle_intf_subnets_dhcp_meta(
+            context, subnet_ids, subnets_meta_mappings)
+        return rc
+
     def remove_router_interface(self, context, router_id, interface_info):
+        subnet_ids, subnets_meta_mappings = (
+            self._get_intf_subnets_and_dhcp_meta_map(context, interface_info))
+
         router_driver = self._find_router_driver(context, router_id)
-        return router_driver.remove_router_interface(
+        rc = router_driver.remove_router_interface(
             context, router_id, interface_info)
+
+        self._handle_intf_subnets_dhcp_meta(
+            context, subnet_ids, subnets_meta_mappings)
+        return rc
 
     def _get_floatingips_by_router(self, context, router_id):
         fip_qry = context.session.query(l3_db.FloatingIP)

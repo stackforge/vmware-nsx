@@ -396,6 +396,24 @@ nsxv_opts = [
                 help=_('List of nameservers to configure for the DHCP binding '
                        'entries. These will be used if there are no '
                        'nameservers defined on the subnet.')),
+    cfg.BoolOpt('dhcp_enable_isolated_metadata', default=False,
+                help=_("DHCP Edge server can assist with providing metadata "
+                       "support on isolated networks. Setting this value to "
+                       "True will cause the DHCP server to append specific "
+                       "host routes to the DHCP request. The metadata service "
+                       "will only be activated when the subnet does not "
+                       "contain any router port. The guest instance must be "
+                       "configured to request host routes via DHCP (Option "
+                       "121). This option doesn't have any effect when "
+                       "dhcp_force_metadata is set to True.")),
+    cfg.BoolOpt('dhcp_force_metadata', default=False,
+                help=_("In some cases the Neutron router is not present to "
+                       "provide the metadata IP but the DHCP server can be "
+                       "used to provide this info. Setting this value will "
+                       "force the DHCP server to append specific host routes "
+                       "to the DHCP request. If this option is set, then the "
+                       "metadata service will be activated for all the "
+                       "dhcp enabled networks.")),
 ]
 
 # Register the configuration options
