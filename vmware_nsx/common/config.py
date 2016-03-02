@@ -401,6 +401,14 @@ nsxv_opts = [
                        'involves configuring the dvs backing nsx_v directly. '
                        'If False, only features exposed via nsx_v will be '
                        'supported')),
+    cfg.BoolOpt('dhcp_force_metadata', default=True,
+                help=_("In some cases the Neutron router is not present to "
+                       "provide the metadata IP but the DHCP server can be "
+                       "used to provide this info. Setting this value will "
+                       "force the DHCP server to append specific host routes "
+                       "to the DHCP request. If this option is set, then the "
+                       "metadata service will be activated for all the "
+                       "dhcp enabled networks.")),
 ]
 
 # Register the configuration options
