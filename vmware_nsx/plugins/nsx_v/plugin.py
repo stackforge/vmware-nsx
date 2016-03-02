@@ -1140,6 +1140,16 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         return False
 
+    def is_dhcp_metadata(self, context, subnet_id):
+        subnet = self.get_subnet(context, subnet_id)
+        if not subnet['enable_dhcp'] or not self.metadata_proxy_handler:
+            return False
+
+        if cfg.CONF.nsxv.dhcp_force_metadata:
+            return True
+
+        return False
+
     def create_subnet(self, context, subnet):
         """Create subnet on nsx_v provider network.
 
