@@ -14,11 +14,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from tempest.api.network import base
 from tempest import config
 from tempest import test
-from tempest_lib.common.utils import data_utils
-from tempest_lib import decorators
+from tempest.api.network import base
+from tempest.lib import decorators
+from tempest.lib.common.utils import data_utils
 
 from vmware_nsx_tempest.services import base_l2gw
 from vmware_nsx_tempest.services import l2_gateway_client as L2GW
