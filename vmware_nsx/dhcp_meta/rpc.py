@@ -52,7 +52,8 @@ def handle_port_metadata_access(plugin, context, port, is_delete=False):
     # DHCP-enabled but isolated network. This method is useful
     # only when no network namespace support.
     plugin_cfg = getattr(cfg.CONF, plugin.cfg_group)
-    if (plugin_cfg.metadata_mode == config.MetadataModes.INDIRECT and
+    metadata_mode = getattr(plugin_cfg, 'metadata_mode', None)
+    if (metadata_mode == config.MetadataModes.INDIRECT and
         port.get('device_owner') == const.DEVICE_OWNER_DHCP):
         if not port.get('fixed_ips'):
             # If port does not have an IP, the associated subnet is in
@@ -97,7 +98,8 @@ def handle_router_metadata_access(plugin, context, router_id, interface=None):
     # The parameter "interface" is only used as a Boolean flag to indicate
     # whether to add (True) or delete (False) an internal metadata network.
     plugin_cfg = getattr(cfg.CONF, plugin.cfg_group)
-    if plugin_cfg.metadata_mode != config.MetadataModes.DIRECT:
+    metadata_mode = getattr(plugin_cfg, 'metadata_mode', None)
+    if metadata_mode != config.MetadataModes.DIRECT:
         LOG.debug("Metadata access network is disabled")
         return
     if not cfg.CONF.allow_overlapping_ips:
