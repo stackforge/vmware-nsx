@@ -136,14 +136,21 @@ class MetaDataTestCase(object):
             expected_meta_net = {
                 'status': 'ACTIVE',
                 'subnets': [],
+                'availability_zone_hints': [],
+                'availability_zones': [],
                 'name': 'meta-%s' % r['router']['id'],
                 'admin_state_up': True,
                 'tenant_id': '',
+                'mtu': 0,
+                'router:external': False,
                 'port_security_enabled': False,
                 'shared': False,
                 'id': mock.ANY,
-                'mtu': mock.ANY
+                'description': None
             }
+            if self.plugin.cfg_group == 'NSX':
+                expected_meta_net.pop('availability_zone_hints')
+                expected_meta_net.pop('availability_zones')
             f.assert_any_call(mock.ANY, expected_meta_net)
         self._metadata_teardown()
 
