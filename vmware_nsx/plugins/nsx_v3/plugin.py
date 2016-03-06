@@ -1003,6 +1003,11 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             original_port.get(ext_sg.SECURITYGROUPS, []),
             updated_port.get(ext_sg.SECURITYGROUPS, []))
 
+        # Update the DHCP profile
+        if updated_device_owner == const.DEVICE_OWNER_DHCP:
+            if self._dhcp_profile:
+                switch_profile_ids.append(self._dhcp_profile)
+
         self._port_client.update(
             lport_id, vif_uuid, name=name,
             attachment_type=attachment_type,
