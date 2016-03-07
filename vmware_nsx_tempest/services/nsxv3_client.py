@@ -22,11 +22,18 @@ from oslo_serialization import jsonutils
 from vmware_nsx_tempest._i18n import _LE
 from vmware_nsx_tempest._i18n import _LI
 from vmware_nsx_tempest._i18n import _LW
+from tempest import config
+
+CONF = config.CONF
 
 requests.packages.urllib3.disable_warnings()
 
 LOG = logging.getLogger(__name__)
 
+def get_nsxv3client_instance():
+    return (NSXV3Client(CONF.nsxv3.nsx_manager,
+                                           CONF.nsxv3.nsx_user,
+                                           CONF.nsxv3.nsx_password))
 
 class NSXV3Client(object):
     """Base NSXv3 REST client"""
@@ -221,6 +228,15 @@ class NSXV3Client(object):
         Retrieve all logical switches on NSX backend
         """
         response = self.get(endpoint="/logical-switches")
+        return response.json()['results']
+
+    def get_nsx_resource(self, end_point=None):
+        """
+        Retrieve NSX resources based on the endpoint
+        """
+        if end_point == None:
+            raise "endpoint cannot be blank. Please provide endpoint."
+        response = self.get(endpoint="/"+ end_point)
         return response.json()['results']
 
     def get_logical_switch(self, os_name, os_uuid):
