@@ -18,14 +18,21 @@ import requests
 
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
+from tempest.config import CONF
 
 from vmware_nsx_tempest._i18n import _LE
 from vmware_nsx_tempest._i18n import _LI
 from vmware_nsx_tempest._i18n import _LW
 
+
 requests.packages.urllib3.disable_warnings()
 
 LOG = logging.getLogger(__name__)
+
+
+def get_nsxv3client_instance():
+    return (NSXV3Client(CONF.nsxv3.nsx_manager, CONF.nsxv3.nsx_user,
+                        CONF.nsxv3.nsx_password))
 
 
 class NSXV3Client(object):
@@ -222,6 +229,15 @@ class NSXV3Client(object):
         """
         response = self.get(endpoint="/logical-switches")
         return response.json()['results']
+
+    def get_nsx_resource(self, end_point=None):
+        """
+        Retrieve NSX resources based on the endpoint
+        """
+        if end_point is None:
+            raise "Endpoint cannot be blank. Please provide endpoint."
+        response = self.get(endpoint="/" + end_point)
+        return response.json()["results"]
 
     def get_logical_switch(self, os_name, os_uuid):
         """
