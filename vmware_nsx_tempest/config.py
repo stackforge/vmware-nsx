@@ -109,6 +109,12 @@ L2gwGroup = [
                default="",
                help="l2gw multiple devices, interface has multiple VLANs"
                     " m-ifs::dvportgroup-144|138#246;dvportgroup-155|339"),
+    cfg.StrOpt('vlan_id_16',
+               default="16",
+               help="VLAN id 16"),
+    cfg.StrOpt('vlan_id_17',
+               default="17",
+               help="VLAN id 17"),
 ]
 
 nsxv3_group = cfg.OptGroup(name='nsxv3',
