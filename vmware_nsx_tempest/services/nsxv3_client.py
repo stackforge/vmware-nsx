@@ -223,6 +223,14 @@ class NSXV3Client(object):
         response = self.get(endpoint="/logical-switches")
         return response.json()['results']
 
+    def get_bridge_cluster_info(self):
+        """
+        Get bridge cluster information.
+        :return: returns bridge cluster id and bridge cluster name.
+        """
+        response = self.get(endpoint="/bridge-clusters").json()["results"]
+        return response[0]["id"], response[0]["display_name"]
+
     def get_logical_switch(self, os_name, os_uuid):
         """
         Get the logical switch based on the name and uuid provided.
