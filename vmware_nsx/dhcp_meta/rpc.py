@@ -15,7 +15,6 @@
 #
 
 from eventlet import greenthread
-import netaddr
 from neutron_lib import constants as const
 from neutron_lib import exceptions as ntn_exc
 from oslo_config import cfg
@@ -119,8 +118,7 @@ def handle_router_metadata_access(plugin, context, router_id, interface=None):
                     not _find_metadata_port(plugin, ctx_elevated, ports)):
                     _create_metadata_access_network(
                         plugin, ctx_elevated, router_id)
-            elif (len(ports) == 1 and _find_metadata_port(
-                plugin, ctx_elevated, ports)) or (on_demand and
+            elif len(ports) == 1 or (on_demand and
                 not _find_dhcp_disabled_subnet(plugin, ctx_elevated, ports)):
                 # Delete the internal metadata network if the router port
                 # is the last port left or no more DHCP-disabled subnet
@@ -144,9 +142,7 @@ def handle_router_metadata_access(plugin, context, router_id, interface=None):
 def _find_metadata_port(plugin, context, ports):
     for port in ports:
         for fixed_ip in port['fixed_ips']:
-            cidr = netaddr.IPNetwork(
-                plugin.get_subnet(context, fixed_ip['subnet_id'])['cidr'])
-            if cidr in netaddr.IPNetwork(METADATA_SUBNET_CIDR):
+            if fixed_ip['ip_address'] == METADATA_GATEWAY_IP:
                 return port
 
 
