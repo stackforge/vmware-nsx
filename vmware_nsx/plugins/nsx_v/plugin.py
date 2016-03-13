@@ -156,6 +156,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         self._ensure_lock_operations()
         # Configure aggregate publishing
         self._aggregate_publishing()
+        # Configure edge reservations
+        self._configure_reservations()
         self._validate_config()
         self.sg_container_id = self._create_security_group_container()
         self.default_section = self._create_cluster_default_fw_section()
@@ -2202,6 +2204,17 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self.nsx_v.vcns.configure_aggregate_publishing()
         except Exception:
             LOG.info(_LI("Unable to configure aggregate publishing"))
+
+    def _configure_reservations(self):
+        ver = self.nsx_v.vcns.get_version()
+        if version.LooseVersion(ver) < version.LooseVersion('6.2.3'):
+            LOG.debug("Skipping reservation configuration. "
+                      "Not supported by version.")
+            return
+        try:
+            self.nsx_v.vcns.configure_reservations()
+        except Exception:
+            LOG.info(_LI("Unable to configure edge reservations"))
 
     def _validate_config(self):
         if (cfg.CONF.nsxv.dvs_id and
