@@ -66,7 +66,9 @@ from vmware_nsx.common import locking
 from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils
 from vmware_nsx.db import db as nsx_db
+from vmware_nsx.db import extended_security_group_rule as extend_sg_rule
 from vmware_nsx.dhcp_meta import rpc as nsx_rpc
+from vmware_nsx.extensions import secgroup_rule_local_ip_prefix as ext_loip
 from vmware_nsx.nsxlib import v3 as nsxlib
 from vmware_nsx.nsxlib.v3 import client as nsx_client
 from vmware_nsx.nsxlib.v3 import cluster as nsx_cluster
@@ -84,6 +86,7 @@ NSX_V3_DHCP_PROFILE_NAME = 'neutron_port_dhcp_profile'
 
 class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                   db_base_plugin_v2.NeutronDbPluginV2,
+                  extend_sg_rule.ExtendedSecurityGroupRuleMixin,
                   securitygroups_db.SecurityGroupDbMixin,
                   external_net_db.External_net_db_mixin,
                   extraroute_db.ExtraRoute_db_mixin,
@@ -106,6 +109,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                    "dhcp_agent_scheduler",
                                    "ext-gw-mode",
                                    "security-group",
+                                   "secgroup-rule-local-ip-prefix",
                                    "port-security",
                                    "provider",
                                    "external-net",
@@ -1794,22 +1798,34 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         return self.create_security_group_rule_bulk(context, bulk_rule)[0]
 
     def create_security_group_rule_bulk(self, context, security_group_rules):
-        security_group_rules_db = (
-            super(NsxV3Plugin, self).create_security_group_rule_bulk_native(
-                context, security_group_rules))
-        sg_id = security_group_rules_db[0]['security_group_id']
+        sg_rules = security_group_rules['security_group_rules']
+        for r in sg_rules:
+            rule = r['security_group_rule']
+            if not self._check_local_ip_prefix(context, rule):
+                rule[ext_loip.LOCAL_IP_PREFIX] = None
+
+        with context.session.begin(subtransactions=True):
+            rules_db = (super(NsxV3Plugin,
+                              self).create_security_group_rule_bulk_native(
+                                  context, security_group_rules))
+            for i, r in enumerate(sg_rules):
+                rule = r['security_group_rule']
+                rule['id'] = rules_db[i]['id']
+                self._save_extended_rule_properties(context, rule)
+                self._get_security_group_rule_properties(context, rules_db[i])
+        sg_id = rules_db[0]['security_group_id']
         nsgroup_id, section_id = security.get_sg_mappings(context.session,
                                                           sg_id)
         try:
             rules = security.create_firewall_rules(
-                context, section_id, nsgroup_id, security_group_rules_db)
+                context, section_id, nsgroup_id, rules_db)
         except nsx_exc.ManagerError:
             with excutils.save_and_reraise_exception():
-                for rule in security_group_rules_db:
+                for rule in rules_db:
                     super(NsxV3Plugin, self).delete_security_group_rule(
                         context, rule['id'])
         security.save_sg_rule_mappings(context.session, rules['rules'])
-        return security_group_rules_db
+        return rules_db
 
     def delete_security_group_rule(self, context, id):
         rule_db = self._get_security_group_rule(context, id)
