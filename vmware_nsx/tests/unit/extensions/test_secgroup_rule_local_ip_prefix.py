@@ -48,14 +48,12 @@ class ExtendedRuleTestPlugin(db_base_plugin_v2.NeutronDbPluginV2,
 
     def create_security_group_rule(self, context, security_group_rule):
         rule = security_group_rule['security_group_rule']
-        rule['id'] = _uuid()
         self._check_local_ip_prefix(context, rule)
         with context.session.begin(subtransactions=True):
             res = super(ExtendedRuleTestPlugin,
                         self).create_security_group_rule(
                             context, security_group_rule)
-            self._save_extended_rule_properties(context, rule)
-            self._get_security_group_rule_properties(context, res)
+            self._process_security_group_rule_properties(context, res, rule)
         return res
 
 
