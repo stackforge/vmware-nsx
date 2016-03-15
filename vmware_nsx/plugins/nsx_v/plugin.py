@@ -27,10 +27,16 @@ from oslo_utils import uuidutils
 from sqlalchemy.orm import exc as sa_exc
 
 from neutron.api import extensions as neutron_extensions
+from neutron.api.rpc.callbacks.consumer import registry as callbacks_registry
+from neutron.api.rpc.callbacks import events as callbacks_events
+from neutron.api.rpc.callbacks import resources as callbacks_resources
+from neutron.api.rpc.handlers import resources_rpc
 from neutron.api.v2 import attributes as attr
 from neutron.callbacks import events
 from neutron.callbacks import registry
 from neutron.callbacks import resources
+from neutron.common import rpc as n_rpc
+from neutron import context as n_context
 from neutron.db import agents_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
 from neutron.db import db_base_plugin_v2
@@ -52,10 +58,13 @@ from neutron.extensions import portbindings as pbin
 from neutron.extensions import portsecurity as psec
 from neutron.extensions import providernet as pnet
 from neutron.extensions import securitygroup as ext_sg
+from neutron.objects.qos import policy as qos_pol
 from neutron.plugins.common import constants as plugin_const
 from neutron.plugins.common import utils
 from neutron.quota import resource_registry
+from neutron.services.qos import qos_consts
 from vmware_nsx.dvs import dvs
+from vmware_nsx.services.qos.nsx_v import utils as qos_utils
 
 import vmware_nsx
 from vmware_nsx._i18n import _, _LE, _LI, _LW
@@ -177,6 +186,11 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         else:
             self._dvs = None
 
+        # Bind QoS notifications
+        callbacks_registry.subscribe(self._handle_qos_notification,
+                                     callbacks_resources.QOS_POLICY)
+        self._start_rpc_listeners()
+
         has_metadata_cfg = (
             cfg.CONF.nsxv.nova_metadata_ips
             and cfg.CONF.nsxv.mgt_net_moid
@@ -185,6 +199,16 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if has_metadata_cfg:
             self.metadata_proxy_handler = (
                 nsx_v_md_proxy.NsxVMetadataProxyHandler(self))
+
+    def _start_rpc_listeners(self):
+        self.conn = n_rpc.create_connection()
+        qos_topic = resources_rpc.resource_type_versioned_topic(
+            callbacks_resources.QOS_POLICY)
+        self.conn.create_consumer(
+            qos_topic, [resources_rpc.ResourcesPushRpcCallback()],
+            fanout=False)
+
+        return self.conn.consume_in_threads()
 
     def _create_security_group_container(self):
         name = "OpenStack Security Group container"
@@ -298,6 +322,18 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         self.edge_manager.delete_dhcp_binding(
             context, neutron_port_db['id'], network_id,
             neutron_port_db['mac_address'])
+
+    def _validate_network_qos(self, network, backend_network):
+        err_msg = None
+        if attr.is_attr_set(network.get(qos_consts.QOS_POLICY_ID)):
+            if not backend_network:
+                err_msg = (_("Cannot configure QOS on external networks"))
+            if not cfg.CONF.nsxv.use_dvs_features:
+                err_msg = (_("Cannot configure QOS "
+                             "without enabling use_dvs_features"))
+
+        if err_msg:
+            raise n_exc.InvalidInput(error_message=err_msg)
 
     def _validate_provider_create(self, context, network):
         if not attr.is_attr_set(network.get(mpnet.SEGMENTS)):
@@ -588,6 +624,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         external = net_data.get(ext_net_extn.EXTERNAL)
         backend_network = (not attr.is_attr_set(external) or
                            attr.is_attr_set(external) and not external)
+        self._validate_network_qos(net_data, backend_network)
+
         if backend_network:
             network_type = None
             #NOTE(abhiraut): Consider refactoring code below to have more
@@ -614,9 +652,11 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 h, c = self.nsx_v.vcns.create_virtual_wire(vdn_scope_id,
                                                            config_spec)
                 net_moref = c
+                dvs_net_id = net_data['id']
             elif network_type == c_utils.NsxVNetworkTypes.PORTGROUP:
                 segment = net_data[mpnet.SEGMENTS][0]
                 net_moref = segment.get(pnet.PHYSICAL_NETWORK)
+                dvs_net_id = net_data['name']
             else:
                 network_name = self._get_vlan_network_name(net_data)
                 vlan_tag = 0
@@ -627,6 +667,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 physical_network = segment.get(pnet.PHYSICAL_NETWORK)
                 dvs_id = (physical_network if attr.is_attr_set(
                     physical_network) else self.dvs_id)
+                # TODO(adit): we need to merge this code with patch #287557
+                # for supporting multiple DVS for VLAN network type
+                dvs_net_id = network_name
                 portgroup = {'vlanId': vlan_tag,
                              'networkBindingType': 'Static',
                              'networkName': network_name,
@@ -642,6 +685,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     err_msg = (_("Physical network %s is not an existing DVS")
                                % dvs_id)
                     raise n_exc.InvalidInput(error_message=err_msg)
+                dvs_net_id = network_name
         try:
             # Create SpoofGuard policy for network anti-spoofing
             if cfg.CONF.nsxv.spoofguard_enabled and backend_network:
@@ -700,11 +744,34 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     self._delete_backend_network(net_moref)
                 LOG.exception(_LE('Failed to create network'))
 
+        if backend_network:
+            # Update the QOS restrictions of the backend network
+            self._update_network_qos(context, net_data, dvs_net_id, net_moref)
+
         # this extra lookup is necessary to get the
         # latest db model for the extension functions
         net_model = self._get_network(context, new_net['id'])
         self._apply_dict_extend_functions('networks', new_net, net_model)
         return new_net
+
+    def _update_network_qos(self, context, net_data, dvs_net_id, net_moref):
+        if attr.is_attr_set(net_data.get(qos_consts.QOS_POLICY_ID)):
+            # Translate the QoS rule data into Nsx values
+            qos_data = qos_utils.NsxVQosRule(
+                context=context,
+                qos_policy_id=net_data[qos_consts.QOS_POLICY_ID])
+
+            # update the qos data on the dvs
+            self._dvs.update_port_groups_config(
+                dvs_net_id,
+                net_moref,
+                self._dvs.update_port_group_spec_qos, qos_data)
+
+            # attach the policy to the network in the neutron DB
+            qos_utils.update_network_policy_binding(
+                context,
+                net_data['id'],
+                net_data[qos_consts.QOS_POLICY_ID])
 
     def _cleanup_dhcp_edge_before_deletion(self, context, net_id):
         if self.metadata_proxy_handler:
@@ -811,6 +878,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if net_attrs.get("admin_state_up") is False:
             raise NotImplementedError(_("admin_state_up=False networks "
                                         "are not supported."))
+        net_morefs = nsx_db.get_nsx_switch_ids(context.session, id)
+        backend_network = True if len(net_morefs) > 0 else False
+        self._validate_network_qos(net_attrs, backend_network)
 
         # PortSecurity validation checks
         # TODO(roeyc): enacapsulate validation in a method
@@ -835,10 +905,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # old state
         if cfg.CONF.nsxv.spoofguard_enabled and psec_update:
             policy_id = nsxv_db.get_spoofguard_policy_id(context.session, id)
-            net_moref = nsx_db.get_nsx_switch_ids(context.session, id)
             try:
                 self.nsx_v.vcns.update_spoofguard_policy(
-                    policy_id, net_moref[0], id,
+                    policy_id, net_morefs[0], id,
                     net_attrs[psec.PORTSECURITY])
             except Exception:
                 with excutils.save_and_reraise_exception():
@@ -848,6 +917,25 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                         context, revert_update, net_res)
                     super(NsxVPluginV2, self).update_network(
                         context, id, {'network': revert_update})
+
+        # Handle QOS updates (Value can be None, meaning to delete the
+        # current policy)
+        if qos_consts.QOS_POLICY_ID in net_attrs:
+            # update the qos data
+            qos_data = qos_utils.NsxVQosRule(
+                context=context,
+                qos_policy_id=net_attrs[qos_consts.QOS_POLICY_ID])
+
+            # get the network moref/s from the db
+            for moref in net_morefs:
+                # update the qos restrictions of the network
+                self._dvs.update_port_groups_config(
+                    id, moref, self._dvs.update_port_group_spec_qos, qos_data)
+
+                # attach the policy to the network in neutron DB
+                qos_utils.update_network_policy_binding(
+                    context, id, net_attrs[qos_consts.QOS_POLICY_ID])
+
         return net_res
 
     def _validate_address_pairs(self, attrs, db_port):
@@ -2268,6 +2356,31 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             if moref and not self.nsx_v.vcns.validate_inventory(moref):
                 error = _("Configured %s not found") % field
                 raise nsx_exc.NsxPluginException(err_msg=error)
+
+    def _handle_qos_notification(self, qos_policy, event_type):
+        # Check if QoS policy rule was created/deleted/updated
+        if (event_type == callbacks_events.UPDATED and
+            hasattr(qos_policy, "rules")):
+
+            # Reload the policy as admin so we will have a context
+            context = n_context.get_admin_context()
+            admin_policy = qos_pol.QosPolicy.get_object(
+                context, id=qos_policy.id)
+            # get all the bound networks of this policy
+            networks = admin_policy.get_bound_networks()
+            qos_rule = qos_utils.NsxVQosRule(context=context,
+                                             qos_policy_id=qos_policy.id)
+
+            for net_id in networks:
+                # update the new bw limitations for this network
+                net_morefs = nsx_db.get_nsx_switch_ids(context.session, net_id)
+                for moref in net_morefs:
+                    # update the qos restrictions of the network
+                    self._dvs.update_port_groups_config(
+                        net_id,
+                        moref,
+                        self._dvs.update_port_group_spec_qos,
+                        qos_rule)
 
 
 # Register the callback
