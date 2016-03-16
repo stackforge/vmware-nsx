@@ -53,7 +53,7 @@ class NSXv3RoutersTest(base.BaseRouterTest):
         # Update the name of router and verify if it is updated on both
         # neutron and nsx backend
         updated_name = 'updated ' + name
-        update_body = self.client.update_router(router['id'],
+        update_body = self.routers_client.update_router(router['id'],
                                                 name=updated_name)
         updated_router = update_body['router']
         nsx_router = self.nsx.get_logical_router(updated_router['name'],
@@ -72,14 +72,14 @@ class NSXv3RoutersTest(base.BaseRouterTest):
         self.assertEqual(router['name'], name)
         self.assertIsNotNone(nsx_router)
         # Delete the router and verify it is deleted on nsx backend
-        self.client.delete_router(router['id'])
+        self.routers_client.delete_router(router['id'])
         nsx_router = self.nsx.get_logical_router(router['name'],
                                                  router['id'])
         self.assertIsNone(nsx_router)
 
     def _delete_router(self, router_id):
         # Delete the router in case the test exits with any exception
-        list_body = self.client.list_routers()
+        list_body = self.routers_client.list_routers()
         for router in list_body.get('router', []):
             if router['id'] == router_id:
-                self.client.delete_router(router_id)
+                self.routers_client.delete_router(router_id)
