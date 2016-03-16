@@ -847,11 +847,15 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     super(NsxV3Plugin, self).delete_port(context,
                                                          neutron_db['id'])
                     self._port_client.delete(lport['id'])
-            except Exception:
+            except Exception as e:
                 with excutils.save_and_reraise_exception():
-                    LOG.exception(
-                        _LE('Failed to create port %s on NSX backend'),
-                        neutron_db['id'])
+                    # Ensure that a fake entry exists for deletion
+                    nsx_db.add_neutron_nsx_port_mapping(
+                        context.session, port_data['id'],
+                        port_data['network_id'], uuidutils.generate_uuid())
+                    LOG.error(_LE('Failed to create port %(net)s on NSX '
+                                  'backend. Exception: %(e)s'),
+                              {'net': neutron_db['id'], 'e': e})
                     super(NsxV3Plugin, self).delete_port(context,
                                                          neutron_db['id'])
 
