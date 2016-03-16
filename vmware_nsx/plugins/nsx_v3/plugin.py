@@ -800,6 +800,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         port_data = port['port']
         dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS, [])
 
+        LOG.error("====> CREATE PORT - %s",  port_data['tenant_id'])
         # TODO(salv-orlando): Undo logical switch creation on failure
         with context.session.begin(subtransactions=True):
             is_external_net = self._network_is_external(
@@ -860,6 +861,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         port_model = self._get_port(context, port_data['id'])
         self._apply_dict_extend_functions('ports', port_data, port_model)
         nsx_rpc.handle_port_metadata_access(self, context, neutron_db)
+        LOG.error("====> CREATE DONE - %s", port_data['id'])
         return port_data
 
     def _pre_delete_port_check(self, context, port_id, l2gw_port_check):
@@ -880,6 +882,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
     def delete_port(self, context, port_id,
                     l3_port_check=True, l2gw_port_check=True):
+        LOG.error("====> DELETE PORT - %s", port_id)
         # if needed, check to see if this is a port owned by
         # a l2 gateway.  If so, we should prevent deletion here
         self._pre_delete_port_check(context, port_id, l2gw_port_check)
@@ -899,6 +902,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                             is_delete=True)
         ret_val = super(NsxV3Plugin, self).delete_port(context, port_id)
 
+        LOG.error("====> DELETE PORT DONE")
         return ret_val
 
     def _update_port_preprocess_security(
