@@ -752,11 +752,6 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             parent_name=parent_name, parent_tag=tag,
             switch_profile_ids=profiles)
 
-        # TODO(salv-orlando): The logical switch identifier in the
-        # mapping object is not necessary anymore.
-        nsx_db.add_neutron_nsx_port_mapping(
-            context.session, port_data['id'],
-            port_data['network_id'], result['id'])
         return result
 
     def _validate_address_pairs(self, address_pairs):
@@ -843,11 +838,17 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             try:
                 lport = self._create_port_at_the_backend(
                     context, port_data, l2gw_port_check, is_psec_on)
-
+            except Exception as e:
+                with excutils.save_and_reraise_exception():
+                    LOG.error(_LE('Failed to create port %(id)s on NSX '
+                                  'backend. Exception: %(e)s'),
+                              {'id': neutron_db['id'], 'e': e})
+                    super(NsxV3Plugin, self).delete_port(context,
+                                                         neutron_db['id'])
+            try:
                 if sgids:
                     security.update_lport_with_security_groups(
                         context, lport['id'], [], sgids)
-
             except nsx_exc.SecurityGroupMaximumCapacityReached:
                 with excutils.save_and_reraise_exception():
                     LOG.debug("Couldn't associate port %s with "
@@ -857,13 +858,15 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     super(NsxV3Plugin, self).delete_port(context,
                                                          neutron_db['id'])
                     self._port_client.delete(lport['id'])
-            except Exception:
-                with excutils.save_and_reraise_exception():
-                    LOG.exception(
-                        _LE('Failed to create port %s on NSX backend'),
-                        neutron_db['id'])
-                    super(NsxV3Plugin, self).delete_port(context,
-                                                         neutron_db['id'])
+
+            try:
+                nsx_db.alt_add_neutron_nsx_port_mapping(
+                    context.session, neutron_db['id'],
+                    neutron_db['network_id'], lport['id'])
+            except Exception as e:
+                LOG.error(_LE('Failed to update mapping %(id)s on NSX '
+                              'backend. Exception: %(e)s'),
+                          {'id': neutron_db['id'], 'e': e})
 
         # this extra lookup is necessary to get the
         # latest db model for the extension functions

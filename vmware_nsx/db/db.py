@@ -90,6 +90,15 @@ def add_neutron_nsx_port_mapping(session, neutron_id,
     return mapping
 
 
+def alt_add_neutron_nsx_port_mapping(session, neutron_id,
+                                     nsx_switch_id, nsx_port_id):
+    with session.begin(subtransactions=True):
+        mapping = nsx_models.NeutronNsxPortMapping(
+            neutron_id, nsx_switch_id, nsx_port_id)
+        session.add(mapping)
+        return mapping
+
+
 def add_neutron_nsx_router_mapping(session, neutron_id, nsx_router_id):
     with session.begin(subtransactions=True):
         mapping = nsx_models.NeutronNsxRouterMapping(
