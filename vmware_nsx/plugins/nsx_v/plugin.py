@@ -1171,6 +1171,18 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         return False
 
+    def _validate_host_routes_input(self, subnet_input):
+        if ('host_routes' in subnet_input['subnet'] and
+            subnet_input['subnet']['host_routes'] != attr.ATTR_NOT_SPECIFIED):
+            if not self.edge_manager.is_dhcp_opt_enabled:
+                err_msg = _("Host routes can only be supported at NSX version "
+                            "6.2.3 or higher")
+                raise n_exc.InvalidInput(error_message=err_msg)
+            if not subnet_input['subnet']['enable_dhcp']:
+                err_msg = _("Host routes can only be supported when DHCP "
+                            "is enabled")
+                raise n_exc.InvalidInput(error_message=err_msg)
+
     def create_subnet(self, context, subnet):
         """Create subnet on nsx_v provider network.
 
@@ -1178,9 +1190,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         the subnet is attached is not bound to an DHCP Edge, nsx_v will
         create the Edge and make sure the network is bound to the Edge
         """
-        if subnet['subnet']['host_routes'] != attr.ATTR_NOT_SPECIFIED:
-            err_msg = _("Host routes not supported by plugin")
-            raise n_exc.InvalidInput(error_message=err_msg)
+        self._validate_host_routes_input(subnet)
         if subnet['subnet']['enable_dhcp']:
             filters = {'id': [subnet['subnet']['network_id']],
                        'router:external': [True]}
@@ -1249,17 +1259,23 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
     def update_subnet(self, context, id, subnet):
         s = subnet['subnet']
-        if "host_routes" in s and s["host_routes"]:
-            err_msg = _("Host routes not supported by plugin")
-            raise n_exc.InvalidInput(error_message=err_msg)
         orig = self._get_subnet(context, id)
         gateway_ip = orig['gateway_ip']
         enable_dhcp = orig['enable_dhcp']
+        host_routes = orig['routes']
+        if 'enable_dhcp' in s and not s['enable_dhcp']:
+            if host_routes:
+                err_msg = _("Can't disable DHCP since host routes is in use")
+                raise n_exc.InvalidInput(error_message=err_msg)
+        if 'host_routes' in s:
+            s['enable_dhcp'] = enable_dhcp
+            self._validate_host_routes_input(subnet)
         subnet = super(NsxVPluginV2, self).update_subnet(context, id, subnet)
         update_dns_search_domain = self._process_subnet_ext_attr_update(
             context.session, subnet, s)
         if (gateway_ip != subnet['gateway_ip'] or update_dns_search_domain or
             set(orig['dns_nameservers']) != set(subnet['dns_nameservers']) or
+            host_routes != subnet['host_routes'] or
             enable_dhcp and not subnet['enable_dhcp']):
             # Need to ensure that all of the subnet attributes will be reloaded
             # when creating the edge bindings. Without adding this the original
