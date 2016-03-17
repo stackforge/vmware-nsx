@@ -1,0 +1,9 @@
+Code-Review+2: Ihar Hrachyshka <ihrachys@redhat.com>
+Code-Review+2: Armando Migliaccio <armamig@gmail.com>
+Workflow+1: Armando Migliaccio <armamig@gmail.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 17 Mar 2016 13:36:32 +0000
+Reviewed-on: https://review.openstack.org/294004
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/mitaka
