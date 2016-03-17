@@ -15,7 +15,6 @@
 #
 
 from eventlet import greenthread
-import netaddr
 from neutron_lib import constants as const
 from neutron_lib import exceptions as ntn_exc
 from oslo_config import cfg
@@ -105,32 +104,29 @@ def handle_router_metadata_access(plugin, context, router_id, interface=None):
                         "the metadata access network"))
         return
     ctx_elevated = context.elevated()
-    device_filter = {'device_id': [router_id],
-                     'device_owner': const.ROUTER_INTERFACE_OWNERS}
+    metadata_filter = {'device_id': [router_id],
+                       'device_owner': const.ROUTER_INTERFACE_OWNERS,
+                       'fixed_ips': {'ip_address': [METADATA_GATEWAY_IP]}}
     # Retrieve ports calling database plugin
     ports = db_base_plugin_v2.NeutronDbPluginV2.get_ports(
-        plugin, ctx_elevated, filters=device_filter)
+        plugin, ctx_elevated, filters=metadata_filter)
+    on_demand = getattr(plugin_cfg, 'metadata_on_demand', False)
     try:
-        if ports:
-            on_demand = getattr(plugin_cfg, 'metadata_on_demand', False)
-            if interface:
-                if (not on_demand or _find_dhcp_disabled_subnet(
-                    plugin, ctx_elevated, ports)) and (
-                    not _find_metadata_port(plugin, ctx_elevated, ports)):
-                    _create_metadata_access_network(
-                        plugin, ctx_elevated, router_id)
-            elif (len(ports) == 1 and _find_metadata_port(
-                plugin, ctx_elevated, ports)) or (on_demand and
-                not _find_dhcp_disabled_subnet(plugin, ctx_elevated, ports)):
+        if interface:
+            # Add interface case
+            if not ports and (not on_demand or _find_dhcp_disabled_subnet(
+                plugin, ctx_elevated, router_id)):
+                _create_metadata_access_network(
+                    plugin, ctx_elevated, router_id)
+        else:
+            # Remove interface case
+            if len(ports) == 1 or (on_demand and not
+                _find_dhcp_disabled_subnet(plugin, ctx_elevated, router_id)):
                 # Delete the internal metadata network if the router port
                 # is the last port left or no more DHCP-disabled subnet
                 # attached to the router.
                 _destroy_metadata_access_network(
                     plugin, ctx_elevated, router_id, ports)
-        else:
-            LOG.debug("No router interface found for router '%s'. "
-                      "No metadata access network should be "
-                      "created or destroyed", router_id)
     # TODO(salvatore-orlando): A better exception handling in the
     # NSX plugin would allow us to improve error handling here
     except (ntn_exc.NeutronException, nsx_exc.NsxPluginException,
@@ -141,16 +137,11 @@ def handle_router_metadata_access(plugin, context, router_id, interface=None):
                       router_id)
 
 
-def _find_metadata_port(plugin, context, ports):
-    for port in ports:
-        for fixed_ip in port['fixed_ips']:
-            cidr = netaddr.IPNetwork(
-                plugin.get_subnet(context, fixed_ip['subnet_id'])['cidr'])
-            if cidr in netaddr.IPNetwork(METADATA_SUBNET_CIDR):
-                return port
-
-
-def _find_dhcp_disabled_subnet(plugin, context, ports):
+def _find_dhcp_disabled_subnet(plugin, context, router_id):
+    device_filter = {'device_id': [router_id],
+                     'device_owner': const.ROUTER_INTERFACE_OWNERS}
+    ports = db_base_plugin_v2.NeutronDbPluginV2.get_ports(
+        plugin, context, filters=device_filter)
     for port in ports:
         for fixed_ip in port['fixed_ips']:
             subnet = plugin.get_subnet(context, fixed_ip['subnet_id'])
@@ -208,9 +199,7 @@ def _create_metadata_access_network(plugin, context, router_id):
 def _destroy_metadata_access_network(plugin, context, router_id, ports):
     if not ports:
         return
-    meta_port = _find_metadata_port(plugin, context, ports)
-    if not meta_port:
-        return
+    meta_port = ports[0]
     meta_net_id = meta_port['network_id']
     meta_sub_id = meta_port['fixed_ips'][0]['subnet_id']
     plugin.remove_router_interface(
