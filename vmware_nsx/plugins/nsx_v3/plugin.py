@@ -196,6 +196,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     "switching profile: %s") % NSX_V3_DHCP_PROFILE_NAME
             raise nsx_exc.NsxPluginException(msg)
         self._unsubscribe_callback_events()
+        if cfg.CONF.api_replay_mode:
+            self.supported_extension_aliases.append('api-replay')
 
         # translate configured transport zones/rotuers names to uuid
         self._translate_configured_names_2_uuids()
@@ -1940,14 +1942,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # NOTE(arosen): if in replay mode we'll create all the default
         # security groups for the user with their data so we don't
         # want this to be called.
-        if (cfg.CONF.nsx_v3.api_replay_mode is False):
+        if (cfg.CONF.api_replay_mode is False):
             return super(NsxV3Plugin, self)._ensure_default_security_group(
                 context, tenant_id)
 
     def _stub__validate_name_not_default(self):
         # NOTE(arosen): if in replay mode we need stub out this validator to
         # all default security groups to be created via the api
-        if cfg.CONF.nsx_v3.api_replay_mode:
+        if cfg.CONF.api_replay_mode:
             def _pass(data, foo=None):
                 pass
             ext_sg.validators.validators['type:name_not_default'] = _pass
