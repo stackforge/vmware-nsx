@@ -60,6 +60,7 @@ from oslo_utils import importutils
 from oslo_utils import uuidutils
 
 from vmware_nsx._i18n import _, _LE, _LI, _LW
+from vmware_nsx.common import api_replay
 from vmware_nsx.common import config  # noqa
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import locking
@@ -165,6 +166,9 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     "switching profile: %s") % NSX_V3_DHCP_PROFILE_NAME
             raise nsx_exc.NsxPluginException(msg)
         self._unsubscribe_callback_events()
+
+        # init api_replay_mode if needed
+        api_replay.ApiReplay()
 
     def _unsubscribe_callback_events(self):
         # l3_db explicitly subscribes to the port delete callback. This
