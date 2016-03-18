@@ -18,7 +18,7 @@ BRANCH_NAME=master
 neutron_installed=$(echo "import neutron" | python 2>/dev/null ; echo $?)
 networking_l2gw_installed=$(echo "import networking_l2gw" | python 2>/dev/null ; echo $?)
 neutron_lbaas_installed=$(echo "import neutron_lbaas" | python 2>/dev/null ; echo $?)
-
+neutron_vpnaas_installed=$(echo "import neutron_vpnaas" | python 2>/dev/null ; echo $?)
 set -ex
 
 cwd=$(/bin/pwd)
@@ -66,6 +66,15 @@ elif [ -x "$ZUUL_CLONER" ]; then
     zuul_cloner openstack/neutron-lbaas
 else
     pip_hardcode neutron-lbaas
+fi
+
+if [ $neutron_vpnaas_installed -eq 0 ]; then
+    echo "NEUTRON_VPNAAS ALREADY INSTALLED" >> /tmp/tox_install.txt
+    echo "Neutron_vpnaas already installed; using existing package"
+elif [ -x "$ZUUL_CLONER" ]; then
+    zuul_cloner openstack/neutron-vpnaas
+else
+    pip_hardcode neutron-vpnaas
 fi
 
 pip install -U $*
