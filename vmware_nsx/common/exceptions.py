@@ -193,3 +193,17 @@ class NsxPortMirrorSessionMappingNotFound(n_exc.NotFound):
 class NsxInvalidConfiguration(n_exc.InvalidConfigurationOption):
     message = _("An invalid value was provided for %(opt_name)s: "
                 "%(opt_value)s: %(reason)s")
+
+
+class NsxQosSmallBw(n_exc.InvalidInput):
+    message = _("Invalid input for max_kbps. Reason: The minimal legal value "
+                "for max_kbps is 1024")
+
+
+class NsxVpnValidationFaliure(NsxPluginException):
+    message = _("VMware NSX IPsec VPN doesn't support this configuration, "
+                "the detail information is: %(details)s")
+
+
+class NsxIPsecVpnMappingNotFound(n_exc.NotFound):
+    message = _('Unable to find mapping for ipsec site connection: %(conn)s')
