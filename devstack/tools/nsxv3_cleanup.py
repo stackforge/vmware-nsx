@@ -1,4 +1,4 @@
-# Copyright 2015 VMware Inc
+# Copyright 2016 VMware Inc
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -394,6 +394,12 @@ class NSXClient(object):
             else:
                 print("Failed to delete lrouter %s-%s, and response is %s" %
                       (lr['display_name'], lr['id']))
+
+        # Cleanup TIER0 router ports, since they consume IP Pool.
+        tier0_routers = self.get_logical_routers(tier='TIER0')
+        print("Deleting logical router ports for tier0 router")
+        for tier0_router in tier0_routers:
+            self.cleanup_logical_router_ports(tier0_router)
 
     def cleanup_all(self):
         """
