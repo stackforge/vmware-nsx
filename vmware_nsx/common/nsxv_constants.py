@@ -36,9 +36,6 @@ INTERNAL_TENANT_ID = 'a1b2c3d4-e5f6-eeff-ffee-6f5e4d3c2b1a'
 # L2 gateway edge name prefix
 L2_GATEWAY_EDGE = 'L2 bridging'
 
-# An artificial limit for router name length - subtract 1 for the - separator
-ROUTER_NAME_LENGTH = (78 - 1)
-
 # LoadBalancer Certificate constants
 #NOTE(abhiraut): Number of days specify the total number of days for which the
 #                the certificate will be active. This certificate will expire
@@ -56,8 +53,19 @@ CSR_REQUEST = ("<csr><subject>"
                "</subject><algorithm>RSA</algorithm><keySize>2048</keySize>"
                "</csr>")
 
-# Reserved IPs that cannot overlap defined subnets
-RESERVED_IPS = ["169.254.128.0/17",
-                "169.254.1.0/24",
-                "169.254.2.0/28",
-                "169.254.64.192/26"]
+# VPNaaS constants
+ENCRYPTION_ALGORITHM_MAP = {
+    '3des': '3des',
+    'aes-128': 'aes',
+    'aes-256': 'aes256'
+}
+
+PFS_MAP = {
+    'group2': 'dh2',
+    'group5': 'dh5'}
+
+TRANSFORM_PROTOCOL_ALLOWED = ('esp',)
+
+ENCAPSULATION_MODE_ALLOWED = ('tunnel',)
+
+

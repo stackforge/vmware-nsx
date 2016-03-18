@@ -14,7 +14,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron_lib import exceptions as n_exc
+from neutron.common import exceptions as n_exc
 
 from vmware_nsx._i18n import _
 
@@ -136,7 +136,6 @@ class ManagerError(NsxPluginException):
                              if 'details' in kwargs
                              else '')
         super(ManagerError, self).__init__(**kwargs)
-        self.msg = self.message % kwargs
 
 
 class ResourceNotFound(ManagerError):
@@ -160,14 +159,5 @@ class NsxL2GWInUse(n_exc.InUse):
     message = _("L2 Gateway '%(gateway_id)s' has been used")
 
 
-class InvalidIPAddress(n_exc.InvalidInput):
-    message = _("'%(ip_address)s' must be a /32 CIDR based IPv4 address")
-
-
-class SecurityGroupMaximumCapacityReached(NsxPluginException):
-    message = _("Security Group %(sg_id)s has reached its maximum capacity, "
-                "no more ports can be associated with this security-group.")
-
-
-class NsxResourceNotFound(n_exc.NotFound):
-    message = _("%(res_name)s %(res_id)s not found on the backend.")
+class NsxIPsecVpnFaliure(NsxPluginException):
+    message = _("%(details)s")

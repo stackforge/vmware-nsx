@@ -166,6 +166,10 @@ nsx_common_opts = [
     cfg.StrOpt('locking_coordinator_url',
                deprecated_group='nsxv',
                help=_('A URL to a locking mechanism coordinator')),
+    cfg.StrOpt('nsx_vpn_driver',
+               help=_("Class path for the VPN backend driver")),
+    cfg.StrOpt('nsx_vpn_validator',
+               help=_("Class path for the VPN validator backend driver")),
 ]
 
 nsx_v3_opts = [
@@ -203,8 +207,7 @@ nsx_v3_opts = [
                       "gateway service plugin.")),
     cfg.IntOpt('retries',
                default=10,
-               help=_('Maximum number of times to retry API requests upon '
-                      'stale revision errors.')),
+               help=_('Maximum number of times to retry API request')),
     cfg.StrOpt('ca_file',
                help=_('Specify a CA bundle file to use in verifying the NSX '
                       'Manager server certificate. This option is ignored if '
@@ -218,21 +221,14 @@ nsx_v3_opts = [
                        '"ca_file" will be used or if unsest the default '
                        'system root CAs will be used.')),
     cfg.IntOpt('http_timeout',
-               default=10,
-               help=_('Time before aborting a HTTP connection to a '
+               default=75,
+               help=_('Time before aborting a HTTP request to a '
                       'NSX manager.')),
-    cfg.IntOpt('http_read_timeout',
-               default=180,
-               help=_('The time in seconds before aborting a HTTP read '
-                      'response from a NSX manager.')),
-    cfg.IntOpt('http_retries',
-               default=3,
-               help=_('Maximum number of times to retry a HTTP connection.')),
     cfg.IntOpt('concurrent_connections', default=10,
                help=_("Maximum concurrent connections to each NSX "
                       "manager.")),
     cfg.IntOpt('conn_idle_timeout',
-               default=10,
+               default=60,
                help=_('Ensure connectivity to the NSX manager if a connection '
                       'is not used within timeout seconds.')),
     cfg.IntOpt('redirects',
@@ -243,20 +239,6 @@ nsx_v3_opts = [
     cfg.IntOpt('number_of_nested_groups',
                default=8,
                help=_("The number of nested NSGroups to use.")),
-    cfg.StrOpt('metadata_mode',
-               default=MetadataModes.DIRECT,
-               help=_("If set to access_network this enables a dedicated "
-                      "connection to the metadata proxy for metadata server "
-                      "access via Neutron router. If set to dhcp_host_route "
-                      "this enables host route injection via the dhcp agent. "
-                      "This option is only useful if running on a host that "
-                      "does not support namespaces otherwise access_network "
-                      "should be used.")),
-    cfg.BoolOpt('metadata_on_demand',
-                default=False,
-                help=_("If true, an internal metadata network will be created "
-                       "for a router only when the router is attached to a "
-                       "DHCP-disabled subnet.")),
 ]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
@@ -332,7 +314,7 @@ nsxv_opts = [
                        'edge_size: compact, large, xlarge, quadlarge '
                        'and default is large.')),
     cfg.IntOpt('retries',
-               default=20,
+               default=10,
                help=_('Maximum number of API retries on endpoint.')),
     cfg.StrOpt('mgt_net_moid',
                help=_('Network ID for management network connectivity')),
@@ -391,11 +373,6 @@ nsxv_opts = [
                       "router. This edge_appliance_size will be picked up if "
                       "--router-size parameter is not specified while doing "
                       "neutron router-create")),
-    cfg.ListOpt('nameservers',
-                default=[],
-                help=_('List of nameservers to configure for the DHCP binding '
-                       'entries. These will be used if there are no '
-                       'nameservers defined on the subnet.')),
 ]
 
 # Register the configuration options
