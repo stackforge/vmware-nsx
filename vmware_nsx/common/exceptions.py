@@ -171,3 +171,11 @@ class SecurityGroupMaximumCapacityReached(NsxPluginException):
 
 class NsxResourceNotFound(n_exc.NotFound):
     message = _("%(res_name)s %(res_id)s not found on the backend.")
+
+
+class NsxIPsecVpnFaliure(NsxPluginException):
+    message = _("VMware NSX ipsec vpn doesn't support this configuration,"
+                "the detail information is: %(details)s")
+
+class NsxIPsecVpnMappingNotFound(n_exc.NotFound):
+    message = _('Unable to find mapping for ipsec site connection: %(conn)s')

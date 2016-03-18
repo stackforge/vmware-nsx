@@ -230,6 +230,10 @@ nsx_common_opts = [
                       "parameter to tooz coordinator. By default, value is "
                       "None and oslo_concurrency is used for single-node "
                       "lock management.")),
+    cfg.StrOpt('nsx_vpn_driver',
+               help=_("Class path for the VPN backend driver")),
+    cfg.StrOpt('nsx_vpn_validator',
+               help=_("Class path for the VPN validator backend driver")),
 ]
 
 nsx_v3_opts = [
