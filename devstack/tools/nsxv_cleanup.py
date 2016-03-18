@@ -363,4 +363,4 @@ if __name__ == "__main__":
         vsm_client = VSMClient(options.vsm_ip, options.username,
                                options.password)
     # Clean all objects created by OpenStack
-    vsm_client.cleanup_all()
+    #vsm_client.cleanup_all()
