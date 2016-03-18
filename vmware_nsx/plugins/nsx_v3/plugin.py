@@ -61,6 +61,7 @@ from oslo_utils import importutils
 from oslo_utils import uuidutils
 
 from vmware_nsx._i18n import _, _LE, _LI, _LW
+from vmware_nsx.common import api_replay
 from vmware_nsx.common import config  # noqa
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import locking
@@ -128,6 +129,9 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
     def __init__(self):
         super(NsxV3Plugin, self).__init__()
         LOG.info(_LI("Starting NsxV3Plugin"))
+
+        if cfg.CONF.nsx_v3.api_replay_mode:
+            api_replay.ApiReplay()
 
         self._api_cluster = nsx_cluster.NSXClusteredAPI()
         self._nsx_client = nsx_client.NSX3Client(self._api_cluster)
