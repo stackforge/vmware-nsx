@@ -251,6 +251,10 @@ nsx_common_opts = [
                 help=_("An ordered list of extension driver "
                        "entrypoints to be loaded from the "
                        "vmware_nsx.extension_drivers namespace.")),
+    cfg.StrOpt('nsx_vpn_driver',
+               help=_("Class path for the VPN backend driver")),
+    cfg.StrOpt('nsx_vpn_validator',
+               help=_("Class path for the VPN validator backend driver")),
 ]
 
 nsx_v3_opts = [
