@@ -171,3 +171,7 @@ class SecurityGroupMaximumCapacityReached(NsxPluginException):
 
 class NsxResourceNotFound(n_exc.NotFound):
     message = _("%(res_name)s %(res_id)s not found on the backend.")
+
+
+class NsxIPsecVpnFaliure(NsxPluginException):
+    message = _("%(details)s")

@@ -166,6 +166,10 @@ nsx_common_opts = [
     cfg.StrOpt('locking_coordinator_url',
                deprecated_group='nsxv',
                help=_('A URL to a locking mechanism coordinator')),
+    cfg.StrOpt('nsx_vpn_driver',
+               help=_("Class path for the VPN backend driver")),
+    cfg.StrOpt('nsx_vpn_validator',
+               help=_("Class path for the VPN validator backend driver")),
 ]
 
 nsx_v3_opts = [
