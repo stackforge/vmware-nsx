@@ -88,6 +88,12 @@ function neutron_plugin_configure_service {
     if [[ "$NSX_L2GW_DRIVER" != "" ]]; then
         iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_l2gw_driver $NSX_L2GW_DRIVER
     fi
+    if [[ "$NSX_IPSEC_VPN_DRIVER" != "" ]]; then
+        iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_vpn_driver $NSX_IPSEC_VPN_DRIVER
+    fi
+    if [[ "$NSX_IPSEC_VPN_VALIDATOR" != "" ]]; then
+        iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_vpn_validar $NSX_IPSEC_VPN_VALIDATOR
+    fi
     _nsxv_ini_set password "$NSXV_PASSWORD"
     _nsxv_ini_set user "$NSXV_USER"
     _nsxv_ini_set vdn_scope_id "$NSXV_VDN_SCOPE_ID"
