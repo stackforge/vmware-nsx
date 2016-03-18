@@ -179,6 +179,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     "switching profile: %s") % NSX_V3_DHCP_PROFILE_NAME
             raise nsx_exc.NsxPluginException(msg)
         self._unsubscribe_callback_events()
+        if cfg.CONF.nsx_v3.api_replay_mode:
+            self.supported_extension_aliases.append('api-replay')
 
     def _extend_port_dict_binding(self, context, port_data):
         port_data[pbin.VIF_TYPE] = pbin.VIF_TYPE_OVS
