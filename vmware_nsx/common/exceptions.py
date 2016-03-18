@@ -198,3 +198,12 @@ class NsxRouterInterfaceDoesNotMatchAddressScope(n_exc.BadRequest):
     message = _("Unable to update no-NAT router %(router_id)s, "
                 "only subnets allocated from address-scope "
                 "%(address_scope_id)s can be connected.")
+
+
+class NsxVpnValidationFaliure(NsxPluginException):
+    message = _("VMware NSX IPsec VPN doesn't support this configuration, "
+                "the detail information is: %(details)s")
+
+
+class NsxIPsecVpnMappingNotFound(n_exc.NotFound):
+    message = _("Unable to find mapping for ipsec site connection: %(conn)s")
