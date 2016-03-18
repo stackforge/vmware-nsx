@@ -179,6 +179,8 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     "switching profile: %s") % NSX_V3_DHCP_PROFILE_NAME
             raise nsx_exc.NsxPluginException(msg)
         self._unsubscribe_callback_events()
+        if cfg.CONF.nsx_v3.api_replay_mode:
+            self.supported_extension_aliases.append('api-replay')
 
         # translate configured transport zones/rotuers names to uuid
         self._translate_configured_names_2_uuids()
