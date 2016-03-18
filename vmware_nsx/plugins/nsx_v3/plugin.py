@@ -79,6 +79,7 @@ from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 from vmware_nsx.nsxlib.v3 import resources as nsx_resources
 from vmware_nsx.nsxlib.v3 import router
 from vmware_nsx.nsxlib.v3 import security
+from vmware_nsx.plugins.nsx_v3.api_replay import plugin_api_replay
 
 
 LOG = log.getLogger(__name__)
@@ -136,6 +137,9 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
     def __init__(self):
         super(NsxV3Plugin, self).__init__()
         LOG.info(_LI("Starting NsxV3Plugin"))
+
+        if cfg.CONF.nsx_v3.api_replay_mode:
+            plugin_api_replay.ApiReplay()
 
         self._api_cluster = nsx_cluster.NSXClusteredAPI()
         self._nsx_client = nsx_client.NSX3Client(self._api_cluster)

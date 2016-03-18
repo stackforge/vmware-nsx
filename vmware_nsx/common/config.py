@@ -264,6 +264,12 @@ nsx_v3_opts = [
                 default=False,
                 help=_("Indicates whether distributed-firewall "
                        "security-groups rules are logged")),
+    cfg.BoolOpt('api_replay_mode',
+                default=False,
+                help=_("If true, the server then allows the caller to "
+                       "specify the id of resources. This should only "
+                       "be enabled in order to allow one to migrate an "
+                       "existing  install of neutron to the nsx-v3 plugin.")),
 ]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
