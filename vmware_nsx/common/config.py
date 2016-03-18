@@ -243,6 +243,10 @@ nsx_common_opts = [
                        "specify the id of resources. This should only "
                        "be enabled in order to allow one to migrate an "
                        "existing install of neutron to the nsx-v3 plugin.")),
+    cfg.StrOpt('nsx_vpn_driver',
+               help=_("Class path for the VPN backend driver")),
+    cfg.StrOpt('nsx_vpn_validator',
+               help=_("Class path for the VPN validator backend driver")),
 ]
 
 nsx_v3_opts = [
