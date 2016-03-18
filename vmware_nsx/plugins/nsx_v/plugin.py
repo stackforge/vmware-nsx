@@ -3612,6 +3612,12 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             }
             fw_rules.append(lb_fw_rule)
 
+        vpn_plugin = directory.get_plugin(plugin_const.VPN)
+        if vpn_plugin:
+            vpn_driver = vpn_plugin.ipsec_driver
+            vpn_rules = vpn_driver._generate_ipsecvpn_firewall_rules(edge_id)
+            fw_rules.extend(vpn_rules)
+
         fw = {'firewall_rule_list': fw_rules}
         try:
             # If we have a firewall we shouldn't add the default
