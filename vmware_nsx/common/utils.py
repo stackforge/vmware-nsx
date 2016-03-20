@@ -15,6 +15,7 @@
 
 import functools
 import hashlib
+import time
 
 import eventlet
 from neutron.api.v2 import attributes
@@ -23,6 +24,7 @@ from neutron_lib import exceptions
 from oslo_config import cfg
 from oslo_context import context as common_context
 from oslo_log import log
+from oslo_utils import uuidutils
 import retrying
 import six
 
@@ -283,3 +285,28 @@ def spawn_n(func, *args, **kwargs):
         func(*args, **kwargs)
 
     eventlet.spawn_n(context_wrapper, *args, **kwargs)
+
+
+def _get_full_class_name(cls):
+    return '%s.%s' % (cls.__module__,
+                      getattr(cls, '__qualname__', cls.__name__))
+
+
+def trace_method_call(method):
+
+    @functools.wraps(method)
+    def wrapper(*args, **kwargs):
+        first_arg = args[0] if args else None
+        cls = first_arg if isinstance(first_arg, type) else first_arg.__class__
+        data = {'class_name': _get_full_class_name(cls),
+                'method_name': method.__name__,
+                'id': uuidutils.generate_uuid()}
+        LOG.debug('[%(id)s] (%(class_name)s method %(method_name)s '
+                  'started...', data)
+        start_time = time.time()
+        res = method(*args, **kwargs)
+        data['time_taken'] = time.time() - start_time
+        LOG.debug('[%(id)s] (%(class_name)s method %(method_name)s '
+                  'completed in: %(time_taken)s', data)
+        return res
+    return wrapper
