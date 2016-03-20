@@ -29,6 +29,7 @@ from vmware_nsx._i18n import _LE, _LI, _LW
 from vmware_nsx.api_client import exception as api_exc
 from vmware_nsx.common import config
 from vmware_nsx.common import exceptions as nsx_exc
+from vmware_nsx.common import utils
 
 LOG = logging.getLogger(__name__)
 
@@ -38,14 +39,17 @@ METADATA_GATEWAY_IP = '169.254.169.253'
 METADATA_DHCP_ROUTE = '169.254.169.254/32'
 
 
+@utils.trace_method_call
 def handle_network_dhcp_access(plugin, context, network, action):
     pass
 
 
+@utils.trace_method_call
 def handle_port_dhcp_access(plugin, context, port_data, action):
     pass
 
 
+@utils.trace_method_call
 def handle_port_metadata_access(plugin, context, port, is_delete=False):
     # For instances supporting DHCP option 121 and created in a
     # DHCP-enabled but isolated network. This method is useful
@@ -90,6 +94,7 @@ def handle_port_metadata_access(plugin, context, port, is_delete=False):
             context.session.add(route)
 
 
+@utils.trace_method_call
 def handle_router_metadata_access(plugin, context, router_id, interface=None):
     # For instances created in a DHCP-disabled network but connected to
     # a router.
@@ -144,6 +149,7 @@ def handle_router_metadata_access(plugin, context, router_id, interface=None):
                       router_id)
 
 
+@utils.trace_method_call
 def _find_metadata_port(plugin, context, ports):
     for port in ports:
         for fixed_ip in port['fixed_ips']:
@@ -151,6 +157,7 @@ def _find_metadata_port(plugin, context, ports):
                 return port
 
 
+@utils.trace_method_call
 def _find_dhcp_disabled_subnet_by_port(plugin, context, ports):
     for port in ports:
         for fixed_ip in port['fixed_ips']:
@@ -159,6 +166,7 @@ def _find_dhcp_disabled_subnet_by_port(plugin, context, ports):
                 return subnet
 
 
+@utils.trace_method_call
 def _find_dhcp_disabled_subnet_by_router(plugin, context, router_id):
     filters = {'device_id': [router_id],
                'device_owner': const.ROUTER_INTERFACE_OWNERS}
@@ -167,6 +175,7 @@ def _find_dhcp_disabled_subnet_by_router(plugin, context, router_id):
     return _find_dhcp_disabled_subnet_by_port(plugin, context, ports)
 
 
+@utils.trace_method_call
 def _create_metadata_access_network(plugin, context, router_id):
     # Add network
     # Network name is likely to be truncated on NSX
@@ -214,6 +223,7 @@ def _create_metadata_access_network(plugin, context, router_id):
         plugin.delete_network(context, meta_net['id'])
 
 
+@utils.trace_method_call
 def _destroy_metadata_access_network(plugin, context, router_id, ports):
     if not ports:
         return
@@ -240,6 +250,7 @@ def _destroy_metadata_access_network(plugin, context, router_id, ports):
         context, {'network': {'id': meta_net_id}}, 'network.delete.end')
 
 
+@utils.trace_method_call
 def _notify_rpc_agent(context, payload, event):
     if cfg.CONF.dhcp_agent_notification:
         dhcp_notifier = dhcp_rpc_agent_api.DhcpAgentNotifyAPI()

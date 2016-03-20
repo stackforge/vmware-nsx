@@ -21,6 +21,7 @@ from oslo_log import log
 from oslo_serialization import jsonutils
 from vmware_nsx._i18n import _, _LW
 from vmware_nsx.common import exceptions as nsx_exc
+from vmware_nsx.common import utils
 
 LOG = log.getLogger(__name__)
 
@@ -37,12 +38,14 @@ class RESTClient(object):
         'delete': [requests.codes.ok]
     }
 
+    @utils.trace_method_call
     def __init__(self, connection, url_prefix=None,
                  default_headers=None):
         self._conn = connection
         self._url_prefix = url_prefix or ""
         self._default_headers = default_headers or {}
 
+    @utils.trace_method_call
     def new_client_for(self, *uri_segments):
         uri = self._build_url('/'.join(uri_segments))
 
@@ -51,36 +54,47 @@ class RESTClient(object):
             url_prefix=uri,
             default_headers=self._default_headers)
 
+    @utils.trace_method_call
     def list(self, headers=None):
         return self.url_list('')
 
+    @utils.trace_method_call
     def get(self, uuid, headers=None):
         return self.url_get(uuid, headers=headers)
 
+    @utils.trace_method_call
     def delete(self, uuid, headers=None):
         return self.url_delete(uuid, headers=headers)
 
+    @utils.trace_method_call
     def update(self, uuid, body=None, headers=None):
         return self.url_put(uuid, body, headers=headers)
 
+    @utils.trace_method_call
     def create(self, body=None, headers=None):
         return self.url_post('', body, headers=headers)
 
+    @utils.trace_method_call
     def url_list(self, url, headers=None):
         return self.url_get(url, headers=headers)
 
+    @utils.trace_method_call
     def url_get(self, url, headers=None):
         return self._rest_call(url, method='GET', headers=headers)
 
+    @utils.trace_method_call
     def url_delete(self, url, headers=None):
         return self._rest_call(url, method='DELETE', headers=headers)
 
+    @utils.trace_method_call
     def url_put(self, url, body, headers=None):
         return self._rest_call(url, method='PUT', body=body, headers=headers)
 
+    @utils.trace_method_call
     def url_post(self, url, body, headers=None):
         return self._rest_call(url, method='POST', body=body, headers=headers)
 
+    @utils.trace_method_call
     def _validate_result(self, result, expected, operation):
         if result.status_code not in expected:
             result_msg = result.json() if result.content else ''
@@ -109,6 +123,7 @@ class RESTClient(object):
                 merged.update(header)
         return merged
 
+    @utils.trace_method_call
     def _build_url(self, uri):
         prefix = urlparse.urlparse(self._url_prefix)
         uri = ("/%s/%s" % (prefix.path, uri)).replace('//', '/').strip('/')
@@ -118,6 +133,7 @@ class RESTClient(object):
             uri = "%s://%s" % (prefix.scheme, uri)
         return uri
 
+    @utils.trace_method_call
     def _rest_call(self, url, method='GET', body=None, headers=None):
         request_headers = headers.copy() if headers else {}
         request_headers.update(self._default_headers)
@@ -149,6 +165,7 @@ class JSONRESTClient(RESTClient):
         'Content-Type': 'application/json'
     }
 
+    @utils.trace_method_call
     def __init__(self, connection, url_prefix=None,
                  default_headers=None):
 
@@ -158,6 +175,7 @@ class JSONRESTClient(RESTClient):
             default_headers=RESTClient.merge_headers(
                 JSONRESTClient._DEFAULT_HEADERS, default_headers))
 
+    @utils.trace_method_call
     def _rest_call(self, *args, **kwargs):
         if kwargs.get('body') is not None:
             kwargs['body'] = jsonutils.dumps(kwargs['body'], sort_keys=True)
@@ -169,6 +187,7 @@ class NSX3Client(JSONRESTClient):
 
     _NSX_V1_API_PREFIX = 'api/v1/'
 
+    @utils.trace_method_call
     def __init__(self, connection, url_prefix=None,
                  default_headers=None):
 
@@ -189,6 +208,7 @@ class NSX3Client(JSONRESTClient):
 _DEFAULT_API_CLUSTER = None
 
 
+@utils.trace_method_call
 def _get_default_api_cluster():
     global _DEFAULT_API_CLUSTER
     if _DEFAULT_API_CLUSTER is None:
@@ -198,6 +218,7 @@ def _get_default_api_cluster():
     return _DEFAULT_API_CLUSTER
 
 
+@utils.trace_method_call
 def _set_default_api_cluster(cluster):
     global _DEFAULT_API_CLUSTER
     old = _DEFAULT_API_CLUSTER
@@ -205,26 +226,32 @@ def _set_default_api_cluster(cluster):
     return old
 
 
+@utils.trace_method_call
 def _get_client(client):
     return client or NSX3Client(_get_default_api_cluster())
 
 
 # NOTE(shihli): tmp until all refs use client class
+@utils.trace_method_call
 def _get_nsx_managers_from_conf():
     return cfg.CONF.nsx_v3.nsx_api_managers
 
 
+@utils.trace_method_call
 def get_resource(resource, client=None):
     return _get_client(client).get(resource)
 
 
+@utils.trace_method_call
 def create_resource(resource, data, client=None):
     return _get_client(client).url_post(resource, body=data)
 
 
+@utils.trace_method_call
 def update_resource(resource, data, client=None):
     return _get_client(client).update(resource, body=data)
 
 
+@utils.trace_method_call
 def delete_resource(resource, client=None):
     return _get_client(client).delete(resource)
