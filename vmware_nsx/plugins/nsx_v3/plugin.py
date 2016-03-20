@@ -116,6 +116,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                    "network_availability_zone",
                                    "subnet_allocation"]
 
+    @utils.trace_method_call
     @resource_registry.tracked_resources(
         network=models_v2.Network,
         port=models_v2.Port,
@@ -170,6 +171,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             raise nsx_exc.NsxPluginException(msg)
         self._unsubscribe_callback_events()
 
+    @utils.trace_method_call
     def _extend_port_dict_binding(self, port_res, port_db):
         port_res[pbin.VIF_TYPE] = pbin.VIF_TYPE_OVS
         port_res[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
@@ -187,6 +189,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
         attributes.PORTS, ['_extend_port_dict_binding'])
 
+    @utils.trace_method_call
     def _unsubscribe_callback_events(self):
         # l3_db explicitly subscribes to the port delete callback. This
         # callback is unsubscribed here since l3 APIs are handled by
@@ -196,6 +199,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                              resources.PORT,
                              events.BEFORE_DELETE)
 
+    @utils.trace_method_call
     def _validate_dhcp_profile(self, dhcp_profile_uuid):
         dhcp_profile = self._switching_profiles.get(dhcp_profile_uuid)
         if (dhcp_profile.get('resource_type') !=
@@ -213,6 +217,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             raise n_exc.InvalidInput(error_message=msg)
 
     @utils.retry_upon_exception_nsxv3(Exception)
+    @utils.trace_method_call
     def _init_dhcp_switching_profile(self):
         with locking.LockManager.get_lock('nsxv3_dhcp_profile_init'):
             profile = self._get_dhcp_security_profile()
@@ -222,6 +227,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     tags=utils.build_v3_api_version_tag())
             return self._get_dhcp_security_profile()
 
+    @utils.trace_method_call
     def _get_dhcp_security_profile(self):
         if self._dhcp_profile:
             return self._dhcp_profile
@@ -232,10 +238,12 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                           SWITCH_SECURITY),
             profile_id=profile[0]['id']) if profile else None
 
+    @utils.trace_method_call
     def _get_port_security_profile_id(self):
         return nsx_resources.SwitchingProfile.build_switch_profile_ids(
             self._switching_profiles, self._get_port_security_profile())[0]
 
+    @utils.trace_method_call
     def _get_port_security_profile(self):
         if self._psec_profile:
             return self._psec_profile
@@ -244,6 +252,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         return profile[0] if profile else None
 
     @utils.retry_upon_exception_nsxv3(Exception)
+    @utils.trace_method_call
     def _init_port_security_profile(self):
         profile = self._get_port_security_profile()
         if profile:
@@ -261,15 +270,18 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 tags=utils.build_v3_api_version_tag())
         return self._get_port_security_profile()
 
+    @utils.trace_method_call
     def _init_nsgroup_manager_and_default_section_rules(self):
         with locking.LockManager.get_lock('nsxv3_nsgroup_manager_init'):
             return security.init_nsgroup_manager_and_default_section_rules()
 
+    @utils.trace_method_call
     def _setup_rpc(self):
         self.endpoints = [dhcp_rpc.DhcpRpcCallback(),
                           agents_db.AgentExtRpcCallback(),
                           metadata_rpc.MetadataRpcCallback()]
 
+    @utils.trace_method_call
     def _setup_dhcp(self):
         """Initialize components to support DHCP."""
         self.network_scheduler = importutils.import_object(
@@ -277,12 +289,14 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         )
         self.start_periodic_dhcp_agent_status_check()
 
+    @utils.trace_method_call
     def _start_rpc_notifiers(self):
         """Initialize RPC notifiers for agents."""
         self.agent_notifiers[const.AGENT_TYPE_DHCP] = (
             dhcp_rpc_agent_api.DhcpAgentNotifyAPI()
         )
 
+    @utils.trace_method_call
     def start_rpc_listeners(self):
         self._setup_rpc()
         self.topic = topics.PLUGIN
@@ -293,6 +307,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                   fanout=False)
         return self.conn.consume_in_threads()
 
+    @utils.trace_method_call
     def _validate_provider_create(self, context, network_data):
         is_provider_net = any(
             attributes.is_attr_set(network_data.get(f))
@@ -374,12 +389,14 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return is_provider_net, net_type, physical_net, vlan_id
 
+    @utils.trace_method_call
     def _get_edge_cluster_and_members(self, tier0_uuid):
         self._routerlib.validate_tier0(self.tier0_groups_dict, tier0_uuid)
         tier0_info = self.tier0_groups_dict[tier0_uuid]
         return (tier0_info['edge_cluster_uuid'],
                 tier0_info['member_index_list'])
 
+    @utils.trace_method_call
     def _validate_external_net_create(self, net_data):
         is_provider_net = False
         if not attributes.is_attr_set(net_data.get(pnet.PHYSICAL_NETWORK)):
@@ -390,6 +407,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         self._routerlib.validate_tier0(self.tier0_groups_dict, tier0_uuid)
         return (is_provider_net, utils.NetworkTypes.L3_EXT, tier0_uuid, 0)
 
+    @utils.trace_method_call
     def _create_network_at_the_backend(self, context, net_data):
         is_provider_net, net_type, physical_net, vlan_id = (
             self._validate_provider_create(context, net_data))
@@ -433,6 +451,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return (is_provider_net, net_type, physical_net, vlan_id)
 
+    @utils.trace_method_call
     def _extend_network_dict_provider(self, context, network, bindings=None):
         if not bindings:
             bindings = nsx_db.get_network_bindings(context.session,
@@ -444,6 +463,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             network[pnet.PHYSICAL_NETWORK] = bindings[0].phy_uuid
             network[pnet.SEGMENTATION_ID] = bindings[0].vlan_id
 
+    @utils.trace_method_call
     def create_network(self, context, network):
         net_data = network['network']
         external = net_data.get(ext_net_extn.EXTERNAL)
@@ -499,6 +519,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         self._apply_dict_extend_functions('networks', created_net, net_model)
         return created_net
 
+    @utils.trace_method_call
     def _retry_delete_network(self, context, network_id):
         """This method attempts to retry the delete on a network if there are
            AUTO_DELETE_PORT_OWNERS left. This is to avoid a race condition
@@ -541,6 +562,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     # we have nothing else to do but raise the exception.
                     raise
 
+    @utils.trace_method_call
     def delete_network(self, context, network_id):
         # First call DB operation for delete network as it will perform
         # checks on active ports
@@ -554,6 +576,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             # TODO(berlin): delete subnets public announce on the network
             pass
 
+    @utils.trace_method_call
     def update_network(self, context, id, network):
         original_net = super(NsxV3Plugin, self).get_network(context, id)
         net_data = network['network']
@@ -588,14 +611,17 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return updated_net
 
+    @utils.trace_method_call
     def create_subnet(self, context, subnet):
         # TODO(berlin): public external subnet announcement
         return super(NsxV3Plugin, self).create_subnet(context, subnet)
 
+    @utils.trace_method_call
     def delete_subnet(self, context, subnet_id):
         # TODO(berlin): cancel public external subnet announcement
         return super(NsxV3Plugin, self).delete_subnet(context, subnet_id)
 
+    @utils.trace_method_call
     def update_subnet(self, context, subnet_id, subnet):
         updated_subnet = super(NsxV3Plugin, self).update_subnet(
             context, subnet_id, subnet)
@@ -612,6 +638,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                         interface=not updated_subnet['enable_dhcp'])
         return updated_subnet
 
+    @utils.trace_method_call
     def _build_address_bindings(self, port):
         address_bindings = []
         for fixed_ip in port['fixed_ips']:
@@ -629,6 +656,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return address_bindings
 
+    @utils.trace_method_call
     def get_network(self, context, id, fields=None):
         with context.session.begin(subtransactions=True):
             # Get network from Neutron database
@@ -639,6 +667,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             self._extend_network_dict_provider(context, net)
         return self._fields(net, fields)
 
+    @utils.trace_method_call
     def get_networks(self, context, filters=None, fields=None,
                      sorts=None, limit=None, marker=None,
                      page_reverse=False):
@@ -654,6 +683,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 self._extend_network_dict_provider(context, net)
         return [self._fields(network, fields) for network in networks]
 
+    @utils.trace_method_call
     def _get_data_from_binding_profile(self, context, port):
         if (pbin.PROFILE not in port or
                 not attributes.is_attr_set(port[pbin.PROFILE])):
@@ -686,6 +716,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         # self.get_port(context, parent_name)
         return parent_name, tag
 
+    @utils.trace_method_call
     def _get_port_name(self, context, port_data):
         device_owner = port_data.get('device_owner')
         device_id = port_data.get('device_id')
@@ -705,6 +736,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             name = port_data['name']
         return name
 
+    @utils.trace_method_call
     def _create_port_at_the_backend(self, context, port_data,
                                     l2gw_port_check, psec_is_on):
         device_owner = port_data.get('device_owner')
@@ -770,12 +802,14 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             port_data['network_id'], result['id'])
         return result
 
+    @utils.trace_method_call
     def _validate_address_pairs(self, address_pairs):
         for pair in address_pairs:
             ip = pair.get('ip_address')
             if not utils.is_ipv4_ip_address(ip):
                 raise nsx_exc.InvalidIPAddress(ip_address=ip)
 
+    @utils.trace_method_call
     def _create_port_preprocess_security(
             self, context, port, port_data, neutron_db):
         (port_security, has_ip) = self._determine_port_security_and_has_ip(
@@ -806,6 +840,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             self._get_security_groups_on_port(context, port))
         return port_security, has_ip
 
+    @utils.trace_method_call
     def _assert_on_external_net_with_compute(self, port_data):
         # Prevent creating port with device owner prefix 'compute'
         # on external networks.
@@ -817,6 +852,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             LOG.warning(err_msg)
             raise n_exc.InvalidInput(error_message=err_msg)
 
+    @utils.trace_method_call
     def create_port(self, context, port, l2gw_port_check=False):
         port_data = port['port']
         dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS, [])
@@ -878,6 +914,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         nsx_rpc.handle_port_metadata_access(self, context, neutron_db)
         return port_data
 
+    @utils.trace_method_call
     def _pre_delete_port_check(self, context, port_id, l2gw_port_check):
         """Perform checks prior to deleting a port."""
         try:
@@ -894,6 +931,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 raise e.errors[0].error
             raise n_exc.ServicePortInUse(port_id=port_id, reason=e)
 
+    @utils.trace_method_call
     def delete_port(self, context, port_id,
                     l3_port_check=True, l2gw_port_check=True):
         # if needed, check to see if this is a port owned by
@@ -917,6 +955,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return ret_val
 
+    @utils.trace_method_call
     def _update_port_preprocess_security(
             self, context, port, id, updated_port):
         delete_addr_pairs = self._check_update_deletes_allowed_address_pairs(
@@ -980,12 +1019,14 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return updated_port
 
+    @utils.trace_method_call
     def _get_resource_type_for_device_id(self, device_owner, device_id):
         if device_owner in const.ROUTER_INTERFACE_OWNERS:
             return 'os-router-uuid'
         elif device_owner.startswith(const.DEVICE_OWNER_COMPUTE_PREFIX):
             return 'os-instance-uuid'
 
+    @utils.trace_method_call
     def _update_port_on_backend(self, context, lport_id,
                                 original_port, updated_port,
                                 address_bindings,
@@ -1043,6 +1084,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             parent_name=parent_name,
             parent_tag=tag)
 
+    @utils.trace_method_call
     def update_port(self, context, id, port):
         switch_profile_ids = None
 
@@ -1122,6 +1164,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return updated_port
 
+    @utils.trace_method_call
     def _extract_external_gw(self, context, router, is_extract=True):
         r = router['router']
         gw_info = attributes.ATTR_NOT_SPECIFIED
@@ -1141,6 +1184,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     raise n_exc.BadRequest(resource='router', msg=msg)
         return gw_info
 
+    @utils.trace_method_call
     def _get_external_attachment_info(self, context, router):
         gw_port = router.gw_port
         ipaddress = None
@@ -1166,6 +1210,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return (ipaddress, netmask, nexthop)
 
+    @utils.trace_method_call
     def _get_tier0_uuid_by_net(self, context, network_id):
         if not network_id:
             return
@@ -1175,6 +1220,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         else:
             return network.get(pnet.PHYSICAL_NETWORK)
 
+    @utils.trace_method_call
     def _update_router_gw_info(self, context, router_id, info):
         router = self._get_router(context, router_id)
         org_ext_net_id = router.gw_port_id and router.gw_port.network_id
@@ -1269,6 +1315,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                            advertise_route_nat_flag,
                                            advertise_route_connected_flag)
 
+    @utils.trace_method_call
     def create_router(self, context, router):
         # TODO(berlin): admin_state_up support
         gw_info = self._extract_external_gw(context, router, is_extract=True)
@@ -1303,6 +1350,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return self.get_router(context, router['id'])
 
+    @utils.trace_method_call
     def delete_router(self, context, router_id):
         nsx_rpc.handle_router_metadata_access(self, context, router_id,
                                               interface=None)
@@ -1335,6 +1383,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return ret_val
 
+    @utils.trace_method_call
     def _validate_ext_routes(self, context, router_id, gw_info, new_routes):
         ext_net_id = (gw_info['network_id']
                       if attributes.is_attr_set(gw_info) and gw_info else None)
@@ -1357,6 +1406,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                                       'nexthop': route['nexthop']})
                     raise n_exc.InvalidInput(error_message=error_message)
 
+    @utils.trace_method_call
     def update_router(self, context, router_id, router):
         # TODO(berlin): admin_state_up support
         gw_info = self._extract_external_gw(context, router, is_extract=False)
@@ -1407,6 +1457,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                         self._routerlib.add_static_routes(nsx_router_id, route)
                 router_db['status'] = curr_status
 
+    @utils.trace_method_call
     def _get_router_interface_ports_by_network(
         self, context, router_id, network_id):
         port_filters = {'device_id': [router_id],
@@ -1414,6 +1465,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                         'network_id': [network_id]}
         return self.get_ports(context, filters=port_filters)
 
+    @utils.trace_method_call
     def _get_ports_and_address_groups(self, context, router_id, network_id,
                                       exclude_sub_ids=None):
         exclude_sub_ids = [] if not exclude_sub_ids else exclude_sub_ids
@@ -1434,6 +1486,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             address_groups.append(address_group)
         return (ports, address_groups)
 
+    @utils.trace_method_call
     def _validate_multiple_subnets_routers(self, context, router_id,
                                            interface_info):
         is_port, is_sub = self._validate_interface_info(interface_info)
@@ -1456,6 +1509,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 'router_id': router_ids[0]}
             raise n_exc.InvalidInput(error_message=err_msg)
 
+    @utils.trace_method_call
     def add_router_interface(self, context, router_id, interface_info):
         # disallow more than one subnets belong to same network being attached
         # to routers
@@ -1505,6 +1559,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                     context, router_id, interface_info)
         return info
 
+    @utils.trace_method_call
     def remove_router_interface(self, context, router_id, interface_info):
         subnet = None
         subnet_id = None
@@ -1578,6 +1633,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         nsx_rpc.handle_router_metadata_access(self, context, router_id)
         return info
 
+    @utils.trace_method_call
     def create_floatingip(self, context, floatingip):
         new_fip = super(NsxV3Plugin, self).create_floatingip(
             context, floatingip, initial_status=(
@@ -1598,6 +1654,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                 self.delete_floatingip(context, new_fip['id'])
         return new_fip
 
+    @utils.trace_method_call
     def delete_floatingip(self, context, fip_id):
         fip = self.get_floatingip(context, fip_id)
         router_id = fip['router_id']
@@ -1617,6 +1674,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
                              'int_ip': fip['fixed_ip_address']})
         super(NsxV3Plugin, self).delete_floatingip(context, fip_id)
 
+    @utils.trace_method_call
     def update_floatingip(self, context, fip_id, floatingip):
         old_fip = self.get_floatingip(context, fip_id)
         old_port_id = old_fip['port_id']
@@ -1666,6 +1724,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             self.update_floatingip_status(context, fip_id, new_status)
         return new_fip
 
+    @utils.trace_method_call
     def disassociate_floatingips(self, context, port_id):
         fip_qry = context.session.query(l3_db.FloatingIP)
         fip_dbs = fip_qry.filter_by(fixed_port_id=port_id)
@@ -1692,6 +1751,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         super(NsxV3Plugin, self).disassociate_floatingips(
             context, port_id, do_notify=False)
 
+    @utils.trace_method_call
     def create_security_group(self, context, security_group, default_sg=False):
         secgroup = security_group['security_group']
         secgroup['id'] = uuidutils.generate_uuid()
@@ -1772,6 +1832,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return secgroup_db
 
+    @utils.trace_method_call
     def update_security_group(self, context, id, security_group):
         nsgroup_id, section_id = security.get_sg_mappings(context.session, id)
         original_security_group = self.get_security_group(
@@ -1794,6 +1855,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         return updated_security_group
 
+    @utils.trace_method_call
     def delete_security_group(self, context, id):
         nsgroup_id, section_id = security.get_sg_mappings(context.session, id)
         super(NsxV3Plugin, self).delete_security_group(context, id)
@@ -1801,10 +1863,12 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         firewall.delete_nsgroup(nsgroup_id)
         self.nsgroup_manager.remove_nsgroup(nsgroup_id)
 
+    @utils.trace_method_call
     def create_security_group_rule(self, context, security_group_rule):
         bulk_rule = {'security_group_rules': [security_group_rule]}
         return self.create_security_group_rule_bulk(context, bulk_rule)[0]
 
+    @utils.trace_method_call
     def create_security_group_rule_bulk(self, context, security_group_rules):
         security_group_rules_db = (
             super(NsxV3Plugin, self).create_security_group_rule_bulk_native(
@@ -1823,6 +1887,7 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
         security.save_sg_rule_mappings(context.session, rules['rules'])
         return security_group_rules_db
 
+    @utils.trace_method_call
     def delete_security_group_rule(self, context, id):
         rule_db = self._get_security_group_rule(context, id)
         sg_id = rule_db['security_group_id']
