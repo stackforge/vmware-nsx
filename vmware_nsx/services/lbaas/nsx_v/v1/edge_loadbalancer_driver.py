@@ -616,9 +616,6 @@ class EdgeLbDriver(object):
                 'active_connections': 0,
                 'total_connections': 0}
 
-    def is_edge_in_use(self, context, edge_id):
-        return self.lbv1_driver.is_edge_in_use(context, edge_id)
-
     def is_subnet_in_use(self, context, subnet_id):
         plugin = self._get_lb_plugin()
         if plugin:
