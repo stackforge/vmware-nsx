@@ -2648,6 +2648,19 @@ class TestVdrTestCase(L3NatTest, L3NatTestCaseBase,
             with self.subnet(network=net, enable_dhcp=False):
                 self._make_floatingip(self.fmt, net_id)
 
+    def test_router_remove_interface_with_load_balancer(self):
+        with self.router() as router, self.subnet() as subnet:
+            fixed_ips = [{'subnet_id': subnet['subnet']['id']}]
+            with self.port(subnet,
+                           device_owner='neutron:LOADBALANCER',
+                           fixed_ips=fixed_ips):
+                expected_code = webob.exc.HTTPNotFound.code
+                self._router_interface_action('remove',
+                                              router['router']['id'],
+                                              subnet['subnet']['id'],
+                                              None,
+                                              expected_code=expected_code)
+
     def test_router_add_interface_multiple_ipv4_subnets(self):
         self.skipTest('TBD')
 
