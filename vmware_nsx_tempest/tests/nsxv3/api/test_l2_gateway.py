@@ -15,217 +15,235 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from tempest.api.network import base
+from oslo_serialization import jsonutils
+
 from tempest import config
 from tempest.lib.common.utils import data_utils
+from tempest.lib import decorators
 from tempest import test
 
 from vmware_nsx_tempest._i18n import _LI
-from vmware_nsx_tempest._i18n import _LW
 from vmware_nsx_tempest.common import constants
-from vmware_nsx_tempest.services import l2_gateway_client
-from vmware_nsx_tempest.services import nsxv3_client
+from vmware_nsx_tempest.services import base_l2gw
+
+import yaml
 
 LOG = constants.log.getLogger(__name__)
 
 CONF = config.CONF
 
 
-class L2GatewayTest(base.BaseAdminNetworkTest):
+class L2GatewayTest(base_l2gw.L2GatewayTest):
     """
     Test l2 gateway operations.
     """
 
-    credentials = ["primary", "admin"]
-
     @classmethod
     def skip_checks(cls):
         """
-        Skip running test if we do not meet crietria to run the tests.
+        Skip running test if we do not meet criteria to run the tests.
         """
         super(L2GatewayTest, cls).skip_checks()
         if not test.is_extension_enabled("l2-gateway", "network"):
             raise cls.skipException("l2-gateway extension not enabled.")
 
-    @classmethod
-    def setup_clients(cls):
-        """
-        Create various client connections. Such as NSXv3 and L2 Gateway.
-        """
-        super(L2GatewayTest, cls).setup_clients()
-        cls.l2gw_created = {}
-        try:
-            manager = getattr(cls.os_adm, "manager", cls.os_adm)
-            net_client = getattr(manager, "networks_client")
-            _params = manager.default_params_withy_timeout_values.copy()
-        except AttributeError as attribute_err:
-            LOG.warning(
-                _LW("Failed to locate the attribute, Error: %(err_msg)s") %
-                {"err_msg": attribute_err.__str__()})
-            _params = {}
-        cls.l2gw_client = l2_gateway_client.L2GatewayClient(
-            net_client.auth_provider,
-            net_client.service,
-            net_client.region,
-            net_client.endpoint_type,
-            **_params)
-        cls.nsxv3_client_obj = nsxv3_client.NSXV3Client(
-            CONF.nsxv3.nsx_manager,
-            CONF.nsxv3.nsx_user,
-            CONF.nsxv3.nsx_password)
-
-    @classmethod
-    def resource_setup(cls):
-        """
-        Setting up the resources for the test.
-        """
-        super(L2GatewayTest, cls).resource_setup()
-        cls.VLAN_1 = getattr(CONF.l2gw, "vlan_1", None)
-        cls.VLAN_2 = getattr(CONF.l2gw, "vlan_2", None)
-
-    @classmethod
-    def resource_cleanup(cls):
-        """
-        Clean all the resources used during the test.
-        """
-        for l2gw_id in cls.l2gw_created.keys():
-            cls.l2gw_client.delete_l2_gateway(l2gw_id)
-            cls.l2gw_created.pop(l2gw_id)
-
-    def operate_l2gw(self, name, devices, task):
-        """
-        l2gw operations such create, delete, update and show.
-
-        :param name: l2gw name.
-        :param devices: l2gw parameters information.
-        :param task: Operation to perform.
-        """
-        LOG.info(_LI("name: %(name)s, devices: %(devices)s, "
-                     "task: %(task)s") %
-                 {"name": name, "devices": devices, "task": task})
-        if task == "create":
-            rsp = self.l2gw_client.create_l2_gateway(
-                name=name, **devices)
-            self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_201,
-                             rsp.response["status"],
-                             "Response code is not %(code)s" % {
-                                 "code":
-                                     constants.EXPECTED_HTTP_RESPONSE_201})
-            rsp_l2gw = rsp[constants.L2GW]
-            self.l2gw_created[rsp_l2gw["id"]] = rsp_l2gw
-            LOG.info(_LI("response : %(rsp_l2gw)s") % {"rsp_l2gw": rsp_l2gw})
-            self.assertEqual(name, rsp_l2gw["name"],
-                             "l2gw name=%(rsp_name)s is not the same as "
-                             "requested=%(name)s" % {"rsp_name": rsp_l2gw[
-                                 "name"], "name": name})
-        elif task == "delete":
-            l2gw_id, _ = self.l2gw_created.popitem()
-            rsp = self.l2gw_client.delete_l2_gateway(l2gw_id)
-            LOG.info(_LI("response : %(rsp)s") % {"rsp": rsp})
-            self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_204,
-                             rsp.response["status"],
-                             "Response code is not %(code)s" % {
-                                 "code":
-                                     constants.EXPECTED_HTTP_RESPONSE_204})
-        elif task == "update":
-            l2gw_id, _ = self.l2gw_created.popitem()
-            rsp = self.l2gw_client.update_l2_gateway(l2gw_id,
-                                                     name=name, **devices)
-            self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_200,
-                             rsp.response["status"],
-                             "Response code is not %(code)s" % {
-                                 "code":
-                                     constants.EXPECTED_HTTP_RESPONSE_200})
-            rsp_l2gw = rsp[constants.L2GW]
-            self.l2gw_created[rsp_l2gw["id"]] = rsp_l2gw
-            LOG.info(_LI("response : %(rsp_l2gw)s") % {"rsp_l2gw": rsp_l2gw})
-            self.assertEqual(name, rsp_l2gw["name"],
-                             "l2gw name=%(rsp_name)s is not the same as "
-                             "requested=%(name)s" % {
-                                 "rsp_name": rsp_l2gw["name"], "name": name})
-            if "name" in devices["devices"][0]["interfaces"][0]:
-                self.assertEqual(
-                    devices["devices"][0]["interfaces"][0]["name"],
-                    rsp_l2gw["devices"][0]["interfaces"][0][
-                        "name"], "L2GW interface name update "
-                                 "failed!!!")
-            if "segmentation_id" in devices["devices"][0]["interfaces"][0]:
-                self.assertEqual(devices["devices"][0]["interfaces"][0][
-                                     "segmentation_id"][0],
-                                 rsp_l2gw["devices"][0]["interfaces"][0][
-                                     "segmentation_id"][0],
-                                 "L2GW segmentation id update failed!!!")
-        elif task == "show":
-            l2gw_id, l2gw_parameters = self.l2gw_created.popitem()
-            rsp = self.l2gw_client.show_l2_gateway(l2gw_id)
-            self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_200,
-                             rsp.response["status"],
-                             "Response code is not %(code)s" % {
-                                 "code":
-                                     constants.EXPECTED_HTTP_RESPONSE_200})
-            rsp_l2gw = rsp[constants.L2GW]
-            constants.LOG.info(
-                _LI("response : %(rsp_l2gw)s") % {"rsp_l2gw": rsp_l2gw})
-            self.assertEqual(name, rsp_l2gw["name"],
-                             "l2gw name=%(rsp_name)s is not the same as "
-                             "requested=%(name)s" % {
-                                 "rsp_name": rsp_l2gw["name"],
-                                 "name": name})
-            self.assertEqual(l2gw_parameters, rsp_l2gw,
-                             "l2-gateway-show does not show parameter as it "
-                             "was created.")
-            self.l2gw_created[l2gw_id] = l2gw_parameters
-
-    def nsx_bridge_cluster_info(self):
-        """
-        Collect the device and interface name of the nsx brdige cluster.
-
-        :return: nsx bridge id and display name.
-        """
-        response = self.nsxv3_client_obj.get_bridge_cluster_info()
-        if len(response) == 0:
-            raise RuntimeError("NSX bridge cluster information is null")
-        return response[0]["id"], response[0]["display_name"]
-
     @test.attr(type="nsxv3")
     @test.idempotent_id("e5e3a089-602c-496e-8c17-4ef613266924")
-    def test_l2_gateway_create(self):
+    def test_l2_gateway_create_without_vlan(self):
         """
         Create l2gw based on UUID and bridge cluster name. It creates l2gw.
         To create l2gw we need bridge cluster name (interface name) and
         bridge cluster UUID (device name) from NSX manager.
         """
         LOG.info(_LI("Testing l2_gateway_create api"))
-        device_name, interface_name = self.nsx_bridge_cluster_info()
+        cluster_info = self.nsx_bridge_cluster_info()
+        device_name, interface_name = cluster_info[0][0], cluster_info[0][1]
         l2gw_name = data_utils.rand_name(constants.L2GW)
-        devices = {"devices": [{"device_name": device_name,
-                                "interfaces": [{"name": interface_name}]}]
-                   }
-        self.operate_l2gw(name=l2gw_name, devices=devices, task="create")
+        device_1 = {"dname": device_name, "iname": interface_name}
+        l2gw_param = [device_1]
+        rsp, requested_devices = self.create_l2gw(l2gw_name, l2gw_param)
+        # Assert if create fails.
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_201,
+                         rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code": constants.EXPECTED_HTTP_RESPONSE_201})
+        self.assertEqual(requested_devices[0]["device_name"],
+                         rsp[constants.L2GW]["devices"][0]["device_name"],
+                         "Device name is not same as expected")
         self.resource_cleanup()
 
     @test.attr(type="nsxv3")
     @test.idempotent_id("9968a529-e785-472f-8705-9b394a912e43")
-    def test_l2_gateway_create_with_segmentation_id(self):
+    def test_l2_gateway_with_single_vlans(self):
         """
         Create l2gw based on UUID and bridge cluster name. It creates l2gw.
         To create l2gw we need bridge cluster name (interface name) and
         bridge cluster UUID (device name) from NSX manager and vlan id.
         """
-        LOG.info(_LI("Testing l2_gateway_create api"))
-        device_name, interface_name = self.nsx_bridge_cluster_info()
+        LOG.info(_LI("Testing l2_gateway_create api with segmentation ID"))
+        cluster_info = self.nsx_bridge_cluster_info()
+        device_name, interface_name = cluster_info[0][0], cluster_info[0][1]
         l2gw_name = data_utils.rand_name(constants.L2GW)
-        devices = {"devices": [
-            {"device_name": device_name,
-             "interfaces": [{"name": interface_name,
-                             "segmentation_id": [
-                                 self.VLAN_1,
-                                 self.VLAN_2
-                             ]
-                             }]
-             }]
-        }
-        self.operate_l2gw(name=l2gw_name, devices=devices, task="create")
+        device_1 = {"dname": device_name, "iname": interface_name,
+                    "vlans": [self.VLAN_1]}
+        l2gw_param = [device_1]
+        rsp, requested_devices = self.create_l2gw(l2gw_name, l2gw_param)
+        # Assert if create fails.
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_201,
+                         rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code": constants.EXPECTED_HTTP_RESPONSE_201})
+        self.assertEqual(requested_devices[0]["device_name"],
+                         rsp[constants.L2GW]["devices"][0]["device_name"],
+                         "Device name is not same as expected")
+        self.assertEqual(
+            yaml.safe_load(
+                jsonutils.dumps(requested_devices[0]["interfaces"][0][
+                                    "name"])),
+            yaml.safe_load(jsonutils.dumps(
+                rsp[constants.L2GW]["devices"][0]["interfaces"][0]["name"])),
+            "Interface name is not same as expected")
+        requested_vlans = \
+            requested_devices[0]["interfaces"][0]["segmentation_id"]
+        response_vlans = yaml.safe_load(
+            jsonutils.dumps(rsp[constants.L2GW]["devices"][0]["interfaces"][0][
+                                "segmentation_id"]))
+        for id in requested_vlans:
+            self.assertIn(id, response_vlans)
+        self.resource_cleanup()
+
+    @test.attr(type="nsxv3")
+    @test.idempotent_id("3861aab0-4f76-4472-ad0e-a255e6e42193")
+    def test_l2_gateway_with_multiple_vlans(self):
+        """
+        Create l2gw based on UUID and bridge cluster name. It creates l2gw.
+        To create l2gw we need bridge cluster name (interface name) and
+        bridge cluster UUID (device name) from NSX manager and vlan id.
+        """
+        LOG.info(_LI("Testing l2_gateway_create api with segmentation ID"))
+        cluster_info = self.nsx_bridge_cluster_info()
+        device_name, interface_name = cluster_info[0][0], cluster_info[0][1]
+        l2gw_name = data_utils.rand_name(constants.L2GW)
+        device_1 = {"dname": device_name, "iname": interface_name,
+                    "vlans": [self.VLAN_1, self.VLAN_2]}
+        l2gw_param = [device_1]
+        rsp, requested_devices = self.create_l2gw(l2gw_name, l2gw_param)
+        # Assert if create fails.
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_201,
+                         rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code": constants.EXPECTED_HTTP_RESPONSE_201})
+        self.assertEqual(requested_devices[0]["device_name"],
+                         rsp[constants.L2GW]["devices"][0]["device_name"],
+                         "Device name is not same as expected")
+        self.assertEqual(
+            yaml.safe_load(
+                jsonutils.dumps(requested_devices[0]["interfaces"][0][
+                                    "name"])),
+            yaml.safe_load(jsonutils.dumps(
+                rsp[constants.L2GW]["devices"][0]["interfaces"][0]["name"])),
+            "Interface name is not same as expected")
+        requested_vlans = \
+            requested_devices[0]["interfaces"][0]["segmentation_id"]
+        response_vlans = yaml.safe_load(
+            jsonutils.dumps(rsp[constants.L2GW]["devices"][0]["interfaces"][0][
+                                "segmentation_id"]))
+        for id in requested_vlans:
+            self.assertIn(id, response_vlans)
+        self.resource_cleanup()
+
+    @test.attr(type="nsxv3")
+    @decorators.skip_because(bug="1640036")
+    @test.idempotent_id("df1f3706-da1a-434c-83bd-9e39804c8d59")
+    def test_l2_gateway_with_multiple_devices_single_vlan(self):
+        """
+        Create l2gw based on UUID and bridge cluster name. It creates l2gw.
+        To create l2gw we need bridge cluster name (interface name) and
+        bridge cluster UUID (device name) from NSX manager and vlan id.
+        """
+        LOG.info(_LI("Testing l2_gateway_create api with segmentation ID"))
+        cluster_info = self.nsx_bridge_cluster_info()
+        device_name_1, interface_name_1 = cluster_info[0][0], cluster_info[
+            0][1]
+        device_name_2, interface_name_2 = cluster_info[1][0], cluster_info[
+            1][1]
+        l2gw_name = data_utils.rand_name(constants.L2GW)
+        device_1 = {"dname": device_name_1, "iname": interface_name_1,
+                    "vlans": [self.VLAN_1]}
+        device_2 = {"dname": device_name_2, "iname": interface_name_2,
+                    "vlans": [self.VLAN_1]}
+        l2gw_param = [device_1, device_2]
+        # l2gw
+        rsp, requested_devices = self.create_l2gw(l2gw_name, l2gw_param)
+        # Assert if create fails.
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_201,
+                         rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code": constants.EXPECTED_HTTP_RESPONSE_201})
+        self.assertEqual(requested_devices[0]["device_name"],
+                         rsp[constants.L2GW]["devices"][0]["device_name"],
+                         "Device name is not same as expected")
+        self.assertEqual(
+            yaml.safe_load(
+                jsonutils.dumps(requested_devices[0]["interfaces"][0][
+                                    "name"])),
+            yaml.safe_load(jsonutils.dumps(
+                rsp[constants.L2GW]["devices"][0]["interfaces"][0]["name"])),
+            "Interface name is not same as expected")
+        requested_vlans = \
+            requested_devices[0]["interfaces"][0]["segmentation_id"]
+        response_vlans = yaml.safe_load(
+            jsonutils.dumps(rsp[constants.L2GW]["devices"][0]["interfaces"][0][
+                                "segmentation_id"]))
+        for id in requested_vlans:
+            self.assertIn(id, response_vlans)
+        self.resource_cleanup()
+
+    @test.attr(type="nsxv3")
+    @decorators.skip_because(bug="1640036")
+    @test.idempotent_id("29dcb635-4e31-4391-a67b-24e62f438697")
+    def test_l2_gateway_with_multiple_devices_multiple_vlans(self):
+        """
+        Create l2gw based on UUID and bridge cluster name. It creates l2gw.
+        To create l2gw we need bridge cluster name (interface name) and
+        bridge cluster UUID (device name) from NSX manager and vlan id.
+        """
+        LOG.info(_LI("Testing l2_gateway_create api with segmentation ID"))
+        cluster_info = self.nsx_bridge_cluster_info()
+        device_name_1, interface_name_1 = cluster_info[0][0], cluster_info[
+            0][1]
+        device_name_2, interface_name_2 = cluster_info[1][0], cluster_info[
+            1][1]
+        l2gw_name = data_utils.rand_name(constants.L2GW)
+        device_1 = {"dname": device_name_1, "iname": interface_name_1,
+                    "vlans": [self.VLAN_1, self.VLAN_2]}
+        device_2 = {"dname": device_name_2, "iname": interface_name_2,
+                    "vlans": [self.VLAN_1, self.VLAN_2]}
+        l2gw_param_1 = [device_1, device_2]
+        # l2gw
+        rsp, requested_devices = self.create_l2gw(l2gw_name, l2gw_param_1)
+        # Assert if create fails.
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_201,
+                         rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code": constants.EXPECTED_HTTP_RESPONSE_201})
+        self.assertEqual(requested_devices[0]["device_name"],
+                         rsp[constants.L2GW]["devices"][0]["device_name"],
+                         "Device name is not same as expected")
+        self.assertEqual(
+            yaml.safe_load(
+                jsonutils.dumps(requested_devices[0]["interfaces"][0][
+                                    "name"])),
+            yaml.safe_load(jsonutils.dumps(
+                rsp[constants.L2GW]["devices"][0]["interfaces"][0]["name"])),
+            "Interface name is not same as expected")
+        requested_vlans = \
+            requested_devices[0]["interfaces"][0]["segmentation_id"]
+        response_vlans = yaml.safe_load(
+            jsonutils.dumps(rsp[constants.L2GW]["devices"][0]["interfaces"][0][
+                                "segmentation_id"]))
+        for id in requested_vlans:
+            self.assertIn(id, response_vlans)
         self.resource_cleanup()
 
     @test.attr(type="nsxv3")
@@ -236,15 +254,27 @@ class L2GatewayTest(base.BaseAdminNetworkTest):
         delete l2gw we need l2gw id.
         """
         LOG.info(_LI("Testing l2_gateway_delete api"))
-        device_name, interface_name = self.nsx_bridge_cluster_info()
+        cluster_info = self.nsx_bridge_cluster_info()
+        device_name, interface_name = cluster_info[0][0], cluster_info[0][1]
         l2gw_name = data_utils.rand_name(constants.L2GW)
-        devices = {"devices": [{"device_name": device_name,
-                                "interfaces": [{"name": interface_name}]}]
-                   }
-        # Creating l2gw.
-        self.operate_l2gw(name=l2gw_name, devices=devices, task="create")
-        # Deleting already created l2gw.
-        self.operate_l2gw(name=l2gw_name, devices=devices, task="delete")
+        device_1 = {"dname": device_name, "iname": interface_name}
+        l2gw_param = [device_1]
+        # Create l2gw to delete it.
+        rsp, requested_devices = self.create_l2gw(l2gw_name, l2gw_param)
+        # Assert if create fails.
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_201,
+                         rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code":
+                                 constants.EXPECTED_HTTP_RESPONSE_201})
+        l2gw_id = rsp[constants.L2GW]["id"]
+        # Delete l2gw.
+        rsp = self.delete_l2gw(l2gw_id)
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_204,
+                         rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code": constants.EXPECTED_HTTP_RESPONSE_204})
+        self.l2gw_created.pop(l2gw_id)
         self.resource_cleanup()
 
     @test.attr(type="nsxv3")
@@ -255,16 +285,38 @@ class L2GatewayTest(base.BaseAdminNetworkTest):
         update l2gw we need l2gw id and payload to update.
         """
         LOG.info(_LI("Testing l2_gateway_update api"))
-        device_name, interface_name = self.nsx_bridge_cluster_info()
+        cluster_info = self.nsx_bridge_cluster_info()
+        device_name, interface_name = cluster_info[0][0], cluster_info[0][1]
         l2gw_name = data_utils.rand_name(constants.L2GW)
+        device_1 = {"dname": device_name, "iname": interface_name}
+        l2gw_param = [device_1]
+        # Create l2gw to update l2gw name.
+        rsp, requested_devices = self.create_l2gw(l2gw_name, l2gw_param)
+        # Assert if create fails.
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_201,
+                         rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code":
+                                 constants.EXPECTED_HTTP_RESPONSE_201})
         devices = {"devices": [{"device_name": device_name,
                                 "interfaces": [{"name": interface_name}]}]
                    }
-        # Creating l2gw.
-        self.operate_l2gw(name=l2gw_name, devices=devices, task="create")
-        # Updating already created l2gw with new l2gw name.
-        self.operate_l2gw(name=l2gw_name + "_updated", devices=devices,
-                          task="update")
+        l2gw_id = rsp[constants.L2GW]["id"]
+        l2gw_new_name = "updated_name"
+        # Update l2gw name.
+        update_rsp = self.update_l2gw(l2gw_id, l2gw_new_name, devices)
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_200,
+                         update_rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code":
+                                 constants.EXPECTED_HTTP_RESPONSE_200})
+        rsp_l2gw = update_rsp[constants.L2GW]
+        LOG.info(_LI("response : %(rsp_l2gw)s") % {"rsp_l2gw": rsp_l2gw})
+        # Assert if name is not updated.
+        self.assertEqual(l2gw_new_name, rsp_l2gw["name"],
+                         "l2gw name=%(rsp_name)s is not the same as "
+                         "requested=%(name)s" % {"rsp_name": rsp_l2gw["name"],
+                                                 "name": l2gw_new_name})
         self.resource_cleanup()
 
     @test.attr(type="nsxv3")
@@ -275,26 +327,42 @@ class L2GatewayTest(base.BaseAdminNetworkTest):
         update l2gw we need l2gw id and payload to update.
         """
         LOG.info(_LI("Testing l2_gateway_update api"))
-        device_name, interface_name = self.nsx_bridge_cluster_info()
+        cluster_info = self.nsx_bridge_cluster_info()
+        device_name, interface_name = cluster_info[0][0], cluster_info[0][1]
         l2gw_name = data_utils.rand_name(constants.L2GW)
-        devices = {"devices": [{"device_name": device_name,
-                                "interfaces": [{"name": interface_name}]}]
-                   }
-        # Creating l2gw.
-        self.operate_l2gw(name=l2gw_name, devices=devices, task="create")
-        # Updating Interfaces.
+        device_1 = {"dname": device_name, "iname": interface_name}
+        l2gw_param = [device_1]
+        # Create l2gw to update l2gw name.
+        rsp, requested_devices = self.create_l2gw(l2gw_name, l2gw_param)
+        # Assert if create fails.
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_201,
+                         rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code":
+                                 constants.EXPECTED_HTTP_RESPONSE_201})
         devices = {"devices": [
             {"device_name": device_name,
 
              "interfaces": [{"name": "new_name",
-                             "segmentation_id": [
-                                 self.VLAN_1]}],
-             "deleted_interfaces": [
-                 {"name": interface_name}]}
-        ]
-        }
-        # Updating already created l2gw with new interface.
-        self.operate_l2gw(name=l2gw_name, devices=devices, task="update")
+                             "segmentation_id": [self.VLAN_1]}],
+             "deleted_interfaces": [{"name": interface_name}]}
+        ]}
+        l2gw_id = rsp[constants.L2GW]["id"]
+        update_rsp = self.update_l2gw(l2gw_id, l2gw_name, devices)
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_200,
+                         update_rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code":
+                                 constants.EXPECTED_HTTP_RESPONSE_200})
+        rsp_l2gw = update_rsp[constants.L2GW]
+        self.l2gw_created[rsp_l2gw["id"]] = rsp_l2gw
+        LOG.info(_LI("response : %(rsp_l2gw)s") % {"rsp_l2gw": rsp_l2gw})
+        if "segmentation_id" in devices["devices"][0]["interfaces"][0]:
+            self.assertEqual(devices["devices"][0]["interfaces"][0][
+                                 "segmentation_id"][0],
+                             rsp_l2gw["devices"][0]["interfaces"][0][
+                                 "segmentation_id"][0],
+                             "L2GW segmentation id update failed!!!")
         self.resource_cleanup()
 
     @test.attr(type="nsxv3")
@@ -304,18 +372,77 @@ class L2GatewayTest(base.BaseAdminNetworkTest):
         show l2gw based on UUID. To see l2gw info we need l2gw id.
         """
         LOG.info(_LI("Testing l2_gateway_show api"))
-        device_name, interface_name = self.nsx_bridge_cluster_info()
+        cluster_info = self.nsx_bridge_cluster_info()
+        device_name, interface_name = cluster_info[0][0], cluster_info[0][1]
         l2gw_name = data_utils.rand_name(constants.L2GW)
-        devices = {"devices": [
-            {"device_name": device_name,
-             "interfaces": [{"name": interface_name,
-                             "segmentation_id": [
-                                 self.VLAN_1,
-                                 self.VLAN_2]}]
-             }]
-        }
-        # Creating l2gw.
-        self.operate_l2gw(name=l2gw_name, devices=devices, task="create")
-        # Show already created l2gw with l2gw id.
-        self.operate_l2gw(name=l2gw_name, devices=devices, task="show")
+        device_1 = {"dname": device_name, "iname": interface_name,
+                    "vlans": [self.VLAN_1, self.VLAN_2]}
+        l2gw_param = [device_1]
+        rsp, requested_devices = self.create_l2gw(l2gw_name, l2gw_param)
+        # Assert if create fails.
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_201,
+                         rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code": constants.EXPECTED_HTTP_RESPONSE_201})
+        l2gw_id = rsp[constants.L2GW]["id"]
+        l2gw_id = str(l2gw_id)
+        show_rsp = self.l2gw_client.show_l2_gateway(l2gw_id)
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_200,
+                         show_rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code":
+                                 constants.EXPECTED_HTTP_RESPONSE_200})
+        show_rsp = show_rsp[constants.L2GW]["devices"]
+        rsp = rsp[constants.L2GW]["devices"]
+        self.assertEqual(rsp[0]["device_name"],
+                         show_rsp[0]["device_name"],
+                         "Device name is not same as expected")
+        self.assertEqual(
+            yaml.safe_load(
+                jsonutils.dumps(rsp[0]["interfaces"][0]["name"])),
+            yaml.safe_load(jsonutils.dumps(
+                show_rsp[0]["interfaces"][0]["name"])),
+            "Interface name is not same as expected")
+        requested_vlans = \
+            rsp[0]["interfaces"][0]["segmentation_id"]
+        response_vlans = yaml.safe_load(
+            jsonutils.dumps(show_rsp[0]["interfaces"][0]["segmentation_id"]))
+        for id in requested_vlans:
+            self.assertIn(id, response_vlans)
+        self.resource_cleanup()
+
+    @test.attr(type="nsxv3")
+    @test.idempotent_id("d4a7d3af-e637-45c5-a967-d179153a6e58")
+    def test_l2_gateway_list(self):
+        """
+        list created l2gw.
+        """
+        LOG.info(_LI("Testing l2_gateway_list api"))
+        cluster_info = self.nsx_bridge_cluster_info()
+        device_name, interface_name = cluster_info[0][0], cluster_info[0][1]
+        l2gw_name = data_utils.rand_name(constants.L2GW)
+        device_1 = {"dname": device_name, "iname": interface_name,
+                    "vlans": [self.VLAN_1]}
+        l2gw_param = [device_1]
+        l2gw_rsp, requested_devices = self.create_l2gw(l2gw_name, l2gw_param)
+        # Assert if create fails.
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_201,
+                         l2gw_rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code": constants.EXPECTED_HTTP_RESPONSE_201})
+        list_rsp = self.l2gw_client.list_l2_gateways()
+        self.assertEqual(constants.EXPECTED_HTTP_RESPONSE_200,
+                         list_rsp.response["status"],
+                         "Response code is not %(code)s" % {
+                             "code":
+                                 constants.EXPECTED_HTTP_RESPONSE_200})
+        for l2gw in list_rsp[constants.L2GWS]:
+            if l2gw["id"] == l2gw_rsp[constants.L2GW]["id"]:
+                list_rsp = l2gw
+                l2gw_rsp = l2gw_rsp[constants.L2GW]
+                break
+        list_rsp = yaml.safe_load(jsonutils.dumps(list_rsp))
+        l2gw_rsp = yaml.safe_load(jsonutils.dumps(l2gw_rsp))
+        self.assertEqual(l2gw_rsp, list_rsp, "L2GW create response and L2GW "
+                                             "list response does not match.")
         self.resource_cleanup()
