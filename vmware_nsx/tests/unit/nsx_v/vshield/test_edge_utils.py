@@ -22,6 +22,7 @@ from neutron import context
 from neutron.plugins.common import constants as plugin_const
 from neutron.tests.unit import testlib_api
 from neutron_lib import exceptions as n_exc
+from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import nsxv_constants
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.plugins.nsx_v.vshield.common import (
@@ -120,8 +121,44 @@ class EdgeDHCPManagerTestCase(EdgeUtilsTestCaseMixin):
 
 class EdgeUtilsTestCase(EdgeUtilsTestCaseMixin):
 
+    def setUp(self):
+        super(EdgeUtilsTestCase, self).setUp()
+        self.edge_manager = edge_utils.EdgeManager(self.nsxv_manager, None)
+
+        # Args for vcns interface configuration
+        self.internal_ip = '10.0.0.1'
+        self.uplink_ip = '192.168.111.30'
+        self.subnet_mask = '255.255.255.0'
+        self.edge_id = 'dummy'
+        self.orig_vnics = ({},
+                           {'vnics': [
+                                {'addressGroups':
+                                    {'addressGroups': [
+                                        {'subnetMask': self.subnet_mask,
+                                         'primaryAddress': self.uplink_ip}]},
+                                 'type': 'uplink',
+                                 'index': 1},
+                                {'addressGroups':
+                                    {'addressGroups': [
+                                        {'subnetMask': self.subnet_mask,
+                                         'primaryAddress': self.internal_ip}]},
+                                 'type': 'internal',
+                                 'index': 2}]}
+                           )
+
+        # Args for vcns vdr interface configuration
+        self.vdr_ip = '10.0.0.1'
+        self.vnic = 1
+        self.orig_vdr = ({},
+                         {'index': 2,
+                          'addressGroups': {'addressGroups':
+                                [{'subnetMask': self.subnet_mask,
+                                  'primaryAddress': self.vdr_ip}]},
+                          'type': 'internal'})
+
     def test_create_lrouter(self):
         lrouter = self._create_router()
+        self.nsxv_manager.deploy_edge.reset_mock()
         edge_utils.create_lrouter(self.nsxv_manager, self.ctx, lrouter,
                                   lswitch=None, dist=False)
         self.nsxv_manager.deploy_edge.assert_called_once_with(
@@ -132,6 +169,92 @@ class EdgeUtilsTestCase(EdgeUtilsTestCaseMixin):
                      'lswitch': None,
                      'context': self.ctx},
             appliance_size=vcns_const.SERVICE_SIZE_MAPPING['router'])
+
+    def _test_update_intereface_primary_addr(self, old_ip, new_ip, isUplink):
+        fixed_vnic = {'addressGroups':
+                      {'addressGroups': [
+                              {'subnetMask': self.subnet_mask,
+                               'primaryAddress': new_ip}] if new_ip else []},
+                      'type': 'uplink' if isUplink else 'internal',
+                      'index': 1 if isUplink else 2}
+
+        with mock.patch.object(self.nsxv_manager.vcns,
+            'get_interfaces', return_value=self.orig_vnics):
+            self.edge_manager.update_interface_primary_addr(
+                self.ctx, self.edge_id, old_ip, new_ip,
+                self.subnet_mask, is_uplink=isUplink)
+            self.nsxv_manager.vcns.update_interface.assert_called_once_with(
+                self.edge_id, fixed_vnic)
+
+    def test_update_interface_primary_addr_intrernal(self):
+        self._test_update_intereface_primary_addr(
+            self.internal_ip, '10.0.0.2', False)
+
+    def test_remove_interface_primary_addr_intrernal(self):
+        self._test_update_intereface_primary_addr(
+            self.internal_ip, None, False)
+
+    def test_update_interface_primary_addr_uplink(self):
+        self._test_update_intereface_primary_addr(
+            self.uplink_ip, '192.168.111.31', True)
+
+    def test_remove_interface_primary_addr_uplink(self):
+        self._test_update_intereface_primary_addr(
+            self.uplink_ip, None, True)
+
+    def test_update_interface_primary_addr_fail(self):
+        # Old ip is not configured on the interface, so we should fail
+        old_ip = '192.168.111.32'
+        new_ip = '192.168.111.31'
+
+        with mock.patch.object(self.nsxv_manager.vcns,
+            'get_interfaces', return_value=self.orig_vnics):
+            self.assertRaises(
+                nsx_exc.NsxPluginException,
+                self.edge_manager.update_interface_primary_addr,
+                self.ctx, self.edge_id, old_ip, new_ip,
+                self.subnet_mask, is_uplink=True)
+
+    def _test_update_vdr_intereface_primary_addr(self, old_ip,
+                                                 new_ip, isUplink):
+        fixed_vnic = {'addressGroups':
+                      {'addressGroups': [
+                              {'subnetMask': self.subnet_mask,
+                               'primaryAddress': new_ip}] if new_ip else []},
+                      'type': 'uplink' if isUplink else 'internal',
+                      'index': 1 if isUplink else 2}
+
+        with mock.patch.object(self.nsxv_manager.vcns,
+            'get_vdr_internal_interface', return_value=self.orig_vdr):
+            with mock.patch.object(self.nsxv_manager.vcns,
+                'update_vdr_internal_interface') as vcns_update:
+                self.edge_manager.update_vdr_interface_primary_addr(
+                    self.ctx, self.edge_id, self.vnic, old_ip, new_ip,
+                    self.subnet_mask, is_uplink=isUplink)
+                vcns_update.assert_called_once_with(self.edge_id,
+                                                    self.vnic,
+                                                    {'interface': fixed_vnic})
+
+    def test_update_vdr_interface_primary_addr_intrernal(self):
+        self._test_update_vdr_intereface_primary_addr(
+            self.vdr_ip, '20.0.0.2', False)
+
+    def test_remove_vdr_interface_primary_addr_intrernal(self):
+        self._test_update_vdr_intereface_primary_addr(
+            self.vdr_ip, None, False)
+
+    def test_update_vdr_interface_primary_addr_fail(self):
+        # Old ip is not configured on the vdr interface, so we should fail
+        old_ip = '192.168.111.32'
+        new_ip = '192.168.111.31'
+
+        with mock.patch.object(self.nsxv_manager.vcns,
+            'get_vdr_internal_interface', return_value=self.orig_vdr):
+            self.assertRaises(
+                nsx_exc.NsxPluginException,
+                self.edge_manager.update_vdr_interface_primary_addr,
+                self.ctx, self.edge_id, self.vnic, old_ip, new_ip,
+                self.subnet_mask, is_uplink=True)
 
 
 class EdgeManagerTestCase(EdgeUtilsTestCaseMixin):
