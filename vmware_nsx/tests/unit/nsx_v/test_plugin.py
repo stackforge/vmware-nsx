@@ -51,6 +51,8 @@ from vmware_nsx.db import nsxv_db
 from vmware_nsx.extensions import routersize as router_size
 from vmware_nsx.extensions import routertype as router_type
 from vmware_nsx.extensions import vnicindex as ext_vnic_idx
+from vmware_nsx.plugins.nsx_v.drivers import (
+    shared_router_driver as router_driver)
 from vmware_nsx.plugins.nsx_v.vshield.common import constants as vcns_const
 from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 from vmware_nsx.tests import unit as vmware
@@ -970,6 +972,100 @@ class TestPortsV2(NsxVPluginV2TestCase,
                 self.assertEqual(ips[0]['ip_address'], '10.0.0.10')
                 self.assertEqual(ips[0]['subnet_id'], subnet['subnet']['id'])
 
+    def test_update_port_update_ip_dhcp(self):
+        #Test that updating a port IP fails if the device owner is DHCP
+        with self.subnet(enable_dhcp=False) as subnet:
+            with self.port(subnet=subnet,
+                           device_owner=constants.DEVICE_OWNER_DHCP) as port:
+                data = {'port': {'fixed_ips': [{'subnet_id':
+                                                subnet['subnet']['id'],
+                                                'ip_address': "10.0.0.10"}]}}
+                plugin = manager.NeutronManager.get_plugin()
+                self.assertRaises(n_exc.BadRequest,
+                                  plugin.update_port,
+                                  context.get_admin_context(),
+                                  port['port']['id'], data)
+
+    def test_update_port_update_ip_compute(self):
+        #Test that updating a port IP succeed if the device owner starts
+        #with compute.
+        owner = constants.DEVICE_OWNER_COMPUTE_PREFIX + 'xxx'
+        with self.subnet(enable_dhcp=False) as subnet:
+            with self.port(subnet=subnet, device_id=_uuid(),
+                           device_owner=owner) as port:
+                data = {'port': {'fixed_ips': [{'subnet_id':
+                                                subnet['subnet']['id'],
+                                                'ip_address': "10.0.0.10"}]}}
+                plugin = manager.NeutronManager.get_plugin()
+                ctx = context.get_admin_context()
+                with mock.patch.object(
+                    plugin.edge_manager,
+                    'update_dhcp_edge_bindings') as update_dhcp:
+                    plugin.update_port(ctx, port['port']['id'], data)
+                    net_id = port['port']['network_id']
+                    update_dhcp.assert_called_once_with(ctx, net_id)
+
+    def test_update_port_update_ip_router(self):
+        #Test that updating a port IP succeed if the device owner is a router
+        owner = constants.DEVICE_OWNER_ROUTER_GW
+        router_id = _uuid()
+        old_ip = '10.0.0.3'
+        new_ip = '10.0.0.10'
+        with self.subnet(enable_dhcp=False) as subnet:
+            with self.port(subnet=subnet, device_id=router_id,
+                           device_owner=owner,
+                           fixed_ips=[{'ip_address': old_ip}]) as port:
+                data = {'port': {'fixed_ips': [{'subnet_id':
+                                                subnet['subnet']['id'],
+                                                'ip_address': new_ip}]}}
+                plugin = manager.NeutronManager.get_plugin()
+                ctx = context.get_admin_context()
+                router_obj = router_driver.RouterSharedDriver(plugin)
+                with mock.patch.object(plugin, '_find_router_driver',
+                                       return_value=router_obj):
+                    with mock.patch.object(
+                        router_obj,
+                        'update_router_interface_ip') as update_router:
+                        port_id = port['port']['id']
+                        plugin.update_port(ctx, port_id, data)
+                        net_id = port['port']['network_id']
+                        update_router.assert_called_once_with(
+                            ctx,
+                            router_id,
+                            port_id,
+                            net_id,
+                            old_ip,
+                            new_ip, "255.255.255.0")
+
+    def test_update_port_delete_ip_router(self):
+        #Test that deleting a port IP succeed if the device owner is a router
+        owner = constants.DEVICE_OWNER_ROUTER_GW
+        router_id = _uuid()
+        old_ip = '10.0.0.3'
+        with self.subnet(enable_dhcp=False) as subnet:
+            with self.port(subnet=subnet, device_id=router_id,
+                           device_owner=owner,
+                           fixed_ips=[{'ip_address': old_ip}]) as port:
+                data = {'port': {'fixed_ips': []}}
+                plugin = manager.NeutronManager.get_plugin()
+                ctx = context.get_admin_context()
+                router_obj = router_driver.RouterSharedDriver(plugin)
+                with mock.patch.object(plugin, '_find_router_driver',
+                                       return_value=router_obj):
+                    with mock.patch.object(
+                        router_obj,
+                        'update_router_interface_ip') as update_router:
+                        port_id = port['port']['id']
+                        plugin.update_port(ctx, port_id, data)
+                        net_id = port['port']['network_id']
+                        update_router.assert_called_once_with(
+                            ctx,
+                            router_id,
+                            port_id,
+                            net_id,
+                            old_ip,
+                            None, None)
+
     def test_update_port_update_ip_address_only(self):
         with self.subnet(enable_dhcp=False) as subnet:
             with self.port(subnet=subnet) as port:
@@ -990,6 +1086,9 @@ class TestPortsV2(NsxVPluginV2TestCase,
                 self.assertEqual(ips[0]['subnet_id'], subnet['subnet']['id'])
                 self.assertEqual(ips[1]['ip_address'], '10.0.0.10')
                 self.assertEqual(ips[1]['subnet_id'], subnet['subnet']['id'])
+
+    def test_update_dhcp_port_with_exceeding_fixed_ips(self):
+        self.skipTest('Updating dhcp port IP is not supported')
 
     def test_requested_subnet_id_v4_and_v6_slaac(self):
         self.skipTest('No DHCP v6 Support yet')
@@ -2356,6 +2455,22 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
                 body = self._show('routers', router_id)
                 self.assertEqual('shared', body['router']['router_type'])
 
+    @mock.patch.object(edge_utils.EdgeManager,
+                       'update_interface_primary_addr')
+    def test_router_update_gateway_with_different_external_subnet(self, mock):
+        # This test calls the backend, so we need a mock for the edge_utils
+        super(
+            TestExclusiveRouterTestCase,
+            self).test_router_update_gateway_with_different_external_subnet()
+
+    @mock.patch.object(edge_utils.EdgeManager,
+                       'update_interface_primary_addr')
+    def test_router_add_interface_multiple_ipv6_subnets_same_net(self, mock):
+        # This test calls the backend, so we need a mock for the edge_utils
+        super(
+            TestExclusiveRouterTestCase,
+            self).test_router_add_interface_multiple_ipv6_subnets_same_net()
+
 
 class ExtGwModeTestCase(NsxVPluginV2TestCase,
                         test_ext_gw_mode.ExtGwModeIntTestCase):
@@ -2515,6 +2630,14 @@ class TestVdrTestCase(L3NatTest, L3NatTestCaseBase,
                       test_l3_plugin.L3NatDBIntTestCase,
                       IPv6ExpectedFailuresTestMixin,
                       NsxVPluginV2TestCase):
+
+    @mock.patch.object(edge_utils.EdgeManager,
+                       'update_interface_primary_addr')
+    def test_router_update_gateway_with_different_external_subnet(self, mock):
+        # This test calls the backend, so we need a mock for the edge_utils
+        super(
+            TestVdrTestCase,
+            self).test_router_update_gateway_with_different_external_subnet()
 
     def test_floatingip_multi_external_one_internal(self):
         self.skipTest('skipped')
@@ -2780,6 +2903,12 @@ class TestSharedRouterTestCase(L3NatTest, L3NatTestCaseBase,
                 '', tenant_id)
 
         return router_req.get_response(self.ext_api)
+
+    @mock.patch.object(edge_utils.EdgeManager,
+                       'update_interface_primary_addr')
+    def test_router_add_interface_multiple_ipv6_subnets_same_net(self, mock):
+        super(TestSharedRouterTestCase,
+              self).test_router_add_interface_multiple_ipv6_subnets_same_net()
 
     def test_router_create_with_no_edge(self):
         name = 'router1'
