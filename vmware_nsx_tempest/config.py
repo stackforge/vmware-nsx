@@ -54,8 +54,6 @@ NetworkGroup = [
     cfg.StrOpt('host_in_search_domain',
                default='mail',
                help="host exists in dns_search_domain"),
-    cfg.StrOpt('external_network_cidr',
-               help="external network cidr"),
 ]
 
 nsxv_group = cfg.OptGroup(name='nsxv',
@@ -117,6 +115,22 @@ L2gwGroup = [
     cfg.StrOpt('vlan_2',
                default="17",
                help="VLAN id"),
+    cfg.StrOpt("subnet_1_network",
+               default="192.168.1.0/24",
+               help="Subnet 1 network with cidr."
+                    "Example: 1.1.1.0/24"),
+    cfg.StrOpt("subnet_1_start",
+               default="192.168.1.200",
+               help="Subnet 1 IP range start IP address."),
+    cfg.StrOpt("subnet_1_end",
+               default="192.168.1.250",
+               help="Subnet 1 IP range end IP address."),
+    cfg.StrOpt("subnet_1_ip_version",
+               default="4",
+               help="IP version. 4 or 6."),
+    cfg.StrOpt("subnet_1_mask",
+               default="24",
+               help="Subnet Ip address mask"),
 ]
 
 nsxv3_group = cfg.OptGroup(name='nsxv3',
