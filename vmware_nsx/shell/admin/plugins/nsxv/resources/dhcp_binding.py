@@ -25,7 +25,7 @@ import vmware_nsx.shell.nsxadmin as shell
 from neutron.callbacks import registry
 from neutron.db import db_base_plugin_v2
 
-from vmware_nsx._i18n import _LE, _LI
+from vmware_nsx._i18n import _, _LE, _LI
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
