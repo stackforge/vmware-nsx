@@ -1935,6 +1935,33 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         super(NsxV3Plugin, self).disassociate_floatingips(
             context, port_id, do_notify=False)
 
+    def _ensure_default_security_group(self, context, tenant_id):
+        # NOTE(arosen): if in replay mode we'll create all the default
+        # security groups for the user with their data so we don't
+        # want this to be called.
+        if (cfg.CONF.nsx_v3.api_replay_mode is False):
+            super(NsxV3Plugin, self)._ensure_default_security_group(context,
+                                                                    tenant_id)
+
+    def _stub__validate_name_not_default(self):
+        # NOTE(arosen): if in replay mode we need stub out this validator to
+        # all default security groups to be created via the api
+        if cfg.CONF.nsx_v3.api_replay_mode:
+            def _pass(data, foo=None):
+                pass
+            ext_sg.validators.validators['type:name_not_default'] = _pass
+
+    def get_security_groups(self, context, filters=None, fields=None,
+                            sorts=None, limit=None,
+                            marker=None, page_reverse=False, default_sg=False):
+
+        self._stub__validate_name_not_default()
+        return super(NsxV3Plugin, self).get_security_groups(
+                context, filters=filters, fields=fields,
+                sorts=sorts, limit=limit,
+                marker=marker, page_reverse=page_reverse,
+                default_sg=default_sg)
+
     def create_security_group(self, context, security_group, default_sg=False):
         secgroup = security_group['security_group']
         secgroup['id'] = secgroup.get('id') or uuidutils.generate_uuid()
