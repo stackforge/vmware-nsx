@@ -465,7 +465,7 @@ def add_nsxv_edge_firewallrule_binding(session, map_info):
     with session.begin(subtransactions=True):
         binding = nsxv_models.NsxvEdgeFirewallRuleBinding(
             rule_id=map_info['rule_id'],
-            rule_vseid=map_info['rule_vseid'],
+            rule_vse_id=map_info['rule_vseid'],
             edge_id=map_info['edge_id'])
         session.add(binding)
     return binding
