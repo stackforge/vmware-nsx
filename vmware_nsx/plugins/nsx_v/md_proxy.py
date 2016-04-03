@@ -66,7 +66,11 @@ def get_router_fw_rules():
             'name': 'MDServiceIP',
             'enabled': True,
             'action': 'allow',
-            'destination_ip_address': [METADATA_IP_ADDR]
+            'destination_ip_address': [METADATA_IP_ADDR],
+            'protocol': 'tcp',
+            'destination_port': (str(METADATA_TCP_PORT) + ',' +
+                                 str(METADATA_HTTPS_PORT) + ',' +
+                                 str(METADATA_HTTPS_VIP_PORT))
         },
         {
             'name': 'MDInterEdgeNet',
