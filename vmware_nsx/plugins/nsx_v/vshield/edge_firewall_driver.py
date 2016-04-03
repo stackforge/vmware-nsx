@@ -64,13 +64,24 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
         else:
             return '%d:%d' % (min_port, max_port)
 
-    def _get_min_max_ports_from_range(self, port_range):
-        if not port_range:
-            return [None, None]
-        min_port, sep, max_port = port_range.partition(":")
-        if not max_port:
-            max_port = min_port
-        return [int(min_port), int(max_port)]
+    def _get_ports_array_from_string(self, port_str):
+        """Receives a string representation of the service ports,
+        and return a list of integers
+        Supported formats:
+        Empty string - no ports
+        "number" - a single port
+        "num1:num2" - a range
+        "num1,num2,num3" - a list
+        """
+        if not port_str:
+            return []
+        if ':' in port_str:
+            min_port, sep, max_port = port_str.partition(":")
+            return [i for i in range(int(min_port), int(max_port) + 1)]
+        if ',' in port_str:
+            return [int(port) for port in port_str.split(',')]
+        else:
+            return [int(port_str)]
 
     def _convert_firewall_rule(self, context, rule, index=None):
         vcns_rule = {
@@ -100,13 +111,11 @@ class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
             vcns_rule['application'] = rule['application']
         service = {}
         if rule.get('source_port'):
-            min_port, max_port = self._get_min_max_ports_from_range(
+            service['sourcePort'] = self._get_ports_array_from_string(
                 rule['source_port'])
-            service['sourcePort'] = [i for i in range(min_port, max_port + 1)]
         if rule.get('destination_port'):
-            min_port, max_port = self._get_min_max_ports_from_range(
+            service['port'] = self._get_ports_array_from_string(
                 rule['destination_port'])
-            service['port'] = [i for i in range(min_port, max_port + 1)]
         if rule.get('protocol'):
             service['protocol'] = rule['protocol']
             if rule['protocol'] == 'icmp':
