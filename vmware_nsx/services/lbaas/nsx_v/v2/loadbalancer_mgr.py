@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from neutron_lib import exceptions as n_exc
 from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
 from oslo_utils import excutils
@@ -36,6 +37,11 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
         try:
             edge_id = lb_common.get_lbaas_edge_id_for_subnet(
                 context, self.core_plugin, lb.vip_subnet_id, lb.tenant_id)
+
+            if not edge_id:
+                msg = _(
+                    'No suitable Edge found for subnet %s') % lb.vip_subnet_id
+                raise n_exc.BadRequest(resource='edge-lbaas', msg=msg)
 
             if not nsxv_db.get_nsxv_lbaas_loadbalancer_binding_by_edge(
                     context.session, edge_id):
