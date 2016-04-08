@@ -171,7 +171,8 @@ def nsx_fix_name_mismatch(resource, event, trigger, **kwargs):
                             edge['name'] = ('shared-' + _uuid())[
                                            :vcns_const.EDGE_NAME_LEN]
                         elif (nsx_attr
-                              and nsx_attr['router_type'] == 'exclusive'):
+                              and nsx_attr['router_type'] in ['distributed',
+                                                              'exclusive']):
                             rtr_db = (edgeapi.context.session.query(
                                 l3_db.Router).filter_by(
                                     id=rtr_binding['router_id']).first())
@@ -210,7 +211,7 @@ def nsx_fix_name_mismatch(resource, event, trigger, **kwargs):
                         LOG.error(_LE("Update edge..."))
                         nsxv.update_edge(edge_id, edge)
                     except Exception as e:
-                        LOG.error(_LE("Update failed - %s"), (e))
+                        LOG.error(_LE("Update failed - %s"), str(e))
             except Exception as e:
                 LOG.error(_LE("%s"), str(e))
         else:
