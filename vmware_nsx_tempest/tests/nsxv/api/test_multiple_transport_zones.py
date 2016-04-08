@@ -139,7 +139,7 @@ class MultipleTransportZonesTest(base.BaseAdminNetworkTest):
         self.delete_network(net_id)
 
     def create_router_by_type(self, router_type, name=None, **kwargs):
-        router_client = self.admin_client
+        router_client = self.admin_manager.routers_client
         router_name = name or data_utils.rand_name('mtz-')
         create_kwargs = dict(name=router_name, external_gateway_info={
             "network_id": CONF.network.public_network_id})
@@ -167,20 +167,20 @@ class MultipleTransportZonesTest(base.BaseAdminNetworkTest):
             # and router can be deleted if test is aborted.
             self.addCleanup(
                 self._try_delete_resource,
-                router_client.remove_router_interface_with_subnet_id,
-                router['id'], subnet['id'])
-            router_client.add_router_interface_with_subnet_id(
+                router_client.remove_router_interface,
+                router['id'], subnet_id=subnet['id'])
+            router_client.add_router_interface(
                 router['id'], subnet_id=subnet['id'])
         return router
 
     def clear_router_gateway_and_interfaces(self, router, nets):
-        router_client = self.admin_client
+        router_client = self.admin_manager.routers_client
         router_client.update_router(router['id'],
                                     external_gateway_info=dict())
         for net_id, (s_id, network, subnet) in six.iteritems(nets):
             try:
-                router_client.remove_router_interface_with_subnet_id(
-                    router['id'], subnet['id'])
+                router_client.remove_router_interface(
+                    router['id'], subnet_id=subnet['id'])
             except Exception:
                 pass
 
