@@ -128,8 +128,8 @@ class TopoDeployScenarioManager(manager.NetworkScenarioTest):
     def _create_router(self, client_mgr=None, tenant_id=None,
                        namestart='topo-deploy', **kwargs):
         client_mgr = client_mgr or self.manager
-        router_client = client_mgr.network_client
-
+        router_client = (getattr(client_mgr, "routers_client", None) or
+                         client_mgr.network_client)
         if not tenant_id:
             tenant_id = router_client.tenant_id
         distributed = kwargs.pop('distributed', None)
@@ -144,6 +144,7 @@ class TopoDeployScenarioManager(manager.NetworkScenarioTest):
                                              tenant_id=tenant_id,
                                              **kwargs)
         router = net_resources.DeletableRouter(client=router_client,
+                                               routers_client=router_client,
                                                **result['router'])
         self.assertEqual(router.name, name)
         self.addCleanup(self.delete_wrapper, router.delete)

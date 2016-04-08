@@ -71,28 +71,25 @@ class DeletableRouter(n_resources.DeletableRouter):
     def add_interface(self, subnet):
         # should not let subnet add interface to router as
         # the router might be crated by admin.
-        """
-        self.client.add_router_interface_with_subnbet_id(
-            self.id, subnet_id=subnet.id)
-        """
-        x_method(self.client, 'add_router_interface_with_subnet_id',
-                 self.id, subnet_id=subnet.id)
+        try:
+            self.client.add_router_interface(
+                self.id, subnet_id=subnet.id)
+        except Exception:
+            x_method(self.client, 'add_router_interface_with_subnet_id',
+                     self.id, subnet_id=subnet.id)
         self._subnets.add(subnet)
 
     def delete_subnet(self, subnet):
         return self.delete_interface(subnet)
 
     def delete_interface(self, subnet):
-        """
-        self.client.remove_router_interface_with_subnet_id(
-            self.id, subnet_id=subnet.id)
-        """
-        x_method(self.client, 'remove_router_interface_with_subnet_id',
-                 self.id, subnet_id=subnet.id)
         try:
-            self._subnets.remove(subnet)
+            self.client.remove_router_interface(
+                self.id, subnet_id=subnet.id)
         except Exception:
-            pass
+            x_method(self.client, 'remove_router_interface_with_subnet_id',
+                     self.id, subnet_id=subnet.id)
+        self._subnets.remove(subnet)
 
     def update_extra_routes(self, nexthop, destination):
         return self.client.update_extra_routes(self.id, nexthop, destination)
