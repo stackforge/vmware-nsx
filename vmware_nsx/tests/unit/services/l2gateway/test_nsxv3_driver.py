@@ -22,6 +22,7 @@ from oslo_utils import importutils
 from oslo_utils import uuidutils
 
 from neutron import context
+from neutron import manager
 from neutron.tests import base
 
 from neutron_lib import exceptions as n_exc
@@ -50,7 +51,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         self.core_plugin = importutils.import_object(NSX_V3_PLUGIN_CLASS)
 
         self.driver = nsx_v3_driver.NsxV3Driver()
-        self.l2gw_plugin = l2gw_plugin.NsxL2GatewayPlugin()
+        self.l2gw_plugin = l2gw_plugin.NsxL2GatewayPlugin(mock.MagicMock())
         self.context = context.get_admin_context()
 
     def _get_nw_data(self):
