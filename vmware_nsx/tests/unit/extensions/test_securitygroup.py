@@ -14,9 +14,11 @@
 #    under the License.
 import mock
 
+from neutron import context
 from neutron.extensions import securitygroup as ext_sg
 from neutron.tests.unit.extensions import test_securitygroup as test_ext_sg
 
+from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 from vmware_nsx.nsxlib.v3 import security
 from vmware_nsx.plugins.nsx_v3 import plugin as nsx_plugin
@@ -156,6 +158,22 @@ class TestSecurityGroups(test_nsxv3.NsxV3PluginTestCaseMixin,
 
     def test_create_security_group_rule_icmpv6_legacy_protocol_name(self):
         self.skipTest('not supported')
+
+    @_mock_create_and_list_nsgroups
+    @mock.patch.object(firewall, 'delete_nsgroup')
+    @mock.patch.object(firewall, 'create_empty_section')
+    def test_create_secgroup_deleted_upon_fw_section_create_fail(
+            self, create_section_mock, delete_nsgroup_mock):
+
+        _context = context.Context('', 'tenant_id')
+        sg = {'security_group': {'name': 'default',
+                                 'tenant_id': 'tenant_id',
+                                 'description': ''}}
+        create_section_mock.side_effect = nsx_exc.ManagerError
+        self.assertRaises(nsx_exc.ManagerError,
+                          self.plugin.create_security_group,
+                          _context.elevated(), sg, default_sg=True)
+        delete_nsgroup_mock.assert_called_once_with(NSG_IDS[0])
 
 
 class TestNSGroupManager(nsxlib_testcase.NsxLibTestCase):

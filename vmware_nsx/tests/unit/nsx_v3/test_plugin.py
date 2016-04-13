@@ -81,7 +81,7 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
             return self.cluster
 
         self.mocked_rest_fns(
-            nsx_plugin.security.firewall, 'nsxclient',
+            nsx_plugin.security.firewall, 'nsxclient', mock_validate=False,
             mock_cluster=self.cluster)
         self.mocked_rest_fns(
             nsx_plugin.router.nsxlib, 'client', mock_cluster=self.cluster)
