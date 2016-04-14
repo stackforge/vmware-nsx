@@ -300,13 +300,14 @@ def trace_method_call(method):
         cls = first_arg if isinstance(first_arg, type) else first_arg.__class__
         data = {'class_name': _get_full_class_name(cls),
                 'method_name': method.__name__,
-                'id': uuidutils.generate_uuid()}
-        LOG.debug('[%(id)s] (%(class_name)s method %(method_name)s '
+                'id': uuidutils.generate_uuid(),
+                'args': args}
+        LOG.debug('[%(id)s] %(class_name)s method %(method_name)s '
                   'started...', data)
         start_time = time.time()
         res = method(*args, **kwargs)
-        data['time_taken'] = time.time() - start_time
-        LOG.debug('[%(id)s] (%(class_name)s method %(method_name)s '
-                  'completed in: %(time_taken)s', data)
+        data['time_taken'] = (time.time() - start_time) * 1000
+        LOG.debug('[%(id)s] %(class_name)s method %(method_name)s '
+                  'completed in: %(time_taken)d ms args [%(args)s]', data)
         return res
     return wrapper
