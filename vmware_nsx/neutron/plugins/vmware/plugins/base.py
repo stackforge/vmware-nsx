@@ -55,6 +55,7 @@ from neutron.extensions import portbindings as pbin
 from neutron.extensions import portsecurity as psec
 from neutron.extensions import providernet as pnet
 from neutron.extensions import securitygroup as ext_sg
+from neutron.openstack.common import uuidutils
 from neutron.plugins.common import constants as plugin_const
 from neutron.plugins.vmware.dbexts import nsx_models
 from neutron.plugins.vmware.extensions import maclearning as mac_ext
@@ -1857,6 +1858,8 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # in any case ensure the status is not reset by this method!
         return floatingip_db['status']
 
+    # NOTE(arosen): floatingip_db is outside of db tranaction at this point
+    # so one needs to open a new transaction to modify it.
     def _update_fip_assoc(self, context, fip, floatingip_db, external_port):
         """Update floating IP association data.
 
@@ -1949,25 +1952,115 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                    'internal_ip': internal_ip})
                     msg = _("Failed to update NAT rules for floatingip update")
                     raise nsx_exc.NsxPluginException(err_msg=msg)
-        # Update also floating ip status (no need to call base class method)
-        floatingip_db.update(
-            {'fixed_ip_address': internal_ip,
-             'fixed_port_id': port_id,
-             'router_id': router_id,
-             'status': self._floatingip_status(floatingip_db, router_id)})
 
+        with context.session.begin(subtransactions=True):
+            floatingip_db = self._get_floatingip(context, floatingip_db.id)
+            # Update also floating ip status
+            # (no need to call base class method)
+            floatingip_db.update(
+                {'fixed_ip_address': internal_ip,
+                'fixed_port_id': port_id,
+                'router_id': router_id,
+                'status': self._floatingip_status(floatingip_db, router_id)})
+
+    # NOTE(arosen): this method is exactly the same as the method
+    # in the l3_db base class except _update_fip_assoc() is done
+    # out side of the db transcation as this makes remote calls
+    # to nsx.
     @lockutils.synchronized('vmware', 'neutron-')
-    def create_floatingip(self, context, floatingip):
-        return super(NsxPluginV2, self).create_floatingip(context, floatingip)
+    def create_floatingip(self, context, floatingip,
+            initial_status=constants.FLOATINGIP_STATUS_ACTIVE):
+        fip = floatingip['floatingip']
+        tenant_id = self._get_tenant_id_for_create(context, fip)
+        fip_id = uuidutils.generate_uuid()
 
+        f_net_id = fip['floating_network_id']
+        if not self._core_plugin._network_is_external(context, f_net_id):
+            msg = _("Network %s is not a valid external network") % f_net_id
+            raise n_exc.BadRequest(resource='floatingip', msg=msg)
+
+        with context.session.begin(subtransactions=True):
+            # This external port is never exposed to the tenant.
+            # it is used purely for internal system and admin use when
+            # managing floating IPs.
+
+            port = {'tenant_id': '',  # tenant intentionally not set
+                    'network_id': f_net_id,
+                    'mac_address': attr.ATTR_NOT_SPECIFIED,
+                    'fixed_ips': attr.ATTR_NOT_SPECIFIED,
+                    'admin_state_up': True,
+                    'device_id': fip_id,
+                    'device_owner': constants.DEVICE_OWNER_FLOATINGIP,
+                    'status': constants.PORT_STATUS_NOTAPPLICABLE,
+                    'name': ''}
+
+            if fip.get('floating_ip_address'):
+                port['fixed_ips'] = [
+                    {'ip_address': fip['floating_ip_address']}]
+
+            external_port = self._core_plugin.create_port(context.elevated(),
+                                                          {'port': port})
+
+            # Ensure IP addresses are allocated on external port
+            if not external_port['fixed_ips']:
+                raise n_exc.ExternalIpAddressExhausted(net_id=f_net_id)
+
+            floating_fixed_ip = external_port['fixed_ips'][0]
+            floating_ip_address = floating_fixed_ip['ip_address']
+            floatingip_db = l3_db.FloatingIP(
+                id=fip_id,
+                tenant_id=tenant_id,
+                status=initial_status,
+                floating_network_id=fip['floating_network_id'],
+                floating_ip_address=floating_ip_address,
+                floating_port_id=external_port['id'])
+            fip['tenant_id'] = tenant_id
+            context.session.add(floatingip_db)
+
+        try:
+            # Update association with internal port
+            # and define external IP address
+            self._update_fip_assoc(context, fip,
+                                   floatingip_db, external_port)
+        except Exception:
+            with excutils.save_and_reraise_exception():
+                LOG.exception(_LE("error creating fip"))
+                self._delete_floating_ip_no_lock(context, floatingip_db.id)
+
+        return self._make_floatingip_dict(floatingip_db)
+
+    def _update_floatingip(self, context, id, floatingip):
+        fip = floatingip['floatingip']
+        with context.session.begin(subtransactions=True):
+            floatingip_db = self._get_floatingip(context, id)
+            old_floatingip = self._make_floatingip_dict(floatingip_db)
+            fip['tenant_id'] = floatingip_db['tenant_id']
+            fip['id'] = id
+            fip_port_id = floatingip_db['floating_port_id']
+        self._update_fip_assoc(context, fip, floatingip_db,
+                               self._core_plugin.get_port(
+                                    context.elevated(), fip_port_id))
+        return old_floatingip, self._make_floatingip_dict(floatingip_db)
+
+    # NOTE(arosen): this method is exactly the same as the method
+    # in the l3_db base class except _update_fip_assoc() is done
+    # out side of the db transcation as this makes remote calls
+    # to nsx.
     @lockutils.synchronized('vmware', 'neutron-')
     def update_floatingip(self, context, floatingip_id, floatingip):
-        return super(NsxPluginV2, self).update_floatingip(context,
-                                                          floatingip_id,
-                                                          floatingip)
+        _old_floatingip, floatingip = self._update_floatingip(
+            context, floatingip_id, floatingip)
+        return floatingip
 
     @lockutils.synchronized('vmware', 'neutron-')
     def delete_floatingip(self, context, id):
+        self._delete_floating_ip_no_lock(context, id)
+
+    def _delete_floating_ip_no_lock(self, context, id):
+        # NOTE(arosen): this method was added to avoid using
+        # the lockutils synchronized on delete_floatingip. This
+        # method is only used to delete a floatingip in a rollback
+        # case. In that case we will already be under a lock.
         fip_db = self._get_floatingip(context, id)
         # Check whether the floating ip is associated or not
         if fip_db.fixed_port_id:
