@@ -1,0 +1,9 @@
+Verified+1: VMware NSX CI
+Code-Review+2: Bo Lin <linb@vmware.com>
+Workflow+1: Bo Lin <linb@vmware.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Mon, 18 Apr 2016 20:08:43 +0000
+Reviewed-on: https://review.openstack.org/307133
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
