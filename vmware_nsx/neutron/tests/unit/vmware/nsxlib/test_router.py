@@ -603,7 +603,7 @@ class TestLogicalRouters(base.NsxlibTestCase):
                                                lrouter_port['uuid'],
                                                'whatwever', 'whatever')
 
-    def test_update_lrouter_port_ips_add_only(self):
+    def test_set_lrouter_port_ips(self):
         lrouter = routerlib.create_lrouter(self.fake_cluster,
                                            uuidutils.generate_uuid(),
                                            'pippo',
@@ -612,9 +612,9 @@ class TestLogicalRouters(base.NsxlibTestCase):
         lrouter_port = routerlib.create_router_lport(
             self.fake_cluster, lrouter['uuid'], 'pippo', 'neutron_port_id',
             'name', True, ['192.168.0.1'], '00:11:22:33:44:55')
-        routerlib.update_lrouter_port_ips(
+        routerlib.set_lrouter_port_ips(
             self.fake_cluster, lrouter['uuid'], lrouter_port['uuid'],
-            ['10.10.10.254'], [])
+            ['10.10.10.254', '192.168.0.1'])
         ports = routerlib.query_lrouter_lports(
             self.fake_cluster, lrouter['uuid'])
         self.assertEqual(len(ports), 1)
@@ -622,49 +622,12 @@ class TestLogicalRouters(base.NsxlibTestCase):
         self.assertEqual(['10.10.10.254', '192.168.0.1'],
                          res_port['ip_addresses'])
 
-    def test_update_lrouter_port_ips_remove_only(self):
-        lrouter = routerlib.create_lrouter(self.fake_cluster,
-                                           uuidutils.generate_uuid(),
-                                           'pippo',
-                                           'fake-lrouter',
-                                           '10.0.0.1')
-        lrouter_port = routerlib.create_router_lport(
-            self.fake_cluster, lrouter['uuid'], 'pippo', 'neutron_port_id',
-            'name', True, ['192.168.0.1', '10.10.10.254'],
-            '00:11:22:33:44:55')
-        routerlib.update_lrouter_port_ips(
-            self.fake_cluster, lrouter['uuid'], lrouter_port['uuid'],
-            [], ['10.10.10.254'])
-        ports = routerlib.query_lrouter_lports(
-            self.fake_cluster, lrouter['uuid'])
-        self.assertEqual(len(ports), 1)
-        res_port = ports[0]
-        self.assertEqual(['192.168.0.1'], res_port['ip_addresses'])
-
-    def test_update_lrouter_port_ips_add_and_remove(self):
-        lrouter = routerlib.create_lrouter(self.fake_cluster,
-                                           uuidutils.generate_uuid(),
-                                           'pippo',
-                                           'fake-lrouter',
-                                           '10.0.0.1')
-        lrouter_port = routerlib.create_router_lport(
-            self.fake_cluster, lrouter['uuid'], 'pippo', 'neutron_port_id',
-            'name', True, ['192.168.0.1'], '00:11:22:33:44:55')
-        routerlib.update_lrouter_port_ips(
-            self.fake_cluster, lrouter['uuid'], lrouter_port['uuid'],
-            ['10.10.10.254'], ['192.168.0.1'])
-        ports = routerlib.query_lrouter_lports(
-            self.fake_cluster, lrouter['uuid'])
-        self.assertEqual(len(ports), 1)
-        res_port = ports[0]
-        self.assertEqual(['10.10.10.254'], res_port['ip_addresses'])
-
-    def test_update_lrouter_port_ips_nonexistent_router_raises(self):
+    def test_set_lrouter_port_ips_nonexistent_router_raises(self):
         self.assertRaises(
-            nsx_exc.NsxPluginException, routerlib.update_lrouter_port_ips,
-            self.fake_cluster, 'boo-router', 'boo-port', [], [])
+            nsx_exc.NsxPluginException, routerlib.set_lrouter_port_ips,
+            self.fake_cluster, 'boo-router', 'boo-port', [])
 
-    def test_update_lrouter_port_ips_nsx_exception_raises(self):
+    def test_set_lrouter_port_ips_nsx_exception_raises(self):
         lrouter = routerlib.create_lrouter(self.fake_cluster,
                                            uuidutils.generate_uuid(),
                                            'pippo',
@@ -679,9 +642,9 @@ class TestLogicalRouters(base.NsxlibTestCase):
 
         with mock.patch.object(nsxlib, 'do_request', new=raise_nsx_exc):
             self.assertRaises(
-                nsx_exc.NsxPluginException, routerlib.update_lrouter_port_ips,
+                nsx_exc.NsxPluginException, routerlib.set_lrouter_port_ips,
                 self.fake_cluster, lrouter['uuid'],
-                lrouter_port['uuid'], [], [])
+                lrouter_port['uuid'], [])
 
     def test_plug_lrouter_port_patch_attachment(self):
         tenant_id = 'pippo'

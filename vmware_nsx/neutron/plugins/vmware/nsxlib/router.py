@@ -605,21 +605,15 @@ def query_nat_rules(cluster, router_id, fields="*", filters=None):
     return nsxlib.get_all_query_pages(uri, cluster)
 
 
-# NOTE(salvatore-orlando): The following FIXME applies in general to
-# each operation on list attributes.
-# FIXME(salvatore-orlando): need a lock around the list of IPs on an iface
-def update_lrouter_port_ips(cluster, lrouter_id, lport_id,
-                            ips_to_add, ips_to_remove):
+def set_lrouter_port_ips(cluster, lrouter_id, lport_id, ips):
     uri = nsxlib._build_uri_path(LROUTERPORT_RESOURCE, lport_id, lrouter_id)
     try:
-        port = nsxlib.do_request(HTTP_GET, uri, cluster=cluster)
-        # TODO(salvatore-orlando): Enforce ips_to_add intersection with
-        # ips_to_remove is empty
-        ip_address_set = set(port['ip_addresses'])
-        ip_address_set = ip_address_set - set(ips_to_remove)
-        ip_address_set = ip_address_set | set(ips_to_add)
-        # Set is not JSON serializable - convert to list
-        port['ip_addresses'] = list(ip_address_set)
+        port = {'type': 'LogicalRouterPortConfig', 'tags': []}
+        # make sure there are no duplicates and all ips are strings for
+        # nsx api.
+        ips = set(ips)
+        ips = [str(ip) for ip in ips]
+        port['ip_addresses'] = ips
         nsxlib.do_request(HTTP_PUT, uri, jsonutils.dumps(port),
                           cluster=cluster)
     except exception.NotFound:

@@ -1815,11 +1815,19 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                              fip_db.floating_port_id)
         nsx_floating_ips = self._build_ip_address_list(
             context.elevated(), ext_neutron_port_db['fixed_ips'])
-        routerlib.update_lrouter_port_ips(self.cluster,
-                                          nsx_router_id,
-                                          nsx_gw_port_id,
-                                          ips_to_add=[],
-                                          ips_to_remove=nsx_floating_ips)
+
+        nsx_floatingips_on_router = self._get_fips_router_port(
+            context, router_id, nsx_floating_ips)
+
+        final_fips = []
+        for fip in nsx_floatingips_on_router:
+            if fip not in nsx_floating_ips:
+                final_fips.append(fip)
+
+        # Add Floating IP address to router_port
+        routerlib.set_lrouter_port_ips(
+            self.cluster, nsx_router_id, nsx_gw_port_id,
+            final_fips)
 
     def _get_fip_assoc_data(self, context, fip, floatingip_db):
         if (('fixed_ip_address' in fip and fip['fixed_ip_address']) and
@@ -1896,9 +1904,18 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 context, self.cluster, nsx_old_router_id)['uuid']
             self._retrieve_and_delete_nat_rules(
                 context, floating_ip, old_internal_ip, nsx_old_router_id)
-            routerlib.update_lrouter_port_ips(
+
+            nsx_floatingips_on_router = self._get_fips_router_port(
+                context, old_router_id, nsx_floating_ips)
+
+            final_fips = []
+            for _fip in nsx_floatingips_on_router:
+                if _fip not in nsx_floating_ips:
+                    final_fips.append(_fip)
+
+            routerlib.set_lrouter_port_ips(
                 self.cluster, nsx_old_router_id, nsx_gw_port_id,
-                ips_to_add=[], ips_to_remove=nsx_floating_ips)
+                final_fips)
 
         if router_id:
             nsx_gw_port_id = routerlib.find_router_gw_port(
@@ -1939,10 +1956,14 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                         order=NSX_FLOATINGIP_NAT_RULES_ORDER,
                         match_criteria={'source_ip_addresses': internal_ip})
 
+                    nsx_floatingips_on_router = self._get_fips_router_port(
+                        context, router_id, nsx_floating_ips, floating_ip)
+
                     # Add Floating IP address to router_port
-                    routerlib.update_lrouter_port_ips(
+                    routerlib.set_lrouter_port_ips(
                         self.cluster, nsx_router_id, nsx_gw_port_id,
-                        ips_to_add=nsx_floating_ips, ips_to_remove=[])
+                        nsx_floatingips_on_router)
+
                 except api_exc.NsxApiException:
                     LOG.exception(_LE("An error occurred while creating NAT "
                                       "rules on the NSX platform for floating "
@@ -1962,6 +1983,33 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 'fixed_port_id': port_id,
                 'router_id': router_id,
                 'status': self._floatingip_status(floatingip_db, router_id)})
+
+    def _get_fips_router_port(self, context, router_id,
+                              nsx_floating_ips, floating_ip=None):
+        fips = []
+
+        # NOTE(arosen): the nsx-api requires the cidr to be present on the
+        # gateway ports so determine it here.
+        cidr = nsx_floating_ips[0].split('/')[1]
+
+        # fetch all the fips on the gateway port
+        fips_on_router = self.get_floatingips(
+            context.elevated(), filters={'router_id': [router_id]})
+
+        # build up list of fips and cidr on router.
+        for fip in fips_on_router:
+            fips.append(fip['floating_ip_address'] + '/' + cidr)
+
+        # append new floatingip address if there is one
+        if floating_ip:
+            fips.append(floating_ip + '/' + cidr)
+
+        # get router gw port_ips to find the uplink ip(s)
+        router = self._get_router(context.elevated(), router_id)
+        for ip in router.gw_port.fixed_ips:
+            fips.append(ip['ip_address'] + '/' + cidr)
+
+        return [str(fip) for fip in fips]
 
     # NOTE(arosen): this method is exactly the same as the method
     # in the l3_db base class except _update_fip_assoc() is done
