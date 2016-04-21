@@ -85,6 +85,7 @@ class NSXv3SecGroupTest(base.BaseSecGroupTest):
                              "rule does not match with %s." %
                              (key, value))
 
+    @decorators.skip_because(bug="1617528")
     @test.attr(type='nsxv3')
     @test.idempotent_id('904ca2c1-a14d-448b-b723-a7366e613bf1')
     def test_create_update_nsx_security_group(self):
@@ -145,6 +146,7 @@ class NSXv3SecGroupTest(base.BaseSecGroupTest):
         self.assertIsNone(nsx_nsgroup)
         self.assertIsNone(nsx_dfw_section)
 
+    @decorators.skip_because(bug="1617528")
     @test.attr(type='nsxv3')
     @test.idempotent_id('91c298c0-fbbd-4597-b4c6-1a7ecfb8a2de')
     def test_create_nsx_security_group_rule(self):
