@@ -699,14 +699,16 @@ class EdgeManager(object):
         router_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
         self._free_edge_appliance(context, router_id)
 
+    def _build_lrouter_name(self, router_id, router_name):
+        return (
+            router_name[:nsxv_constants.ROUTER_NAME_LENGTH - len(router_id)] +
+            '-' + router_id)
+
     def create_lrouter(
         self, context, lrouter, lswitch=None, dist=False,
         appliance_size=vcns_const.SERVICE_SIZE_MAPPING['router']):
         """Create an edge for logical router support."""
-        router_name = (
-            lrouter['name'][:nsxv_constants.ROUTER_NAME_LENGTH -
-                            len(lrouter['id'])] +
-            '-' + lrouter['id'])
+        router_name = self._build_lrouter_name(lrouter['id'], lrouter['name'])
         self._allocate_edge_appliance(
             context, lrouter['id'], router_name,
             appliance_size=appliance_size,
@@ -714,6 +716,20 @@ class EdgeManager(object):
 
     def delete_lrouter(self, context, router_id, dist=False):
         self._free_edge_appliance(context, router_id)
+
+    def rename_lrouter(self, context, router_id, new_name, dist=False):
+        binding = nsxv_db.get_nsxv_router_binding(context.session, router_id)
+        if not binding or not binding['edge_id']:
+            LOG.warning(_LW("router binding for router: %s "
+                            "not found"), router_id)
+            return
+        edge_id = binding['edge_id']
+        with locking.LockManager.get_lock(str(edge_id)):
+            router_name = self._build_lrouter_name(router_id, new_name)
+            task = self.nsxv_manager.update_edge(
+                router_id, edge_id, router_name, None,
+                appliance_size=binding['appliance_size'], dist=dist)
+            task.wait(task_const.TaskState.RESULT)
 
     def update_dhcp_edge_bindings(self, context, network_id):
         """Reconfigure the DHCP to the edge."""
