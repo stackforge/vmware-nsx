@@ -60,6 +60,7 @@ from vmware_nsx.plugins.nsx_v.drivers import (
     shared_router_driver as router_driver)
 from vmware_nsx.plugins.nsx_v import md_proxy
 from vmware_nsx.plugins.nsx_v.vshield.common import constants as vcns_const
+from vmware_nsx.plugins.nsx_v.vshield import edge_appliance_driver
 from vmware_nsx.plugins.nsx_v.vshield import edge_firewall_driver
 from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 from vmware_nsx.services.qos.nsx_v import utils as qos_utils
@@ -2451,6 +2452,20 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
                 r['router']['id'],
                 uuidutils.generate_uuid(),
                 expected_code=webob.exc.HTTPNotFound.code)
+
+    def test_router_rename(self):
+        with self.router(name='old_name') as r:
+            with mock.patch.object(edge_appliance_driver.EdgeApplianceDriver,
+                       'rename_edge') as edge_rename:
+                new_name = 'new_name'
+                router_id = r['router']['id']
+                body = self._update('routers', router_id,
+                                    {'router': {'name': new_name}})
+                self.assertEqual(new_name, body['router']['name'])
+                edge_rename.assert_called_once_with(
+                    router_id,
+                    'edge-1',
+                    new_name + '-' + router_id)
 
     def _test_router_update_gateway_on_l3_ext_net(self, vlan_id=None,
                                                   validate_ext_gw=False,
