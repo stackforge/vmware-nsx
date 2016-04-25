@@ -68,7 +68,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                 self.update_routes(context, router_id, None)
             # here is used to handle routes which tenant updates.
             if gw_info != attr.ATTR_NOT_SPECIFIED:
-                self._update_router_gw_info(context, router_id, gw_info)
+                self.plugin._update_router_gw_info(context, router_id, gw_info)
             if 'admin_state_up' in r:
                 # If router was deployed on a different edge then
                 # admin-state-up is already updated on the new edge.
