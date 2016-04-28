@@ -1122,6 +1122,34 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             'ip_address' in port['fixed_ips'][0]):
             return port['fixed_ips'][0]['ip_address']
 
+    def _process_vnic_index_update(self, context, original_port, port_data):
+        is_compute_port = self._is_compute_port(original_port)
+        vnic_idx = port_data.get(ext_vnic_idx.VNIC_INDEX)
+        device_id = original_port['device_id']
+        # Only set the vnic index for a compute VM
+        if attr.is_attr_set(vnic_idx) and is_compute_port:
+            # Update database only if vnic index was changed
+            if original_port.get(ext_vnic_idx.VNIC_INDEX) != vnic_idx:
+                self._set_port_vnic_index_mapping(
+                    context, id, device_id, vnic_idx)
+            vnic_id = self._get_port_vnic_id(vnic_idx, device_id)
+            self._add_security_groups_port_mapping(
+                context.session, vnic_id, original_port['security_groups'])
+            if (cfg.CONF.nsxv.spoofguard_enabled and
+                    original_port[psec.PORTSECURITY]):
+                LOG.debug("Assigning vnic port fixed-ips: port %s, "
+                          "vnic %s, with fixed-ips %s", id, vnic_id,
+                          original_port['fixed_ips'])
+                self._update_vnic_assigned_addresses(
+                    context.session, original_port, vnic_id)
+            else:
+                LOG.warning(_LW("port-security is disabled on port %(id)s, "
+                                "VM tools must be installed on instance "
+                                "%(device_id)s for security-groups to "
+                                "function properly."),
+                            {'id': id,
+                             'device_id': original_port['device_id']})
+
     def update_port(self, context, id, port):
         with locking.LockManager.get_lock('port-update-%s' % id):
             return self._update_port(context, id, port)
@@ -1145,33 +1173,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                      '%s') % original_port['id'])
             raise n_exc.BadRequest(resource='port', msg=msg)
 
-        # TODO(roeyc): create a method '_process_vnic_index_update' from the
-        # following code block
-        # Process update for vnic-index
-        vnic_idx = port_data.get(ext_vnic_idx.VNIC_INDEX)
-        # Only set the vnic index for a compute VM
-        if attr.is_attr_set(vnic_idx) and is_compute_port:
-            # Update database only if vnic index was changed
-            if original_port.get(ext_vnic_idx.VNIC_INDEX) != vnic_idx:
-                self._set_port_vnic_index_mapping(
-                    context, id, device_id, vnic_idx)
-            vnic_id = self._get_port_vnic_id(vnic_idx, device_id)
-            self._add_security_groups_port_mapping(
-                context.session, vnic_id, original_port['security_groups'])
-            if has_port_security:
-                LOG.debug("Assigning vnic port fixed-ips: port %s, "
-                          "vnic %s, with fixed-ips %s", id, vnic_id,
-                          original_port['fixed_ips'])
-                self._update_vnic_assigned_addresses(
-                    context.session, original_port, vnic_id)
-            else:
-                LOG.warning(_LW("port-security is disabled on port %(id)s, "
-                                "VM tools must be installed on instance "
-                                "%(device_id)s for security-groups to "
-                                "function properly."),
-                            {'id': id,
-                             'device_id': original_port['device_id']})
-
+        self._process_vnic_index_update(context, original_port, port_data)
         delete_security_groups = self._check_update_deletes_security_groups(
             port)
         has_security_groups = self._check_update_has_security_groups(port)
