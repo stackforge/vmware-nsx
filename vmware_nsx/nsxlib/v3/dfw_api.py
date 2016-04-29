@@ -118,7 +118,7 @@ def get_nsgroup_member_expression(target_type, target_id):
 
 
 @utils.retry_upon_exception_nsxv3(nsx_exc.ManagerError)
-def _update_nsgroup_with_members(nsgroup_id, members, action):
+def update_nsgroup_with_members(nsgroup_id, members, action):
     members_update = 'ns-groups/%s?action=%s' % (nsgroup_id, action)
     return nsxclient.create_resource(members_update, members)
 
@@ -127,7 +127,7 @@ def add_nsgroup_member(nsgroup_id, target_type, target_id):
     member_expr = get_nsgroup_member_expression(target_type, target_id)
     members = {'members': [member_expr]}
     try:
-        return _update_nsgroup_with_members(nsgroup_id, members, ADD_MEMBERS)
+        return update_nsgroup_with_members(nsgroup_id, members, ADD_MEMBERS)
     except nsx_exc.StaleRevision:
         raise
     except nsx_exc.ManagerError:
@@ -145,7 +145,7 @@ def remove_nsgroup_member(nsgroup_id, target_type, target_id, verify=False):
     member_expr = get_nsgroup_member_expression(target_type, target_id)
     members = {'members': [member_expr]}
     try:
-        return _update_nsgroup_with_members(
+        return update_nsgroup_with_members(
             nsgroup_id, members, REMOVE_MEMBERS)
     except nsx_exc.ManagerError:
         if verify:
