@@ -19,6 +19,7 @@ import xml.etree.ElementTree as et
 from neutron.callbacks import registry
 from neutron import context
 from neutron.db import securitygroups_db
+from neutron import manager
 
 from vmware_nsx.db import nsx_models
 from vmware_nsx.db import nsxv_models
@@ -48,14 +49,34 @@ class NeutronSecurityGroupDB(utils.NeutronDbClient):
                 nsx_models.NeutronNsxSecurityGroupMapping).all()
         sg_mappings = [{'name': mapp.name,
                         'id': mapp.id,
-                        'section-id': mapp.ip_section_id.split('/')[-1],
+                        'section-uri': mapp.ip_section_id,
                         'nsx-securitygroup-id': mapp.nsx_id}
                        for mapp in q]
         return sg_mappings
 
+    def get_security_group(self, sg_id):
+        return super(NeutronSecurityGroupDB, self).get_security_group(
+            self.context, sg_id)
+
     def get_security_groups(self):
         return super(NeutronSecurityGroupDB,
                      self).get_security_groups(self.context)
+
+    def delete_security_group_section_mapping(self, sg_id):
+        fw_mapping = self.context.session.query(
+            nsxv_models.NsxvSecurityGroupSectionMapping).filter(
+                neutron_id=sg_id).one_or_none()
+        if fw_mapping:
+            with self.context.session.begin(subtransactions=True):
+                self.context.session.delete(fw_mapping)
+
+    def delete_security_group_backend_mapping(self, sg_id):
+        sg_mapping = self.context.session.query(
+            nsx_models.NeutronNsxSecurityGroupMapping).filter(
+                neutron_id=sg_id).one_or_none()
+        if sg_mapping:
+            with self.context.session.begin(subtransactions=True):
+                self.context.session.delete(sg_mapping)
 
 
 class NsxFirewallAPI(object):
@@ -119,7 +140,7 @@ def neutron_list_security_groups_mappings(resource, event, trigger, **kwargs):
     sg_mappings = neutron_sg.get_security_groups_mappings()
     _log_info(constants.SECURITY_GROUPS,
               sg_mappings,
-              attrs=['name', 'id', 'section-id', 'nsx-securitygroup-id'])
+              attrs=['name', 'id', 'section-uri', 'nsx-securitygroup-id'])
     return bool(sg_mappings)
 
 
@@ -139,41 +160,81 @@ def nsx_list_security_groups(resource, event, trigger, **kwargs):
     return bool(nsx_secgroups)
 
 
-@list_mismatches_handler(constants.FIREWALL_NSX_GROUPS)
-@admin_utils.output_header
-def list_missing_security_groups(resource, event, trigger, **kwargs):
+def _find_missing_security_groups():
     nsx_secgroups = nsxv_firewall.list_security_groups()
     sg_mappings = neutron_sg.get_security_groups_mappings()
-    missing_nsx_secgroups = []
+    missing_secgroups = []
     for sg_db in sg_mappings:
         for nsx_sg in nsx_secgroups:
             if nsx_sg['id'] == sg_db['nsx-securitygroup-id']:
                 break
         else:
-            missing_nsx_secgroups.append({'securitygroup-name': sg_db['name'],
-                                          'securitygroup-id': sg_db['id'],
-                                          'nsx-securitygroup-id':
-                                          sg_db['nsx-securitygroup-id']})
-    _log_info(constants.FIREWALL_NSX_GROUPS, missing_nsx_secgroups,
+            missing_secgroups.append(sg_db)
+        return missing_secgroups
+
+
+@list_mismatches_handler(constants.FIREWALL_NSX_GROUPS)
+@admin_utils.output_header
+def list_missing_security_groups(resource, event, trigger, **kwargs):
+    sgs_with_missing_nsx_group = _find_missing_security_groups()
+    missing_securitgroups_info = [{'securitygroup-name': sg['name'],
+                                   'securitygroup-id': sg['id'],
+                                   'nsx-securitygroup-id':
+                                   sg['nsx-securitygroup-id']}
+                                  for sg in sgs_with_missing_nsx_group]
+    _log_info(constants.FIREWALL_NSX_GROUPS, missing_securitgroups_info,
               attrs=['securitygroup-name', 'securitygroup-id',
                      'nsx-securitygroup-id'])
-    return bool(missing_nsx_secgroups)
+    return bool(missing_securitgroups_info)
 
 
-@list_mismatches_handler(constants.FIREWALL_SECTIONS)
-@admin_utils.output_header
-def list_missing_firewall_sections(resource, event, trigger, **kwargs):
+def _find_missing_sections():
     fw_sections = nsxv_firewall.list_fw_sections()
     sg_mappings = neutron_sg.get_security_groups_mappings()
     missing_sections = []
     for sg_db in sg_mappings:
         for fw_section in fw_sections:
-            if fw_section['id'] == sg_db['section-id']:
+            if fw_section['id'] == sg_db.get('section-uri', '').split('/')[-1]:
                 break
         else:
-            missing_sections.append({'securitygroup-name': sg_db['name'],
-                                     'securitygroup-id': sg_db['id'],
-                                     'section-id': sg_db['section-id']})
-    _log_info(constants.FIREWALL_SECTIONS, missing_sections,
-              attrs=['securitygroup-name', 'securitygroup-id', 'section-id'])
-    return bool(missing_sections)
+            missing_sections.append(sg_db)
+    return missing_sections
+
+
+@list_mismatches_handler(constants.FIREWALL_SECTIONS)
+@admin_utils.output_header
+def list_missing_firewall_sections(resource, event, trigger, **kwargs):
+    sgs_with_missing_section = _find_missing_sections()
+    missing_sections_info = [{'securitygroup-name': sg['name'],
+                              'securitygroup-id': sg['id'],
+                              'section-id': sg['section-uri']}
+                             for sg in sgs_with_missing_section]
+    _log_info(constants.FIREWALL_SECTIONS, missing_sections_info,
+              attrs=['securitygroup-name', 'securitygroup-id', 'section-uri'])
+    return bool(missing_sections_info)
+
+
+@admin_utils.output_header
+def fix_security_groups(resource, event, trigger, **kwargs):
+    context_ = context.get_admin_context()
+    plugin = manager.NeutronManager.get_plugin()
+    sgs_with_missing_section = _find_missing_sections()
+    sgs_with_missing_nsx_group = _find_missing_security_groups()
+    # If only the fw section is missing then create it.
+    for sg in (set([sg['id'] for sg in sgs_with_missing_section]) -
+               set([sg['id'] for sg in sgs_with_missing_nsx_group])):
+        neutron_sg.delete_security_group_section_mapping(sg['id'])
+        secgroup = neutron_sg.get_security_group(sg['id'])
+        plugin._create_fw_section_for_security_group(
+            context_, secgroup, sg['nsx-securitygroup-id'])
+
+    # If nsx security-group is missing then create both nsx security-group and
+    # a new fw section (remove old one).
+    for sg in sgs_with_missing_nsx_group:
+        secgroup = neutron_sg.get_security_group(sg['id'])
+        plugin._delete_section(sg['section-uri'])
+        neutron_sg.delete_security_group_section_mapping(sg['id'])
+        neutron_sg.delete_security_group_backend_mapping(sg['id'])
+        plugin._process_security_group_create_backend_resources(context,
+                                                                secgroup)
+        # TODO(roeyc): add members
