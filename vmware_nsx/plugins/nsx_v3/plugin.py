@@ -153,6 +153,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self.tier0_groups_dict = {}
         self._setup_dhcp()
         self._start_rpc_notifiers()
+        if cfg.CONF.nsx_v3.native_dhcp_metadata:
+            self._init_native_dhcp()
+        else:
+            self._setup_dhcp()
+            self._start_rpc_notifiers()
 
         self._port_client = nsx_resources.LogicalPort(self._nsx_client)
         self.nsgroup_manager, self.default_section = (
@@ -327,6 +332,18 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def _init_nsgroup_manager_and_default_section_rules(self):
         with locking.LockManager.get_lock('nsxv3_nsgroup_manager_init'):
             return security.init_nsgroup_manager_and_default_section_rules()
+
+    def _init_native_dhcp(self):
+        try:
+            self._dhcp_profile = nsx_resources.DhcpProfile(
+                self._nsx_client).get(cfg.CONF.nsx_v3.dhcp_profile_uuid)
+            self._dhcp_server = nsx_resources.LogicalDhcpServer(
+                self._nsx_client)
+        except nsx_exc.ManagerError:
+            with excutils.save_and_reraise_exception():
+                LOG.error(_LE("Unable to retrieve DHCP Profile %s, "
+                              "native DHCP service is not supported"),
+                          cfg.CONF.nsx_v3.dhcp_profile_uuid)
 
     def _setup_rpc(self):
         self.endpoints = [dhcp_rpc.DhcpRpcCallback(),
@@ -508,6 +525,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             network[pnet.PHYSICAL_NETWORK] = bindings[0].phy_uuid
             network[pnet.SEGMENTATION_ID] = bindings[0].vlan_id
 
+        if cfg.CONF.nsx_v3.native_dhcp_metadata:
+            dhcp_service_id = nsx_db.get_nsx_service_id(
+                context.session, network['id'], nsx_constants.SERVICE_DHCP)
+            if dhcp_service_id:
+                network['dhcp_service_id'] = dhcp_service_id
+
     def _assert_on_external_net_with_qos(self, net_data):
         # Prevent creating/update external network with QoS policy
         if attributes.is_attr_set(net_data.get(qos_consts.QOS_POLICY_ID)):
@@ -563,10 +586,37 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     # after the network creation is done
                     neutron_net_id = created_net['id']
                     nsx_db.add_neutron_nsx_network_mapping(
-                                context.session,
-                                neutron_net_id,
-                                nsx_net_id)
+                        context.session,
+                        neutron_net_id,
+                        nsx_net_id)
 
+                    if cfg.CONF.nsx_v3.native_dhcp_metadata:
+                        # TODO(shli): wait until DHCP-enabled subnet is
+                        # created (check limit).
+                        # Enable native DHCP service for this network in the
+                        # backend.
+                        tags = utils.build_v3_tags_payload(
+                            net_data, resource_type='os-neutron-net-id',
+                            project_name=context.tenant_name)
+                        dhcp_server = self._dhcp_server.create(
+                            self._dhcp_profile['id'], server_ip, tags)
+                        LOG.info(_LI("Created logical DHCP server %(server)s "
+                                     "for network %(network)s"),
+                                 {'server': dhcp_server['id'],
+                                  'network': net_data['id']})
+                        dhcp_port = self._port_client.create(
+                            nsx_net_id, dhcp_server['id'], tags=tags,
+                            attachment_type=nsx_constants.ATTACHMENT_DHCP)
+                        LOG.info(_LI("Created DHCP logical port %(port)s for "
+                                     "network %(network)s"),
+                                 {'port': dhcp_port['id'],
+                                  'network': net_data['id']})
+                        # Add neutron_id -> dhcp_service_id mapping to the DB.
+                        nsx_db.add_neutron_nsx_service_binding(
+                            context.session,
+                            neutron_net_id,
+                            nsx_constants.SERVICE_DHCP,
+                            dhcp_server['id'])
         except Exception:
             with excutils.save_and_reraise_exception():
                 # Undo creation on the backend
@@ -642,6 +692,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # requiring us to un-delete the DB object. For instance, ignore
             # failures occurring if logical switch is not found
             nsxlib.delete_logical_switch(nsx_net_id)
+
+            # Delete neutron_id -> dhcp_service_id mapping from the DB.
+            nsx_db.delete_neutron_nsx_service_binding(
+                context.session, network_id, nsx_constants.SERVICE_DHCP)
         else:
             # TODO(berlin): delete subnets public announce on the network
             pass
@@ -915,6 +969,38 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             qos_com_utils.update_port_policy_binding(context,
                                                      port_data['id'],
                                                      qos_policy_id)
+        # Add Mac/IP binding to native DHCP server and neutron DB.
+        if cfg.CONF.nsx_v3.native_dhcp_metadata:
+            dhcp_service_id = nsx_db.get_nsx_service_id(
+                context.session, port_data['network_id'],
+                nsx_constants.SERVICE_DHCP)
+            if dhcp_service_id:
+                ips = [fixed_ip['ip_address']
+                       for fixed_ip in port_data['fixed_ips']
+                       if netaddr.IPNetwork(fixed_ip['ip_address']).version
+                       == 4]
+                if ips:
+                    try:
+                        binding = self._dhcp_server.create_binding(
+                            dhcp_service_id, port_data['mac_address'], ips[0])
+                        LOG.info(_LI("Created static binding (mac: %(mac)s, "
+                                     "ip: %(ip)s) on logical DHCP server "
+                                     "%(server)s"),
+                                 {'mac': port_data['mac_address'],
+                                  'ip': ips[0], 'server': dhcp_service_id})
+                        nsx_db.add_neutron_nsx_dhcp_binding(
+                            context.session, port_data['id'], binding['id'],
+                            port_data['mac_address'], ips[0])
+                    except nsx_exc.ManagerError as inst:
+                        LOG.exception(_LE("Unable to create static binding "
+                                          "(mac: %(mac)s, ip: %(ip)s) on "
+                                          "logical DHCP server %(server)s"),
+                                      {'mac': port_data['mac_address'],
+                                       'ip': ips[0],
+                                       'server': dhcp_service_id})
+                        raise nsx_exc.NsxPluginException(err_msg=_(
+                            "Unable to create static binding on the backend"))
+
         return result
 
     def _validate_address_pairs(self, address_pairs):

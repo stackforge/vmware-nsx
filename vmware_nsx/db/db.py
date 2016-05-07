@@ -114,6 +114,55 @@ def add_neutron_nsx_security_group_mapping(session, neutron_id, nsx_id):
     return mapping
 
 
+def add_neutron_nsx_service_binding(session, neutron_id, service_type,
+                                    service_id):
+    with session.begin(subtransactions=True):
+        binding = nsx_models.NeutronNsxServiceBinding(
+            neutron_id=neutron_id, nsx_service_type=service_type,
+            nsx_service_id=service_id)
+        session.add(binding)
+        return binding
+
+
+def delete_neutron_nsx_service_binding(session, neutron_id, service_type):
+    return (session.query(nsx_models.NeutronNsxServiceBinding).
+            filter_by(neutron_id=neutron_id, nsx_service_type=service_type).
+            delete())
+
+
+def get_nsx_service_id(session, neutron_id, service_type):
+    try:
+        binding = session.query(nsx_models.NeutronNsxServiceBinding).filter_by(
+            neutron_id=neutron_id, nsx_service_type=service_type).one()
+        return binding['nsx_service_id']
+    except exc.NoResultFound:
+        LOG.debug("NSX service (type: %s) for neutron-id: %s not yet stored "
+                  "in Neutron DB", service_type, neutron_id)
+        return None
+
+
+def add_neutron_nsx_dhcp_binding(session, neutron_id, service_id, binding_id,
+                                 mac, ip):
+    with session.begin(subtransactions=True):
+        binding = nsx_models.NeutronNsxDhcpBinding(
+            neutron_id=neutron_id, nsx_service_id=service_id,
+            nsx_binding_id=binding_id, mac=mac, ip=ip)
+        session.add(binding)
+        return binding
+
+
+def delete_neutron_nsx_dhcp_binding(session, neutron_id, binding_id):
+    return (session.query(nsx_models.NeutronNsxDhcpBinding).
+            filter_by(neutron_id=neutron_id, nsx_binding_id=binding_id).
+            delete())
+
+
+def get_nsx_dhcp_bindings(session, neutron_id):
+    return [binding for binding in
+            session.query(nsx_models.NeutronNsxDhcpBinding).filter_by(
+                neutron_id=neutron_id)]
+
+
 def get_nsx_switch_ids(session, neutron_id):
     # This function returns a list of NSX switch identifiers because of
     # the possibility of chained logical switches

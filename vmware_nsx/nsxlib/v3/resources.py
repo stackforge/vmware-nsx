@@ -425,3 +425,42 @@ class LogicalRouterPort(AbstractRESTResource):
         raise nsx_exc.ResourceNotFound(
             manager=client._get_nsx_managers_from_conf(),
             operation="get router link port")
+
+
+class DhcpProfile(AbstractRESTResource):
+
+    @property
+    def uri_segment(self):
+        return 'dhcp', 'profiles'
+
+    def create(self, *args, **kwargs):
+        pass
+
+    def update(self, uuid, *args, **kwargs):
+        pass
+
+
+class LogicalDhcpServer(AbstractRESTResource):
+
+    @property
+    def uri_segment(self):
+        return 'dhcp', 'services'
+
+    def create(self, dhcp_profile, server_ip, tags=None):
+        body = {'dhcp-profile': dhcp_profile,
+                'ipv4_server': {'cidr': server_ip}}
+        if tags:
+            body['tags'] = tags
+        return self._client.create(body=body)
+
+    def update(self, uuid, *args, **kwargs):
+        pass
+
+    def create_binding(self, server_uuid, mac, ip):
+        body = {'mac': mac, 'ip': ip}
+        url = "%s/bindings" % server_uuid
+        return self._client.url_post(url, body)
+
+    def delete_binding(self, server_uuid, binding_uuid):
+        url = "%s/bindings/%s" % (server_uuid, binding_uuid)
+        return self._client.url_delete(url)
