@@ -15,6 +15,7 @@
 
 import mock
 import netaddr
+from neutron.db import api as db_api
 from neutron_lib import constants
 from neutron_lib import exceptions as n_exc
 from oslo_config import cfg
@@ -24,6 +25,8 @@ from neutron import manager
 
 from vmware_nsx.api_client import exception as api_exc
 from vmware_nsx.common import config
+from vmware_nsx.db import db
+from vmware_nsx.extensions import advancedserviceproviders as as_providers
 
 
 class MetaDataTestCase(object):
@@ -323,4 +326,67 @@ class MetaDataTestCase(object):
             subnets = self._list('subnets')['subnets']
             # Test that route is deleted after dhcp port is removed.
             self.assertEqual(len(subnets[0]['host_routes']), 0)
+        self._metadata_teardown()
+
+
+class MetaDataExtendedTestCase(MetaDataTestCase):
+
+    def test_get_subnets_without_metadata_provider(self):
+        self._metadata_setup()
+        with self.router() as r, self.network() as n1, self.network() as n2:
+            with self.subnet(network=n1) as s1, self.subnet(network=n2) as s2:
+                self._router_interface_action('add',
+                                              r['router']['id'],
+                                              s1['subnet']['id'],
+                                              None)
+                subnets = self._list('subnets')['subnets']
+                self.assertEqual(len(subnets), 3)
+                self.assertTrue(set([subnet['id'] for subnet in subnets]) >=
+                                set([s1['subnet']['id'], s2['subnet']['id']]))
+        self._metadata_teardown()
+
+    def test_get_subnets_with_metadata_provider_on_tenant_network(self):
+        self._metadata_setup()
+        with self.router() as r, self.network() as n1, self.network() as n2:
+            with self.subnet(network=n1) as s1, self.subnet(network=n2):
+                self._router_interface_action('add',
+                                              r['router']['id'],
+                                              s1['subnet']['id'],
+                                              None)
+                lswitch_ids = db.get_nsx_switch_ids(db_api.get_session(),
+                                                    n1['network']['id'])
+                # Pass metadata_provider as the lswitch of a tenant network.
+                subnets = self._list('subnets', query_params='%s=%s' %
+                                     (as_providers.ADV_SERVICE_PROVIDERS,
+                                      lswitch_ids[0]))['subnets']
+                self.assertEqual(len(subnets), 1)
+                self.assertEqual(subnets[0]['id'], s1['subnet']['id'])
+        self._metadata_teardown()
+
+    def test_get_subnets_with_metadata_provider_on_metadata_network(self):
+        self._metadata_setup()
+        with self.router() as r, self.network() as n1, self.network() as n2:
+            with self.subnet(network=n1) as s1, self.subnet(network=n2):
+                self._router_interface_action('add',
+                                              r['router']['id'],
+                                              s1['subnet']['id'],
+                                              None)
+                # Find internal metadata network.
+                networks = self._list('networks')['networks']
+                for network in networks:
+                    if network['id'] not in (n1['network']['id'],
+                                             n2['network']['id']):
+                        meta_net_id = network['id']
+                        meta_sub_id = network['subnets'][0]
+                        break
+                lswitch_ids = db.get_nsx_switch_ids(
+                    db_api.get_session(), meta_net_id)
+                # Pass metadata_provider as the lswitch of the internal
+                # metadata network.
+                subnets = self._list('subnets', query_params='%s=%s' %
+                                     (as_providers.ADV_SERVICE_PROVIDERS,
+                                      lswitch_ids[0]))['subnets']
+                self.assertEqual(len(subnets), 2)
+                self.assertEqual(set([subnet['id'] for subnet in subnets]),
+                                 set([s1['subnet']['id'], meta_sub_id]))
         self._metadata_teardown()
