@@ -14,8 +14,11 @@
 # limitations under the License.
 import mock
 
+from networking_l2gw.db.l2gateway import l2gateway_db
+from networking_l2gw.services.l2gateway.common import config
 from networking_l2gw.services.l2gateway.common import constants
 from networking_l2gw.services.l2gateway import exceptions as l2gw_exc
+from networking_l2gw.services.l2gateway import plugin as core_l2gw_plugin
 from networking_l2gw.tests.unit.db import test_l2gw_db
 from oslo_config import cfg
 from oslo_utils import importutils
@@ -50,6 +53,17 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         self.core_plugin = importutils.import_object(NSX_V3_PLUGIN_CLASS)
 
         self.driver = nsx_v3_driver.NsxV3Driver()
+
+        mock.patch.object(config, 'register_l2gw_opts_helper')
+        mock.patch('neutron.services.service_base.load_drivers',
+                   return_value=({'dummyprovider': self.driver},
+                                 'dummyprovider')).start()
+        mock.patch.object(l2gateway_db.L2GatewayMixin, '__init__'),
+        mock.patch.object(l2gateway_db, 'subscribe')
+        mock.patch('neutron.db.servicetype_db.ServiceTypeManager.get_instance',
+                   return_value=mock.MagicMock()).start()
+        self.context = mock.MagicMock()
+        self.plugin = core_l2gw_plugin.L2GatewayPlugin()
         self.l2gw_plugin = l2gw_plugin.NsxL2GatewayPlugin(mock.MagicMock())
         self.context = context.get_admin_context()
 
@@ -126,7 +140,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
                             [{"name": "interface_2"}],
                             "device_name": "device2"}]}}
         self.assertRaises(n_exc.InvalidInput,
-                          self.driver.create_l2_gateway,
+                          self.plugin.create_l2_gateway,
                           self.context, invalid_l2gw_dict)
 
     def test_create_l2_gateway_multiple_interfaces_fail(self):
@@ -139,7 +153,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
                              {"name": "interface2"}],
                             "device_name": "device1"}]}}
         self.assertRaises(n_exc.InvalidInput,
-                          self.driver.create_l2_gateway,
+                          self.plugin.create_l2_gateway,
                           self.context, invalid_l2gw_dict)
 
     def test_create_l2_gateway_invalid_device_name_fail(self):
@@ -151,14 +165,14 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
                             [{"name": "interface_1"}],
                             "device_name": "device-1"}]}}
         self.assertRaises(n_exc.InvalidInput,
-                          self.driver.create_l2_gateway,
+                          self.plugin.create_l2_gateway,
                           self.context, invalid_l2gw_dict)
 
     def test_create_l2_gateway_valid(self):
         bc_uuid = uuidutils.generate_uuid()
         l2gw_data = self._get_l2_gateway_data(name='gw1',
                                               device_name=bc_uuid)
-        l2gw = self.driver.create_l2_gateway(self.context, l2gw_data)
+        l2gw = self.plugin.create_l2_gateway(self.context, l2gw_data)
         self.assertIsNotNone(l2gw)
         self.assertEqual("gw1", l2gw["name"])
         self.assertEqual("port1",
@@ -195,13 +209,13 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
             'l2_gateway_id': l2gw['id'],
             'tenant_id': 'fake_tenant_id',
             'network_id': net['id']}}
-        l2gw_conn = self.driver.create_l2_gateway_connection(self.context,
+        l2gw_conn = self.plugin.create_l2_gateway_connection(self.context,
                                                              l2gw_conn_data)
-        self.driver.delete_l2_gateway_connection(self.context,
+        self.plugin.delete_l2_gateway_connection(self.context,
                                                  l2gw_conn['id'])
         # Verify that the L2 gateway connection was deleted
         self.assertRaises(l2gw_exc.L2GatewayConnectionNotFound,
-                          self.driver.get_l2_gateway_connection,
+                          self.plugin.get_l2_gateway_connection,
                           self.context, l2gw_conn['id'])
         ports = self.core_plugin.get_ports(self.context)
         # Verify that the L2 gateway connection port was cleaned up
@@ -215,11 +229,13 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         l2gw = self._create_l2gateway(l2gw_data)
         net_data = self._get_nw_data()
         net = self.core_plugin.create_network(self.context, net_data)
-        l2gw_conn_data = {constants.CONNECTION_RESOURCE_NAME: {
+        l2gw_conn_data = {
+            'id': uuidutils.generate_uuid(),
             'l2_gateway_id': l2gw['id'],
             'tenant_id': 'fake_tenant_id',
-            'network_id': net['id']}}
-        self.driver.create_l2_gateway_connection(self.context, l2gw_conn_data)
+            'network_id': net['id']}
+        self.driver.create_l2_gateway_connection_postcommit(self.context,
+                                                            l2gw_conn_data)
         ports = self.core_plugin.get_ports(self.context)
         # Verify that the L2 gateway connection port was created with device
         # owner BRIDGEENDPOINT
@@ -238,11 +254,13 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         l2gw = self._create_l2gateway(l2gw_data)
         net_data = self._get_nw_data()
         net = self.core_plugin.create_network(self.context, net_data)
-        l2gw_conn_data = {constants.CONNECTION_RESOURCE_NAME: {
+        l2gw_conn_data = {
+            'id': uuidutils.generate_uuid(),
             'l2_gateway_id': l2gw['id'],
             'tenant_id': 'fake_tenant_id',
-            'network_id': net['id']}}
-        self.driver.create_l2_gateway_connection(self.context, l2gw_conn_data)
+            'network_id': net['id']}
+        self.driver.create_l2_gateway_connection_postcommit(self.context,
+                                                            l2gw_conn_data)
         port = self.core_plugin.get_ports(self.context)[0]
         self.assertRaises(n_exc.ServicePortInUse,
                           self.core_plugin.delete_port,
