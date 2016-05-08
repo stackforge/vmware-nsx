@@ -175,3 +175,11 @@ class NsxResourceNotFound(n_exc.NotFound):
 
 class NsxQosPolicyMappingNotFound(n_exc.NotFound):
     message = _('Unable to find mapping for QoS policy: %(policy)s')
+
+
+class NsxTaaSDriverException(NsxPluginException):
+    message = _("Tap-as-a-Service NSX driver exception: %(msg)s.")
+
+
+class NsxPortMirrorSessionMappingNotFound(n_exc.NotFound):
+    message = _("Unable to find mapping for Tap Flow: %(tf)s")
