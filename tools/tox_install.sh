@@ -18,6 +18,7 @@ BRANCH_NAME=master
 neutron_installed=$(echo "import neutron" | python 2>/dev/null ; echo $?)
 networking_l2gw_installed=$(echo "import networking_l2gw" | python 2>/dev/null ; echo $?)
 neutron_lbaas_installed=$(echo "import neutron_lbaas" | python 2>/dev/null ; echo $?)
+neutron_taas_installed=$(echo "import neutron_taas" | python 2>/dev/null ; echo $?)
 
 set -ex
 
@@ -66,6 +67,15 @@ elif [ -x "$ZUUL_CLONER" ]; then
     zuul_cloner openstack/neutron-lbaas
 else
     pip_hardcode neutron-lbaas
+fi
+
+if [ $neutron_taas_installed -eq 0 ]; then
+    echo "NEUTRON_TAAS ALREADY INSTALLED" >> /tmp/tox_install.txt
+    echo "Neutron_TaaS already installed; using existing package"
+elif [ -x "$ZUUL_CLONER" ]; then
+    zuul_cloner openstack/tap-as-a-service
+else
+    pip_hardcode tap-as-a-service
 fi
 
 pip install -U $*
