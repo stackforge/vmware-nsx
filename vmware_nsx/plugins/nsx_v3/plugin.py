@@ -75,6 +75,7 @@ from vmware_nsx.db import db as nsx_db
 from vmware_nsx.db import extended_security_group
 from vmware_nsx.db import extended_security_group_rule as extend_sg_rule
 from vmware_nsx.dhcp_meta import rpc as nsx_rpc
+from vmware_nsx.extensions import advancedserviceproviders as as_providers
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.nsxlib import v3 as nsxlib
 from vmware_nsx.nsxlib.v3 import client as nsx_client
@@ -151,8 +152,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         self.cfg_group = 'nsx_v3'  # group name for nsx_v3 section in nsx.ini
         self.tier0_groups_dict = {}
-        self._setup_dhcp()
-        self._start_rpc_notifiers()
+        if cfg.CONF.nsx_v3.native_dhcp_metadata:
+            cfg.CONF.dhcp_agent_notification = False
+            self._init_native_metadata()
+        else:
+            self._setup_dhcp()
+            self._start_rpc_notifiers()
 
         self._port_client = nsx_resources.LogicalPort(self._nsx_client)
         self.nsgroup_manager, self.default_section = (
@@ -327,6 +332,16 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def _init_nsgroup_manager_and_default_section_rules(self):
         with locking.LockManager.get_lock('nsxv3_nsgroup_manager_init'):
             return security.init_nsgroup_manager_and_default_section_rules()
+
+    def _init_native_metadata(self):
+        try:
+            self._metadata_proxy = nsx_resources.MetaDataProxy(
+                self._nsx_client).get(cfg.CONF.nsx_v3.metadata_proxy_uuid)
+        except nsx_exc.ManagerError:
+            with excutils.save_and_reraise_exception():
+                LOG.error(_LE("Unable to retrieve Metadata Proxy %s, "
+                              "native metadata service is not supported"),
+                          cfg.CONF.nsx_v3.metadata_proxy_uuid)
 
     def _setup_rpc(self):
         self.endpoints = [dhcp_rpc.DhcpRpcCallback(),
@@ -514,6 +529,66 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             err_msg = _("Cannot configure QOS on networks")
             raise n_exc.InvalidInput(error_message=err_msg)
 
+    def _get_subnets_by_lswitch(self, context, lswitch_id):
+        # Find the corresponding neutron network for the logical switch.
+        network_ids = nsx_db.get_net_ids(context.session, lswitch_id)
+        if not network_ids:
+            LOG.error(_LE("Unable to find network for lswitch %(lswitch_id)"),
+                      {'lswitch_id': lswitch_id})
+            return []
+
+        # Check if the network is an internal metadata network,
+        # i.e. has only one 169.254.169.252/30 subnet. If yes,
+        # return all the subnets attached to the router in the
+        # internal metadata network. Otherwise, return all the
+        # subnets in the network.
+        network = self._get_network(context, network_ids[0])
+        if (len(network.subnets) == 1 and
+            network.subnets[0].cidr == nsx_rpc.METADATA_SUBNET_CIDR):
+            router_ports = [port for port in network.ports
+                            if (port.device_owner in
+                                const.ROUTER_INTERFACE_OWNERS)]
+            if not router_ports:
+                LOG.error(_LE("Unable to find router port for internal "
+                              "metadata network %(network_id)"),
+                          {'network_id': network_ids[0]})
+                return []
+
+            if len(router_ports) > 1:
+                LOG.warning(_LW("%(port_num)d router ports found on the "
+                                "metadata access network. Only the port "
+                                "%(port_id)s, for router %(router_id)s "
+                                "will be considered"),
+                            {'port_num': len(router_ports),
+                             'port_id': router_ports[0].id,
+                             'router_id': router_ports[0].device_id})
+
+            router_id = router_ports[0].device_id
+            filters = {'device_id': [router_id],
+                       'device_owner': const.ROUTER_INTERFACE_OWNERS}
+            ports = self.get_ports(context, filters=filters)
+            subnets = []
+            for port in ports:
+                subnets.extend([self.get_subnet(context,
+                                                fixed_ip['subnet_id'])
+                                for fixed_ip in port['fixed_ips']])
+            return subnets
+        else:
+            return [self._make_subnet_dict(subnet, context=context)
+                    for subnet in network.subnets]
+
+    def get_subnets(self, context, filters=None, fields=None, sorts=None,
+                    limit=None, marker=None, page_reverse=False):
+        lswitch_ids = filters.get(as_providers.ADV_SERVICE_PROVIDERS)
+        if lswitch_ids:
+            subnets = self._get_subnets_by_lswitch(context, lswitch_ids[0])
+            if fields:
+                subnets = [self._fields(subnet, fields) for subnet in subnets]
+        else:
+            subnets = super(NsxV3Plugin, self).get_subnets(
+                context, filters, fields, sorts, limit, marker, page_reverse)
+        return subnets
+
     def create_network(self, context, network):
         net_data = network['network']
         external = net_data.get(ext_net_extn.EXTERNAL)
@@ -566,6 +641,20 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                 context.session,
                                 neutron_net_id,
                                 nsx_net_id)
+
+                    if cfg.CONF.nsx_v3.native_dhcp_metadata:
+                        # Enable native metadata service for this network
+                        # in the backend.
+                        tags = utils.build_v3_tags_payload(
+                            net_data, resource_type='os-neutron-net-id',
+                            project_name=context.tenant_name)
+                        md_port = self._port_client.create(
+                            nsx_net_id, self._metadata_proxy['id'], tags=tags,
+                            attachment_type=nsx_constants.ATTACHMENT_MDPROXY)
+                        LOG.info(_LI("Created MD-Proxy logical port %(port)s "
+                                     "for network %(network)s"),
+                                 {'port': md_port['id'],
+                                  'network': net_data['id']})
 
         except Exception:
             with excutils.save_and_reraise_exception():
