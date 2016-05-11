@@ -29,7 +29,7 @@ class TestL2gatewayDriver(base.BaseTestCase):
     def setUp(self):
         super(TestL2gatewayDriver, self).setUp()
         self.context = context.get_admin_context()
-        self.plugin = nsx_v_driver.NsxvL2GatewayDriver()
+        self.plugin = nsx_v_driver.NsxvL2GatewayDriver(mock.MagicMock())
 
     def test_validate_device_with_multi_devices(self):
         fake_l2gw_dict = {"l2_gateway":
