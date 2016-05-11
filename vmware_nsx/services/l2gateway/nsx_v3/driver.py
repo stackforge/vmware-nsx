@@ -167,6 +167,12 @@ class NsxV3Driver(l2gateway_db.L2GatewayMixin):
     def create_l2_gateway_postcommit(self, context, l2_gateway):
         pass
 
+    def update_l2_gateway_precommit(self, context, l2_gateway):
+        pass
+
+    def update_l2_gateway_postcommit(self, context, l2_gateway):
+        pass
+
     def delete_l2_gateway(self, context, l2_gateway_id):
         pass
 
