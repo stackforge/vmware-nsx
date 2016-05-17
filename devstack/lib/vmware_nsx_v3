@@ -88,6 +88,7 @@ function neutron_plugin_configure_l3_agent {
 
 function neutron_plugin_configure_plugin_agent {
     # VMware NSX plugin does not run L2 agent
+    :
     die $LINENO "q-agt must not be executed with VMware NSX plugin!"
 }
 
