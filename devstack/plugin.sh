@@ -52,3 +52,11 @@ elif [[ $Q_PLUGIN == 'vmware_nsx_v3' ]]; then
 elif [[ $Q_PLUGIN == 'vmware_dvs' ]]; then
     source $dir/lib/vmware_dvs
 fi
+
+echo "====> TRICK l3 setting $1 $2"
+# Try and trick devstack to think that l3-service is enabled
+if [[ "$1" == "stack" && "$2" == "extra" ]]; then
+    echo "====> SETTING"
+    enable_service q-l3
+fi
+echo "===> $ENABLED_SERVICES"
