@@ -52,3 +52,8 @@ elif [[ $Q_PLUGIN == 'vmware_nsx_v3' ]]; then
 elif [[ $Q_PLUGIN == 'vmware_dvs' ]]; then
     source $dir/lib/vmware_dvs
 fi
+
+# Try and trick devstack to think that l3-service is enabled
+if [[ "$1" == "stack" && "$2" == "post-config" ]]; then
+    ENABLED_SERVICES+=,q-l3
+fi
