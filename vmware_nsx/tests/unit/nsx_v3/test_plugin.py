@@ -44,9 +44,12 @@ from oslo_config import cfg
 from oslo_serialization import jsonutils
 from oslo_utils import uuidutils
 
+from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils
+from vmware_nsx.nsxlib import v3 as nsxlib
 from vmware_nsx.nsxlib.v3 import client as nsx_client
 from vmware_nsx.nsxlib.v3 import cluster as nsx_cluster
+from vmware_nsx.nsxlib.v3 import resources as nsx_resources
 from vmware_nsx.plugins.nsx_v3 import plugin as nsx_plugin
 from vmware_nsx.tests import unit as vmware
 from vmware_nsx.tests.unit.extensions import test_metadata
@@ -434,7 +437,7 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxV3PluginTestCaseMixin):
 class TestL3NatTestCase(L3NatTest,
                         test_l3_plugin.L3NatDBIntTestCase,
                         test_ext_route.ExtraRouteDBTestCaseBase,
-                        test_metadata.MetaDataTestCase):
+                        test_metadata.MetaDataExtendedTestCase):
 
     def setUp(self, plugin=PLUGIN_NAME,
               ext_mgr=None,
@@ -749,3 +752,38 @@ class TestNsxV3Utils(NsxV3PluginTestCaseMixin):
                     {'scope': 'os-api-version',
                      'tag': version.version_info.release_string()}]
         self.assertEqual(sorted(expected), sorted(tags))
+
+
+class NativeMetadataTestCase(NsxV3PluginTestCaseMixin):
+
+    def setUp(self):
+        super(NativeMetadataTestCase, self).setUp()
+        self._orig_native_dhcp_metadata = cfg.CONF.nsx_v3.native_dhcp_metadata
+        cfg.CONF.set_override('native_dhcp_metadata', True, 'nsx_v3')
+        self._fake_metadata_proxy = nsx_v3_mocks.make_fake_metadata_proxy()
+        self._patcher = mock.patch.object(
+            nsx_resources.MetaDataProxy, 'get',
+            return_value=self._fake_metadata_proxy)
+        self._patcher.start()
+        self.plugin._init_native_metadata()
+
+    def tearDown(self):
+        self._patcher.stop()
+        cfg.CONF.set_override('native_dhcp_metadata',
+                              self._orig_native_dhcp_metadata, 'nsx_v3')
+        super(NativeMetadataTestCase, self).tearDown()
+
+    def test_metadata_with_create_network(self):
+        fake_switch = nsx_v3_mocks.make_fake_switch()
+        with mock.patch.object(nsxlib, 'create_logical_switch',
+                               return_value=fake_switch):
+            with mock.patch.object(nsx_resources.LogicalPort,
+                                   'create') as create_logical_port:
+                with self.network() as network:
+                    tags = utils.build_v3_tags_payload(
+                        network['network'], resource_type='os-neutron-net-id',
+                        project_name=None)
+                    create_logical_port.assert_called_once_with(
+                        fake_switch['id'], self._fake_metadata_proxy['id'],
+                        tags=tags,
+                        attachment_type=nsx_constants.ATTACHMENT_MDPROXY)
