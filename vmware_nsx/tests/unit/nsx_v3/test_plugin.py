@@ -44,9 +44,12 @@ from oslo_config import cfg
 from oslo_serialization import jsonutils
 from oslo_utils import uuidutils
 
+from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils
+from vmware_nsx.nsxlib import v3 as nsxlib
 from vmware_nsx.nsxlib.v3 import client as nsx_client
 from vmware_nsx.nsxlib.v3 import cluster as nsx_cluster
+from vmware_nsx.nsxlib.v3 import resources as nsx_resources
 from vmware_nsx.plugins.nsx_v3 import plugin as nsx_plugin
 from vmware_nsx.tests import unit as vmware
 from vmware_nsx.tests.unit.extensions import test_metadata
@@ -749,3 +752,29 @@ class TestNsxV3Utils(NsxV3PluginTestCaseMixin):
                     {'scope': 'os-api-version',
                      'tag': version.version_info.release_string()}]
         self.assertEqual(sorted(expected), sorted(tags))
+
+
+class NativeDhcpTestCase(NsxV3PluginTestCaseMixin):
+
+    def setUp(self):
+        super(NativeDhcpTestCase, self).setUp()
+        self._orig_native_dhcp_metadata = cfg.CONF.nsx_v3.native_dhcp_metadata
+        cfg.CONF.set_override('native_dhcp_metadata', True, 'nsx_v3')
+        self._fake_dhcp_profile = nsx_v3_mocks.make_fake_dhcp_profile()
+        self._patcher = mock.patch.object(
+            nsx_resources.DhcpProfile, 'get',
+            return_value=self._fake_dhcp_profile)
+        self._patcher.start()
+        self.plugin._init_native_dhcp()
+
+    def tearDown(self):
+        self._patcher.stop()
+        cfg.CONF.set_override('native_dhcp_metadata',
+                              self._orig_native_dhcp_metadata, 'nsx_v3')
+        super(NativeDhcpTestCase, self).tearDown()
+
+    def test_dhcp_with_create_empty_network(self):
+        with mock.patch.object(nsx_resources.LogicalPort,
+                               'create') as create_logical_port:
+            with self.network():
+                create_logical_port.assert_not_called()

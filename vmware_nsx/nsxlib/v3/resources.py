@@ -425,3 +425,71 @@ class LogicalRouterPort(AbstractRESTResource):
         raise nsx_exc.ResourceNotFound(
             manager=client._get_nsx_managers_from_conf(),
             operation="get router link port")
+
+
+class DhcpProfile(AbstractRESTResource):
+
+    @property
+    def uri_segment(self):
+        return 'dhcp/server-profiles'
+
+    def create(self, *args, **kwargs):
+        pass
+
+    def update(self, uuid, *args, **kwargs):
+        pass
+
+
+class LogicalDhcpServer(AbstractRESTResource):
+
+    @property
+    def uri_segment(self):
+        return 'dhcp/services'
+
+    def create(self, dhcp_profile, server_ip, dns_servers=None,
+               domain_name=None, gateway_ip=None, lease_time=None,
+               options=None, tags=None):
+        ipv4_dhcp_server = {'dhcp_server_ip': server_ip}
+        if dns_servers:
+            ipv4_dhcp_server['dns_nameservers'] = dns_servers
+        if domain_name:
+            ipv4_dhcp_server['domain_name'] = domain_name
+        if gateway_ip:
+            ipv4_dhcp_server['gateway_ip'] = gateway_ip
+        if lease_time:
+            ipv4_dhcp_server['lease_time'] = lease_time
+        if options:
+            ipv4_dhcp_server['options'] = options
+        body = {'dhcp_profile_id': dhcp_profile,
+                'ipv4_dhcp_server': ipv4_dhcp_server}
+        if tags:
+            body['tags'] = tags
+        return self._client.create(body=body)
+
+    def update(self, uuid, **kwargs):
+        body = self._client.get(uuid)
+        body.update(kwargs)
+        return self._client.update(uuid, body=body)
+
+    def create_binding(self, server_uuid, mac, ip, prefix, hostname,
+                       options=None):
+        body = {'mac_address': mac, 'ip_address': ip, 'prefix_length': prefix,
+                'host_name': hostname}
+        if options:
+            body['options'] = options
+        url = "%s/bindings" % server_uuid
+        return self._client.url_post(url, body)
+
+    def get_binding(self, server_uuid, binding_uuid):
+        url = "%s/bindings/%s" % (server_uuid, binding_uuid)
+        return self._client.url_get(url)
+
+    def update_binding(self, server_uuid, binding_uuid, **kwargs):
+        body = self.get_binding(server_uuid, binding_uuid)
+        body.update(kwargs)
+        url = "%s/bindings/%s" % (server_uuid, binding_uuid)
+        return self._client.url_put(url, body)
+
+    def delete_binding(self, server_uuid, binding_uuid):
+        url = "%s/bindings/%s" % (server_uuid, binding_uuid)
+        return self._client.url_delete(url)
