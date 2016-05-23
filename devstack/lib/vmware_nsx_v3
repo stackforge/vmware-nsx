@@ -129,6 +129,7 @@ function neutron_plugin_configure_service {
     _nsxv3_ini_set default_bridge_cluster $DEFAULT_BRIDGE_CLUSTER_UUID
     _nsxv3_ini_set dhcp_profile_uuid $DHCP_PROFILE_UUID
     _nsxv3_ini_set metadata_proxy_uuid $METADATA_PROXY_UUID
+    _nsxv3_ini_set use_nsx_tags_for_grouping $USE_NSX_TAGS_FOR_GROUPING
 }
 
 function neutron_plugin_setup_interface_driver {
