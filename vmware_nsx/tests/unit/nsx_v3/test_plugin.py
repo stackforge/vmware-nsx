@@ -93,6 +93,7 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
         mock_client_module.NSX3Client.return_value = mocked_client
         _patch_object(nsx_plugin, 'nsx_client', new=mock_client_module)
         _patch_object(nsx_plugin, 'nsx_cluster', new=mock_cluster_module)
+        _patch_object(nsx_plugin.utils, 'is_bb_version', new=lambda v: False)
 
         # populate pre-existing mock resources
         cluster_id = uuidutils.generate_uuid()

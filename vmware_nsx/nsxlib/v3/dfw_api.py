@@ -40,6 +40,7 @@ REJECT = 'REJECT'
 # filtering operators and expressions
 EQUALS = 'EQUALS'
 NSGROUP_SIMPLE_EXPRESSION = 'NSGroupSimpleExpression'
+NSGROUP_TAG_EXPRESSION = 'NSGroupTagExpression'
 
 # nsgroup members update actions
 ADD_MEMBERS = 'ADD_MEMBERS'
@@ -86,11 +87,20 @@ def get_nsservice(resource_type, **properties):
     return {'service': service}
 
 
-def create_nsgroup(display_name, description, tags):
+def get_nsgroup_port_tag_expression(scope, tag):
+    return {'resource_type': NSGROUP_TAG_EXPRESSION,
+            'target_type': LOGICAL_PORT,
+            'scope': scope,
+            'value': tag}
+
+
+def create_nsgroup(display_name, description, tags, membership_criteria=None):
     body = {'display_name': display_name,
             'description': description,
             'tags': tags,
             'members': []}
+    if membership_criteria:
+        body.update({'membership_criteria': [membership_criteria]})
     return nsxclient.create_resource('ns-groups', body)
 
 
