@@ -377,6 +377,10 @@ nsx_v3_opts = [
                 default=False,
                 help=_("(Optional) Indicates whether distributed-firewall "
                        "security-groups rules are logged.")),
+    cfg.BoolOpt('use_nsx_tags_for_grouping',
+                default=False,
+                help=_("(Optional) Indicates whether the plugin uses tags to "
+                       "associate nsgroups with logical-ports.")),
 ]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
