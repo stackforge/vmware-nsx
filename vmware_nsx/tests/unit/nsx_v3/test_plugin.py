@@ -750,7 +750,7 @@ class TestNsxV3Utils(NsxV3PluginTestCaseMixin):
                 {'scope': 'os-project-name', 'tag': 'Z' * 40},
                 {'scope': 'os-api-version',
                  'tag': version.version_info.release_string()}]
-        resources = [{'resource_type': 'os-instance-uuid',
+        resources = [{'scope': 'os-instance-uuid',
                       'tag': 'A' * 40}]
         tags = utils.update_v3_tags(tags, resources)
         expected = [{'scope': 'os-neutron-net-id', 'tag': 'X' * 40},
@@ -768,7 +768,7 @@ class TestNsxV3Utils(NsxV3PluginTestCaseMixin):
                 {'scope': 'os-project-name', 'tag': 'Z' * 40},
                 {'scope': 'os-api-version',
                  'tag': version.version_info.release_string()}]
-        resources = [{'resource_type': 'os-neutron-net-id',
+        resources = [{'scope': 'os-neutron-net-id',
                       'tag': ''}]
         tags = utils.update_v3_tags(tags, resources)
         expected = [{'scope': 'os-project-id', 'tag': 'Y' * 40},
@@ -783,7 +783,7 @@ class TestNsxV3Utils(NsxV3PluginTestCaseMixin):
                 {'scope': 'os-project-name', 'tag': 'Z' * 40},
                 {'scope': 'os-api-version',
                  'tag': version.version_info.release_string()}]
-        resources = [{'resource_type': 'os-project-id',
+        resources = [{'scope': 'os-project-id',
                       'tag': 'A' * 40}]
         tags = utils.update_v3_tags(tags, resources)
         expected = [{'scope': 'os-neutron-net-id', 'tag': 'X' * 40},
@@ -791,6 +791,35 @@ class TestNsxV3Utils(NsxV3PluginTestCaseMixin):
                     {'scope': 'os-project-name', 'tag': 'Z' * 40},
                     {'scope': 'os-api-version',
                      'tag': version.version_info.release_string()}]
+        self.assertEqual(sorted(expected), sorted(tags))
+
+    def test_update_v3_tags_repetitive_scopes(self):
+        tags = [{'scope': 'os-neutron-net-id', 'tag': 'X' * 40},
+                {'scope': 'os-project-id', 'tag': 'Y' * 40},
+                {'scope': 'os-project-name', 'tag': 'Z' * 40},
+                {'scope': 'os-security-group', 'tag': 'SG1'},
+                {'scope': 'os-security-group', 'tag': 'SG2'}]
+        tags_update = [{'scope': 'os-security-group', 'tag': 'SG3'},
+                       {'scope': 'os-security-group', 'tag': 'SG4'}]
+        tags = utils.update_v3_tags(tags, tags_update)
+        expected = [{'scope': 'os-neutron-net-id', 'tag': 'X' * 40},
+                    {'scope': 'os-project-id', 'tag': 'Y' * 40},
+                    {'scope': 'os-project-name', 'tag': 'Z' * 40},
+                    {'scope': 'os-security-group', 'tag': 'SG3'},
+                    {'scope': 'os-security-group', 'tag': 'SG4'}]
+        self.assertEqual(sorted(expected), sorted(tags))
+
+    def test_update_v3_tags_repetitive_scopes_remove(self):
+        tags = [{'scope': 'os-neutron-net-id', 'tag': 'X' * 40},
+                {'scope': 'os-project-id', 'tag': 'Y' * 40},
+                {'scope': 'os-project-name', 'tag': 'Z' * 40},
+                {'scope': 'os-security-group', 'tag': 'SG1'},
+                {'scope': 'os-security-group', 'tag': 'SG2'}]
+        tags_update = [{'scope': 'os-security-group', 'tag': None}]
+        tags = utils.update_v3_tags(tags, tags_update)
+        expected = [{'scope': 'os-neutron-net-id', 'tag': 'X' * 40},
+                    {'scope': 'os-project-id', 'tag': 'Y' * 40},
+                    {'scope': 'os-project-name', 'tag': 'Z' * 40}]
         self.assertEqual(sorted(expected), sorted(tags))
 
 
