@@ -301,3 +301,20 @@ class DvsManager(object):
         LOG.info(_LI("%(net_id)s delete from %(dvs)s."),
                  {'net_id': net_id,
                   'dvs': dvs_utils.dvs_name_get()})
+
+    def get_vm_moref(self, instance_uuid):
+        """Get reference to the VM.
+        The method will make use of FindAllByUuid to get the VM reference.
+        This method finds all VM's on the backend that match the
+        instance_uuid, more specifically all VM's on the backend that have
+        'config_spec.instanceUuid' set to 'instance_uuid'.
+        """
+        vm_refs = self._session.invoke_api(
+            self._session.vim,
+            "FindAllByUuid",
+            self._session.vim.service_content.searchIndex,
+            uuid=instance_uuid,
+            vmSearch=True,
+            instanceUuid=True)
+        if vm_refs:
+            return vm_refs[0].value
