@@ -55,6 +55,7 @@ class Operations(enum.Enum):
     CLEAN = 'clean'
     LIST_MISMATCHES = 'list-mismatches'
     FIX_MISMATCH = 'fix-mismatch'
+    MIGRATE_TO_DYNAMIC_CRITERIA = 'migrate-to-dynamic-criteria'
 
     NEUTRON_LIST = 'neutron-list'
     NEUTRON_CLEAN = 'neutron-clean'
@@ -84,6 +85,8 @@ nsxv3_resources = {
                                          Operations.NSX_CLEAN.value,
                                          Operations.NEUTRON_LIST.value,
                                          Operations.NEUTRON_CLEAN.value]),
+    constants.FIREWALL_NSX_GROUPS: Resource(
+        constants.FIREWALL_NSX_GROUPS, [Operations.NSX_UPDATE.value]),
     constants.NETWORKS: Resource(constants.NETWORKS,
                                  [Operations.LIST_MISMATCHES.value]),
     constants.PORTS: Resource(constants.PORTS,
