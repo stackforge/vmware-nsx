@@ -26,7 +26,9 @@ from neutron.db import common_db_mixin as common_db
 from neutron.db import securitygroups_db as sg_db
 
 from vmware_nsx._i18n import _LI
+from vmware_nsx.db import db as nsx_db
 from vmware_nsx.nsxlib.v3 import dfw_api as firewall
+from vmware_nsx.nsxlib.v3 import security
 
 LOG = logging.getLogger(__name__)
 
@@ -41,8 +43,12 @@ class NeutronSecurityGroupApi(sg_db.SecurityGroupDbMixin,
         return self.sg_api.get_security_groups(self.neutron_admin_context)
 
     def delete_security_group(self, sg_id):
-        self.sg_api.delete_security_group(self.neutron_admin_context,
-                                          sg_id)
+        self.sg_api.delete_security_group(self.neutron_admin_context, sg_id)
+
+    def get_nsgroup_id(self, sg_id):
+        return nsx_db.get_nsx_security_group_id(
+            self.neutron_admin_context.session, sg_id)
+
 
 neutron_sg = NeutronSecurityGroupApi()
 
@@ -129,6 +135,22 @@ def neutron_delete_security_groups(resource, event, trigger, **kwargs):
             LOG.warning(str(e))
 
 
+@admin_utils.output_header
+def nsx_migrate_to_use_dynamic_criteria(self):
+    secgroups = neutron_sg.get_security_groups()
+    for sg in secgroups:
+        nsgroup_id = neutron_sg.get_nsgroup_id(sg['id'])
+        membership_criteria = firewall.get_nsgroup_port_tag_expression(
+            security.PORT_SG_SCOPE, sg['id'])
+        try:
+            firewall.update_nsgroup(nsgroup_id,
+                                    membership_criteria=membership_criteria)
+        except Exception as e:
+            LOG.warning("Failed to update membership criteria for nsgroup %s, "
+                        "request to backend returned with error: %s",
+                        nsgroup_id, str(e))
+
+
 registry.subscribe(nsx_list_security_groups,
                    constants.SECURITY_GROUPS,
                    shell.Operations.LIST.value)
@@ -156,3 +178,6 @@ registry.subscribe(neutron_delete_security_groups,
 registry.subscribe(neutron_delete_security_groups,
                    constants.SECURITY_GROUPS,
                    shell.Operations.NEUTRON_CLEAN.value)
+registry.subscribe(nsx_migrate_to_use_dynamic_criteria,
+                   constants.FIREWALL_NSX_GROUPS,
+                   constants.Operations.MIGRATE_TO_DYNAMIC_CRITERIA.value)
