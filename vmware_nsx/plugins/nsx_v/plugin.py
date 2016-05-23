@@ -1146,10 +1146,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             # First we allocate port in neutron database
             neutron_db = super(NsxVPluginV2, self).create_port(context, port)
             # Port port-security is decided by the port-security state on the
-            # network it belongs to
-            port_security = self._get_network_security_binding(
-                context, neutron_db['network_id'])
-            port_data[psec.PORTSECURITY] = port_security
+            # network it belongs to, unless specifically specified here
+            if validators.is_attr_set(port_data.get(psec.PORTSECURITY)):
+                port_security = port_data[psec.PORTSECURITY]
+            else:
+                port_security = self._get_network_security_binding(
+                    context, neutron_db['network_id'])
+                port_data[psec.PORTSECURITY] = port_security
+
             self._process_port_port_security_create(
                 context, port_data, neutron_db)
             # Update fields obtained from neutron db (eg: MAC address)
@@ -1210,6 +1214,52 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             'ip_address' in port['fixed_ips'][0]):
             return port['fixed_ips'][0]['ip_address']
 
+    def _count_no_sec_ports_for_device_id(self, context, device_id):
+        """Find how many compute ports with this device ID and no security
+        there are, so we can decide on adding / removing the device from
+        the exclusion list
+        """
+        filters = {'device_id': [device_id],
+                   'device_owner': ['compute:None']}
+        ports = self.get_ports(context.elevated(), filters=filters)
+        return len([p for p in ports
+            if validators.is_attr_set(p.get(ext_vnic_idx.VNIC_INDEX))
+            and not p[psec.PORTSECURITY]])
+
+    def _add_vm_to_exclude_list(self, context, device_id):
+        if (self._dvs and
+            cfg.CONF.nsxv.use_exclude_list and
+            self._count_no_sec_ports_for_device_id(
+                context, device_id) <= 1):
+                # first time for this vm (we expect the count to be 1 already
+                # because the DB was already updated)
+                vm_moref = self._dvs.get_vm_moref(device_id)
+                if vm_moref is not None:
+                    try:
+                        self.nsx_v.vcns.add_vm_to_exclude_list(vm_moref)
+                    except n_exc.BadRequest:
+                        LOG.error(_LE("Failed to add vm %(device)s "
+                                      "moref %(moref)s to exclusion list"),
+                                  {'device': device_id, 'moref': vm_moref})
+
+    def _remove_vm_from_exclude_list(self, context, device_id,
+                                     expected_count=0):
+        if (self._dvs and
+            cfg.CONF.nsxv.use_exclude_list and
+            self._count_no_sec_ports_for_device_id(
+                context, device_id) <= expected_count):
+                # No ports left in DB (expected count is 0 or 1 depending
+                # on whether the DB was already updated),
+                # So we can remove it from the backend exclude list
+                vm_moref = self._dvs.get_vm_moref(device_id)
+                if vm_moref is not None:
+                    try:
+                        self.nsx_v.vcns.delete_vm_from_exclude_list(vm_moref)
+                    except n_exc.BadRequest:
+                        LOG.error(_LE("Failed to delete vm %(device)s "
+                                      "moref %(moref)s from exclusion list"),
+                                  {'device': device_id, 'moref': vm_moref})
+
     def update_port(self, context, id, port):
         with locking.LockManager.get_lock('port-update-%s' % id):
             return self._update_port(context, id, port)
@@ -1253,12 +1303,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 self._update_vnic_assigned_addresses(
                     context.session, original_port, vnic_id)
             else:
-                LOG.warning(_LW("port-security is disabled on port %(id)s, "
-                                "VM tools must be installed on instance "
-                                "%(device_id)s for security-groups to "
-                                "function properly."),
-                            {'id': id,
-                             'device_id': original_port['device_id']})
+                # Add vm to the exclusion list, since it has no port security
+                if cfg.CONF.nsxv.spoofguard_enabled:
+                    self._add_vm_to_exclude_list(context, device_id)
 
         delete_security_groups = self._check_update_deletes_security_groups(
             port)
@@ -1362,6 +1409,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 if cfg.CONF.nsxv.spoofguard_enabled:
                     self._remove_vnic_from_spoofguard_policy(
                         context.session, original_port['network_id'], vnic_id)
+                    # remove vm from the exclusion list when it is detached
+                    # from the device if it has no port security
+                    if not original_port[psec.PORTSECURITY]:
+                        self._remove_vm_from_exclude_list(context, device_id)
                 self._delete_port_vnic_index_mapping(context, id)
                 self._delete_dhcp_static_binding(context, original_port)
             else:
@@ -1428,6 +1479,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 except Exception as e:
                     LOG.error(_LE('Could not delete the spoofguard policy. '
                                   'Exception %s'), e)
+
+            if (cfg.CONF.nsxv.spoofguard_enabled and
+                not neutron_db_port[psec.PORTSECURITY] and
+                self._is_compute_port(neutron_db_port)):
+                device_id = neutron_db_port['device_id']
+                # Note that we expect to find 1 relevant port in the DB still
+                # because this port was not yet deleted
+                self._remove_vm_from_exclude_list(context, device_id,
+                                                  expected_count=1)
 
         self.disassociate_floatingips(context, id)
         with context.session.begin(subtransactions=True):
