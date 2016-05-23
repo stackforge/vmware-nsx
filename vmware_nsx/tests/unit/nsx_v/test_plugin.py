@@ -140,6 +140,15 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
         plugin_instance._get_edge_id_by_rtr_id.return_value = False
         plugin_instance.edge_manager.is_dhcp_opt_enabled = True
 
+    def _get_core_plugin_with_dvs(self):
+        # enable dvs features to allow policy with QOS
+        cfg.CONF.set_default('use_dvs_features', True, 'nsxv')
+        plugin = manager.NeutronManager.get_plugin()
+        with mock.patch.object(dvs_utils, 'dvs_create_session'):
+            with mock.patch.object(dvs.DvsManager, '_get_dvs_moref'):
+                plugin._dvs = dvs.DvsManager()
+        return plugin
+
     def test_get_vlan_network_name(self):
         p = manager.NeutronManager.get_plugin()
         net_id = uuidutils.generate_uuid()
@@ -496,15 +505,6 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxVPluginV2TestCase):
                               plugin.update_network,
                               context.get_admin_context(),
                               net['network']['id'], data)
-
-    def _get_core_plugin_with_dvs(self):
-        # enable dvs features to allow policy with QOS
-        cfg.CONF.set_default('use_dvs_features', True, 'nsxv')
-        plugin = manager.NeutronManager.get_plugin()
-        with mock.patch.object(dvs_utils, 'dvs_create_session'):
-            with mock.patch.object(dvs.DvsManager, '_get_dvs_moref'):
-                plugin._dvs = dvs.DvsManager()
-        return plugin
 
     @mock.patch.object(dvs.DvsManager, 'update_port_groups_config')
     @mock.patch.object(qos_utils.NsxVQosRule, '_init_from_policy_id')
@@ -3385,26 +3385,8 @@ class TestNSXPortSecurity(test_psec.TestPortSecurity,
         # Security Groups can be used even when port-security is disabled
         pass
 
-    def test_create_port_security_overrides_network_value(self):
-        pass
-
     def test_create_port_with_security_group_and_net_sec_false(self):
         pass
-
-    def test_create_port_security_doese_not_overrides_network_value(self):
-        """NSXv plugin port port-security-enabled is decided by the networks
-        port-security state
-        """
-        res = self._create_network('json', 'net1', True,
-                                   arg_list=('port_security_enabled',),
-                                   port_security_enabled=False)
-        net = self.deserialize('json', res)
-        res = self._create_port('json', net['network']['id'],
-                                arg_list=('port_security_enabled',),
-                                port_security_enabled=True)
-        port = self.deserialize('json', res)
-        self.assertEqual(port['port'][psec.PORTSECURITY], False)
-        self._delete('ports', port['port']['id'])
 
     def test_update_port_remove_port_security_security_group(self):
         pass
@@ -3422,6 +3404,39 @@ class TestNSXPortSecurity(test_psec.TestPortSecurity,
                                       plugin.update_port,
                                       context.get_admin_context(),
                                       port['port']['id'], update_port)
+
+    def test_update_port_no_security_with_vnic(self):
+        """Test that when updating a port without port security,
+        the VM will be added to the exclude list
+        """
+        # create a network without port security
+        res = self._create_network('json', 'net1', True)
+        net = self.deserialize('json', res)
+
+        # create a compute port with this network and a device
+        device_id = _uuid()
+        res = self._create_port('json', net['network']['id'],
+                                arg_list=('port_security_enabled',
+                                          'device_id',
+                                          'device_owner',),
+                                port_security_enabled=False,
+                                device_id=device_id,
+                                device_owner='compute:None')
+        port = self.deserialize('json', res)
+
+        # add vnic to the port
+        plugin = self._get_core_plugin_with_dvs()
+        vm_moref = 'dummy_moref'
+        with mock.patch.object(plugin._dvs, 'get_vm_moref',
+                               return_value=vm_moref):
+            with mock.patch.object(plugin.nsx_v.vcns,
+                                   'add_vm_to_exclude_list') as exclude_list:
+                data = {'port': {'vnic_index': 3}}
+                self.new_update_request(
+                    'ports',
+                    data, port['port']['id']).get_response(self.api)
+                # make sure the vm was added to the exclude list
+                exclude_list.assert_called_once_with(vm_moref)
 
 
 class TestSharedRouterTestCase(L3NatTest, L3NatTestCaseBase,
