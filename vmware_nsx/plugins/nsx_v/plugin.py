@@ -1076,10 +1076,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             # First we allocate port in neutron database
             neutron_db = super(NsxVPluginV2, self).create_port(context, port)
             # Port port-security is decided by the port-security state on the
-            # network it belongs to
-            port_security = self._get_network_security_binding(
-                context, neutron_db['network_id'])
-            port_data[psec.PORTSECURITY] = port_security
+            # network it belongs to, unless specifically specified here
+            if (psec.PORTSECURITY in port_data and
+                type(port_data[psec.PORTSECURITY]) is bool):
+                port_security = port_data[psec.PORTSECURITY]
+            else:
+                port_security = self._get_network_security_binding(
+                    context, neutron_db['network_id'])
+                port_data[psec.PORTSECURITY] = port_security
+
             self._process_port_port_security_create(
                 context, port_data, neutron_db)
             # Update fields obtained from neutron db (eg: MAC address)
@@ -1189,6 +1194,22 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                 "function properly."),
                             {'id': id,
                              'device_id': original_port['device_id']})
+                # Add vm to the exclusion list, since it has no port security
+                if (cfg.CONF.nsxv.spoofguard_enabled and
+                    device_id is not None and self._dvs is not None):
+                    vm_moref = self._dvs.get_vm_moref(device_id)
+                    if vm_moref is not None:
+                        try:
+                            self.nsx_v.vcns.add_vm_to_exclude_list(vm_moref)
+                        except vsh_exc.RequestBad:
+                            # This may fail because the vm is already in
+                            # the exclude list
+                            LOG.error('DEBUG ADIT Could not add the vm to'
+                                      'the exclude list. ')
+
+        # DEBUG ADIT - if removing the device id / vnic or deleting the
+        # port - if it's the last port of this device without port-sec and
+        # sec-groups - remove it from the exclude list
 
         delete_security_groups = self._check_update_deletes_security_groups(
             port)
