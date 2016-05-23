@@ -46,11 +46,11 @@ class NeutronSecurityGroupDB(utils.NeutronDbClient):
             nsx_models.NeutronNsxSecurityGroupMapping.nsx_id).join(
                 nsxv_models.NsxvSecurityGroupSectionMapping,
                 nsx_models.NeutronNsxSecurityGroupMapping).all()
-        sg_mappings = [{'name': mapp.name,
-                        'id': mapp.id,
-                        'section-id': mapp.ip_section_id.split('/')[-1],
-                        'nsx-securitygroup-id': mapp.nsx_id}
-                       for mapp in q]
+        sg_mappings = [{'name': map_.name,
+                        'id': map_.id,
+                        'section-id': map_.ip_section_id.split('/')[-1],
+                        'nsx-securitygroup-id': map_.nsx_id}
+                       for map_ in q]
         return sg_mappings
 
     def get_security_groups(self):

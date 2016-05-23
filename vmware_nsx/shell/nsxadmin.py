@@ -55,6 +55,7 @@ class Operations(enum.Enum):
     CLEAN = 'clean'
     LIST_MISMATCHES = 'list-mismatches'
     FIX_MISMATCH = 'fix-mismatch'
+    MIGRATE_TO_DYNAMIC_CRITERIA = 'migrate-to-dynamic-criteria'
 
     NEUTRON_LIST = 'neutron-list'
     NEUTRON_CLEAN = 'neutron-clean'
