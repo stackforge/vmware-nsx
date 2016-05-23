@@ -55,8 +55,8 @@ class TestMicroSegmentationOps(manager.NetworkScenarioTest):
             if not test.is_extension_enabled(ext, 'network'):
                 msg = "%s extension not enabled." % ext
                 raise cls.skipException(msg)
-        if not (CONF.network.external_network_cidr):
-            msg = "External network CIDR must be defined in network section."
+        if not (CONF.network.public_network_cidr):
+            msg = "public_network_cidr must be defined in network section."
             raise cls.skipException(msg)
 
     @classmethod
@@ -93,12 +93,12 @@ class TestMicroSegmentationOps(manager.NetworkScenarioTest):
                 protocol='tcp',
                 port_range_min=22,
                 port_range_max=22,
-                remote_ip_prefix=CONF.network.external_network_cidr
+                remote_ip_prefix=CONF.network.public_network_cidr
             ),
             dict(
                 direction='ingress',
                 protocol='icmp',
-                remote_ip_prefix=CONF.network.external_network_cidr
+                remote_ip_prefix=CONF.network.public_network_cidr
             )
         ]
         # Rules that are specific to web tier network
@@ -146,7 +146,7 @@ class TestMicroSegmentationOps(manager.NetworkScenarioTest):
         for ruleset in web_rulesets:
             self._create_security_group_rule(secgroup=web_sg, **ruleset)
         for ruleset in app_rulesets:
-            self._create_security_group_rule(secgroup=web_sg, **ruleset)
+            self._create_security_group_rule(secgroup=app_sg, **ruleset)
         return (web_sg, app_sg)
 
     def _create_network_topo(self, **kwargs):
