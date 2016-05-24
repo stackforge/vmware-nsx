@@ -47,7 +47,6 @@ class ApiReplayClient(object):
         self.migrate_security_groups()
         self.migrate_routers()
         self.migrate_networks_subnets_ports()
-        self.migrate_uplink_routers()
 
     def find_subnet_by_id(self, subnet_id, subnets):
         for subnet in subnets:
@@ -156,13 +155,14 @@ class ApiReplayClient(object):
             if dest_router is False:
                 drop_router_fields = ['status',
                                       'routes',
+                                      'ha',
                                       'external_gateway_info']
                 body = self.drop_fields(router, drop_router_fields)
                 print (self.dest_neutron.create_router(
                        {'router': body}))
 
     def migrate_networks_subnets_ports(self):
-        """Migrates routers from source to dest neutron."""
+        """Migrates networks/ports/router-uplinks from src to dest neutron."""
         source_ports = self.source_neutron.list_ports()['ports']
         source_subnets = self.source_neutron.list_subnets()['subnets']
         source_networks = self.source_neutron.list_networks()['networks']
@@ -186,10 +186,12 @@ class ApiReplayClient(object):
                             'port_security_enabled',
                             'binding:vif_details',
                             'binding:vif_type',
-                            'binding:host_id']
+                            'binding:host_id', 'qos_policy_id']
 
         drop_network_fields = ['status', 'subnets', 'availability_zones',
-                               'created_at', 'updated_at', 'tags']
+                               'created_at', 'updated_at', 'tags',
+                               'qos_policy_id', 'ipv4_address_scope',
+                               'ipv6_address_scope', 'mtu']
 
         for network in source_networks:
             body = self.drop_fields(network, drop_network_fields)
@@ -241,17 +243,38 @@ class ApiReplayClient(object):
 
                 # only create port if the dest server doesn't have it
                 if self.have_id(port['id'], dest_ports) is False:
+                    if port['device_owner'] == 'network:router_gateway':
+                        body = {
+                            "external_gateway_info":
+                                {"network_id": port['network_id']}}
+                        router_uplink = self.dest_neutron.update_router(
+                            port['device_id'],  # router_id
+                            {'router': body})
+                        print ("Uplinked router %s" % router_uplink)
+                        continue
 
-                    if port['device_owner'] in ['network:router_interface',
-                                                'network:router_gateway']:
+                    # Let the neutron dhcp-agent recreate this on it's own
+                    if port['device_owner'] == 'network:dhcp':
+                        continue
+
+                    # ignore these as we create them ourselves later
+                    if port['device_owner'] == 'network:floatingip':
+                        continue
+
+                    # NOTE(arosen): for the router_interface port we need to
+                    # create it without specifying any address_pairs then
+                    # tell the neutron-api to uploink it to the router.
+                    if port['device_owner'] == 'network:router_interface':
                         if port['allowed_address_pairs'] == []:
                             del body['allowed_address_pairs']
+
                     created_port = self.dest_neutron.create_port(
                         {'port': body})['port']
                     print ("Created port: " + created_port['id'])
 
                     if port['device_owner'] == 'network:router_interface':
                         try:
+                            # uplink router_interface ports
                             print (self.dest_neutron.add_interface_router(
                                 port['device_id'],
                                 {'port_id': port['id']}))
@@ -261,4 +284,14 @@ class ApiReplayClient(object):
                             # script multiple times as we don't track this.
                             print (e)
 
-                    # TODO(arosen): handle 'network:router_gateway' uplinking
+    def migrate_floatingips(self):
+        """Migrates floatingips from source to dest neutron."""
+        # FIXME(arosen): Some internal changes to neutron are needed
+        # inorder to migrate the floatingips
+
+        # source_fips = self.source_neutron.list_floatingips()['floatingips']
+        # drop_fip_fields = ['status', 'router_id', 'id']
+
+        # for source_fip in source_fips:
+        # body = self.drop_fields(source_fip, drop_fip_fields)
+        # self.dest_neutron.create_floatingip({'floatingip': body})
