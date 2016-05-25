@@ -44,9 +44,13 @@ from oslo_config import cfg
 from oslo_serialization import jsonutils
 from oslo_utils import uuidutils
 
+from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils
+from vmware_nsx.db import db as nsx_db
+from vmware_nsx.dhcp_meta import rpc as nsx_rpc
 from vmware_nsx.nsxlib.v3 import client as nsx_client
 from vmware_nsx.nsxlib.v3 import cluster as nsx_cluster
+from vmware_nsx.nsxlib.v3 import resources as nsx_resources
 from vmware_nsx.plugins.nsx_v3 import plugin as nsx_plugin
 from vmware_nsx.tests import unit as vmware
 from vmware_nsx.tests.unit.extensions import test_metadata
@@ -749,3 +753,186 @@ class TestNsxV3Utils(NsxV3PluginTestCaseMixin):
                     {'scope': 'os-api-version',
                      'tag': version.version_info.release_string()}]
         self.assertEqual(sorted(expected), sorted(tags))
+
+
+class NativeDhcpTestCase(NsxV3PluginTestCaseMixin):
+
+    def setUp(self):
+        super(NativeDhcpTestCase, self).setUp()
+        self._orig_native_dhcp_metadata = cfg.CONF.nsx_v3.native_dhcp_metadata
+        cfg.CONF.set_override('native_dhcp_metadata', True, 'nsx_v3')
+        self._fake_dhcp_profile = nsx_v3_mocks.make_fake_dhcp_profile()
+        self._patcher = mock.patch.object(
+            nsx_resources.DhcpProfile, 'get',
+            return_value=self._fake_dhcp_profile)
+        self._patcher.start()
+        self.plugin._init_native_dhcp()
+
+    def tearDown(self):
+        self._patcher.stop()
+        cfg.CONF.set_override('native_dhcp_metadata',
+                              self._orig_native_dhcp_metadata, 'nsx_v3')
+        super(NativeDhcpTestCase, self).tearDown()
+
+    def _verify_dhcp_service(self, network_id, tenant_id, enabled):
+        port_res = self._list_ports('json', 200, network_id,
+                                    tenant_id=tenant_id,
+                                    device_owner=constants.DEVICE_OWNER_DHCP)
+        port_list = self.deserialize('json', port_res)
+        self.assertEqual(len(port_list['ports']) == 1, enabled)
+
+    def test_dhcp_service_with_create_network(self):
+        with self.network() as network:
+            self._verify_dhcp_service(network['network']['id'],
+                                      network['network']['tenant_id'], False)
+
+    def test_dhcp_service_with_create_no_dhcp_subnet(self):
+        with self.network() as network:
+            with self.subnet(network=network, enable_dhcp=False):
+                self._verify_dhcp_service(network['network']['id'],
+                                          network['network']['tenant_id'],
+                                          False)
+
+    def test_dhcp_service_with_create_multiple_no_dhcp_subnets(self):
+        with self.network() as network:
+            with self.subnet(network=network, cidr='10.0.0.0/24',
+                             enable_dhcp=False):
+                with self.subnet(network=network, cidr='20.0.0.0/24',
+                                 enable_dhcp=False):
+                    self._verify_dhcp_service(network['network']['id'],
+                                              network['network']['tenant_id'],
+                                              False)
+
+    def test_dhcp_service_with_create_dhcp_subnet(self):
+        with self.network() as network:
+            with self.subnet(network=network, enable_dhcp=True):
+                self._verify_dhcp_service(network['network']['id'],
+                                          network['network']['tenant_id'],
+                                          True)
+
+    def test_dhcp_service_with_create_multiple_dhcp_subnets(self):
+        with self.network() as network:
+            with self.subnet(network=network, cidr='10.0.0.0/24',
+                             enable_dhcp=True):
+                subnet = {'subnet': {'network_id': network['network']['id'],
+                                     'cidr': '20.0.0.0/24',
+                                     'enable_dhcp': True}}
+                self.assertRaises(
+                    n_exc.InvalidInput, self.plugin.create_subnet,
+                    context.get_admin_context(), subnet)
+
+    def test_dhcp_service_with_delete_dhcp_subnet(self):
+        with self.network() as network:
+            with self.subnet(network=network, enable_dhcp=True) as subnet:
+                self._verify_dhcp_service(network['network']['id'],
+                                          network['network']['tenant_id'],
+                                          True)
+                self.plugin.delete_subnet(context.get_admin_context(),
+                                          subnet['subnet']['id'])
+                self._verify_dhcp_service(network['network']['id'],
+                                          network['network']['tenant_id'],
+                                          False)
+
+    def test_dhcp_service_with_update_dhcp_subnet(self):
+        with self.network() as network:
+            with self.subnet(network=network, enable_dhcp=False) as subnet:
+                self._verify_dhcp_service(network['network']['id'],
+                                       network['network']['tenant_id'], False)
+                data = {'subnet': {'enable_dhcp': True}}
+                self.plugin.update_subnet(context.get_admin_context(),
+                                          subnet['subnet']['id'], data)
+                self._verify_dhcp_service(network['network']['id'],
+                                          network['network']['tenant_id'],
+                                          True)
+
+    def test_dhcp_service_with_update_multiple_dhcp_subnets(self):
+        with self.network() as network:
+            with self.subnet(network=network, cidr='10.0.0.0/24',
+                             enable_dhcp=True):
+                with self.subnet(network=network, cidr='20.0.0.0/24',
+                                 enable_dhcp=False) as subnet:
+                    self._verify_dhcp_service(network['network']['id'],
+                                              network['network']['tenant_id'],
+                                              True)
+                    data = {'subnet': {'enable_dhcp': True}}
+                    self.assertRaises(
+                        n_exc.InvalidInput, self.plugin.update_subnet,
+                        context.get_admin_context(), subnet['subnet']['id'],
+                        data)
+
+    def test_dhcp_service_with_update_dhcp_port(self):
+        with mock.patch.object(nsx_resources.LogicalDhcpServer,
+                               'update') as update_logical_dhcp_server:
+            with self.subnet(cidr='10.0.0.0/24', enable_dhcp=True) as subnet:
+                dhcp_service = nsx_db.get_nsx_service(
+                    context.get_admin_context().session,
+                    subnet['subnet']['network_id'], nsx_constants.SERVICE_DHCP)
+                new_ip = '10.0.0.10'
+                data = {'port': {'fixed_ips': [
+                    {'subnet_id': subnet['subnet']['id'],
+                     'ip_address': new_ip}]}}
+                self.plugin.update_port(context.get_admin_context(),
+                                        dhcp_service['port_id'], data)
+                update_logical_dhcp_server.assert_called_once_with(
+                    dhcp_service['nsx_service_id'], server_ip=new_ip)
+
+    def test_dhcp_binding_with_create_port(self):
+        with mock.patch.object(nsx_resources.LogicalDhcpServer,
+                               'create_binding',
+                               return_value={"id": uuidutils.generate_uuid()}
+                               ) as create_dhcp_binding:
+            with self.subnet(enable_dhcp=True) as subnet:
+                device_owner = constants.DEVICE_OWNER_COMPUTE_PREFIX + 'None'
+                device_id = uuidutils.generate_uuid()
+                with self.port(subnet=subnet, device_owner=device_owner,
+                               device_id=device_id) as port:
+                    dhcp_service = nsx_db.get_nsx_service(
+                        context.get_admin_context().session,
+                        subnet['subnet']['network_id'],
+                        nsx_constants.SERVICE_DHCP)
+                    ip = port['port']['fixed_ips'][0]['ip_address']
+                    hostname = 'host-%s' % ip.replace('.', '-')
+                    options = {'option121': {'static_routes': [
+                        {'destination_subnet': nsx_rpc.METADATA_DHCP_ROUTE,
+                         'router': ip}]}}
+                    create_dhcp_binding.assert_called_once_with(
+                        dhcp_service['nsx_service_id'],
+                        port['port']['mac_address'], ip, hostname, options)
+
+    def test_dhcp_binding_with_delete_port(self):
+        with mock.patch.object(nsx_resources.LogicalDhcpServer,
+                               'delete_binding') as delete_dhcp_binding:
+            with self.subnet(enable_dhcp=True) as subnet:
+                device_owner = constants.DEVICE_OWNER_COMPUTE_PREFIX + 'None'
+                device_id = uuidutils.generate_uuid()
+                with self.port(subnet=subnet, device_owner=device_owner,
+                               device_id=device_id) as port:
+                    dhcp_binding = nsx_db.get_nsx_dhcp_bindings(
+                        context.get_admin_context().session,
+                        port['port']['id'])[0]
+                    self.plugin.delete_port(
+                        context.get_admin_context(), port['port']['id'])
+                    delete_dhcp_binding.assert_called_once_with(
+                        dhcp_binding['nsx_service_id'],
+                        dhcp_binding['nsx_binding_id'])
+
+    def test_dhcp_binding_with_update_port(self):
+        with mock.patch.object(nsx_resources.LogicalDhcpServer,
+                               'update_binding') as update_dhcp_binding:
+            with self.subnet(cidr='10.0.0.0/24', enable_dhcp=True) as subnet:
+                device_owner = constants.DEVICE_OWNER_COMPUTE_PREFIX + 'None'
+                device_id = uuidutils.generate_uuid()
+                with self.port(subnet=subnet, device_owner=device_owner,
+                               device_id=device_id) as port:
+                    dhcp_binding = nsx_db.get_nsx_dhcp_bindings(
+                        context.get_admin_context().session,
+                        port['port']['id'])[0]
+                    new_ip = '10.0.0.10'
+                    data = {'port': {'fixed_ips': [
+                        {'subnet_id': subnet['subnet']['id'],
+                         'ip_address': new_ip}]}}
+                    self.plugin.update_port(
+                        context.get_admin_context(), port['port']['id'], data)
+                    update_dhcp_binding.assert_called_once_with(
+                        dhcp_binding['nsx_service_id'],
+                        dhcp_binding['nsx_binding_id'], ip_address=new_ip)

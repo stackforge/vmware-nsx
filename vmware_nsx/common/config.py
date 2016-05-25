@@ -341,6 +341,26 @@ nsx_v3_opts = [
                 help=_("If true, an internal metadata network will be created "
                        "for a router only when the router is attached to a "
                        "DHCP-disabled subnet.")),
+    cfg.BoolOpt('native_dhcp_metadata',
+                default=True,
+                help=_("If true, DHCP and metadata services will be provided "
+                       "by NSX backend.")),
+    cfg.StrOpt('dhcp_profile_uuid',
+               help=_("This is the UUID of the NSX DHCP Proxy that will be "
+                      "used to enable native DHCP service. It needs to be "
+                      "created in NSX before starting Neutron with the NSX "
+                      "plugin.")),
+    cfg.IntOpt('dhcp_lease_time',
+               default=86400,
+               help=_("DHCP default lease time.")),
+    cfg.StrOpt('dns_domain',
+               default='openstacklocal',
+               help=_("Domain to use for building the hostnames.")),
+    cfg.ListOpt('nameservers',
+                default=[],
+                help=_("List of nameservers to configure for the DHCP binding "
+                       "entries. These will be used if there are no "
+                       "nameservers defined on the subnet.")),
     cfg.BoolOpt('log_security_groups_blocked_traffic',
                 default=False,
                 help=_("(Optional) Indicates whether distributed-firewall "
