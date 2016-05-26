@@ -67,6 +67,17 @@ def make_fake_switch(switch_uuid=None, tz_uuid=None, name=FAKE_NAME):
     return fake_switch
 
 
+def make_fake_metadata_proxy():
+    fake_metadata_proxy = {
+        "id": uuidutils.generate_uuid(),
+        "metadata_server_url": "http://1.2.3.4",
+        "secret": "my secret",
+        "edge_cluster_id": uuidutils.generate_uuid(),
+        "edge_cluster_member_indexes": [0, 1]
+    }
+    return fake_metadata_proxy
+
+
 def get_resource(resource):
     return {'id': resource.split('/')[-1]}
 
