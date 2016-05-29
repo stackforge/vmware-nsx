@@ -35,6 +35,7 @@ def get_port_policy_id(context, port_id):
     policy = qos_policy.QosPolicy.get_port_policy(
         context, port_id)
     if policy:
+        LOG.debug("====> - VEY")
         return policy.id
 
 
@@ -42,6 +43,7 @@ def get_network_policy_id(context, net_id):
     policy = qos_policy.QosPolicy.get_network_policy(
         context, net_id)
     if policy:
+        LOG.debug("====> - OY")
         return policy.id
 
 

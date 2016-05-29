@@ -982,6 +982,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             raise n_exc.InvalidInput(error_message=err_msg)
 
     def create_port(self, context, port, l2gw_port_check=False):
+        LOG.debug("test!")
         port_data = port['port']
         dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS, [])
 
