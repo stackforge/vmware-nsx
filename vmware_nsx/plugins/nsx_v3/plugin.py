@@ -1049,6 +1049,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # latest db model for the extension functions
         port_model = self._get_port(context, port_data['id'])
         self._apply_dict_extend_functions('ports', port_data, port_model)
+        LOG.info("===> port_data - %s", port_data)
         nsx_rpc.handle_port_metadata_access(self, context, neutron_db)
         return port_data
 
