@@ -141,3 +141,36 @@ class EdgePoolManager(base_mgr.EdgeLoadbalancerBaseManager):
         except nsxv_exc.VcnsApiException:
             self.lbv2_driver.pool.failed_completion(context, pool)
             LOG.error(_LE('Failed to delete pool %s'), pool['id'])
+
+    @log_helpers.log_method_call
+    def status(self, context, pool):
+        listener = pool.listener
+        lb_id = listener.loadbalancer_id
+        lb_binding = nsxv_db.get_nsxv_lbaas_loadbalancer_binding(
+            context.session, lb_id)
+        pool_binding = nsxv_db.get_nsxv_lbaas_pool_binding(
+            context.session, lb_id, listener.id, pool.id)
+        try:
+            lb_status = self.vcns.get_loadbalancer_statistics(
+                lb_binding['edge_id']
+            )
+        except nsxv_exc.VcnsApiException:
+            with excutils.save_and_reraise_exception():
+                self.lbv2_driver.pool.failed_completion(context, pool)
+                LOG.error(_LE('Failed to get status of pool: %s'),
+                          pool.id)
+
+        pools_status = lb_status[1].get('pool', [])
+
+        for pool_status in pools_status:
+            if pool_status['poolId'] == pool_binding['edge_pool_id']:
+                status, member_status = {}, {}
+                for member in pool_status.get('member', []):
+                    member_id = member['name'][len(lb_common.MEMBER_ID_PFX):]
+                    member_status[member_id] = {
+                        'operating_status': ('OFFLINE'
+                                             if member['status'] == 'DOWN'
+                                             else 'ONLINE')}
+
+                status['members'] = member_status
+                return status
