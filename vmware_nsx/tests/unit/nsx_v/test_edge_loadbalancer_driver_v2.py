@@ -56,6 +56,54 @@ POOL_BINDING = {'loadbalancer_id': LB_ID,
                 'listener_id': LISTENER_ID,
                 'pool_id': POOL_ID,
                 'edge_pool_id': EDGE_POOL_ID}
+POOL_STATS = ({'status': '200',
+               'content-location': '',
+               'transfer-encoding': 'chunked',
+               'expires': 'Thu, 01 Jan 1970 00:00:00 GMT',
+               'server': '',
+               'cache-control': 'private, no-cache',
+               'date': 'Thu, 30 Jul 2015 08:59:27 GMT',
+               'content-type': 'application/json'},
+              {'timeStamp': 1427358733,
+               'virtualServer': [
+                   {'name': 'MdSrv',
+                    'virtualServerId': 'virtualServer-1',
+                    'bytesIn': 0,
+                    'bytesOut': 0,
+                    'totalSessions': 0,
+                    'ipAddress': '169.254.128.2',
+                    'curSessions': 0}],
+               'pool': [
+                   {'status': 'UP',
+                    'totalSessions': 10000,
+                    'rateMax': 0,
+                    'name': 'MDSrvPool',
+                    'bytesOut': 100000,
+                    'rateLimit': 0,
+                    'member': [
+                        {'status': 'UP',
+                         'name': 'member-xxx-xxx-xxx-xxx',
+                         'bytesOut': 0,
+                         'memberId': 'member-1',
+                         'totalSessions': 20000,
+                         'ipAddress': '192.168.55.101',
+                         'httpReqRateMax': 0,
+                         'curSessions': 0,
+                         'bytesIn': 0},
+                        {'status': 'DOWN',
+                         'name': 'member-yyy-yyy-yyy-yyy',
+                         'bytesOut': 0,
+                         'memberId': 'member-2',
+                         'totalSessions': 20000,
+                         'ipAddress': '192.168.55.102',
+                         'httpReqRateMax': 0,
+                         'curSessions': 0,
+                         'bytesIn': 0}],
+                    'poolId': EDGE_POOL_ID,
+                    'maxSessions': 10000,
+                    'httpReqRateMax': 0,
+                    'curSessions': 5000,
+                    'bytesIn': 1000000}]})
 MEMBER_ID = 'mmm-mmm'
 MEMBER_ADDRESS = '10.0.0.200'
 EDGE_MEMBER_DEF = {'monitorPort': 80, 'name': 'member-' + MEMBER_ID,
@@ -172,7 +220,7 @@ class TestEdgeLbaasV2Loadbalancer(BaseTestEdgeLbaasV2):
 
     def test_update(self):
         new_lb = lb_models.LoadBalancer(LB_ID, 'yyy-yyy', 'lb-name', 'heh-huh',
-                                    'some-subnet', 'port-id', LB_VIP)
+                                        'some-subnet', 'port-id', LB_VIP)
 
         self.edge_driver.loadbalancer.update(self.context, self.lb, new_lb)
 
@@ -404,6 +452,28 @@ class TestEdgeLbaasV2Pool(BaseTestEdgeLbaasV2):
             mock_successful_completion.assert_called_with(self.context,
                                                           self.pool,
                                                           delete=True)
+
+    def test_status(self):
+        expected_stats = {
+            'active_connections': 5000,
+            'bytes_in': 1000000,
+            'bytes_out': 100000,
+            'total_connections': 10000,
+            'members': {'xxx-xxx-xxx-xxx': {'operating_status': 'ONLINE'},
+                        'yyy-yyy-yyy-yyy': {'operating_status': 'OFFLINE'}}}
+
+        with mock.patch.object(nsxv_db, 'get_nsxv_lbaas_loadbalancer_binding'
+                               ) as mock_get_lb_binding, \
+            mock.patch.object(nsxv_db, 'get_nsxv_lbaas_pool_binding'
+                              ) as mock_get_pool_binding, \
+            mock.patch.object(self.edge_driver.vcns,
+                              'get_loadbalancer_statistics'
+                              ) as mock_get_lb_stats:
+            mock_get_lb_binding.return_value = LB_BINDING
+            mock_get_pool_binding.return_value = POOL_BINDING
+            mock_get_lb_stats.return_value = POOL_STATS
+            stats = self.edge_driver.pool.status(self.context, self.pool)
+            self.assertEqual(stats, expected_stats)
 
 
 class TestEdgeLbaasV2Member(BaseTestEdgeLbaasV2):
