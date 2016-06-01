@@ -249,6 +249,39 @@ class VSMClient(object):
             LOG.debug('Found edge: %s' % edge)
         return edge
 
+    def get_dhcp_edge_info(self):
+        """Get dhcp edge info.
+
+        Return edge if found, else return None.
+        """
+        import re
+        edges = self.get_all_edges()
+        edge_list = []
+        for e in edges:
+            if (not e['edgeStatus'] == 'GREY'
+                    and not e['state'] == 'undeployed'):
+                p = re.compile(r'dhcp*')
+                obj1 = p.match(e['name'])
+                if obj1:
+                    edge_list.append(e['recentJobInfo']['edgeId'])
+        count = 0
+        result_edge = {}
+        for edge_id in edge_list:
+            self.__set_api_version('4.0')
+            self.__set_endpoint('/edges/%s/dhcp/config' % edge_id)
+            response = self.get()
+            paging_info = response.json()
+            if (paging_info['staticBindings']['staticBindings']):
+                result_edge[count] = paging_info
+                count += 1
+            else:
+                LOG.debug('Host Routes are not avilable for %s ' % edge_id)
+        if (count > 0):
+            edge = result_edge[0]
+        else:
+            edge = None
+        return edge
+
     def get_vsm_version(self):
         """Get the VSM client version including major, minor, patch, & build#.
 
