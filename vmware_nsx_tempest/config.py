@@ -89,6 +89,9 @@ NSXvGroup = [
     cfg.IntOpt('provider_vlan_id',
                default=888,
                help="The default vlan_id for admin vlan."),
+    cfg.StrOpt('nsxv_version',
+               default='6.2.3',
+               help="NSX-v version"),
 ]
 
 
