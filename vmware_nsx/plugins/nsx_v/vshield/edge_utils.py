@@ -586,7 +586,7 @@ class EdgeManager(object):
                               res_pool=res_pool)
             return
 
-        with locking.LockManager.get_lock('nsx-edge-request'):
+        with locking.LockManager.get_lock('nsx-edge-pool'):
             self._clean_all_error_edge_bindings(context, res_pool=res_pool)
             available_router_binding = self._get_available_router_binding(
                 context, appliance_size=appliance_size, edge_type=edge_type,
@@ -690,7 +690,7 @@ class EdgeManager(object):
                 router_id, edge_id, jobdata=jobdata, dist=dist)
             return
 
-        with locking.LockManager.get_lock('nsx-edge-request'):
+        with locking.LockManager.get_lock('nsx-edge-pool'):
             self._clean_all_error_edge_bindings(context, res_pool=res_pool)
             backup_router_bindings = self._get_backup_edge_bindings(
                 context, appliance_size=binding['appliance_size'],
