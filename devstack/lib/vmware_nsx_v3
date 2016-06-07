@@ -118,6 +118,9 @@ function neutron_plugin_configure_service {
     if [[ "$NSX_L2GW_DRIVER" != "" ]]; then
         iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_l2gw_driver $NSX_L2GW_DRIVER
     fi
+    if [[ "$DHCP_PROFILE_UUID" != "" ]]; then
+        _nsxv3_ini_set dhcp_profile_uuid $DHCP_PROFILE_UUID
+    fi
     _nsxv3_ini_set nsx_api_user $NSX_USER
     _nsxv3_ini_set nsx_api_password $NSX_PASSWORD
     _nsxv3_ini_set retries $NSX_RETRIES
