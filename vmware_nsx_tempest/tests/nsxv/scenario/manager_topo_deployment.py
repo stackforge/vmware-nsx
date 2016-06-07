@@ -133,8 +133,8 @@ class TopoDeployScenarioManager(manager.NetworkScenarioTest):
             tenant_id = routers_client.tenant_id
         distributed = kwargs.pop('distributed', None)
         router_type = kwargs.pop('router_type', None)
-        if distributed in (True, False):
-            kwargs['distributed'] = distributed
+        if distributed:
+            kwargs['distributed'] = True
         elif router_type in ('shared', 'exclusive'):
             kwargs['router_type'] = router_type
         name = data_utils.rand_name(namestart)
@@ -253,23 +253,25 @@ class TopoDeployScenarioManager(manager.NetworkScenarioTest):
     def setup_project_network(self, external_network_id,
                              client_mgr=None,
                              namestart=None, client=None,
-                             tenant_id=None, cidr_offset=0):
+                             tenant_id=None, cidr_offset=0,
+                             **kwargs):
         """NOTE:
 
             Refer to create_networks@scenario/manager.py which might refer
             to public_router_id which we dont' want to use.
 
             The test class can define class variable tenant_router_attrs
-            to create different type of routers.
+            to create different type of routers, or overwrite with kwargs.
         """
-        # namestart = namestart if namestart else 'topo-deploy-tenant'
         name = namestart or data_utils.rand_name('topo-deploy-tenant')
         client_mgr = client_mgr or self.manager
-        # _create_router() editing distributed and router_type
-        distributed = self.tenant_router_attrs.get('distributed')
-        router_type = self.tenant_router_attrs.get('router_type')
-        # child class use class var tenant_router_attrs to define
-        # tenant's router type.
+        # _create_router() edits distributed and router_type
+        # Child classes use class var tenant_router_attrs to define
+        # tenant's router type, however, caller can overwrite it with kwargs.
+        distributed = kwargs.get('distributed',
+                                 self.tenant_router_attrs.get('distributed'))
+        router_type = kwargs.get('router_type',
+                                 self.tenant_router_attrs.get('router_type'))
         net_router = self._create_router(
             client_mgr=client_mgr, tenant_id=tenant_id,
             namestart=name,
