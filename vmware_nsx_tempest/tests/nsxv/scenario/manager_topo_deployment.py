@@ -133,8 +133,8 @@ class TopoDeployScenarioManager(manager.NetworkScenarioTest):
             tenant_id = routers_client.tenant_id
         distributed = kwargs.pop('distributed', None)
         router_type = kwargs.pop('router_type', None)
-        if distributed in (True, False):
-            kwargs['distributed'] = distributed
+        if distributed:
+            kwargs['distributed'] = True
         elif router_type in ('shared', 'exclusive'):
             kwargs['router_type'] = router_type
         name = data_utils.rand_name(namestart)
@@ -253,7 +253,8 @@ class TopoDeployScenarioManager(manager.NetworkScenarioTest):
     def setup_project_network(self, external_network_id,
                              client_mgr=None,
                              namestart=None, client=None,
-                             tenant_id=None, cidr_offset=0):
+                             tenant_id=None, cidr_offset=0,
+                             **kwargs):
         """NOTE:
 
             Refer to create_networks@scenario/manager.py which might refer
@@ -266,8 +267,10 @@ class TopoDeployScenarioManager(manager.NetworkScenarioTest):
         name = namestart or data_utils.rand_name('topo-deploy-tenant')
         client_mgr = client_mgr or self.manager
         # _create_router() editing distributed and router_type
-        distributed = self.tenant_router_attrs.get('distributed')
-        router_type = self.tenant_router_attrs.get('router_type')
+        distributed = kwargs.get('distributed',
+                                 self.tenant_router_attrs.get('distributed'))
+        router_type = kwargs.get('router_type',
+                                 self.tenant_router_attrs.get('router_type'))
         # child class use class var tenant_router_attrs to define
         # tenant's router type.
         net_router = self._create_router(
