@@ -75,8 +75,7 @@ class DeletableRouter(n_resources.DeletableRouter):
             self.client.add_router_interface(
                 self.id, subnet_id=subnet.id)
         except Exception:
-            x_method(self.client, 'add_router_interface_with_subnet_id',
-                     self.id, subnet_id=subnet.id)
+            pass
         self._subnets.add(subnet)
 
     def delete_subnet(self, subnet):
@@ -87,8 +86,7 @@ class DeletableRouter(n_resources.DeletableRouter):
             self.client.remove_router_interface(
                 self.id, subnet_id=subnet.id)
         except Exception:
-            x_method(self.client, 'remove_router_interface_with_subnet_id',
-                     self.id, subnet_id=subnet.id)
+            pass
         self._subnets.remove(subnet)
 
     def update_extra_routes(self, nexthop, destination):
