@@ -554,6 +554,9 @@ nsxv_opts = [
                        "all the dhcp enabled networks.\nNote: this option can "
                        "only be supported at NSX manager version 6.2.3 or "
                        "higher.")),
+    cfg.StrOpt('service_insertion_redirect_to',
+               help=_("(Optional) The target of the redirect firewalls rules "
+                      "that will be used for the Service Insertion feature.")),
 ]
 
 # Register the configuration options
