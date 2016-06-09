@@ -903,6 +903,9 @@ class FakeVcns(object):
             if k not in ('ids', 'names') and v['name'] == sg_name:
                 return k
 
+    def create_redirect_section(self, request):
+        return self.create_section('layer3redirect', request)
+
     def create_section(self, type, request, insert_before=None):
         section = ET.fromstring(request)
         section_name = section.attrib.get('name')
