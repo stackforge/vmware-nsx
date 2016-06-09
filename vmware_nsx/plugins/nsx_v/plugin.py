@@ -103,6 +103,7 @@ from vmware_nsx.plugins.nsx_v.vshield import edge_firewall_driver
 from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 from vmware_nsx.plugins.nsx_v.vshield import securitygroup_utils
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
+from vmware_nsx.services.flowclassifier.nsx_v import utils as fc_utils
 
 LOG = logging.getLogger(__name__)
 PORTGROUP_PREFIX = 'dvportgroup'
@@ -222,6 +223,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if has_metadata_cfg:
             self.metadata_proxy_handler = (
                 nsx_v_md_proxy.NsxVMetadataProxyHandler(self))
+
+        self._si_handler = fc_utils.NsxvServiceInsertionHandler(self)
 
     def init_complete(self, resource, event, trigger, **kwargs):
         self.init_is_complete = True
@@ -1372,6 +1375,13 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             elif cfg.CONF.nsxv.spoofguard_enabled:
                 # Add vm to the exclusion list, since it has no port security
                 self._add_vm_to_exclude_list(context, device_id, id)
+            # if service insertion is enabled - add this vnic to the service
+            # insertion security group
+            # TODO(asarfaty) depend on the port security flag or a new one??)
+            # TODO(asarfaty) also when removing the port security flag!
+            if self._si_handler.enabled and original_port[psec.PORTSECURITY]:
+                self._add_member_to_security_group(self._si_handler.sg_id,
+                                                   vnic_id)
 
         delete_security_groups = self._check_update_deletes_security_groups(
             port)
@@ -1480,6 +1490,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                             context, device_id, id)
                 self._delete_port_vnic_index_mapping(context, id)
                 self._delete_dhcp_static_binding(context, original_port)
+
+                # if service insertion is enabled - remove this vnic from the
+                # service insertion security group
+                if (self._si_handler.enabled and
+                    original_port[psec.PORTSECURITY]):
+                    self._remove_member_from_security_group(
+                        self._si_handler.sg_id,
+                        vnic_id)
             else:
                 # port security enabled / disabled
                 if port_sec_change:
@@ -1572,6 +1590,13 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             sgids = neutron_db_port.get(ext_sg.SECURITYGROUPS)
             self._delete_security_groups_port_mapping(
                 context.session, vnic_id, sgids)
+
+            # if service insertion is enabled - remove this vnic from the
+            # service insertion security group
+            if self._si_handler.enabled and neutron_db_port[psec.PORTSECURITY]:
+                self._remove_member_from_security_group(self._si_handler.sg_id,
+                                                        vnic_id)
+
             if (cfg.CONF.nsxv.spoofguard_enabled and
                 neutron_db_port[psec.PORTSECURITY]):
                 try:
