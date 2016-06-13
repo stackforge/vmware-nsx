@@ -17,8 +17,10 @@ import functools
 import hashlib
 
 import eventlet
+import netaddr
 from neutron import version
 from neutron_lib.api import validators
+from neutron_lib import constants
 from neutron_lib import exceptions
 from oslo_config import cfg
 from oslo_context import context as common_context
@@ -176,6 +178,47 @@ def update_v3_tags(tags, resources):
             port_tags[resource_type] = tag
     # Create the new set of tags
     return [{'scope': k, 'tag': v} for k, v in port_tags.items()]
+
+
+def build_dhcp_server_config(network, subnet, port, project_name):
+    # Prepare the configutation for a new logical DHCP server.
+    server_ip = "%s/%u" % (port['fixed_ips'][0]['ip_address'],
+                           netaddr.IPNetwork(subnet['cidr']).prefixlen)
+    dns_servers = subnet['dns_nameservers']
+    if not dns_servers or not validators.is_attr_set(dns_servers):
+        dns_servers = cfg.CONF.nsx_v3.nameservers
+    gateway_ip = subnet['gateway_ip']
+    if not gateway_ip or not validators.is_attr_set(gateway_ip):
+        gateway_ip = None
+
+    # The following code is based on _generate_opts_per_subnet() in
+    # neutron/agent/linux/dhcp.py. It prepares DHCP options for a subnet.
+
+    # Add route for directly connected network.
+    host_routes = [{'network': subnet['cidr'], 'next_hop': '0.0.0.0'}]
+    # Copy routes from subnet host_routes attribute.
+    for hr in subnet['host_routes']:
+        if hr.destination == constants.IPv4_ANY:
+            if not gateway_ip:
+                gateway_ip = hr.nexthop
+        else:
+            host_routes.append({'network': hr.destination,
+                                'next_hop': hr.nexthop})
+    # If gateway_ip is defined, add default route.
+    if gateway_ip:
+        host_routes.append({'network': constants.IPv4_ANY,
+                            'next_hop': gateway_ip})
+
+    options = {'option121': {'static_routes': host_routes}}
+    tags = build_v3_tags_payload(
+        network, resource_type='os-neutron-net-id', project_name=project_name)
+    return {'dhcp_profile_id': cfg.CONF.nsx_v3.dhcp_profile_uuid,
+            'server_ip': server_ip,
+            'dns_servers': dns_servers,
+            'domain_name': cfg.CONF.nsx_v3.dns_domain,
+            'gateway_ip': gateway_ip,
+            'options': options,
+            'tags': tags}
 
 
 def retry_upon_exception_nsxv3(exc, delay=500, max_delay=2000,
