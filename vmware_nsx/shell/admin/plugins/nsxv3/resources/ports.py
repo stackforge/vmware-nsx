@@ -25,7 +25,7 @@ from vmware_nsx.nsxlib.v3 import client
 from vmware_nsx.nsxlib.v3 import cluster
 from vmware_nsx.nsxlib.v3 import resources
 from vmware_nsx.plugins.nsx_v3 import plugin
-from vmware_nsx.services.qos.nsx_v3 import utils as qos_utils
+from vmware_nsx.services.qos.common import utils as qos_utils
 from vmware_nsx.shell.admin.plugins.common import constants
 from vmware_nsx.shell.admin.plugins.common import formatters
 from vmware_nsx.shell.admin.plugins.common import utils as admin_utils
