@@ -1897,6 +1897,14 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxVPluginV2TestCase):
     def test_floatingip_association_on_unowned_router(self):
         self.skipTest("Currently no support in plugin for this")
 
+    def test_router_add_gateway_no_subnet_forbidden(self):
+        with self.router() as r:
+            with self.network() as n:
+                self._set_net_external(n['network']['id'])
+                self._add_external_gateway_to_router(
+                    r['router']['id'], n['network']['id'],
+                    expected_code=webob.exc.HTTPBadRequest.code)
+
 
 class L3NatTestCaseBase(test_l3_plugin.L3NatTestCaseMixin):
 
