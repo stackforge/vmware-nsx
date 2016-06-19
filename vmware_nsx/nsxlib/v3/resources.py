@@ -425,3 +425,16 @@ class LogicalRouterPort(AbstractRESTResource):
         raise nsx_exc.ResourceNotFound(
             manager=client._get_nsx_managers_from_conf(),
             operation="get router link port")
+
+
+class MetaDataProxy(AbstractRESTResource):
+
+    @property
+    def uri_segment(self):
+        return 'md-proxies'
+
+    def create(self, *args, **kwargs):
+        pass
+
+    def update(self, uuid, *args, **kwargs):
+        pass
