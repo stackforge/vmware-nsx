@@ -94,7 +94,7 @@ class TestMultiHVNetworkOps(manager.NetworkScenarioTest):
         keypair = self.create_keypair()
         self.keypairs[keypair['name']] = keypair
         security_groups = [{'name': self.security_group['name']}]
-        network = {'uuid': network.id}
+        network = {'uuid': network['id']}
         server = self.create_server(name=name, networks=[network],
                                     key_name=keypair['name'],
                                     security_groups=security_groups,
@@ -112,7 +112,7 @@ class TestMultiHVNetworkOps(manager.NetworkScenarioTest):
         # test internal connectivity to the network ports on the network
         network_ips = (p['fixed_ips'][0]['ip_address'] for p in
                        self._list_ports(tenant_id=server['tenant_id'],
-                                        network_id=network.id)
+                                        network_id=network['id'])
                        if p['device_owner'].startswith('network'))
         self._check_server_connectivity(floating_ip,
                                         network_ips,
@@ -124,7 +124,7 @@ class TestMultiHVNetworkOps(manager.NetworkScenarioTest):
         # test internal connectivity to the other VM on the same network
         compute_ips = (p['fixed_ips'][0]['ip_address'] for p in
                        self._list_ports(tenant_id=server['tenant_id'],
-                                        network_id=network.id)
+                                        network_id=network['id'])
                        if p['device_owner'].startswith('compute'))
         self._check_server_connectivity(floating_ip,
                                         compute_ips,
