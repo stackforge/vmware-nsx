@@ -25,10 +25,10 @@ from tempest.lib.common.utils import data_utils
 from tempest import config
 from tempest import exceptions
 from tempest.scenario import manager
-from tempest.scenario import network_resources as net_resources
 from tempest import test
 
 from vmware_nsx_tempest.services import load_balancer_v1_client as LBV1C
+from vmware_nsx_tempest.tests.nsxv.scenario import net_resources
 
 CONF = config.CONF
 
