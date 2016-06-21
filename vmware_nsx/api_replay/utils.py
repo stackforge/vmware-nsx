@@ -14,28 +14,16 @@
 #    under the License.
 
 
-from neutron.api.v2 import attributes
+from neutron.plugins.common import utils
 from oslo_config import cfg
 from oslo_utils import uuidutils
-import webob.exc
 
 
 def _fixup_res_dict(context, attr_name, res_dict, check_allow_post=True):
-    # This method is a replacement of _fixup_res_dict which is used in
-    # neutron.plugin.common.utils. All this mock does is insert a uuid
-    # for the id field if one is not found ONLY if running in api_replay_mode.
+    # This method is called before the neutron implementaion of it and
+    # is only done to insert a uuid into the id field if one is not
+    # found ONLY if running in api_replay_mode.
     if cfg.CONF.api_replay_mode and 'id' not in res_dict:
         res_dict['id'] = uuidutils.generate_uuid()
-    attr_info = attributes.RESOURCE_ATTRIBUTE_MAP[attr_name]
-    try:
-        attributes.populate_tenant_id(context, res_dict, attr_info, True)
-        attributes.verify_attributes(res_dict, attr_info)
-    except webob.exc.HTTPBadRequest as e:
-        # convert webob exception into ValueError as these functions are
-        # for internal use. webob exception doesn't make sense.
-        raise ValueError(e.detail)
-
-    attributes.fill_default_value(attr_info, res_dict,
-                                  check_allow_post=check_allow_post)
-    attributes.convert_value(attr_info, res_dict)
-    return res_dict
+    return utils._fixup_res_dict(context, attr_name, res_dict,
+                                 check_allow_post)
