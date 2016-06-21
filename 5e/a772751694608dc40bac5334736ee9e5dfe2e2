@@ -1,0 +1,10 @@
+Verified+1: VMware NSX CI
+Code-Review+2: Abhishek Raut <rauta@vmware.com>
+Code-Review+2: garyk <gkotton@vmware.com>
+Workflow+1: garyk <gkotton@vmware.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Tue, 21 Jun 2016 08:28:26 +0000
+Reviewed-on: https://review.openstack.org/331644
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
