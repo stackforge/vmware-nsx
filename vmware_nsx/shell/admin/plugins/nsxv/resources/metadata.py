@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import hashlib
+import hmac
 import logging
 
 from neutron.callbacks import registry
@@ -88,22 +90,33 @@ def nsx_redo_metadata_cfg(resource, event, trigger, **kwargs):
         with locking.LockManager.get_lock(edge_id):
             lb = nsxv_lb.NsxvLoadbalancer.get_loadbalancer(nsxv, edge_id)
             virt = lb.virtual_servers.get(md_proxy.METADATA_VSE_NAME)
-            if virt:
-                pool = virt.default_pool
-                pool.members = {}
+            if not virt:
+                return
 
-                i = 0
-                s_port = cfg.CONF.nsxv.nova_metadata_port
-                for member_ip in edge_internal_ips:
-                    i += 1
-                    member = nsxv_lb.NsxvLBPoolMember(
-                        name='Member-%d' % i,
-                        ip_address=member_ip,
-                        port=s_port,
-                        monitor_port=s_port)
-                    pool.add_member(member)
+            pool = virt.default_pool
+            pool.members = {}
 
-                lb.submit_to_backend(nsxv, edge_id, False)
+            i = 0
+            s_port = cfg.CONF.nsxv.nova_metadata_port
+            for member_ip in edge_internal_ips:
+                i += 1
+                member = nsxv_lb.NsxvLBPoolMember(
+                    name='Member-%d' % i,
+                    ip_address=member_ip,
+                    port=s_port,
+                    monitor_port=s_port)
+                pool.add_member(member)
+
+            virt.del_app_rule('insert-auth')
+            if cfg.CONF.nsxv.metadata_shared_secret:
+                signature = hmac.new(cfg.CONF.nsxv.metadata_shared_secret,
+                                     edge_id,
+                                     hashlib.sha256).hexdigest()
+                sign = 'reqadd X-Metadata-Provider-Signature:' + signature
+                sign_app_rule = nsxv_lb.NsxvLBAppRule('insert-auth', sign)
+                virt['insert-auth'] = sign_app_rule
+
+            lb.submit_to_backend(nsxv, edge_id, False)
 
 
 registry.subscribe(nsx_redo_metadata_cfg,
