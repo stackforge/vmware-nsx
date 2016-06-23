@@ -1060,7 +1060,7 @@ class FakeVcns(object):
         return None, self._spoofguard_policies[int(policy_id)]
 
     def get_spoofguard_policies(self):
-        return None, self._spoofguard_policies
+        return None, {'policies': self._spoofguard_policies}
 
     def approve_assigned_addresses(self, policy_id,
                                    vnic_id, mac_addr, addresses):
@@ -1077,6 +1077,14 @@ class FakeVcns(object):
 
     def delete_vm_from_exclude_list(self, vm_id):
         pass
+
+    def get_scoping_objects(self):
+        response = ('<object>'
+                    '<objectTypeName>Network</objectTypeName>'
+                    '<objectId>aaa</objectId>'
+                    '<name>bbb</name>'
+                    '</object>')
+        return response
 
     def reset_all(self):
         self._jobs.clear()
