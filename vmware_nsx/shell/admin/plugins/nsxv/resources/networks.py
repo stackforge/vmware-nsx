@@ -49,8 +49,13 @@ def get_networks():
 @admin_utils.output_header
 def neutron_list_networks(resource, event, trigger,
                           **kwargs):
-    LOG.info(formatters.output_formatter(constants.NETWORKS, get_networks(),
-                                         ['type', 'moref', 'name']))
+    networks = get_networks()
+    if not networks:
+        LOG.info(_LI("\nNo networks found\n"))
+    else:
+        LOG.info(formatters.output_formatter(constants.NETWORKS,
+                                             get_networks(),
+                                             ['type', 'moref', 'name']))
 
 
 @admin_utils.output_header
