@@ -470,7 +470,7 @@ class LogicalDhcpServer(AbstractRESTResource):
 
     @property
     def uri_segment(self):
-        return 'dhcp/services'
+        return 'dhcp/servers'
 
     def _construct_server(self, body, dhcp_profile_id=None, server_ip=None,
                           dns_servers=None, domain_name=None, gateway_ip=None,
