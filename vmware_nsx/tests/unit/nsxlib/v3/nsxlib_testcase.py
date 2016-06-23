@@ -113,6 +113,12 @@ class NsxClientTestCase(NsxLibTestCase):
             return nsx_client.update_resource(
                 resource, data, client=self._client)
 
+        def NSX3Client(self, cluster_api):
+            return self._client
+
+        def _set_default_api_cluster(self, cluster_api):
+            pass
+
     class MockNSXClusteredAPI(nsx_cluster.NSXClusteredAPI):
 
         def __init__(self, session_response=None):
