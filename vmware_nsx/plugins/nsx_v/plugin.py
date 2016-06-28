@@ -1595,7 +1595,12 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         with context.session.begin(subtransactions=True):
             super(NsxVPluginV2, self).delete_port(context, id)
 
-        self._delete_dhcp_static_binding(context, neutron_db_port)
+        try:
+            self._delete_dhcp_static_binding(context, neutron_db_port)
+        except Exception as e:
+            LOG.error(_LE('Unable to delete static bindings for %(id)s. '
+                          'Error: %(e)s'),
+                      {'id': id, 'e': e})
 
     def delete_subnet(self, context, id):
         subnet = self._get_subnet(context, id)
