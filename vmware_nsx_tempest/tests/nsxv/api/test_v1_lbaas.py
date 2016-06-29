@@ -17,13 +17,13 @@
 import six
 
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
 from tempest.lib import decorators
 
 from tempest.api.network import base
 from tempest import config
 from tempest import test
 
+from vmware_nsx_tempest.common import utils
 from vmware_nsx_tempest.services import load_balancer_v1_client as LBV1C
 
 CONF = config.CONF
@@ -100,26 +100,26 @@ class LoadBalancerTestJSON(base.BaseNetworkTest):
         """
         # Cleanup lb health monitors
         if cls.health_monitor:
-            test_utils.call_and_ignore_notfound_exc(
+            utils.call_and_ignore_notfound_exc(
                 cls.lbv1_client.delete_health_monitor,
                 cls.health_monitor['id'])
             cls.health_monitor = None
 
         # Cleanup members
         if cls.member:
-            test_utils.call_and_ignore_notfound_exc(
+            utils.call_and_ignore_notfound_exc(
                 cls.lbv1_client.delete_member, cls.member['id'])
             cls.member = None
 
         # Cleanup vips
         if cls.vip:
-            test_utils.call_and_ignore_notfound_exc(
+            utils.call_and_ignore_notfound_exc(
                 cls.lbv1_client.delete_vip, cls.vip['id'])
             cls.vip = None
 
         # Cleanup pool
         if cls.pool:
-            test_utils.call_and_ignore_notfound_exc(
+            utils.call_and_ignore_notfound_exc(
                 cls.lbv1_client.delete_pool, cls.pool['id'])
             cls.pool = None
 

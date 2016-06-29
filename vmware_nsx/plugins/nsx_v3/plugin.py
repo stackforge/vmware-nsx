@@ -35,7 +35,7 @@ from neutron.db import agents_db
 from neutron.db import agentschedulers_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
 from neutron.db import db_base_plugin_v2
-from neutron.db import dns_db
+from neutron.db import dns_db  # pylint: disable=no-name-in-module
 from neutron.db import external_net_db
 from neutron.db import extradhcpopt_db
 from neutron.db import extraroute_db
@@ -46,6 +46,7 @@ from neutron.db import portbindings_db
 from neutron.db import portsecurity_db
 from neutron.db import securitygroups_db
 from neutron.extensions import allowedaddresspairs as addr_pair
+# pylint: disable=no-name-in-module
 from neutron.extensions import availability_zone as az_ext
 from neutron.extensions import external_net as ext_net_extn
 from neutron.extensions import extra_dhcp_opt as ext_edo
@@ -2561,7 +2562,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # NOTE(arosen): if in replay mode we need stub out this validator to
         # all default security groups to be created via the api
         if cfg.CONF.api_replay_mode:
-            def _pass(data, foo=None):
+            def _pass(data, _dummy=None):
                 pass
             ext_sg.validators.validators['type:name_not_default'] = _pass
 

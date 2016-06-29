@@ -19,9 +19,9 @@ import six
 from tempest.common import waiters
 from tempest import config
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
 from tempest import test
 
+from vmware_nsx_tempest.common import utils
 from vmware_nsx_tempest.services import nsxv_client
 from vmware_nsx_tempest.tests.nsxv.scenario import (
     manager_topo_deployment as dmgr)
@@ -167,7 +167,7 @@ class TestMultipleTransportZonesBasicOps(dmgr.TopoDeployScenarioManager):
         HELO.router_gateway_clear(self, router['id'],
                                   client=routers_client)
         for net_id, (s_id, network, subnet, sg) in six.iteritems(nets):
-            test_utils.call_and_ignore_notfound_exc(
+            utils.call_and_ignore_notfound_exc(
                 HELO.router_interface_delete,
                 self, router['id'], subnet['id'], client=routers_client)
 
@@ -249,7 +249,7 @@ class TestMultipleTransportZonesBasicOps(dmgr.TopoDeployScenarioManager):
         servers_client = client or self.admin_manager.servers_client
         for net_id in six.iterkeys(self.tp_svrs):
             server = self.tp_svrs[net_id]['server']
-            test_utils.call_and_ignore_notfound_exc(
+            utils.call_and_ignore_notfound_exc(
                 servers_client.delete, server['id'])
             dmgr.waitfor_servers_terminated(servers_client)
 
