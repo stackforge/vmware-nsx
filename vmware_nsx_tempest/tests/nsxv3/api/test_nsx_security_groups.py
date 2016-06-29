@@ -19,8 +19,8 @@ import six
 import time
 
 from tempest.api.network import base_security_groups as base
-from tempest.common.utils import data_utils
 from tempest import config
+from tempest.lib.common.utils import data_utils
 from tempest import test
 
 from vmware_nsx_tempest._i18n import _LI
@@ -34,7 +34,7 @@ NSX_FIREWALL_REALIZED_DELAY = 2
 
 
 class NSXv3SecGroupTest(base.BaseSecGroupTest):
-    _tenant_network_cidr = CONF.network.tenant_network_cidr
+    _tenant_network_cidr = CONF.network.project_network_cidr
 
     @classmethod
     def skip_checks(cls):

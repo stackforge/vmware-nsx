@@ -111,7 +111,7 @@ class SubnetTestJSON(base.BaseAdminNetworkTest):
            create the subnet with that derived CIDR
         """
         if ip_version == 4:
-            cidr = netaddr.IPNetwork(CONF.network.tenant_network_cidr)
+            cidr = netaddr.IPNetwork(CONF.network.project_network_cidr)
             mask_bits = CONF.network.tenant_network_mask_bits
         elif ip_version == 6:
             cidr = netaddr.IPNetwork(CONF.network.tenant_network_v6_cidr)
@@ -127,7 +127,7 @@ class SubnetTestJSON(base.BaseAdminNetworkTest):
     def _get_gateway_from_tempest_conf(cls, ip_version):
         """Return first subnet gateway for configured CIDR."""
         if ip_version == 4:
-            cidr = netaddr.IPNetwork(CONF.network.tenant_network_cidr)
+            cidr = netaddr.IPNetwork(CONF.network.project_network_cidr)
             mask_bits = CONF.network.tenant_network_mask_bits
         elif ip_version == 6:
             cidr = netaddr.IPNetwork(CONF.network.tenant_network_v6_cidr)
@@ -371,6 +371,7 @@ class SubnetTestJSON(base.BaseAdminNetworkTest):
             ['gateway', 'allocation_pools']))
 
     @decorators.skip_because(bug="1501827")
+    @test.idempotent_id('3c4c36a1-684b-4e89-8e71-d528f19322a0')
     def test_create_delete_subnet_with_host_routes_and_dns_nameservers(self):
         self._create_verify_delete_subnet(
             **self.subnet_dict(['host_routes', 'dns_nameservers']))
@@ -385,6 +386,7 @@ class SubnetTestJSON(base.BaseAdminNetworkTest):
         self._create_verify_delete_subnet(enable_dhcp=True)
 
     @decorators.skip_because(bug="1501827")
+    @test.idempotent_id('3c4c36a1-684a-4e89-8e71-d528f19324a0')
     def test_update_subnet_gw_dns_host_routes_dhcp(self):
         network = self._create_network(_auto_clean_up=True)
         subnet_attrs = ['gateway', 'host_routes',
@@ -443,6 +445,7 @@ class SubnetTestJSON(base.BaseAdminNetworkTest):
         self._delete_network(network['id'])
 
     @decorators.skip_because(bug="1501827")
+    @test.idempotent_id('a5caa7d5-ab71-4278-a57c-d6631b7474f8')
     def test_create_delete_subnet_all_attributes(self):
         self._create_verify_delete_subnet(
             enable_dhcp=True,
@@ -457,7 +460,7 @@ class SubnetTestJSON(base.BaseAdminNetworkTest):
             **self.subnet_dict(['gateway',
                                 'dns_nameservers']))
 
-    @test.idempotent_id('3c4c36a1-684b-4e89-8e71-d528f19324a0')
+    @test.idempotent_id('3c4c36a1-684b-4e89-8e71-d518f19324a0')
     def test_add_upd_del_multiple_overlapping_networks_subnet(self):
         r0, R1 = 0, 3   # (todo) get from CONF
         return self._add_upd_del_multiple_networks_subnet(
