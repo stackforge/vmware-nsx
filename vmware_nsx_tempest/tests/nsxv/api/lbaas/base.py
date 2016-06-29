@@ -23,10 +23,10 @@ from tempest import config
 from tempest import test
 
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
 from tempest.lib import exceptions
 
 from vmware_nsx_tempest._i18n import _LI
+from vmware_nsx_tempest.common import utils
 from vmware_nsx_tempest.services.lbaas import health_monitors_client
 from vmware_nsx_tempest.services.lbaas import listeners_client
 from vmware_nsx_tempest.services.lbaas import load_balancers_client
@@ -99,28 +99,28 @@ class BaseTestCase(base.BaseNetworkTest):
                     # delete pool's health-monitor
                     hm = pool.get('healthmonitor')
                     if hm:
-                        test_utils.call_and_ignore_notfound_exc(
+                        utils.call_and_ignore_notfound_exc(
                             cls.health_monitors_client.delete_health_monitor,
                             pool.get('healthmonitor').get('id'))
                         cls._wait_for_load_balancer_status(lb_id)
                     # delete pool's members
                     members = pool.get('members', [])
                     for member in members:
-                        test_utils.call_and_ignore_notfound_exc(
+                        utils.call_and_ignore_notfound_exc(
                             cls.members_client.delete_member,
                             pool.get('id'), member.get('id'))
                         cls._wait_for_load_balancer_status(lb_id)
                     # delete pool
-                    test_utils.call_and_ignore_notfound_exc(
+                    utils.call_and_ignore_notfound_exc(
                         cls.pools_client.delete_pool, pool.get('id'))
                     cls._wait_for_load_balancer_status(lb_id)
                 # delete listener
-                test_utils.call_and_ignore_notfound_exc(
+                utils.call_and_ignore_notfound_exc(
                     cls.listeners_client.delete_listener,
                     listener.get('id'))
                 cls._wait_for_load_balancer_status(lb_id)
             # delete load-balancer
-            test_utils.call_and_ignore_notfound_exc(
+            utils.call_and_ignore_notfound_exc(
                 cls._delete_load_balancer, lb_id)
         # NSX-v: delete exclusive router
         cls.delete_router(cls.router)

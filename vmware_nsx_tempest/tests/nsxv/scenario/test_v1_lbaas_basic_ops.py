@@ -23,10 +23,10 @@ import urllib2
 from tempest import config
 from tempest import exceptions
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
 from tempest.scenario import manager
 from tempest import test
 
+from vmware_nsx_tempest.common import utils
 from vmware_nsx_tempest.services import load_balancer_v1_client as LBV1C
 from vmware_nsx_tempest.tests.nsxv.scenario import (
     network_addon_methods as HELO)
@@ -292,7 +292,7 @@ class TestLBaaSBasicOps(manager.NetworkScenarioTest):
             protocol='HTTP',
             subnet_id=self.subnet['id'])
         self.pool = pool.get('pool', pool)
-        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+        self.addCleanup(utils.call_and_ignore_notfound_exc,
                         self.lbv1_client.delete_pool,
                         self.pool['id'])
         self.assertTrue(self.pool)
@@ -301,7 +301,7 @@ class TestLBaaSBasicOps(manager.NetworkScenarioTest):
     def _create_vip(self, pool_id, **kwargs):
         result = self.lbv1_client.create_vip(pool_id, **kwargs)
         vip = result.get('vip', result)
-        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+        self.addCleanup(utils.call_and_ignore_notfound_exc,
                         self.lbv1_client.delete_vip,
                         vip['id'])
         return vip
@@ -310,7 +310,7 @@ class TestLBaaSBasicOps(manager.NetworkScenarioTest):
         result = self.lbv1_client.create_member(protocol_port, pool_id,
                                                 ip_version, **kwargs)
         member = result.get('member', result)
-        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+        self.addCleanup(utils.call_and_ignore_notfound_exc,
                         self.lbv1_client.delete_member,
                         member['id'])
 
