@@ -1,7 +1,4 @@
-#! /bin/sh
-
-# Copyright (C) 2014 VA Linux Systems Japan K.K.
-# Copyright (C) 2014 YAMAMOTO Takashi <yamamoto at valinux co jp>
+# Copyright 2016 VMware Inc
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,17 +12,13 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+from tempest.lib import exceptions
 
-# The purpose of this script is to avoid casual introduction of more
-# bash dependency.  Please consider alternatives before committing code
-# which uses bash specific features.
 
-# Ignore comments, but include shebangs
-OBSERVED=$(grep -E '^([^#]|#!).*bash' tox.ini tools/* | wc -l)
-EXPECTED=5
-if [ ${EXPECTED} -ne ${OBSERVED} ]; then
-    echo Unexpected number of bash usages are detected.
-    echo Please read the comment in $0
-    exit 1
-fi
-exit 0
+# TODO(boden): remove this once tempest test_utils is released to PyPI
+def call_and_ignore_notfound_exc(func, *args, **kwargs):
+    """Call the given function and pass if a `NotFound` exception is raised."""
+    try:
+        return func(*args, **kwargs)
+    except exceptions.NotFound:
+        pass
