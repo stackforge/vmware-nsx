@@ -41,7 +41,7 @@ NSXV3_VERSION_1_1_0 = '1.1.0'
 
 
 # Allowed network types for the NSX Plugin
-class NetworkTypes:
+class NetworkTypes(object):
     """Allowed provider network types for the NSX Plugin."""
     L3_EXT = 'l3_ext'
     STT = 'stt'
@@ -52,7 +52,7 @@ class NetworkTypes:
 
 
 # Allowed network types for the NSX-v Plugin
-class NsxVNetworkTypes:
+class NsxVNetworkTypes(object):
     """Allowed provider network types for the NSX-v Plugin."""
     FLAT = 'flat'
     VLAN = 'vlan'
@@ -61,7 +61,7 @@ class NsxVNetworkTypes:
 
 
 # Allowed network types for the NSXv3 Plugin
-class NsxV3NetworkTypes:
+class NsxV3NetworkTypes(object):
     """Allowed provider network types for the NSXv3 Plugin."""
     FLAT = 'flat'
     VLAN = 'vlan'

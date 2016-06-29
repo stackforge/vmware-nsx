@@ -60,19 +60,22 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
         # If only the name and or description are updated. We do not need to
         # update the backend.
         if set(['name', 'description']) >= set(r.keys()):
+            # pylint: disable=bad-super-call
             return super(nsx_v.NsxVPluginV2, self.plugin).update_router(
-                context, router_id, router)
+                    context, router_id, router)
 
         edge_id = edge_utils.get_router_edge_id(context, router_id)
         if not edge_id:
+            # pylint: disable=bad-super-call
             return super(nsx_v.NsxVPluginV2, self.plugin).update_router(
-                context, router_id, router)
+                    context, router_id, router)
         else:
             with locking.LockManager.get_lock(str(edge_id)):
                 gw_info = self.plugin._extract_external_gw(
                     context, router, is_extract=True)
+                # pylint: disable=bad-super-call
                 super(nsx_v.NsxVPluginV2, self.plugin).update_router(
-                    context, router_id, router)
+                        context, router_id, router)
 
             if gw_info != constants.ATTR_NOT_SPECIFIED:
                 self.plugin._update_router_gw_info(context, router_id, gw_info)
@@ -637,8 +640,9 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
         router = self.plugin._get_router(context, router_id)
         edge_id = edge_utils.get_router_edge_id(context, router_id)
         if not edge_id:
+            # pylint: disable=bad-super-call
             super(nsx_v.NsxVPluginV2, self.plugin)._update_router_gw_info(
-                context, router_id, info, router=router)
+                    context, router_id, info, router=router)
         # UPDATE gw info only if the router has been attached to an edge
         else:
             is_migrated = False
@@ -651,8 +655,9 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                 orgaddr, orgmask, orgnexthop = (
                     self.plugin._get_external_attachment_info(
                         context, router))
+                # pylint: disable=bad-super-call
                 super(nsx_v.NsxVPluginV2, self.plugin)._update_router_gw_info(
-                    context, router_id, info, router=router)
+                        context, router_id, info, router=router)
                 new_ext_net_id = (router.gw_port_id and
                                   router.gw_port.network_id)
                 new_enable_snat = router.enable_snat
@@ -716,8 +721,9 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
 
     def _base_add_router_interface(self, context, router_id, interface_info):
         with locking.LockManager.get_lock('nsx-shared-router-pool'):
+            # pylint: disable=bad-super-call
             return super(nsx_v.NsxVPluginV2, self.plugin).add_router_interface(
-                context, router_id, interface_info)
+                    context, router_id, interface_info)
 
     def add_router_interface(self, context, router_id, interface_info):
         self.plugin._check_intf_number_of_router(context, router_id)
@@ -729,9 +735,10 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                 with locking.LockManager.get_lock(str(edge_id)):
                     router_ids = self.edge_manager.get_routers_on_same_edge(
                         context, router_id)
+                    # pylint: disable=bad-super-call
                     info = super(nsx_v.NsxVPluginV2,
                                  self.plugin).add_router_interface(
-                        context, router_id, interface_info)
+                            context, router_id, interface_info)
                     subnet = self.plugin.get_subnet(context, info['subnet_id'])
                     network_id = subnet['network_id']
                     # Collect all conflict networks whose cidr are overlapped
@@ -806,8 +813,9 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
     def remove_router_interface(self, context, router_id, interface_info):
         edge_id = edge_utils.get_router_edge_id(context, router_id)
         with locking.LockManager.get_lock(str(edge_id)):
-            info = super(
-                nsx_v.NsxVPluginV2, self.plugin).remove_router_interface(
+            # pylint: disable=bad-super-call
+            info = super(nsx_v.NsxVPluginV2,
+                         self.plugin).remove_router_interface(
                     context, router_id, interface_info)
             subnet = self.plugin.get_subnet(context, info['subnet_id'])
             network_id = subnet['network_id']
