@@ -24,10 +24,10 @@ from tempest.common.utils.linux import remote_client
 from tempest.common import waiters
 from tempest import config
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
 from tempest.scenario import manager
 from tempest import test
 
+from vmware_nsx_tempest.common import utils
 from vmware_nsx_tempest.tests.nsxv.scenario import (
     network_addon_methods as HELO)
 
@@ -241,7 +241,7 @@ class TopoDeployScenarioManager(manager.NetworkScenarioTest):
             waiter_callable=waiters.wait_for_server_termination,
             thing_id=server['id'], thing_id_param='server_id',
             waiter_client=servers_client,
-            cleanup_callable=test_utils.call_and_ignore_notfound_exc,
+            cleanup_callable=utils.call_and_ignore_notfound_exc,
             cleanup_args=[servers_client.delete_server, server['id']])
         if wait_on_boot:
             waiters.wait_for_server_status(
@@ -269,7 +269,7 @@ class TopoDeployScenarioManager(manager.NetworkScenarioTest):
         subnets_client = client_mgr.subnets_client
         body = subnets_client.create_subnet(**create_body)
         net_subnet = body['subnet']
-        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+        self.addCleanup(utils.call_and_ignore_notfound_exc,
                         subnets_client.delete_subnet,
                         net_subnet['id'])
         return net_subnet
