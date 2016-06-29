@@ -104,7 +104,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
         gw_info = self.plugin._extract_external_gw(context, router,
                                                    is_extract=True)
         super(nsx_v.NsxVPluginV2, self.plugin).update_router(
-            context, router_id, router)
+                context, router_id, router)
         if gw_info != constants.ATTR_NOT_SPECIFIED:
             self.plugin._update_router_gw_info(context, router_id, gw_info,
                                                is_routes_update)
@@ -161,7 +161,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                 context, router))
 
         super(nsx_v.NsxVPluginV2, self.plugin)._update_router_gw_info(
-            context, router_id, info, router=router)
+                context, router_id, info, router=router)
 
         new_ext_net_id = router.gw_port_id and router.gw_port.network_id
         new_enable_snat = router.enable_snat
@@ -236,7 +236,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
         self._validate_multiple_subnets_routers(
             context, router_id, interface_info)
         info = super(nsx_v.NsxVPluginV2, self.plugin).add_router_interface(
-            context, router_id, interface_info)
+                context, router_id, interface_info)
 
         router_db = self.plugin._get_router(context, router_id)
         subnet = self.plugin.get_subnet(context, info['subnet_id'])
@@ -253,10 +253,11 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                                                       router_db.admin_state_up)
             except Exception:
                 with excutils.save_and_reraise_exception():
-                    super(nsx_v.NsxVPluginV2, self.plugin
-                          ).remove_router_interface(context,
-                                                    router_id,
-                                                    interface_info)
+                    super(nsx_v.NsxVPluginV2,
+                          self.plugin).remove_router_interface(
+                            context,
+                            router_id,
+                            interface_info)
             # Update edge's firewall rules to accept subnets flows.
             self.plugin._update_subnets_and_dnat_firewall(context, router_db)
 
@@ -387,7 +388,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
 
     def remove_router_interface(self, context, router_id, interface_info):
         info = super(nsx_v.NsxVPluginV2, self.plugin).remove_router_interface(
-            context, router_id, interface_info)
+                context, router_id, interface_info)
         router_db = self.plugin._get_router(context, router_id)
         subnet = self.plugin.get_subnet(context, info['subnet_id'])
         network_id = subnet['network_id']

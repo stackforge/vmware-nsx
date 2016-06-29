@@ -17,9 +17,9 @@ import time
 
 from tempest.common import waiters
 from tempest import config
-from tempest.lib.common.utils import test_utils
 from tempest import test
 
+from vmware_nsx_tempest.common import utils
 from vmware_nsx_tempest.tests.nsxv.scenario import (
     manager_topo_deployment as dmgr)
 
@@ -241,7 +241,7 @@ class TestXnetMultiSubnetsOps(dmgr.TopoDeployScenarioManager):
 
     def delete_floatingips_and_servers(self):
         for net_floatingip in self.my_network['floatingips']:
-            test_utils.call_and_ignore_notfound_exc(
+            utils.call_and_ignore_notfound_exc(
                 self.floating_ips_client.delete_floatingip,
                 net_floatingip['id'])
         fip_list = self.floating_ips_client.list_floatingips()['floatingips']

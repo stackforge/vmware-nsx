@@ -51,7 +51,7 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
         gw_info = self.plugin._extract_external_gw(context, router,
                                                    is_extract=True)
         super(nsx_v.NsxVPluginV2, self.plugin).update_router(
-            context, router_id, router)
+                context, router_id, router)
         if gw_info != n_consts.ATTR_NOT_SPECIFIED:
             self.plugin._update_router_gw_info(context, router_id, gw_info,
                                                is_routes_update)
@@ -155,7 +155,7 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
                 context, router))
 
         super(nsx_v.NsxVPluginV2, self.plugin)._update_router_gw_info(
-            context, router_id, info, router=router)
+                context, router_id, info, router=router)
 
         new_ext_net_id = router.gw_port_id and router.gw_port.network_id
         new_enable_snat = router.enable_snat
@@ -197,7 +197,7 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
     def add_router_interface(self, context, router_id, interface_info):
         self.plugin._check_intf_number_of_router(context, router_id)
         info = super(nsx_v.NsxVPluginV2, self.plugin).add_router_interface(
-            context, router_id, interface_info)
+                context, router_id, interface_info)
 
         router_db = self.plugin._get_router(context, router_id)
         subnet = self.plugin.get_subnet(context, info['subnet_id'])
@@ -235,7 +235,7 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
             raise nsxv_exc.NsxPluginException(err_msg=error)
 
         info = super(nsx_v.NsxVPluginV2, self.plugin).remove_router_interface(
-            context, router_id, interface_info)
+                context, router_id, interface_info)
         router_db = self.plugin._get_router(context, router_id)
         subnet = self.plugin.get_subnet(context, info['subnet_id'])
         network_id = subnet['network_id']
@@ -268,7 +268,7 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
         filters = {'device_owner': [dev_owner_v1, dev_owner_v2],
                    'fixed_ips': {'subnet_id': [subnet_id]}}
         ports = super(nsx_v.NsxVPluginV2, self.plugin).get_ports(
-            context, filters=filters)
+                context, filters=filters)
         return (len(ports) >= 1)
 
     def _update_edge_router(self, context, router_id):
