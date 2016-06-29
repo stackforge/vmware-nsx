@@ -18,11 +18,11 @@ from oslo_log import log as logging
 
 from tempest import config
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
 from tempest.scenario import manager
 from tempest import test
 
 from vmware_nsx_tempest._i18n import _LE
+from vmware_nsx_tempest.common import utils
 
 CONF = config.CONF
 
@@ -158,7 +158,7 @@ class TestMicroSegmentationOps(manager.NetworkScenarioTest):
         router_id = self.router['id']
         self.routers_client.add_router_interface(
             router_id, subnet_id=self.app_subnet['id'])
-        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+        self.addCleanup(utils.call_and_ignore_notfound_exc,
                         self.routers_client.remove_router_interface,
                         router_id, subnet_id=self.app_subnet['id'])
 
