@@ -18,7 +18,7 @@ from oslo_log import log as logging
 
 from tempest import config
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
+from tempest.lib import exceptions
 from tempest.scenario import manager
 from tempest import test
 
@@ -30,6 +30,15 @@ LOG = logging.getLogger(__name__)
 
 Floating_IP_tuple = collections.namedtuple('Floating_IP_tuple',
                                            ['floating_ip', 'server'])
+
+
+# TODO(boden): remove this once tempest test_utils is released to PyPI
+def call_and_ignore_notfound_exc(func, *args, **kwargs):
+    """Call the given function and pass if a `NotFound` exception is raised."""
+    try:
+        return func(*args, **kwargs)
+    except exceptions.NotFound:
+        pass
 
 
 class TestMicroSegmentationOps(manager.NetworkScenarioTest):
@@ -158,7 +167,7 @@ class TestMicroSegmentationOps(manager.NetworkScenarioTest):
         router_id = self.router['id']
         self.routers_client.add_router_interface(
             router_id, subnet_id=self.app_subnet['id'])
-        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+        self.addCleanup(call_and_ignore_notfound_exc,
                         self.routers_client.remove_router_interface,
                         router_id, subnet_id=self.app_subnet['id'])
 
