@@ -22,6 +22,7 @@ from tempest.lib.common.utils import test_utils
 from tempest.lib import exceptions
 from tempest import test
 
+
 CONF = config.CONF
 
 

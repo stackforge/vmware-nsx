@@ -24,6 +24,7 @@ from tempest.lib.common.utils import data_utils
 from tempest.lib.common.utils import test_utils
 from tempest.lib import exceptions
 
+
 CONF = config.CONF
 LOG = log.getLogger(__name__)
 NO_ROUTER_TYPE = CONF.nsxv.no_router_type

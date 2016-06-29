@@ -22,6 +22,7 @@ from tempest.api.network import base
 from tempest import config
 from tempest import test
 
+
 CONF = config.CONF
 
 
