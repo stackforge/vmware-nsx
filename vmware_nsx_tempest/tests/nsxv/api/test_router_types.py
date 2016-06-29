@@ -48,7 +48,7 @@ class ExcRouterTest(base.BaseRouterTest):
     @classmethod
     def resource_setup(cls):
         super(ExcRouterTest, cls).resource_setup()
-        cls.tenant_cidr = (CONF.network.tenant_network_cidr
+        cls.tenant_cidr = (CONF.network.project_network_cidr
                            if cls._ip_version == 4 else
                            CONF.network.tenant_network_v6_cidr)
         manager_ip = re.search(r"(\d{1,3}\.){3}\d{1,3}",
