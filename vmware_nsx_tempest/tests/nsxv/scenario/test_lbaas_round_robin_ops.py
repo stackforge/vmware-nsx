@@ -16,9 +16,9 @@ import urllib3
 from tempest.common import waiters
 from tempest import config
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
 from tempest import test
 
+from vmware_nsx_tempest.common import utils
 from vmware_nsx_tempest.services.lbaas import health_monitors_client
 from vmware_nsx_tempest.services.lbaas import listeners_client
 from vmware_nsx_tempest.services.lbaas import load_balancers_client
@@ -26,8 +26,8 @@ from vmware_nsx_tempest.services.lbaas import members_client
 from vmware_nsx_tempest.services.lbaas import pools_client
 from vmware_nsx_tempest.tests.nsxv.scenario import (
     manager_topo_deployment as dmgr)
-from vmware_nsx_tempest.tests.nsxv.scenario.test_v1_lbaas_basic_ops import (
-    copy_file_to_host as copy_file_to_host)
+from vmware_nsx_tempest.tests.nsxv.scenario import test_v1_lbaas_basic_ops
+
 
 CONF = config.CONF
 LOG = dmgr.manager.log.getLogger(__name__)
@@ -133,23 +133,23 @@ class TestLBaasRoundRobinOps(dmgr.TopoDeployScenarioManager):
                 pool_id = pool.get('id')
                 hm = pool.get('healthmonitor')
                 if hm:
-                    test_utils.call_and_ignore_notfound_exc(
+                    utils.call_and_ignore_notfound_exc(
                         self.health_monitors_client.delete_health_monitor,
                         pool.get('healthmonitor').get('id'))
                     self.wait_for_load_balancer_status(lb_id)
-                test_utils.call_and_ignore_notfound_exc(
+                utils.call_and_ignore_notfound_exc(
                     self.pools_client.delete_pool, pool.get('id'))
                 self.wait_for_load_balancer_status(lb_id)
                 for member in pool.get('members', []):
-                    test_utils.call_and_ignore_notfound_exc(
+                    utils.call_and_ignore_notfound_exc(
                         self.members_client.delete_member,
                         pool_id, member.get('id'))
                     self.wait_for_load_balancer_status(lb_id)
-            test_utils.call_and_ignore_notfound_exc(
+            utils.call_and_ignore_notfound_exc(
                 self.listeners_client.delete_listener,
                 listener.get('id'))
             self.wait_for_load_balancer_status(lb_id)
-        test_utils.call_and_ignore_notfound_exc(
+        utils.call_and_ignore_notfound_exc(
             lb_client.delete_load_balancer, lb_id)
         self.load_balancers_client.wait_for_load_balancer_status(
             lb_id, is_delete_op=True)
@@ -248,9 +248,10 @@ class TestLBaasRoundRobinOps(dmgr.TopoDeployScenarioManager):
             with tempfile.NamedTemporaryFile() as key:
                 key.write(private_key)
                 key.flush()
-                copy_file_to_host(script.name,
-                                  "/tmp/script",
-                                  server_fip, username, key.name)
+                test_v1_lbaas_basic_ops.copy_file_to_host(
+                        script.name,
+                        "/tmp/script",
+                        server_fip, username, key.name)
 
         # Start netcat
         start_server = ('while true; do '
