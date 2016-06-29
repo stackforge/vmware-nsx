@@ -457,7 +457,7 @@ class SubnetTestJSON(base.BaseAdminNetworkTest):
             **self.subnet_dict(['gateway',
                                 'dns_nameservers']))
 
-    @test.idempotent_id('3c4c36a1-684b-4e89-8e71-d528f19324a0')
+    @test.idempotent_id('3c4c36a1-684b-4e89-8e71-d518f19324a0')
     def test_add_upd_del_multiple_overlapping_networks_subnet(self):
         r0, R1 = 0, 3   # (todo) get from CONF
         return self._add_upd_del_multiple_networks_subnet(
