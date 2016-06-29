@@ -2941,8 +2941,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             with context.session.begin(subtransactions=True):
                 context.session.delete(rule_db)
         except Exception:
-            with excutils.save_and_reraise_exception():
-                LOG.exception(_LE("Failed to delete security group rule"))
+            # FIXME(roeyc): reraise unless rule does not exists
+            LOG.warning(_LE("Failed to delete security group rule"))
 
     def _remove_vnic_from_spoofguard_policy(self, session, net_id, vnic_id):
         policy_id = nsxv_db.get_spoofguard_policy_id(session, net_id)
