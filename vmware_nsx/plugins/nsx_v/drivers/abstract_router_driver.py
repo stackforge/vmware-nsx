@@ -18,6 +18,7 @@ import six
 
 from neutron.db import l3_db
 from neutron.db import models_v2
+# pylint: disable=no-name-in-module
 from neutron.extensions import availability_zone as az_ext
 from vmware_nsx._i18n import _
 from vmware_nsx.common import exceptions as nsxv_exc

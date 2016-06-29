@@ -21,8 +21,9 @@ from oslo_log import log
 
 from tempest import config
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
 from tempest.lib import exceptions
+
+from vmware_nsx_tempest.common import utils
 
 CONF = config.CONF
 LOG = log.getLogger(__name__)
@@ -53,7 +54,7 @@ def router_create(SELF, client=None, tenant_id=None,
         kwargs.pop('router_type', None)
     result = routers_client.create_router(**kwargs)
     router = result['router']
-    SELF.addCleanup(test_utils.call_and_ignore_notfound_exc,
+    SELF.addCleanup(utils.call_and_ignore_notfound_exc,
                     routers_client.delete_router, router['id'])
     SELF.assertEqual(router['name'], name)
     return router
@@ -69,7 +70,7 @@ def router_gateway_set(SELF, router_id, network_id, client=None):
     routers_client.update_router(
         router_id,
         external_gateway_info=dict(network_id=network_id))
-    SELF.addCleanup(test_utils.call_and_ignore_notfound_exc,
+    SELF.addCleanup(utils.call_and_ignore_notfound_exc,
                     router_gateway_clear, SELF,
                     router_id, client=routers_client)
     router = routers_client.show_router(router_id)
@@ -101,7 +102,7 @@ def router_interface_add(SELF, router_id, subnet_id, client=None):
     routers_client = client or SELF.routers_client
     routers_client.add_router_interface(router_id,
                                         subnet_id=subnet_id)
-    SELF.addCleanup(test_utils.call_and_ignore_notfound_exc,
+    SELF.addCleanup(utils.call_and_ignore_notfound_exc,
                     routers_client.remove_router_interface,
                     router_id, subnet_id=subnet_id)
 
@@ -171,7 +172,7 @@ def create_network(SELF, client=None, tenant_id=None, name=None, **kwargs):
                                           tenant_id=tenant_id,
                                           **kwargs)
     net_network = body['network']
-    SELF.addCleanup(test_utils.call_and_ignore_notfound_exc,
+    SELF.addCleanup(utils.call_and_ignore_notfound_exc,
                     networks_client.delete_network,
                     net_network['id'])
     SELF.assertEqual(net_network['name'], name)
@@ -198,7 +199,7 @@ def create_subnet(SELF, network, client=None,
     LOG.debug("create_subnet args: %s", post_body)
     body = subnets_client.create_subnet(**post_body)
     net_subnet = body['subnet']
-    SELF.addCleanup(test_utils.call_and_ignore_notfound_exc,
+    SELF.addCleanup(utils.call_and_ignore_notfound_exc,
                     subnets_client.delete_subnet,
                     net_subnet['id'])
     return net_subnet

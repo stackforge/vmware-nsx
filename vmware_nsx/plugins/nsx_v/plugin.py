@@ -40,9 +40,10 @@ from neutron.common import rpc as n_rpc
 from neutron import context as n_context
 from neutron.db import agents_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
+# pylint: disable=no-name-in-module
 from neutron.db.availability_zone import router as router_az_db
 from neutron.db import db_base_plugin_v2
-from neutron.db import dns_db
+from neutron.db import dns_db  # pylint: disable=no-name-in-module
 from neutron.db import external_net_db
 from neutron.db import extraroute_db
 from neutron.db import l3_db
@@ -53,6 +54,7 @@ from neutron.db import portsecurity_db
 from neutron.db import quota_db  # noqa
 from neutron.db import securitygroups_db
 from neutron.extensions import allowedaddresspairs as addr_pair
+# pylint: disable=no-name-in-module
 from neutron.extensions import availability_zone as az_ext
 from neutron.extensions import external_net as ext_net_extn
 from neutron.extensions import l3
@@ -2307,7 +2309,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                     is_routes_update=is_routes_update)
                             except n_exc.IpAddressGenerationFailure:
                                 del info['external_fixed_ips']
-                                pass
                         LOG.warning(_LW("Cannot get one subnet with gateway "
                                         "to allocate one available gw ip"))
                 router_driver._update_router_gw_info(
