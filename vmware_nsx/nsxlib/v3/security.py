@@ -41,6 +41,8 @@ MAX_NSGROUPS_CRITERIA_TAGS = 10
 def _get_l4_protocol_name(protocol_number):
     if protocol_number is None:
         return
+    if protocol_number in const.IP_PROTOCOL_NAME_ALIASES:
+        protocol_number = const.IP_PROTOCOL_NAME_ALIASES[protocol_number]
     protocol_number = const.IP_PROTOCOL_MAP.get(protocol_number,
                                                 protocol_number)
     protocol_number = int(protocol_number)
