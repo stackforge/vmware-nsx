@@ -14,11 +14,11 @@
 #    under the License.
 
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
 
 from tempest import config
 from tempest import test
 
+from vmware_nsx_tempest.common import utils
 from vmware_nsx_tempest.tests.nsxv.api import base_provider as base
 
 CONF = config.CONF
@@ -44,7 +44,7 @@ class DnsSearchDomainTest(base.BaseAdminNetworkTest):
     @classmethod
     def resource_cleanup(cls):
         # we need to cleanup resouces created at class methods
-        test_utils.call_and_ignore_notfound_exc(
+        utils.call_and_ignore_notfound_exc(
             cls.networks_client.delete_network,
             cls.project_network['id'])
         super(DnsSearchDomainTest, cls).resource_cleanup()
@@ -53,7 +53,7 @@ class DnsSearchDomainTest(base.BaseAdminNetworkTest):
         resp = self.create_network(client=self.networks_client,
                                    name=network_name)
         network = resp.get('network', resp)
-        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+        self.addCleanup(utils.call_and_ignore_notfound_exc,
                         self.networks_client.delete_network,
                         network['id'])
         resp = self.create_subnet(network,

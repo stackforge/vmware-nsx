@@ -17,12 +17,12 @@ import re
 import six
 
 from tempest.lib.common.utils import data_utils
-from tempest.lib.common.utils import test_utils
 from tempest.lib import decorators
 
 import base_provider as base
 from tempest import config
 from tempest import test
+from vmware_nsx_tempest.common import utils
 from vmware_nsx_tempest.services import nsxv_client
 
 CONF = config.CONF
@@ -95,7 +95,7 @@ class MultipleTransportZonesTest(base.BaseAdminNetworkTest):
         resp = self.create_network(network_name, **create_kwargs)
         network = resp.get('network', resp)
         net_id = network['id']
-        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+        self.addCleanup(utils.call_and_ignore_notfound_exc,
                         self.delete_network, net_id)
         self.assertEqual(scope_id,
                          network['provider:physical_network'])
@@ -151,7 +151,7 @@ class MultipleTransportZonesTest(base.BaseAdminNetworkTest):
         kwargs.update(create_kwargs)
         router = routers_client.create_router(**kwargs)
         router = router['router'] if 'router' in router else router
-        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+        self.addCleanup(utils.call_and_ignore_notfound_exc,
                         routers_client.delete_router, router['id'])
         self.assertEqual(router['name'], router_name)
         return (routers_client, router)
@@ -166,7 +166,7 @@ class MultipleTransportZonesTest(base.BaseAdminNetworkTest):
         for net_id, (s_id, network, subnet) in six.iteritems(nets):
             # register to cleanup before adding interfaces so interfaces
             # and router can be deleted if test is aborted.
-            self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+            self.addCleanup(utils.call_and_ignore_notfound_exc,
                 routers_client.remove_router_interface,
                 router['id'], subnet_id=subnet['id'])
             routers_client.add_router_interface(
