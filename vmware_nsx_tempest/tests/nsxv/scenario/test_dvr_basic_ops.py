@@ -24,8 +24,9 @@ import testtools
 from tempest import config
 from tempest import exceptions
 from tempest.scenario import manager
-from tempest.services.network import resources as net_resources
 from tempest import test
+
+from vmware_nsx_tempest.tests.nsxv.scenario import resources as net_resources
 
 CONF = config.CONF
 FIP_OPS_TIMEOUT = 10

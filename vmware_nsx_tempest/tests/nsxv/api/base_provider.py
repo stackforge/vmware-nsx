@@ -137,7 +137,7 @@ def get_subnet_create_options(network_id, ip_version=4,
 
     gateway_not_set = (gateway == '')
     if ip_version == 4:
-        cidr = cidr or netaddr.IPNetwork(CONF.network.tenant_network_cidr)
+        cidr = cidr or netaddr.IPNetwork(CONF.network.project_network_cidr)
         mask_bits = mask_bits or CONF.network.tenant_network_mask_bits
     elif ip_version == 6:
         cidr = (
