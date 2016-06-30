@@ -1002,42 +1002,46 @@ class EdgeManager(object):
                                          conflicting, resource_pool)
 
     def remove_network_from_dhcp_edge(self, context, network_id, edge_id):
-        old_binding = nsxv_db.get_edge_vnic_binding(
-            context.session, edge_id, network_id)
-        if not old_binding:
-            LOG.error(_LE("Remove network %(id)s failed since no binding "
-                          "found on edge %(edge_id)s"),
-                      {'id': network_id,
-                       'edge_id': edge_id})
-            self._delete_dhcp_router_binding(context, network_id, edge_id)
-            return
-        old_vnic_index = old_binding['vnic_index']
-        old_tunnel_index = old_binding['tunnel_index']
-        # Cut off the port group/virtual wire connection
-        nsxv_db.free_edge_vnic_by_network(context.session,
-                                          edge_id,
-                                          network_id)
-        try:
-            # update dhcp service config on edge_id
-            self.update_dhcp_service_config(context, edge_id)
+        with locking.LockManager.get_lock(str(edge_id)):
+            old_binding = nsxv_db.get_edge_vnic_binding(
+                context.session, edge_id, network_id)
+            if not old_binding:
+                LOG.error(_LE("Remove network %(id)s failed since no binding "
+                              "found on edge %(edge_id)s"),
+                          {'id': network_id,
+                           'edge_id': edge_id})
+                self._delete_dhcp_router_binding(context, network_id, edge_id)
+                return
+            old_vnic_index = old_binding['vnic_index']
+            old_tunnel_index = old_binding['tunnel_index']
+            # Cut off the port group/virtual wire connection
+            nsxv_db.free_edge_vnic_by_network(context.session,
+                                              edge_id,
+                                              network_id)
+            try:
+                # update dhcp service config on edge_id
+                self.update_dhcp_service_config(context, edge_id)
 
-        except nsxapi_exc.VcnsApiException:
-            LOG.exception(_LE('Failed to delete vnic %(vnic_index)d '
-                              'tunnel %(tunnel_index)d on edge %(edge_id)s'),
-                          {'vnic_index': old_vnic_index,
-                           'tunnel_index': old_tunnel_index,
-                           'edge_id': edge_id})
-            self._mark_router_bindings_status_error(
-                context, edge_id,
-                error_reason="remove network from dhcp edge failure")
-        except Exception:
-            LOG.exception(_LE('Failed to delete vnic %(vnic_index)d '
-                              'tunnel %(tunnel_index)d on edge %(edge_id)s'),
-                          {'vnic_index': old_vnic_index,
-                           'tunnel_index': old_tunnel_index,
-                           'edge_id': edge_id})
-        self._delete_dhcp_internal_interface(context, edge_id, old_vnic_index,
-                                             old_tunnel_index, network_id)
+            except nsxapi_exc.VcnsApiException:
+                LOG.exception(_LE('Failed to delete vnic %(vnic_index)d '
+                                  'tunnel %(tunnel_index)d on edge '
+                                  '%(edge_id)s'),
+                              {'vnic_index': old_vnic_index,
+                               'tunnel_index': old_tunnel_index,
+                               'edge_id': edge_id})
+                self._mark_router_bindings_status_error(
+                    context, edge_id,
+                    error_reason="remove network from dhcp edge failure")
+            except Exception:
+                LOG.exception(_LE('Failed to delete vnic %(vnic_index)d '
+                                  'tunnel %(tunnel_index)d on edge '
+                                  '%(edge_id)s'),
+                              {'vnic_index': old_vnic_index,
+                               'tunnel_index': old_tunnel_index,
+                               'edge_id': edge_id})
+            self._delete_dhcp_internal_interface(context, edge_id,
+                                                 old_vnic_index,
+                                                 old_tunnel_index, network_id)
 
     def reuse_existing_dhcp_edge(self, context, edge_id, resource_id,
                                  network_id):
