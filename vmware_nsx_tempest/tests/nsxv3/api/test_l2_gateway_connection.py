@@ -18,6 +18,7 @@ import netaddr
 
 from tempest import config
 from tempest.lib.common.utils import data_utils
+from tempest.lib.common.utils import test_utils
 from tempest.lib import decorators
 from tempest import test
 
@@ -60,8 +61,8 @@ class L2GatewayConnectionTest(base_l2gw.BaseL2GatewayTest):
         Clean all the resources used during the test.
         """
         super(L2GatewayConnectionTest, cls).resource_cleanup()
-        cls._try_delete_resource(cls.networks_client.delete_network,
-                                 cls.network["id"])
+        test_utils.call_and_ignore_notfound_exc(
+            cls.networks_client.delete_network, cls.network["id"])
 
     @classmethod
     def l2gw_cleanup(cls):
