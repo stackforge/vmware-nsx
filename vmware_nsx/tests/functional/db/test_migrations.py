@@ -18,8 +18,8 @@ from oslo_config import cfg
 
 from neutron.db.migration.alembic_migrations import external
 from neutron.db.migration import cli as migration
-from neutron.tests.common import base
 from neutron.tests.functional.db import test_migrations
+from neutron.tests.unit import testlib_api
 
 from vmware_nsx.db.migration import alembic_migrations
 from vmware_nsx.db.models import head
@@ -51,10 +51,10 @@ class _TestModelsMigrationsFoo(test_migrations._TestModelsMigrations):
 
 
 class TestModelsMigrationsMysql(_TestModelsMigrationsFoo,
-                                base.MySQLTestCase):
+                                testlib_api.MySQLTestCaseMixin):
     pass
 
 
 class TestModelsMigrationsPsql(_TestModelsMigrationsFoo,
-                               base.PostgreSQLTestCase):
+                               testlib_api.PostgreSQLTestCaseMixin):
     pass
