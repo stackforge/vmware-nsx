@@ -38,6 +38,7 @@ from vmware_nsx_tempest.services.lbaas import pools_client
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
+NO_ROUTER_TYPE = CONF.nsxv.no_router_type
 
 
 class BaseTestCase(base.BaseNetworkTest):
@@ -82,6 +83,9 @@ class BaseTestCase(base.BaseNetworkTest):
         cls.subnet_id = cls.subnet.get('id')
         # NSX-v: load-balancer's subnet need to attach to exclusive-router
         router_cfg = dict(router_name=router_name, router_type='exclusive')
+        if NO_ROUTER_TYPE:
+            # router_type is NSX-v extension.
+            router_cfg.pop('router_type', None)
         cls.router = cls.create_router(**router_cfg)
         cls.create_router_interface(cls.router['id'], cls.subnet['id'])
 
