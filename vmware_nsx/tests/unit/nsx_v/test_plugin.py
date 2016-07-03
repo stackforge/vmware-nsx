@@ -19,6 +19,7 @@ import mock
 import netaddr
 from neutron.api.rpc.callbacks import events as callbacks_events
 from neutron.api.v2 import attributes
+from neutron.callbacks import events
 from neutron import context
 from neutron.extensions import dvr as dist_router
 from neutron.extensions import external_net
@@ -69,6 +70,7 @@ from vmware_nsx.plugins.nsx_v.vshield import edge_firewall_driver
 from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 from vmware_nsx.plugins.nsx_v.vshield.tasks import (
     constants as task_constants)
+from vmware_nsx.services.flowclassifier.nsx_v import utils as fc_utils
 from vmware_nsx.services.qos.nsx_v import utils as qos_utils
 from vmware_nsx.tests import unit as vmware
 from vmware_nsx.tests.unit.extensions import test_vnic_index
@@ -3827,6 +3829,29 @@ class TestNSXPortSecurity(test_psec.TestPortSecurity,
         self._toggle_port_security(port['port']['id'], False, True)
         self.fc2.remove_member_from_security_group.assert_any_call(
             p._si_handler.sg_id, vnic_index)
+
+    def test_service_insertion_notify(self):
+        # create a compute ports with/without port security
+        device_id = _uuid()
+        # create 2 compute ports with port security
+        port1 = self._create_compute_port('net1', device_id, True)
+        self._add_vnic_to_port(port1['port']['id'], False, 1)
+        port2 = self._create_compute_port('net2', device_id, True)
+        self._add_vnic_to_port(port2['port']['id'], False, 2)
+        # create 1 compute port without port security
+        port3 = self._create_compute_port('net3', device_id, False)
+        self._add_vnic_to_port(port3['port']['id'], True, 3)
+
+        # init the plugin mocks
+        p = manager.NeutronManager.get_plugin()
+        self.fc2.add_member_to_security_group = (
+            mock.Mock().add_member_to_security_group)
+
+        # call the notification subscribed function and verify it adds all
+        # relevant ports to the group
+        p.add_vms_to_service_insertion(fc_utils.SERVICE_INSERTION_RESOURCE,
+                                       events.AFTER_CREATE, None, sg_id='aaa')
+        self.assertEqual(2, self.fc2.add_member_to_security_group.call_count)
 
 
 class TestSharedRouterTestCase(L3NatTest, L3NatTestCaseBase,

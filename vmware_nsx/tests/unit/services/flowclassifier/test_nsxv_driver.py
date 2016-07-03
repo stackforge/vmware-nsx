@@ -17,10 +17,13 @@ from oslo_config import cfg
 from oslo_utils import importutils
 
 from vmware_nsx.services.flowclassifier.nsx_v import driver as nsx_v_driver
+from vmware_nsx.services.flowclassifier.nsx_v import utils as fc_utils
 from vmware_nsx.tests import unit as vmware
 from vmware_nsx.tests.unit.nsx_v.vshield import fake_vcns
 
 from neutron.api import extensions as api_ext
+from neutron.callbacks import events
+from neutron.callbacks import registry
 from neutron.common import config
 from neutron import context
 from neutron.extensions import portbindings
@@ -84,6 +87,13 @@ class TestNsxvFlowClassifierDriver(
         self._profile_id = 'serviceprofile-1'
         cfg.CONF.set_override('service_insertion_profile_id',
                               self._profile_id, 'nsxv')
+
+        self._notified = False
+        self._notified_sg_id = None
+        registry.subscribe(self._subscribed_func,
+                           fc_utils.SERVICE_INSERTION_RESOURCE,
+                           events.AFTER_CREATE)
+
         self.driver = nsx_v_driver.NsxvFlowClassifierDriver()
         self.driver.initialize()
 
@@ -109,9 +119,15 @@ class TestNsxvFlowClassifierDriver(
     def tearDown(self):
         super(TestNsxvFlowClassifierDriver, self).tearDown()
 
+    def _subscribed_func(self, resource, event, trigger, **kwargs):
+        self._notified = True
+        self._notified_sg_id = kwargs.get('sg_id')
+
     def test_driver_init(self):
-        self.assertEqual(self.driver._profile_id, self._profile_id)
-        self.assertEqual(self.driver._security_group_id, '0')
+        self.assertEqual(self._profile_id, self.driver._profile_id)
+        self.assertEqual(self.driver._security_group_id, self._notified_sg_id)
+        # Make sure the plugin was notified about the new security group
+        self.assertEqual(True, self._notified)
 
     def test_create_flow_classifier_precommit(self):
         with self.flow_classifier(flow_classifier=self._fc) as fc:

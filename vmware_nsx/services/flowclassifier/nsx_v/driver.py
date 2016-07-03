@@ -18,6 +18,8 @@ import xml.etree.ElementTree as et
 
 from networking_sfc.services.flowclassifier.common import exceptions as exc
 from networking_sfc.services.flowclassifier.drivers import base as fc_driver
+from neutron.callbacks import events
+from neutron.callbacks import registry
 from oslo_config import cfg
 from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
@@ -87,9 +89,10 @@ class NsxvFlowClassifierDriver(fc_driver.FlowClassifierDriverBase):
             h, sg_id = (
                 self._nsxv.vcns.create_security_group(sg))
 
-            # TODO(asarfaty) - if the security group was just created
-            # also add all the current compute ports with port-security
-            # to this security group (for upgrades scenarios)
+            # Notify the nsxv plugin to add the current compute ports to this
+            # security group for upgrades scenarios
+            registry.notify(fc_utils.SERVICE_INSERTION_RESOURCE,
+                            events.AFTER_CREATE, self, sg_id=sg_id)
 
         self._security_group_id = sg_id
 
