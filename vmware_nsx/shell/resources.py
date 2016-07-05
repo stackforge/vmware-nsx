@@ -118,8 +118,8 @@ nsxv_resources = {
                              Operations.NSX_UPDATE_SECRET.value]),
 }
 
-nsxv3_resources_names = map(lambda res: res.name, nsxv3_resources.itervalues())
-nsxv_resources_names = map(lambda res: res.name, nsxv_resources.itervalues())
+nsxv3_resources_names = list(nsxv3_resources.keys())
+nsxv_resources_names = list(nsxv_resources.keys())
 
 
 def get_resources(plugin_dir):
