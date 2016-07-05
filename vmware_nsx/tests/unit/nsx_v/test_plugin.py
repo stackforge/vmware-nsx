@@ -1891,7 +1891,7 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxVPluginV2TestCase):
                 sorted_list.append(self._recursive_sort_dict(ele))
             else:
                 sorted_list.append(ele)
-        return sorted(sorted_list)
+        return sorted(sorted_list, key=sorted)
 
     def _recursive_sort_dict(self, dct):
         sorted_dict = {}
