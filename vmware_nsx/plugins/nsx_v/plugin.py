@@ -1060,6 +1060,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
     def _extend_get_network_dict_provider(self, context, net):
         self._extend_network_dict_provider(context, net)
+        # TODO(asarfaty) - we need to find a way to get the policy id without
+        # reloading the plugin. This makes the admin utils crash,
+        # and it is also very slow
         net[qos_consts.QOS_POLICY_ID] = qos_com_utils.get_network_policy_id(
             context, net['id'])
 

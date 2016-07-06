@@ -22,9 +22,13 @@ import vmware_nsx.shell.admin.plugins.nsxv.resources.utils as utils
 import vmware_nsx.shell.resources as shell
 
 from neutron.callbacks import registry
+from neutron import context as n_context
 
-from vmware_nsx._i18n import _LE, _LI
+from vmware_nsx._i18n import _LE, _LI, _LW
+from vmware_nsx.common import locking
 from vmware_nsx.db import nsxv_db
+from vmware_nsx.plugins.nsx_v.vshield.common import (
+    constants as nsxv_constants)
 from vmware_nsx.plugins.nsx_v.vshield.common import exceptions
 from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
@@ -116,9 +120,144 @@ def nsx_update_dhcp_edge_binding(resource, event, trigger, **kwargs):
             LOG.error(_LE("Edge %s not found"), edge_id)
 
 
+def delete_old_edge(context, old_edge_id, bindings):
+    LOG.info(_LI("Deleting the old edge %s"), old_edge_id)
+    # using one of the router-ids in the bindings for the deleting
+    dhcp_names = [binding['router_id'] for binding in bindings]
+    dhcp_name = dhcp_names[0]
+    with locking.LockManager.get_lock(old_edge_id):
+        # Delete from NSXv backend
+        #(using the first dhcp name as the "router name")
+        try:
+            # DEBUG ADIT - if we only free it - it will be immediately used
+            # as the new one.
+            # So it is better to delete it.
+            # -- clean the edge configuration??
+            # -- edge_manager._free_edge_appliance(context, dhcp_name)
+
+            # Delete from NSXv backend
+            nsxv.delete_edge(old_edge_id)
+        except Exception as e:
+            LOG.warning(_LW("Failed to delete the old edge %(id)s: %(e)s"),
+                        {'id': old_edge_id, 'e': e})
+
+        try:
+            # Remove bindings from Neutron DB
+            nsxv_db.delete_nsxv_router_binding(context.session, dhcp_name)
+            nsxv_db.clean_edge_vnic_binding(context.session, old_edge_id)
+        except Exception as e:
+            LOG.warning(_LW("Failed to delete the old edge %(id)s from the "
+                            "DB : %(e)s"), {'id': old_edge_id, 'e': e})
+
+
+def recreate_vdr_dhcp_edge(context, old_edge_id):
+    """Handle the edge recreation of a VDR router DHCP.
+
+    Return False if processing should stop, and True if can continue
+    For now we just verify that this is not a vdr dhcp,
+    since we do nit handle it yet.
+    """
+    # check if this dhcp is bound to a vdr router
+    vdr_binding = nsxv_db.get_vdr_dhcp_binding_by_edge(
+        context.session, old_edge_id)
+    if vdr_binding:
+        vdr_router_id = vdr_binding['vdr_router_id']
+        # TODO(asarfaty) - Support migration the vdr router dhcp too
+        LOG.error(_LE("Edge %(edge_id)s is used by VDR router %(rtr_id)s. "
+                      "Recreating it is not supported yet"),
+                 {'edge_id': old_edge_id, 'rtr_id': vdr_router_id})
+        return False
+    return True
+
+
+@admin_utils.output_header
+def nsx_recreate_dhcp_edge(resource, event, trigger, **kwargs):
+    """Recreate a dhcp edge with all the networks n a new NSXv edge"""
+    if not kwargs.get('property'):
+        LOG.error(_LE("Need to specify edge-id parameter"))
+        return
+
+    properties = admin_utils.parse_multi_keyval_opt(kwargs['property'])
+    old_edge_id = properties.get('edge-id')
+    if not old_edge_id:
+        LOG.error(_LE("Need to specify edge-id parameter"))
+        return
+    LOG.info(_LI("ReCreating NSXv Edge: %s"), old_edge_id)
+
+    # init the plugin and edge manager
+    context = n_context.get_admin_context()
+    plugin = utils.NsxVPluginWrapper()
+    nsxv_manager = vcns_driver.VcnsDriver(edge_utils.NsxVCallbacks(plugin))
+    edge_manager = edge_utils.EdgeManager(nsxv_manager, plugin)
+
+    # check if this dhcp is bound to a vdr router
+    if not recreate_vdr_dhcp_edge(context, old_edge_id):
+        return
+
+    # verify that this is a dhcp edge
+    bindings = nsxv_db.get_nsxv_router_bindings_by_edge(
+        context.session, old_edge_id)
+    if (not bindings or
+        not bindings[0]['router_id'].startswith(
+            nsxv_constants.DHCP_EDGE_PREFIX)):
+        LOG.error(_LE("Edge %(edge_id)s is not a DHCP edge"),
+                 {'edge_id': old_edge_id})
+        return
+
+    networks_binding = nsxv_db.get_edge_vnic_bindings_by_edge(
+        context.session, old_edge_id)
+    network_ids = [binding['network_id'] for binding in networks_binding]
+
+    # cleanup and free the old edge / delete the old edge
+    delete_old_edge(context, old_edge_id, bindings)
+
+    # go over all the networks of the old edge
+    for net_id in network_ids:
+        LOG.info(_LI("Moving network %s to a new edge"), net_id)
+        # delete the old binding
+        resource_id = (nsxv_constants.DHCP_EDGE_PREFIX + net_id)[:36]
+        nsxv_db.delete_nsxv_router_binding(context.session, resource_id)
+
+        # Go over all the subnets with DHCP
+        filters = {'network_id': [net_id], 'enable_dhcp': [True]}
+        subnets = plugin.get_subnets(context, filters=filters)
+        for subnet in subnets:
+            LOG.info(_LI("Moving subnet %s to a new edge"), subnet['id'])
+            # allocate / reuse the new dhcp edge
+            edge_manager.create_dhcp_edge_service(context, net_id, subnet)
+
+        LOG.info(_LI("Creating network %s DHCP address group"), net_id)
+        # Update the ip of the dhcp port
+        address_groups = plugin._create_network_dhcp_address_group(
+            context, net_id)
+        plugin._update_dhcp_edge_service(context, net_id, address_groups)
+
+        # TODO(asarfaty):
+        # go over all networks compute ports
+        #     for port in net_compute_ports:
+        #         # Delete old binding from the DB
+        #         nsx_db.delete_edge_dhcp_static_binding(context.session,
+        #               old_edge_id, port['mac_address'])
+        #         # create new static binding
+        #         plugin._create_dhcp_static_binding(context, port)
+
+        # find out the id of the new edge:
+        new_binding = nsxv_db.get_nsxv_router_binding(
+            context.session, resource_id)
+        if new_binding:
+            LOG.info(_LI("Network %(net_id)s was moved to edge %(edge_id)s"),
+                     {'net_id': net_id, 'edge_id': new_binding['edge_id']})
+        else:
+            LOG.error(_LI("Network %(net_id)s was not moved to a new edge"),
+                     {'net_id': net_id})
+
+
 registry.subscribe(list_missing_dhcp_bindings,
                    constants.DHCP_BINDING,
                    shell.Operations.LIST.value)
 registry.subscribe(nsx_update_dhcp_edge_binding,
                    constants.DHCP_BINDING,
                    shell.Operations.NSX_UPDATE.value)
+registry.subscribe(nsx_recreate_dhcp_edge,
+                   constants.DHCP_BINDING,
+                   shell.Operations.NSX_RECREATE.value)
