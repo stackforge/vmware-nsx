@@ -17,11 +17,13 @@
 
 import sqlalchemy as sa
 
+from oslo_db.sqlalchemy import models
 from neutron.db import model_base
 from neutron.db import models_v2
 
 
-class VcnsRouterBinding(model_base.BASEV2, models_v2.HasStatusDescription):
+class VcnsRouterBinding(model_base.BASEV2, models_v2.HasStatusDescription,
+                        models.TimestampMixin):
     """Represents the mapping between neutron router and vShield Edge."""
 
     __tablename__ = 'vcns_router_bindings'
