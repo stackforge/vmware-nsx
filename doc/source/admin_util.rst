@@ -76,6 +76,9 @@ DHCP Bindings
 
    nsxadmin -r dhcp-binding -o nsx-update --property edge-id=edge-15
 
+- Recreate DHCP edge by moving all the networks to other edges::
+
+   nsxadmin -r dhcp-binding -o nsx-recreate --property edge-id=edge-222
 
 Networks
 ~~~~~~~~
