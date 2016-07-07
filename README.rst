@@ -23,4 +23,4 @@ openstack-dev_ mailing list.
 .. _openstack-dev: mailto:openstack-dev@lists.openstack.org
 
 For information on how to contribute to VMware-NSX, please see the
-contents of the CONTRIBUTING.rst file.
+contents of the CONTRIBUTING.rst file. 
