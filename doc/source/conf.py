@@ -47,7 +47,7 @@ if os.path.isfile(PATH) and os.access(PATH, os.R_OK):
             if fnmatch.fnmatch(line, '*' + pattern[4:]):
                 found = True
         if not found:
-            print line,
+            print(line, end=' ')
 
 # The suffix of source filenames.
 source_suffix = '.rst'
