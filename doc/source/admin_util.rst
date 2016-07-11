@@ -98,6 +98,17 @@ Missing Networks
 
    nsxadmin -r missing-networks -o list
 
+Orphaned Networks
+~~~~~~~~~~~~~~~~
+
+- List networks which are missing from the neutron DB::
+
+   nsxadmin -r ophaned-networks -o list
+
+- Delete a backend network by it's moref::
+
+   nsxadmin -r ophaned-networks -o nsx-c;ean --property moref=<moref>
+
 Security Groups, Firewall and Spoofguard
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
