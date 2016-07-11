@@ -2,7 +2,7 @@
 VMware-NSX package
 ===================
 
-You have come across the VMware-NSX family of Neutron plugins
+You have come across the VMware-NSX family of Neutron plugin
 
 External Resources:
 -------------------
