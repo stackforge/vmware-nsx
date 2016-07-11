@@ -383,9 +383,15 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 msg = _("Need to disable dhcp_agent_notification when "
                         "native_dhcp_metadata is enabled")
                 raise nsx_exc.NsxPluginException(err_msg=msg)
+            if cfg.CONF.nsx_v3.native_metadata_only:
+                msg = _("Can not enable both native_dhcp_metadata and "
+                        "native_metadata_only at the same time")
+                raise nsx_exc.NsxPluginException(err_msg=msg)
             self._init_native_dhcp()
             self._init_native_metadata()
         else:
+            if cfg.CONF.nsx_v3.native_metadata_only:
+                self._init_native_metadata()
             self._setup_dhcp()
             self._start_rpc_notifiers()
 
@@ -669,7 +675,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         neutron_net_id,
                         nsx_net_id)
 
-                    if cfg.CONF.nsx_v3.native_dhcp_metadata:
+                    if (cfg.CONF.nsx_v3.native_dhcp_metadata or
+                        cfg.CONF.nsx_v3.native_metadata_only):
                         # Enable native metadata proxy for this network.
                         tags = utils.build_v3_tags_payload(
                             net_data, resource_type='os-neutron-net-id',
@@ -1038,7 +1045,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                    'network': orig_subnet['network_id']})
 
         if (cfg.CONF.nsx_v3.metadata_on_demand and
-            not cfg.CONF.nsx_v3.native_dhcp_metadata):
+            not cfg.CONF.nsx_v3.native_dhcp_metadata and
+            not cfg.CONF.nsx_v3.native_metadata_only):
             # If enable_dhcp is changed on a subnet attached to a router,
             # update internal metadata network accordingly.
             if 'enable_dhcp' in subnet['subnet']:
@@ -1607,7 +1615,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
             self._add_dhcp_binding(context, port_data)
 
-        if not cfg.CONF.nsx_v3.native_dhcp_metadata:
+        if (not cfg.CONF.nsx_v3.native_dhcp_metadata and
+            not cfg.CONF.nsx_v3.native_metadata_only):
             nsx_rpc.handle_port_metadata_access(self, context, neutron_db)
         return port_data
 
@@ -1650,7 +1659,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # Remove Mac/IP binding from native DHCP server and neutron DB.
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
             self._delete_dhcp_binding(context, port)
-        else:
+        elif not cfg.CONF.nsx_v3.native_metadata_only:
             nsx_rpc.handle_port_metadata_access(self, context, port,
                                                 is_delete=True)
         super(NsxV3Plugin, self).delete_port(context, port_id)
@@ -2140,7 +2149,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return self.get_router(context, router['id'])
 
     def delete_router(self, context, router_id):
-        if not cfg.CONF.nsx_v3.native_dhcp_metadata:
+        if (not cfg.CONF.nsx_v3.native_dhcp_metadata and
+            not cfg.CONF.nsx_v3.native_metadata_only):
             nsx_rpc.handle_router_metadata_access(self, context, router_id,
                                                   interface=None)
         router = self.get_router(context, router_id)
@@ -2377,7 +2387,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 # TODO(berlin): Announce the subnet on tier0 if enable_snat
                 # is False
                 pass
-            if not cfg.CONF.nsx_v3.native_dhcp_metadata:
+            if (not cfg.CONF.nsx_v3.native_dhcp_metadata and
+                not cfg.CONF.nsx_v3.native_metadata_only):
                 # Ensure the NSX logical router has a connection to a
                 # 'metadata access' network (with a proxy listening on
                 # its DHCP port), by creating it if needed.
@@ -2456,7 +2467,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                        'net_id': subnet['network_id']})
         info = super(NsxV3Plugin, self).remove_router_interface(
             context, router_id, interface_info)
-        if not cfg.CONF.nsx_v3.native_dhcp_metadata:
+        if (not cfg.CONF.nsx_v3.native_dhcp_metadata and
+            not cfg.CONF.nsx_v3.native_metadata_only):
             # Ensure the connection to the 'metadata access network' is removed
             # (with the network) if this is the last DHCP-disabled subnet on
             # the router.
