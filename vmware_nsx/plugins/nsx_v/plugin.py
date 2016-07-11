@@ -93,6 +93,7 @@ from vmware_nsx.extensions import dns_search_domain as ext_dns_search_domain
 from vmware_nsx.extensions import routersize
 from vmware_nsx.extensions import secgroup_rule_local_ip_prefix
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
+from vmware_nsx.extensions import strictsecuritygroup as strict_sg
 from vmware_nsx.plugins.nsx_v import managers
 from vmware_nsx.plugins.nsx_v import md_proxy as nsx_v_md_proxy
 from vmware_nsx.plugins.nsx_v.vshield.common import (
@@ -1203,10 +1204,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 self._ensure_default_security_group_on_port(context, port)
             elif validators.is_attr_set(port_data.get(ext_sg.SECURITYGROUPS)):
                 raise psec.PortSecurityAndIPRequiredForSecurityGroups()
-            port_data[ext_sg.SECURITYGROUPS] = (
-                self._get_security_groups_on_port(context, port))
-            self._process_port_create_security_group(
-                context, port_data, port_data[ext_sg.SECURITYGROUPS])
+
+            sgids = self._get_security_groups_on_port(context, port)
+            ssgids = self._get_strict_security_groups_on_port(context, port)
+            self._process_port_create_security_group(context, port_data, sgids)
+            self._process_port_create_strict_security_group(context,
+                                                            port_data,
+                                                            ssgids)
+
             self._process_portbindings_create_and_update(context,
                                                          port['port'],
                                                          port_data)
@@ -1372,7 +1377,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     context, id, device_id, vnic_idx)
             vnic_id = self._get_port_vnic_id(vnic_idx, device_id)
             self._add_security_groups_port_mapping(
-                context.session, vnic_id, original_port['security_groups'])
+                context.session, vnic_id,
+                original_port[ext_sg.SECURITYGROUPS] +
+                original_port[strict_sg.STRICT_SECURITY_GROUPS])
             if has_port_security:
                 LOG.debug("Assigning vnic port fixed-ips: port %s, "
                           "vnic %s, with fixed-ips %s", id, vnic_id,
@@ -1383,6 +1390,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 # Add vm to the exclusion list, since it has no port security
                 self._add_vm_to_exclude_list(context, device_id, id)
 
+        strict_sgs_specified = validators.is_attr_set(
+            port_data.get(strict_sg.STRICT_SECURITY_GROUPS))
         delete_security_groups = self._check_update_deletes_security_groups(
             port)
         has_security_groups = self._check_update_has_security_groups(port)
@@ -1401,23 +1410,19 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             # checks that if update adds/modify security groups,
             # then port has ip
             if not has_ip:
-                if has_security_groups:
-                    raise psec.PortSecurityAndIPRequiredForSecurityGroups()
-                security_groups = (
-                    super(NsxVPluginV2,
-                          self)._get_port_security_group_bindings(
-                              context, {'port_id': [id]})
-                )
-                if security_groups and not delete_security_groups:
-                    raise psec.PortSecurityAndIPRequiredForSecurityGroups()
+                if (has_security_groups or
+                    port_data[strict_sg.STRICT_SECURITY_GROUPS]):
+                        raise psec.PortSecurityAndIPRequiredForSecurityGroups()
+                if (not delete_security_groups and
+                    original_port[ext_sg.SECURITYGROUPS]):
+                        raise psec.PortSecurityAndIPRequiredForSecurityGroups()
 
             if delete_security_groups or has_security_groups:
-                # delete the port binding and read it with the new rules.
-                self._delete_port_security_group_bindings(context, id)
-                new_sgids = self._get_security_groups_on_port(context, port)
-                self._process_port_create_security_group(context, ret_port,
-                                                         new_sgids)
-
+                self.update_security_group_on_port(context, id, port,
+                                                   original_port,
+                                                   ret_port)
+            if strict_sgs_specified:
+                pass
             LOG.debug("Updating port: %s", port)
             self._process_portbindings_create_and_update(context,
                                                          port['port'],
@@ -2747,14 +2752,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         sg_data = security_group['security_group']
         sg_id = sg_data["id"] = str(uuid.uuid4())
 
-        new_security_group = super(NsxVPluginV2, self).create_security_group(
-            context, security_group, default_sg)
-        self._process_security_group_properties_create(
-            context, new_security_group, sg_data)
-
+        with context.session.begin(subtransactions=True):
+            new_sg = super(NsxVPluginV2, self).create_security_group(
+                context, security_group, default_sg)
+            self._process_security_group_properties_create(
+                context, new_sg, sg_data, default_sg)
         try:
             self._process_security_group_create_backend_resources(
-                context, new_security_group)
+                context, new_sg)
         except Exception:
             # Couldn't create backend resources, rolling back neutron db
             # changes.
@@ -2765,7 +2770,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     context = context.elevated()
                 super(NsxVPluginV2, self).delete_security_group(context, sg_id)
                 LOG.exception(_LE('Failed to create security group'))
-        return new_security_group
+        return new_sg
 
     def update_security_group(self, context, id, security_group):
         s = security_group['security_group']
