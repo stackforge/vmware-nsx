@@ -349,10 +349,14 @@ nsx_v3_opts = [
                 help=_("If true, an internal metadata network will be created "
                        "for a router only when the router is attached to a "
                        "DHCP-disabled subnet.")),
-    cfg.BoolOpt('native_dhcp_metadata',
+    cfg.BoolOpt('native_metadata_only',
                 default=False,
                 help=_("If true, DHCP and metadata proxy services will be "
-                       "provided by NSX backend.")),
+                       "provided by Neutron and NSX backend respectively.")),
+    cfg.BoolOpt('native_dhcp_metadata',
+                default=False,
+                help=_("If true, both DHCP and metadata proxy services will "
+                       "be provided by NSX backend.")),
     cfg.StrOpt('dhcp_profile_uuid',
                help=_("This is the UUID of the NSX DHCP Profile that will be "
                       "used to enable native DHCP service. It needs to be "
