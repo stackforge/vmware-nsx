@@ -29,6 +29,7 @@ from oslo_config import cfg
 
 from vmware_nsx._i18n import _LE, _LI
 from vmware_nsx.db import nsxv_db
+from vmware_nsx.plugins.nsx_v import availability_zones as nsx_az
 import vmware_nsx.plugins.nsx_v.vshield.common.constants as nsxv_constants
 import vmware_nsx.plugins.nsx_v.vshield.common.exceptions as nsxv_exceptions
 
@@ -192,33 +193,36 @@ def change_edge_appliance_size(properties):
         LOG.error(_LE("%s"), str(e))
 
 
-def _get_edge_resource_pool_and_size(edge_id):
+def _get_edge_az_and_size(edge_id):
     edgeapi = utils.NeutronDbClient()
     binding = nsxv_db.get_nsxv_router_binding_by_edge(
         edgeapi.context.session, edge_id)
     if binding:
-        return binding['resource_pool'], binding['appliance_size']
+        return binding['availability_zone'], binding['appliance_size']
     # default fallback
-    return cfg.CONF.nsxv.resource_pool_id, nsxv_constants.LARGE
+    return nsx_az.DEFAULT_NAME, nsxv_constants.LARGE
 
 
 def change_edge_appliance(edge_id):
     """Update the appliances data of an edge
 
-    Update the edge appliances data according to the current
-    nsx.ini config, including the edge_ha, datastore & ha_datastore.
-    The resource pool will not be modified.
+    Update the edge appliances data according to its current availability zone
+    and the nsx.ini config, including the resource pool, edge_ha, datastore &
+    ha_datastore.
+    The availability zone of the edge will not be changed.
+    This can be useful when the global resource pool/datastore/edge ha
+    configuration is updated, or when the configuration of a specific
+    availability zone was updated.
     """
-    datastore_id = cfg.CONF.nsxv.datastore_id
-    ha_datastore_id = cfg.CONF.nsxv.ha_datastore_id
     edge_ha = cfg.CONF.nsxv.edge_ha
     # find out what is the current resource pool & size, so we can keep them
-    resource_pool, size = _get_edge_resource_pool_and_size(edge_id)
-    appliances = [{'resourcePoolId': resource_pool,
-                   'datastoreId': datastore_id}]
-    if ha_datastore_id and edge_ha:
-        appliances.append({'resourcePoolId': resource_pool,
-                           'datastoreId': ha_datastore_id})
+    az_name, size = _get_edge_az_and_size(edge_id)
+    az = nsx_az.ConfiguredAvailabilityZones().get_availability_zone(az_name)
+    appliances = [{'resourcePoolId': az.resource_pool,
+                   'datastoreId': az.datastore_id}]
+    if az.ha_datastore_id and edge_ha:
+        appliances.append({'resourcePoolId': az.resource_pool,
+                           'datastoreId': az.ha_datastore_id})
     request = {'appliances': appliances, 'applianceSize': size}
     try:
         nsxv.change_edge_appliance(edge_id, request)
