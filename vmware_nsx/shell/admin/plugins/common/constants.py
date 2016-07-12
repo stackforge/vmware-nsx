@@ -29,6 +29,7 @@ FIREWALL_SECTIONS = 'firewall-sections'
 FIREWALL_NSX_GROUPS = 'nsx-security-groups'
 SECURITY_GROUPS = 'security-groups'
 PORTS = 'ports'
+LBAAS = 'lbaas'
 
 # NSXV Resource Constants
 EDGES = 'edges'
