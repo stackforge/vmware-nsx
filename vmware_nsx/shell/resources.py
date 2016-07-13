@@ -44,6 +44,7 @@ class Operations(enum.Enum):
     NSX_CLEAN = 'nsx-clean'
     NSX_UPDATE = 'nsx-update'
     NSX_UPDATE_SECRET = 'nsx-update-secret'
+    NSX_RECREATE = 'nsx-recreate'
     MIGRATE_TO_DYNAMIC_CRITERIA = 'migrate-to-dynamic-criteria'
 
 
@@ -121,6 +122,8 @@ nsxv_resources = {
     constants.METADATA: Resource(
         constants.METADATA, [Operations.NSX_UPDATE.value,
                              Operations.NSX_UPDATE_SECRET.value]),
+    constants.ROUTERS: Resource(
+        constants.ROUTERS, [Operations.NSX_RECREATE.value]),
 }
 
 nsxv3_resources_names = list(nsxv3_resources.keys())
