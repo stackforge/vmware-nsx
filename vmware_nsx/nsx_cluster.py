@@ -20,6 +20,8 @@ import six
 from vmware_nsx._i18n import _, _LI
 from vmware_nsx.common import exceptions
 
+# NOTE(boden): change to trigger build
+
 LOG = logging.getLogger(__name__)
 DEFAULT_PORT = 443
 # Raise if one of those attributes is not specified
