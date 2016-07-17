@@ -74,6 +74,11 @@ def is_nsx_version_1_1_0(nsx_version):
             version.LooseVersion(NSXV3_VERSION_1_1_0))
 
 
+def is_nsxv_version_6_2(version):
+    return (version.LooseVersion(version) >=
+            version.LooseVersion('6.2'))
+
+
 def get_tags(**kwargs):
     tags = ([dict(tag=value, scope=key)
             for key, value in six.iteritems(kwargs)])
