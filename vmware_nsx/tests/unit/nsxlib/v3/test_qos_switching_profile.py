@@ -17,6 +17,7 @@ import mock
 
 from oslo_log import log
 
+from vmware_nsx.services.qos.nsx_v3 import utils
 from vmware_nsx.tests.unit.nsx_v3 import test_constants as test_constants_v3
 from vmware_nsx.tests.unit.nsxlib.v3 import nsxlib_testcase
 
@@ -39,10 +40,9 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
 
         return body
 
-    def _body_with_shaping(self, shaping_enabled=False,
-                           burst_size=None,
-                           peak_bandwidth=None,
-                           average_bandwidth=None,
+    def _body_with_shaping(self,
+                           egress=None,
+                           ingress=None,
                            description=test_constants_v3.FAKE_NAME,
                            qos_marking=None,
                            dscp=0):
@@ -51,16 +51,24 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
         body["description"] = description
 
         for shaper in body["shaper_configuration"]:
-            # Neutron currently support only shaping of Egress traffic
-            if shaper["resource_type"] == "EgressRateShaper":
-                shaper["enabled"] = shaping_enabled
-                if burst_size:
-                    shaper["burst_size_bytes"] = burst_size
-                if peak_bandwidth:
-                    shaper["peak_bandwidth_mbps"] = peak_bandwidth
-                if average_bandwidth:
-                    shaper["average_bandwidth_mbps"] = average_bandwidth
-                break
+            if egress and shaper["resource_type"] == "EgressRateShaper":
+                shaper["enabled"] = egress.get('shaping_enabled')
+                if egress.get('burst_size'):
+                    shaper["burst_size_bytes"] = egress['burst_size']
+                if egress.get('peak_bandwidth'):
+                    shaper["peak_bandwidth_mbps"] = egress['peak_bandwidth']
+                if egress.get('average_bandwidth'):
+                    shaper["average_bandwidth_mbps"] = egress[
+                        'average_bandwidth']
+            elif ingress and shaper["resource_type"] == "IngressRateShaper":
+                shaper["enabled"] = ingress.get('shaping_enabled')
+                if ingress.get('burst_size'):
+                    shaper["burst_size_bytes"] = ingress['burst_size']
+                if ingress.get('peak_bandwidth'):
+                    shaper["peak_bandwidth_mbps"] = ingress['peak_bandwidth']
+                if ingress.get('average_bandwidth'):
+                    shaper["average_bandwidth_mbps"] = ingress[
+                        'average_bandwidth']
 
         if qos_marking:
             body = self.nsxlib._update_dscp_in_args(
@@ -107,9 +115,16 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
         """
 
         original_profile = self._body_with_shaping()
-        burst_size = 100
-        peak_bandwidth = 200
-        average_bandwidth = 300
+        egress = utils.NsxV3BWLimitRule()
+        egress.shaping_enabled = True
+        egress.burst_size = 100
+        egress.peak_bandwidth = 200
+        egress.average_bandwidth = 300
+        ingress = utils.NsxV3BWLimitRule()
+        ingress.shaping_enabled = True
+        ingress.burst_size = 101
+        ingress.peak_bandwidth = 201
+        egress.average_bandwidth = 301
         qos_marking = "untrusted"
         dscp = 10
 
@@ -119,10 +134,8 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
                 # update the bw shaping of the profile
                 self.nsxlib.update_qos_switching_profile_shaping(
                     test_constants_v3.FAKE_QOS_PROFILE['id'],
-                    shaping_enabled=True,
-                    burst_size=burst_size,
-                    peak_bandwidth=peak_bandwidth,
-                    average_bandwidth=average_bandwidth,
+                    egress=egress,
+                    ingress=ingress,
                     qos_marking=qos_marking,
                     dscp=dscp)
 
@@ -130,24 +143,23 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
                     'switching-profiles/%s'
                     % test_constants_v3.FAKE_QOS_PROFILE['id'],
                     self._body_with_shaping(
-                        shaping_enabled=True,
-                        burst_size=burst_size,
-                        peak_bandwidth=peak_bandwidth,
-                        average_bandwidth=average_bandwidth,
+                        egress=egress.__dict__,
+                        ingress=ingress.__dict__,
                         qos_marking="untrusted", dscp=10))
 
     def test_disable_qos_switching_profile_shaping(self):
         """
         Test updating a qos-switching profile returns the correct response
         """
-        burst_size = 100
-        peak_bandwidth = 200
-        average_bandwidth = 300
         original_profile = self._body_with_shaping(
-            shaping_enabled=True,
-            burst_size=burst_size,
-            peak_bandwidth=peak_bandwidth,
-            average_bandwidth=average_bandwidth,
+            egress={'shaping_enabled': True,
+                    'burst_size': 100,
+                    'peak_bandwidth': 200,
+                    'average_bandwidth': 300},
+            ingress={'shaping_enabled': True,
+                    'burst_size': 101,
+                    'peak_bandwidth': 201,
+                    'average_bandwidth': 301},
             qos_marking="untrusted",
             dscp=10)
 
@@ -157,7 +169,7 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
                 # update the bw shaping of the profile
                 self.nsxlib.update_qos_switching_profile_shaping(
                     test_constants_v3.FAKE_QOS_PROFILE['id'],
-                    shaping_enabled=False, qos_marking="trusted")
+                    qos_marking="trusted")
 
                 update.assert_called_with(
                     'switching-profiles/%s'

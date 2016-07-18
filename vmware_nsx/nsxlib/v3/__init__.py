@@ -226,10 +226,11 @@ class NsxLib(dfw_api.DfwApi, security.Security):
         return body
 
     def _enable_shaping_in_args(self, body, burst_size=None,
-                                peak_bandwidth=None, average_bandwidth=None):
+                                peak_bandwidth=None, average_bandwidth=None,
+                                resource_type="EgressRateShaper"):
         for shaper in body["shaper_configuration"]:
             # Neutron currently supports only shaping of Egress traffic
-            if shaper["resource_type"] == "EgressRateShaper":
+            if shaper["resource_type"] == resource_type:
                 shaper["enabled"] = True
                 if burst_size:
                     shaper["burst_size_bytes"] = burst_size
@@ -241,10 +242,11 @@ class NsxLib(dfw_api.DfwApi, security.Security):
 
         return body
 
-    def _disable_shaping_in_args(self, body):
+    def _disable_shaping_in_args(self, body,
+                                 resource_type="EgressRateShaper"):
         for shaper in body["shaper_configuration"]:
             # Neutron currently supports only shaping of Egress traffic
-            if shaper["resource_type"] == "EgressRateShaper":
+            if shaper["resource_type"] == resource_type:
                 shaper["enabled"] = False
                 shaper["burst_size_bytes"] = 0
                 shaper["peak_bandwidth_mbps"] = 0
@@ -279,22 +281,34 @@ class NsxLib(dfw_api.DfwApi, security.Security):
         return self.update_resource_with_retry(resource, body)
 
     def update_qos_switching_profile_shaping(self, profile_id,
-                                             shaping_enabled=False,
-                                             burst_size=None,
-                                             peak_bandwidth=None,
-                                             average_bandwidth=None,
+                                             egress=None, ingress=None,
                                              qos_marking=None, dscp=None):
         resource = 'switching-profiles/%s' % profile_id
         # get the current configuration
         body = self.get_qos_switching_profile(profile_id)
-        # update the relevant fields
-        if shaping_enabled:
+        # update the egress shaping
+        if egress and egress.shaping_enabled:
             body = self._enable_shaping_in_args(
-                body, burst_size=burst_size,
-                peak_bandwidth=peak_bandwidth,
-                average_bandwidth=average_bandwidth)
+                body, resource_type="EgressRateShaper",
+                burst_size=egress.burst_size,
+                peak_bandwidth=egress.peak_bandwidth,
+                average_bandwidth=egress.average_bandwidth)
         else:
-            body = self._disable_shaping_in_args(body)
+            body = self._disable_shaping_in_args(
+                body, resource_type="EgressRateShaper")
+
+        # update the ingress shaping
+        if ingress and ingress.shaping_enabled:
+            body = self._enable_shaping_in_args(
+                body, resource_type="IngressRateShaper",
+                burst_size=ingress.burst_size,
+                peak_bandwidth=ingress.peak_bandwidth,
+                average_bandwidth=ingress.average_bandwidth)
+        else:
+            body = self._disable_shaping_in_args(
+                body, resource_type="IngressRateShaper")
+
+        # Update DSCP marking
         body = self._update_dscp_in_args(body, qos_marking, dscp)
         return self.update_resource_with_retry(resource, body)
 
