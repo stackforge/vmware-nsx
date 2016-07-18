@@ -146,22 +146,28 @@ class DvsManager(object):
         pg_spec.type = orig_spec['type']
         return pg_spec
 
+    def _update_port_group_qos_for_dir(self, policy, qosRule):
+        # Initialize the BW limit values of one of the directions
+        if qosRule.bandwidthEnabled:
+            policy.inherited = False
+            policy.enabled.inherited = False
+            policy.enabled.value = True
+            policy.averageBandwidth.inherited = False
+            policy.averageBandwidth.value = qosRule.averageBandwidth
+            policy.peakBandwidth.inherited = False
+            policy.peakBandwidth.value = qosRule.peakBandwidth
+            policy.burstSize.inherited = False
+            policy.burstSize.value = qosRule.burstSize
+        else:
+            policy.inherited = True
+
     def update_port_group_spec_qos(self, pg_spec, qos_data):
         port_conf = pg_spec.defaultPortConfig
-        # Update the out bandwidth shaping policy
-        outPol = port_conf.outShapingPolicy
-        if qos_data.bandwidthEnabled:
-            outPol.inherited = False
-            outPol.enabled.inherited = False
-            outPol.enabled.value = True
-            outPol.averageBandwidth.inherited = False
-            outPol.averageBandwidth.value = qos_data.averageBandwidth
-            outPol.peakBandwidth.inherited = False
-            outPol.peakBandwidth.value = qos_data.peakBandwidth
-            outPol.burstSize.inherited = False
-            outPol.burstSize.value = qos_data.burstSize
-        else:
-            outPol.inherited = True
+        # Update the in/out bandwidth shaping policy
+        self._update_port_group_qos_for_dir(port_conf.outShapingPolicy,
+                                            qos_data.egressBW)
+        self._update_port_group_qos_for_dir(port_conf.inShapingPolicy,
+                                            qos_data.ingressBW)
 
         # Update the DSCP marking
         if (port_conf.filterPolicy.inherited or
