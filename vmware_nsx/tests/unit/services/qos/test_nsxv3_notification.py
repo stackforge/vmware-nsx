@@ -17,6 +17,7 @@ import mock
 from oslo_config import cfg
 from oslo_utils import uuidutils
 
+from neutron.common import constants as n_const
 from neutron import context
 from neutron.objects import base as base_object
 from neutron.objects.qos import policy as policy_object
@@ -56,10 +57,16 @@ class TestQosNsxV3Notification(nsxlib_testcase.NsxClientTestCase,
                        'name': 'test-policy',
                        'description': 'Test policy description',
                        'shared': True}}
-        self.rule_data = {
+        self.egress_rule_data = {
             'bandwidth_limit_rule': {'id': uuidutils.generate_uuid(),
                                      'max_kbps': 2000,
-                                     'max_burst_kbps': 150}}
+                                     'max_burst_kbps': 150,
+                                     'direction': n_const.EGRESS_DIRECTION}}
+        self.ingress_rule_data = {
+            'bandwidth_limit_rule': {'id': uuidutils.generate_uuid(),
+                                     'max_kbps': 2000,
+                                     'max_burst_kbps': 150,
+                                     'direction': n_const.INGRESS_DIRECTION}}
         self.dscp_rule_data = {
             'dscp_marking_rule': {'id': uuidutils.generate_uuid(),
                                   'dscp_mark': 22}}
@@ -67,8 +74,10 @@ class TestQosNsxV3Notification(nsxlib_testcase.NsxClientTestCase,
         self.policy = policy_object.QosPolicy(
             self.ctxt, **self.policy_data['policy'])
 
-        self.rule = rule_object.QosBandwidthLimitRule(
-            self.ctxt, **self.rule_data['bandwidth_limit_rule'])
+        self.egress_rule = rule_object.QosBandwidthLimitRule(
+            self.ctxt, **self.egress_rule_data['bandwidth_limit_rule'])
+        self.ingress_rule = rule_object.QosBandwidthLimitRule(
+            self.ctxt, **self.ingress_rule_data['bandwidth_limit_rule'])
         self.dscp_rule = rule_object.QosDscpMarkingRule(
             self.ctxt, **self.dscp_rule_data['dscp_marking_rule'])
 
@@ -136,35 +145,93 @@ class TestQosNsxV3Notification(nsxlib_testcase.NsxClientTestCase,
                         tags=expected_tags
                     )
 
+    def _compare_bw_values_for_profile(self, actual_rule, expected_rule):
+        if expected_rule:
+            expected_bw = int(expected_rule['max_kbps'] / 1024)
+            expected_burst = int(expected_rule['max_burst_kbps'] * 128)
+            self.assertEqual(True, actual_rule.shaping_enabled)
+            self.assertEqual(expected_bw, actual_rule.peak_bandwidth)
+            self.assertEqual(expected_bw, actual_rule.average_bandwidth)
+            self.assertEqual(expected_burst, actual_rule.burst_size)
+        else:
+            self.assertEqual(False, actual_rule.shaping_enabled)
+
     @mock.patch.object(policy_object.QosPolicy, 'reload_rules')
     def test_bw_rule_create_profile(self, *mocks):
         # test the switch profile update when a QoS BW rule is created
         _policy = policy_object.QosPolicy(
             self.ctxt, **self.policy_data['policy'])
         # add a rule to the policy
-        setattr(_policy, "rules", [self.rule])
+        setattr(_policy, "rules", [self.egress_rule])
         with mock.patch('neutron.objects.qos.policy.QosPolicy.get_object',
             return_value=_policy):
             with mock.patch.object(nsxlib,
                 'update_qos_switching_profile_shaping') as update_profile:
                 with mock.patch('neutron.objects.db.api.update_object',
-                    return_value=self.rule_data):
+                    return_value=self.egress_rule_data):
                     self.qos_plugin.update_policy_bandwidth_limit_rule(
-                        self.ctxt, self.rule.id, _policy.id, self.rule_data)
+                        self.ctxt, self.egress_rule.id, _policy.id,
+                        self.egress_rule_data)
 
-                    # validate the data on the profile
-                    rule_dict = self.rule_data['bandwidth_limit_rule']
-                    expected_bw = rule_dict['max_kbps'] // 1024
-                    expected_burst = rule_dict['max_burst_kbps'] * 128
-                    update_profile.assert_called_once_with(
-                        self.fake_profile_id,
-                        average_bandwidth=expected_bw,
-                        burst_size=expected_burst,
-                        peak_bandwidth=expected_bw,
-                        shaping_enabled=True,
-                        qos_marking='trusted',
-                        dscp=0
-                    )
+                    self.assertTrue(update_profile.called)
+                    # validate egress data on the profile
+                    actual_rule = update_profile.call_args[1]['egress']
+                    expected_rule_dict = self.egress_rule_data[
+                        'bandwidth_limit_rule']
+                    self._compare_bw_values_for_profile(
+                        actual_rule, expected_rule_dict)
+
+                    # validate empty ingress data on the profile
+                    actual_rule = update_profile.call_args[1]['ingress']
+                    self._compare_bw_values_for_profile(actual_rule, None)
+
+                    # validate the dscp arguments
+                    self.assertEqual(
+                        'trusted', update_profile.call_args[1]['qos_marking'])
+                    self.assertEqual(0, update_profile.call_args[1]['dscp'])
+
+    @mock.patch.object(policy_object.QosPolicy, 'reload_rules')
+    def test_bw_rules_create_profile(self, *mocks):
+        # test the switch profile update when a QoS BW rules for both
+        # directions are created
+        _policy = policy_object.QosPolicy(
+            self.ctxt, **self.policy_data['policy'])
+        # add a rule to the policy
+        setattr(_policy, "rules", [self.egress_rule, self.ingress_rule])
+        with mock.patch('neutron.objects.qos.policy.QosPolicy.get_object',
+            return_value=_policy):
+            with mock.patch.object(nsxlib,
+                'update_qos_switching_profile_shaping') as update_profile:
+                with mock.patch('neutron.objects.db.api.update_object',
+                    return_value=self.egress_rule_data):
+                    self.qos_plugin.update_policy_bandwidth_limit_rule(
+                        self.ctxt, self.egress_rule.id, _policy.id,
+                        self.egress_rule_data)
+
+                    self.qos_plugin.update_policy_bandwidth_limit_rule(
+                        self.ctxt, self.ingress_rule.id, _policy.id,
+                        self.egress_rule_data)
+
+                    self.assertTrue(update_profile.called)
+                    # validate egress data on the profile
+                    actual_rule = update_profile.call_args[1]['egress']
+                    expected_rule_dict = self.egress_rule_data[
+                        'bandwidth_limit_rule']
+                    self._compare_bw_values_for_profile(
+                        actual_rule, expected_rule_dict)
+
+                    # validate ingress data on the profile
+                    actual_rule = update_profile.call_args[1]['ingress']
+                    expected_rule_dict = self.ingress_rule_data[
+                        'bandwidth_limit_rule']
+                    self._compare_bw_values_for_profile(
+                        actual_rule, expected_rule_dict)
+
+                    # validate the dscp arguments
+                    self.assertEqual(
+                        'trusted',
+                        update_profile.call_args[1]['qos_marking'])
+                    self.assertEqual(0, update_profile.call_args[1]['dscp'])
 
     @mock.patch.object(policy_object.QosPolicy, 'reload_rules')
     def test_bw_rule_create_profile_minimal_val(self, *mocks):
@@ -174,7 +241,8 @@ class TestQosNsxV3Notification(nsxlib_testcase.NsxClientTestCase,
         rule_data = {
             'bandwidth_limit_rule': {'id': uuidutils.generate_uuid(),
                                      'max_kbps': bad_limit,
-                                     'max_burst_kbps': 150}}
+                                     'max_burst_kbps': 150,
+                                     'direction': n_const.INGRESS_DIRECTION}}
 
         rule = rule_object.QosBandwidthLimitRule(
             self.ctxt, **rule_data['bandwidth_limit_rule'])
@@ -193,18 +261,24 @@ class TestQosNsxV3Notification(nsxlib_testcase.NsxClientTestCase,
                         self.ctxt, rule.id, _policy.id, rule_data)
 
                     # validate the data on the profile
-                    rule_dict = rule_data['bandwidth_limit_rule']
-                    expected_bw = qos_utils.MAX_KBPS_MIN_VALUE / 1024
-                    expected_burst = rule_dict['max_burst_kbps'] * 128
-                    update_profile.assert_called_once_with(
-                        self.fake_profile_id,
-                        average_bandwidth=expected_bw,
-                        burst_size=expected_burst,
-                        peak_bandwidth=expected_bw,
-                        shaping_enabled=True,
-                        dscp=0,
-                        qos_marking='trusted'
-                    )
+                    self.assertTrue(update_profile.called)
+                    actual_rule = update_profile.call_args[1]['ingress']
+                    expected_rule_dict = rule_data['bandwidth_limit_rule']
+                    # Fix the expected, since the minimal value will be used
+                    expected_rule_dict['max_kbps'] = (
+                        qos_utils.MAX_KBPS_MIN_VALUE)
+                    self._compare_bw_values_for_profile(
+                        actual_rule, expected_rule_dict)
+
+                    # validate empty egress
+                    actual_rule = update_profile.call_args[1]['egress']
+                    self._compare_bw_values_for_profile(actual_rule, None)
+
+                    # validate the dscp arguments
+                    self.assertEqual(
+                        'trusted',
+                        update_profile.call_args[1]['qos_marking'])
+                    self.assertEqual(0, update_profile.call_args[1]['dscp'])
 
     @mock.patch.object(policy_object.QosPolicy, 'reload_rules')
     def test_dscp_rule_create_profile(self, *mocks):
@@ -224,17 +298,23 @@ class TestQosNsxV3Notification(nsxlib_testcase.NsxClientTestCase,
                         _policy.id, self.dscp_rule_data)
 
                     # validate the data on the profile
+                    self.assertTrue(update_profile.called)
+                    # validate empty ingress
+                    actual_rule = update_profile.call_args[1]['ingress']
+                    self._compare_bw_values_for_profile(actual_rule, None)
+
+                    # validate empty egress
+                    actual_rule = update_profile.call_args[1]['egress']
+                    self._compare_bw_values_for_profile(actual_rule, None)
+
+                    # validate the dscp arguments
                     rule_dict = self.dscp_rule_data['dscp_marking_rule']
-                    dscp_mark = rule_dict['dscp_mark']
-                    update_profile.assert_called_once_with(
-                        self.fake_profile_id,
-                        average_bandwidth=None,
-                        burst_size=None,
-                        peak_bandwidth=None,
-                        shaping_enabled=False,
-                        qos_marking='untrusted',
-                        dscp=dscp_mark
-                    )
+                    self.assertEqual(
+                        'untrusted',
+                        update_profile.call_args[1]['qos_marking'])
+                    self.assertEqual(
+                        rule_dict['dscp_mark'],
+                        update_profile.call_args[1]['dscp'])
 
     @mock.patch('neutron.objects.db.api.get_objects',
                 return_value=[])
@@ -248,19 +328,23 @@ class TestQosNsxV3Notification(nsxlib_testcase.NsxClientTestCase,
             return_value=_policy):
             with mock.patch.object(nsxlib,
                 'update_qos_switching_profile_shaping') as update_profile:
-                setattr(_policy, "rules", [self.rule])
+                setattr(_policy, "rules", [self.egress_rule])
                 self.qos_plugin.delete_policy_bandwidth_limit_rule(
-                    self.ctxt, self.rule.id, self.policy.id)
+                    self.ctxt, self.egress_rule.id, self.policy.id)
                 # validate the data on the profile
-                update_profile.assert_called_once_with(
-                    self.fake_profile_id,
-                    shaping_enabled=False,
-                    average_bandwidth=None,
-                    burst_size=None,
-                    dscp=0,
-                    peak_bandwidth=None,
-                    qos_marking='trusted'
-                )
+                self.assertTrue(update_profile.called)
+                # validate empty ingress
+                actual_rule = update_profile.call_args[1]['ingress']
+                self._compare_bw_values_for_profile(actual_rule, None)
+
+                # validate empty egress
+                actual_rule = update_profile.call_args[1]['egress']
+                self._compare_bw_values_for_profile(actual_rule, None)
+
+                # validate the dscp arguments
+                self.assertEqual('trusted',
+                                 update_profile.call_args[1]['qos_marking'])
+                self.assertEqual(0, update_profile.call_args[1]['dscp'])
 
     @mock.patch('neutron.objects.db.api.get_object', return_value=None)
     def test_policy_delete_profile(self, *mocks):
