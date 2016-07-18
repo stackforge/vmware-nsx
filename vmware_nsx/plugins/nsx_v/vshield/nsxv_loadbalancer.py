@@ -339,14 +339,22 @@ class NsxvLBMonitor(object):
             timeout=15,
             mon_type='http',
             url='/'):
-        self.payload = {
-            'name': name,
-            'interval': interval,
-            'maxRetries': max_retries,
-            'method': method,
-            'timeout': timeout,
-            'type': mon_type,
-            'url': url}
+        if mon_type in ['http', 'https']:
+            self.payload = {
+                'name': name,
+                'interval': interval,
+                'maxRetries': max_retries,
+                'method': method,
+                'timeout': timeout,
+                'type': mon_type,
+                'url': url}
+        else:
+            self.payload = {
+                'name': name,
+                'interval': interval,
+                'maxRetries': max_retries,
+                'timeout': timeout,
+                'type': mon_type}
 
 
 class NsxvLBPoolMember(object):
