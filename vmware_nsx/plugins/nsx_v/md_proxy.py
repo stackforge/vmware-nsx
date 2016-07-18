@@ -570,6 +570,20 @@ class NsxVMetadataProxyHandler(object):
             protocol=protocol,
             port=v_port)
 
+        # Create pool, members
+        pool = nsxv_lb.NsxvLBPool(
+            name='MDSrvPool')
+
+        i = 0
+        for member_ip in member_ips:
+            i += 1
+            member = nsxv_lb.NsxvLBPoolMember(
+                name='Member-%d' % i,
+                ip_address=member_ip,
+                port=s_port,
+                monitor_port=s_port)
+            pool.add_member(member)
+
         # For router Edge, we add X-LB-Proxy-ID header
         if not proxy_lb:
             md_app_rule = nsxv_lb.NsxvLBAppRule(
@@ -588,6 +602,10 @@ class NsxVMetadataProxyHandler(object):
                     'reqadd X-Metadata-Provider-Signature:' + signature)
                 virt_srvr.add_app_rule(sign_app_rule)
 
+            # For router Edge, we add health monitor for metadata proxy edge
+            monitor = nsxv_lb.NsxvLBMonitor(name='MDSrvMon', mon_type='icmp')
+            pool.add_monitor(monitor)
+
         # Create app profile
         #  XFF is inserted in router LBs
         app_profile = nsxv_lb.NsxvLBAppProfile(
@@ -599,24 +617,6 @@ class NsxVMetadataProxyHandler(object):
             client_ssl_cert=cert_id)
 
         virt_srvr.set_app_profile(app_profile)
-
-        # Create pool, members and monitor
-        pool = nsxv_lb.NsxvLBPool(
-            name='MDSrvPool')
-
-        monitor = nsxv_lb.NsxvLBMonitor(name='MDSrvMon',
-                                        mon_type=mon_type.lower())
-        pool.add_monitor(monitor)
-
-        i = 0
-        for member_ip in member_ips:
-            i += 1
-            member = nsxv_lb.NsxvLBPoolMember(
-                name='Member-%d' % i,
-                ip_address=member_ip,
-                port=s_port,
-                monitor_port=s_port)
-            pool.add_member(member)
 
         virt_srvr.set_default_pool(pool)
         lb_obj.add_virtual_server(virt_srvr)
