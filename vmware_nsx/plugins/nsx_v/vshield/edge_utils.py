@@ -14,12 +14,12 @@
 #    under the License.
 
 from distutils import version
-import eventlet
 import netaddr
 import random
 import six
 from sqlalchemy import exc as db_base_exc
 import time
+import eventlet
 
 from oslo_config import cfg
 from oslo_log import log as logging
