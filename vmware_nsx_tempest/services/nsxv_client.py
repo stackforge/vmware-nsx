@@ -260,6 +260,23 @@ class VSMClient(object):
         response = self.get()
         return response
 
+    def get_exclude_list_info(self):
+        """Get exclude list info from beckend.
+
+        Returns exclude list.
+        """
+        self.__set_api_version('2.1')
+        self.__set_endpoint('/app/excludelist')
+        response = self.get()
+        response_list = []
+        exclude_list = []
+        response_list = response.json()[
+            'excludeListConfigurationDto']['excludeMembers']
+        for member in response_list:
+            if member['member']['name']:
+                exclude_list.append(member['member']['name'])
+        return exclude_list
+
     def get_dhcp_edge_info(self):
         """Get dhcp edge info.
 
