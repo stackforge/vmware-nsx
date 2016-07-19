@@ -26,7 +26,7 @@ class ConfiguredAvailabilityZone(object):
     def __init__(self, config_line):
         if config_line:
             values = config_line.split(':')
-            if len(values) < 3 or len(values) > 4:
+            if len(values) < 4 or len(values) > 5:
                 raise n_exc.Invalid(_("Invalid availability zones format"))
 
             self.name = values[0]
@@ -37,12 +37,14 @@ class ConfiguredAvailabilityZone(object):
 
             self.resource_pool = values[1]
             self.datastore_id = values[2]
-            self.ha_datastore_id = values[3] if len(values) == 4 else None
+            self.edge_ha = values[3]
+            self.ha_datastore_id = values[4] if len(values) == 5 else None
         else:
             # use the default configuration
             self.name = DEFAULT_NAME
             self.resource_pool = cfg.CONF.nsxv.resource_pool_id
             self.datastore_id = cfg.CONF.nsxv.datastore_id
+            self.edge_ha = cfg.CONF.nsxv.edge_ha
             self.ha_datastore_id = cfg.CONF.nsxv.ha_datastore_id
 
 
