@@ -111,6 +111,7 @@ class EdgeManager(object):
 
     def __init__(self, nsxv_manager, plugin):
         LOG.debug("Start Edge Manager initialization")
+
         self.nsxv_manager = nsxv_manager
         self.dvs_id = cfg.CONF.nsxv.dvs_id
         self.edge_pool_dicts = parse_backup_edge_pool_opt()
