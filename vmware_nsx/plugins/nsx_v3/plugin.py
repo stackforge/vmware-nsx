@@ -103,12 +103,16 @@ NSX_V3_MAC_LEARNING_PROFILE_NAME = 'neutron_port_mac_learning_profile'
 
 # NOTE(asarfaty): the order of inheritance here is important. in order for the
 # QoS notification to work, the AgentScheduler init must be called first
+# NOTE(arosen): same is true with the ExtendedSecurityGroupPropertiesMixin
+# this needs to be above securitygroups_db.SecurityGroupDbMixin.
+# FIXME(arosen): we can solve this inheritance order issue by just mixining in
+# the classes into a new class to handle the order correctly.
 class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
+                  extended_security_group.ExtendedSecurityGroupPropertiesMixin,
                   addr_pair_db.AllowedAddressPairsMixin,
                   db_base_plugin_v2.NeutronDbPluginV2,
                   extend_sg_rule.ExtendedSecurityGroupRuleMixin,
                   securitygroups_db.SecurityGroupDbMixin,
-                  extended_security_group.ExtendedSecurityGroupPropertiesMixin,
                   external_net_db.External_net_db_mixin,
                   extraroute_db.ExtraRoute_db_mixin,
                   l3_gwmode_db.L3_NAT_db_mixin,
@@ -139,7 +143,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                    "availability_zone",
                                    "network_availability_zone",
                                    "subnet_allocation",
-                                   "security-group-logging"]
+                                   "security-group-logging",
+                                   "provider-security-group"]
 
     supported_qos_rule_types = [qos_consts.RULE_TYPE_BANDWIDTH_LIMIT,
                                 qos_consts.RULE_TYPE_DSCP_MARKING]
@@ -1552,9 +1557,18 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._process_port_create_extra_dhcp_opts(
                 context, port_data, dhcp_opts)
 
+            # handle adding security groups to port
             sgids = self._get_security_groups_on_port(context, port)
             self._process_port_create_security_group(
                 context, port_data, sgids)
+
+            # handling adding provider security group to port if there are any
+            provider_groups = self._get_tenant_provider_security_group(
+                context, neutron_db['tenant_id'])
+            self._process_port_create_provider_security_group(
+                context, port_data, provider_groups)
+            # TODO(arosen): handle adding this group to the nsx backed.
+
             self._extend_port_dict_binding(context, port_data)
             if validators.is_attr_set(port_data.get(mac_ext.MAC_LEARNING)):
                 self._create_mac_learning_state(context, port_data)
@@ -2670,7 +2684,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
                 self._process_security_group_properties_create(context,
                                                                secgroup_db,
-                                                               secgroup)
+                                                               secgroup,
+                                                               default_sg)
         except nsx_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Unable to create security-group on the "
