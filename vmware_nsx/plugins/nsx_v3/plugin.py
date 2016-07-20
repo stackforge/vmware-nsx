@@ -81,6 +81,7 @@ from vmware_nsx.db import maclearning as mac_db
 from vmware_nsx.dhcp_meta import rpc as nsx_rpc
 from vmware_nsx.extensions import advancedserviceproviders as as_providers
 from vmware_nsx.extensions import maclearning as mac_ext
+from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.nsxlib import v3 as nsxlib
 from vmware_nsx.nsxlib.v3 import client as nsx_client
@@ -103,12 +104,16 @@ NSX_V3_MAC_LEARNING_PROFILE_NAME = 'neutron_port_mac_learning_profile'
 
 # NOTE(asarfaty): the order of inheritance here is important. in order for the
 # QoS notification to work, the AgentScheduler init must be called first
+# NOTE(arosen): same is true with the ExtendedSecurityGroupPropertiesMixin
+# this needs to be above securitygroups_db.SecurityGroupDbMixin.
+# FIXME(arosen): we can solve this inheritance order issue by just mixining in
+# the classes into a new class to handle the order correctly.
 class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
+                  extended_security_group.ExtendedSecurityGroupPropertiesMixin,
                   addr_pair_db.AllowedAddressPairsMixin,
                   db_base_plugin_v2.NeutronDbPluginV2,
                   extend_sg_rule.ExtendedSecurityGroupRuleMixin,
                   securitygroups_db.SecurityGroupDbMixin,
-                  extended_security_group.ExtendedSecurityGroupPropertiesMixin,
                   external_net_db.External_net_db_mixin,
                   extraroute_db.ExtraRoute_db_mixin,
                   l3_gwmode_db.L3_NAT_db_mixin,
@@ -139,7 +144,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                    "availability_zone",
                                    "network_availability_zone",
                                    "subnet_allocation",
-                                   "security-group-logging"]
+                                   "security-group-logging",
+                                   "provider-security-group"]
 
     supported_qos_rule_types = [qos_consts.RULE_TYPE_BANDWIDTH_LIMIT,
                                 qos_consts.RULE_TYPE_DSCP_MARKING]
@@ -1192,7 +1198,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # security criteria tag.
             if port_data[ext_sg.SECURITYGROUPS]:
                 tags += security.get_lport_tags_for_security_groups(
-                    port_data[ext_sg.SECURITYGROUPS])
+                    port_data[ext_sg.SECURITYGROUPS] +
+                    port_data[provider_sg.PROVIDER_SECURITYGROUPS])
 
         parent_name, tag = self._get_data_from_binding_profile(
             context, port_data)
@@ -1552,9 +1559,20 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._process_port_create_extra_dhcp_opts(
                 context, port_data, dhcp_opts)
 
+            # handle adding security groups to port
             sgids = self._get_security_groups_on_port(context, port)
             self._process_port_create_security_group(
                 context, port_data, sgids)
+
+            # handling adding provider security group to port if there are any
+            provider_groups = self._get_provider_security_groups_on_port(
+                context, port)
+            self._process_port_create_provider_security_group(
+                context, port_data, provider_groups)
+            # add provider groups to other security groups list.
+            # sgids is a set() so we need to | it in.
+            if provider_groups:
+                sgids |= set(provider_groups)
             self._extend_port_dict_binding(context, port_data)
             if validators.is_attr_set(port_data.get(mac_ext.MAC_LEARNING)):
                 self._create_mac_learning_state(context, port_data)
@@ -1872,6 +1890,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                                  updated_port)
             sec_grp_updated = self.update_security_group_on_port(
                 context, id, port, original_port, updated_port)
+
+            # FIXME(arosen): ..
+            # handling adding provider security group to port if there are any
+            #provider_groups = self._get_provider_security_groups_on_port(
+            #    context, port)
+
             (port_security, has_ip) = self._determine_port_security_and_has_ip(
                 context, updated_port)
             self._process_portbindings_create_and_update(
@@ -2648,11 +2672,22 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # saved into db its already backed up by an nsx resource.
             ns_group = firewall.create_nsgroup(
                 name, secgroup['description'], tags, tag_expression)
+
+            operation = firewall.INSERT_BEFORE
+            action = firewall.ALLOW
+            if secgroup.get(provider_sg.PROVIDER_SECURITYGROUPS):
+                # NOTE(arosen): if a security group is provider we want to
+                # insert our rules at the top.
+                operation = firewall.INSERT_TOP
+                # We also want to block the traffic as provider rules are
+                # drops.
+                action = firewall.DROP
+
             # security-group rules are located in a dedicated firewall section.
             firewall_section = (
                 firewall.create_empty_section(
                     name, secgroup.get('description', ''), [ns_group['id']],
-                    tags, operation=firewall.INSERT_BEFORE,
+                    tags, operation=operation,
                     other_section=self.default_section))
 
             # REVISIT(roeyc): Ideally, at this point we need not be under an
@@ -2670,7 +2705,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
                 self._process_security_group_properties_create(context,
                                                                secgroup_db,
-                                                               secgroup)
+                                                               secgroup,
+                                                               default_sg)
         except nsx_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Unable to create security-group on the "
@@ -2697,7 +2733,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                        secgroup.get(sg_logging.LOGGING, False))
             rules = security.create_firewall_rules(
                 context, firewall_section['id'], ns_group['id'],
-                logging, sg_rules)
+                logging, action, sg_rules)
             security.save_sg_rule_mappings(context.session, rules['rules'])
             self.nsgroup_manager.add_nsgroup(ns_group['id'])
         except nsx_exc.ManagerError:
@@ -2759,12 +2795,26 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 uuidutils.generate_uuid())
 
         with context.session.begin(subtransactions=True):
+
             rules_db = (super(NsxV3Plugin,
                               self).create_security_group_rule_bulk_native(
                                   context, security_group_rules))
             for i, r in enumerate(sg_rules):
                 self._process_security_group_rule_properties(
                     context, rules_db[i], r['security_group_rule'])
+
+            # NOTE(arosen): here are are assuming that all of the security
+            # group rules being added are part of the same security
+            # group. We should be validating that this is the case though...
+
+            sg_id = sg_rules[0]['security_group_rule']['security_group_id']
+            security_group = self.get_security_group(
+                context, sg_id)
+            action = firewall.ALLOW
+            if security_group.get(provider_sg.PROVIDER) is True:
+                # provider security groups are drop rules.
+                action = firewall.DROP
+
         sg_id = rules_db[0]['security_group_id']
         nsgroup_id, section_id = security.get_sg_mappings(context.session,
                                                           sg_id)
@@ -2772,7 +2822,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                            or self._is_security_group_logged(context, sg_id))
         try:
             rules = security.create_firewall_rules(
-                context, section_id, nsgroup_id, logging_enabled, rules_db)
+                context, section_id, nsgroup_id,
+                logging_enabled, action, rules_db)
         except nsx_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 for rule in rules_db:
