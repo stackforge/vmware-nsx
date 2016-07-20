@@ -1,3 +1,4 @@
+enable_plugin networking-sfc https://git.openstack.org/openstack/networking-sfc master
 enable_plugin vmware-nsx https://git.openstack.org/openstack/vmware-nsx
 ENABLED_SERVICES=g-api,g-reg,key,n-api,n-crt,n-obj,n-cpu,n-sch,n-cond,n-cauth,horizon,mysql,rabbit,sysstat,quantum,q-svc,q-dhcp,n-novnc,n-xvnc
 DATABASE_PASSWORD=password
