@@ -22,6 +22,7 @@ from neutron_lib.api import validators
 
 from vmware_nsx.db import extended_security_group
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
+from vmware_nsx.tests.unit.nsx_v3 import test_plugin as test_nsxv3_plugin
 
 
 PLUGIN_NAME = ('vmware_nsx.tests.unit.extensions.'
@@ -162,5 +163,8 @@ class ProviderSecurityGroupExtTestCase(
             self.assertEqual(port['port']['provider_security_groups'], [])
 
 
-# TODO(arosen): add nsxv3 test case mixin when ready
+class TestNSXv3ProviderSecurityGrp(test_nsxv3_plugin.NsxV3PluginTestCaseMixin,
+                                   ProviderSecurityGroupExtTestCase):
+    pass
+
 # TODO(roeyc): add nsxv test case mixin when ready
