@@ -31,6 +31,7 @@ LAYER3 = 'LAYER3'
 
 INSERT_BEFORE = 'insert_before'
 INSERT_BOTTOM = 'insert_bottom'
+INSERT_TOP = 'insert_top'
 
 # firewall rule actions
 ALLOW = 'ALLOW'
@@ -193,6 +194,7 @@ def create_empty_section(display_name, description, applied_tos, tags,
     body = _build_section(display_name, description, applied_tos, tags)
     if other_section:
         resource += '&id=%s' % other_section
+    print resource
     return nsxclient.create_resource(resource, body)
 
 
