@@ -35,6 +35,7 @@ from neutron.tests.unit.extensions import test_extraroute as test_ext_route
 from neutron.tests.unit.extensions import test_l3 as test_l3_plugin
 from neutron.tests.unit.extensions \
     import test_l3_ext_gw_mode as test_ext_gw_mode
+from neutron.tests.unit.extensions import test_securitygroup as ext_sg
 from neutron.tests.unit.scheduler \
     import test_dhcp_agent_scheduler as test_dhcpagent
 from neutron import version
@@ -1268,3 +1269,9 @@ class NsxNativeMetadataTestCase(NsxV3PluginTestCaseMixin):
                                       lswitch_id))['subnets']
                 self.assertEqual(len(subnets), 1)
                 self.assertEqual(subnets[0]['id'], s1['subnet']['id'])
+
+
+class SecurityGroupsTestCase(ext_sg.SecurityGroupDBTestCase,
+                             NsxV3PluginTestCaseMixin):
+    def setUp(self):
+        super(SecurityGroupsTestCase, self).setUp(PLUGIN_NAME)
