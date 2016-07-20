@@ -251,8 +251,9 @@ def get_subnet_create_options(network_id, ip_version=4,
         except exceptions.BadRequest as e:
             is_overlapping_cidr = 'overlaps with another subnet' in str(e)
             if not is_overlapping_cidr:
+                # re-raise exceptions.BadRequest
                 raise
     else:
         message = 'Available CIDR for subnet creation could not be found'
-        raise exceptions.BuildErrorException(message)
+        raise exceptions.TempestException(message)
     return {}
