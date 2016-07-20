@@ -17,9 +17,7 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import exc
 
-from neutron.api.v2 import attributes
 from neutron.common import utils as n_utils
-from neutron import context as n_context
 from neutron.db import db_base_plugin_v2
 from neutron.db import model_base
 from neutron.db import securitygroups_db
@@ -46,6 +44,15 @@ class NsxExtendedSecurityGroupProperties(model_base.BASEV2):
 
 
 class ExtendedSecurityGroupPropertiesMixin(object):
+
+    # NOTE(arosen): here we add a relationship so that from the ports model
+    # it provides us access to SecurityGroupPortBinding and
+    # NsxExtendedSecurityGroupProperties
+    securitygroups_db.SecurityGroupPortBinding.extended_grp = orm.relationship(
+        'NsxExtendedSecurityGroupProperties',
+        foreign_keys="SecurityGroupPortBinding.security_group_id",
+        primaryjoin=("NsxExtendedSecurityGroupProperties.security_group_id"
+                     "==SecurityGroupPortBinding.security_group_id"))
 
     def _process_security_group_properties_create(self, context,
                                                   sg_res, sg_req,
@@ -195,14 +202,27 @@ class ExtendedSecurityGroupPropertiesMixin(object):
             sg_res[sg_logging.LOGGING] = sg_db.ext_properties.logging
             sg_res[provider_sg.PROVIDER] = sg_db.ext_properties.provider
 
-    def _extend_port_dict_provider_security_group(self, port_res, port_db):
-        context = n_context.get_admin_context()
-        security_group_ids = [sec_group_mapping['security_group_id'] for
-                              sec_group_mapping in port_db.security_groups]
-        port_res[provider_sg.PROVIDER_SECURITYGROUPS] = [
-            sg_id for sg_id in security_group_ids
-            if self._is_provider_security_group(context, sg_id)]
-        return port_res
+    def _extend_port_dict_security_group(self, port_res, port_db):
+        # NOTE(arosen): this method overrides the one in the base
+        # security group db class. The reason this is needed is because
+        # we are storing provider security groups in the same security
+        # groups db model. We need to do this here to remove the provider
+        # security groups and put those on the port resource as their
+        # own attribute.
 
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attributes.PORTS, ['_extend_port_dict_provider_security_group'])
+        # Security group bindings will be retrieved from the SQLAlchemy
+        # model. As they're loaded eagerly with ports because of the
+        # joined load they will not cause an extra query.
+
+        provider_groups = []
+        not_provider_groups = []
+        for sec_group_mapping in port_db.security_groups:
+            if sec_group_mapping.extended_grp.provider is True:
+                provider_groups.append(sec_group_mapping['security_group_id'])
+            else:
+                not_provider_groups.append(
+                    sec_group_mapping['security_group_id'])
+
+        port_res[ext_sg.SECURITYGROUPS] = not_provider_groups
+        port_res[provider_sg.PROVIDER_SECURITYGROUPS] = provider_groups
+        return port_res
