@@ -38,6 +38,79 @@ from vmware_nsx.plugins.nsx_v.vshield.tasks import tasks
 LOG = logging.getLogger(__name__)
 
 
+def deploy_edge(context, vcns, router_id, edge_name, internal_network,
+                datacenter_moid, deployment_container_id, external_network,
+                callbacks, dist=False, loadbalancer_enable=True,
+                appliance_size=nsxv_constants.LARGE,
+                availability_zone=None):
+    edge = edge_utils.assemble_edge(
+        edge_name, datacenter_moid=datacenter_moid,
+        deployment_container_id=deployment_container_id,
+        appliance_size=appliance_size, dist=dist,
+        edge_ha=availability_zone.edge_ha)
+    appliances = edge_utils.assemble_edge_appliances(availability_zone)
+    if appliances:
+        edge['appliances']['appliances'] = appliances
+
+    if not dist:
+        vnic_external = edge_utils.assemble_edge_vnic(
+            constants.EXTERNAL_VNIC_NAME, constants.EXTERNAL_VNIC_INDEX,
+            external_network, type="uplink")
+        edge['vnics']['vnics'].append(vnic_external)
+    else:
+        edge['mgmtInterface'] = {
+            'connectedToId': external_network,
+            'name': "mgmtInterface"}
+    if internal_network:
+        vnic_inside = edge_utils.assemble_edge_vnic(
+            constants.INTERNAL_VNIC_NAME, constants.INTERNAL_VNIC_INDEX,
+            internal_network,
+            constants.INTEGRATION_EDGE_IPADDRESS,
+            constants.INTEGRATION_SUBNET_NETMASK,
+            type="internal")
+        edge['vnics']['vnics'].append(vnic_inside)
+
+    # If default login credentials for Edge are set, configure accordingly
+    if (cfg.CONF.nsxv.edge_appliance_user and
+            cfg.CONF.nsxv.edge_appliance_password):
+        edge['cliSettings'].update({
+            'userName': cfg.CONF.nsxv.edge_appliance_user,
+            'password': cfg.CONF.nsxv.edge_appliance_password})
+
+    if not dist and loadbalancer_enable:
+        edge_utils.enable_loadbalancer(edge)
+
+    edge_id = None
+    try:
+        header = vcns.deploy_edge(edge)[0]
+        edge_id = header.get('location', '/').split('/')[-1]
+
+        if edge_id:
+            nsxv_db.update_nsxv_router_binding(
+                context.session, router_id, edge_id=edge_id)
+            if not dist:
+                # Init Edge vnic binding
+                nsxv_db.init_edge_vnic_binding(
+                    context.session, edge_id)
+        else:
+            if router_id:
+                nsxv_db.update_nsxv_router_binding(
+                    context.session, router_id,
+                    status=plugin_const.ERROR)
+            error = _('Failed to deploy edge')
+            raise nsxv_exc.NsxPluginException(err_msg=error)
+
+        callbacks.complete_edge_creation(
+            context, edge_id, edge_name, router_id, dist, True)
+
+    except exceptions.VcnsApiException:
+        callbacks.complete_edge_creation(
+            context, edge_id, edge_name, router_id, dist, False)
+        with excutils.save_and_reraise_exception():
+            LOG.exception(_LE("NSXv: deploy edge failed."))
+    return edge_id
+
+
 class EdgeApplianceDriver(object):
     def __init__(self):
         super(EdgeApplianceDriver, self).__init__()
@@ -46,121 +119,6 @@ class EdgeApplianceDriver(object):
             'nat': {},
             'route': {},
         }
-
-    def _assemble_edge(self, name, appliance_size="compact",
-                       deployment_container_id=None, datacenter_moid=None,
-                       enable_aesni=True, dist=False,
-                       enable_fips=False, remote_access=False,
-                       edge_ha=False):
-        edge = {
-            'name': name,
-            'fqdn': None,
-            'enableAesni': enable_aesni,
-            'enableFips': enable_fips,
-            'featureConfigs': {
-                'features': [
-                    {
-                        'featureType': 'firewall_4.0',
-                        'globalConfig': {
-                            'tcpTimeoutEstablished': 7200
-                        }
-                    }
-                ]
-            },
-            'cliSettings': {
-                'remoteAccess': remote_access
-            },
-            'autoConfiguration': {
-                'enabled': False,
-                'rulePriority': 'high'
-            },
-            'appliances': {
-                'applianceSize': appliance_size
-            },
-        }
-        if not dist:
-            edge['type'] = "gatewayServices"
-            edge['vnics'] = {'vnics': []}
-        else:
-            edge['type'] = "distributedRouter"
-            edge['interfaces'] = {'interfaces': []}
-
-        if deployment_container_id:
-            edge['appliances']['deploymentContainerId'] = (
-                deployment_container_id)
-        if datacenter_moid:
-            edge['datacenterMoid'] = datacenter_moid
-
-        if not dist and edge_ha:
-            self._enable_high_availability(edge)
-
-        return edge
-
-    def _assemble_edge_appliances(self, availability_zone):
-        appliances = []
-        if availability_zone.datastore_id:
-            appliances.append(self._assemble_edge_appliance(
-                availability_zone.resource_pool,
-                availability_zone.datastore_id))
-        if availability_zone.ha_datastore_id and availability_zone.edge_ha:
-            appliances.append(self._assemble_edge_appliance(
-                availability_zone.resource_pool,
-                availability_zone.ha_datastore_id))
-        return appliances
-
-    def _assemble_edge_appliance(self, resource_pool_id, datastore_id):
-        appliance = {}
-        if resource_pool_id:
-            appliance['resourcePoolId'] = resource_pool_id
-        if datastore_id:
-            appliance['datastoreId'] = datastore_id
-        return appliance
-
-    def _assemble_edge_vnic(self, name, index, portgroup_id, tunnel_index=-1,
-                            primary_address=None, subnet_mask=None,
-                            secondary=None,
-                            type="internal",
-                            enable_proxy_arp=False,
-                            enable_send_redirects=True,
-                            is_connected=True,
-                            mtu=1500,
-                            address_groups=None):
-        vnic = {
-            'index': index,
-            'name': name,
-            'type': type,
-            'portgroupId': portgroup_id,
-            'mtu': mtu,
-            'enableProxyArp': enable_proxy_arp,
-            'enableSendRedirects': enable_send_redirects,
-            'isConnected': is_connected
-        }
-        if address_groups is None:
-            address_groups = []
-        if not address_groups:
-            if primary_address and subnet_mask:
-                address_group = {
-                    'primaryAddress': primary_address,
-                    'subnetMask': subnet_mask
-                }
-                if secondary:
-                    address_group['secondaryAddresses'] = {
-                        'ipAddress': secondary,
-                        'type': 'secondary_addresses'
-                    }
-
-                vnic['addressGroups'] = {
-                    'addressGroups': [address_group]
-                }
-            else:
-                vnic['subInterfaces'] = {'subInterfaces': address_groups}
-        else:
-            if tunnel_index < 0:
-                vnic['addressGroups'] = {'addressGroups': address_groups}
-            else:
-                vnic['subInterfaces'] = {'subInterfaces': address_groups}
-
-        return vnic
 
     def _assemble_vdr_interface(self, portgroup_id,
                                 primary_address=None, subnet_mask=None,
@@ -206,22 +164,6 @@ class EdgeApplianceDriver(object):
         else:
             status_level = constants.RouterStatus.ROUTER_STATUS_ERROR
         return status_level
-
-    def _enable_loadbalancer(self, edge):
-        if (not edge.get('featureConfigs') or
-            not edge['featureConfigs'].get('features')):
-            edge['featureConfigs'] = {'features': []}
-        edge['featureConfigs']['features'].append(
-            {'featureType': 'loadbalancer_4.0',
-             'enabled': True})
-
-    def _enable_high_availability(self, edge):
-        if (not edge.get('featureConfigs') or
-            not edge['featureConfigs'].get('features')):
-            edge['featureConfigs'] = {'features': []}
-        edge['featureConfigs']['features'].append(
-            {'featureType': 'highavailability_4.0',
-             'enabled': True})
 
     def get_edge_status(self, edge_id):
         try:
@@ -304,7 +246,7 @@ class EdgeApplianceDriver(object):
             else:
                 intf_type = 'trunk'
 
-        config = self._assemble_edge_vnic(
+        config = edge_utils.assemble_edge_vnic(
             name, index, network, tunnel_index,
             address, netmask, secondary, type=intf_type,
             address_groups=address_groups, is_connected=is_connected)
@@ -384,96 +326,35 @@ class EdgeApplianceDriver(object):
             LOG.exception(_LE("VCNS: Failed to get edges:\n%s"), e.response)
             raise e
 
-    def deploy_edge(self, context, router_id, name, internal_network,
+    def deploy_edge(self, context, router_id, edge_name, internal_network,
                     dist=False, loadbalancer_enable=True,
                     appliance_size=nsxv_constants.LARGE,
                     availability_zone=None):
 
-        edge_name = name
-        edge = self._assemble_edge(
-            edge_name, datacenter_moid=self.datacenter_moid,
-            deployment_container_id=self.deployment_container_id,
-            appliance_size=appliance_size, remote_access=False, dist=dist,
-            edge_ha=availability_zone.edge_ha)
-        appliances = self._assemble_edge_appliances(availability_zone)
-        if appliances:
-            edge['appliances']['appliances'] = appliances
-
-        if not dist:
-            vnic_external = self._assemble_edge_vnic(
-                constants.EXTERNAL_VNIC_NAME, constants.EXTERNAL_VNIC_INDEX,
-                self.external_network, type="uplink")
-            edge['vnics']['vnics'].append(vnic_external)
-        else:
-            edge['mgmtInterface'] = {
-                'connectedToId': self.external_network,
-                'name': "mgmtInterface"}
-        if internal_network:
-            vnic_inside = self._assemble_edge_vnic(
-                constants.INTERNAL_VNIC_NAME, constants.INTERNAL_VNIC_INDEX,
-                internal_network,
-                constants.INTEGRATION_EDGE_IPADDRESS,
-                constants.INTEGRATION_SUBNET_NETMASK,
-                type="internal")
-            edge['vnics']['vnics'].append(vnic_inside)
-
-        # If default login credentials for Edge are set, configure accordingly
-        if (cfg.CONF.nsxv.edge_appliance_user and
-            cfg.CONF.nsxv.edge_appliance_password):
-            edge['cliSettings'].update({
-                'userName': cfg.CONF.nsxv.edge_appliance_user,
-                'password': cfg.CONF.nsxv.edge_appliance_password})
-
-        if not dist and loadbalancer_enable:
-            self._enable_loadbalancer(edge)
-
-        edge_id = None
-        try:
-            header = self.vcns.deploy_edge(edge)[0]
-            edge_id = header.get('location', '/').split('/')[-1]
-
-            if edge_id:
-                nsxv_db.update_nsxv_router_binding(
-                    context.session, router_id, edge_id=edge_id)
-                if not dist:
-                    # Init Edge vnic binding
-                    nsxv_db.init_edge_vnic_binding(
-                        context.session, edge_id)
-            else:
-                if router_id:
-                    nsxv_db.update_nsxv_router_binding(
-                        context.session, router_id,
-                        status=plugin_const.ERROR)
-                error = _('Failed to deploy edge')
-                raise nsxv_exc.NsxPluginException(err_msg=error)
-
-            self.callbacks.complete_edge_creation(
-                context, edge_id, name, router_id, dist, True)
-
-        except exceptions.VcnsApiException:
-            self.callbacks.complete_edge_creation(
-                context, edge_id, name, router_id, dist, False)
-            with excutils.save_and_reraise_exception():
-                LOG.exception(_LE("NSXv: deploy edge failed."))
-        return edge_id
+        return deploy_edge(context, self.vcns, router_id, edge_name,
+                           internal_network,
+                           self.datacenter_moid, self.deployment_container_id,
+                           self.external_network, self.callbacks, dist,
+                           loadbalancer_enable, appliance_size,
+                           availability_zone)
 
     def update_edge(self, context, router_id, edge_id, name, internal_network,
                     dist=False, loadbalancer_enable=True,
                     appliance_size=nsxv_constants.LARGE,
                     set_errors=False, availability_zone=None):
         """Update edge name."""
-        edge = self._assemble_edge(
+        edge = edge_utils.assemble_edge(
             name, datacenter_moid=self.datacenter_moid,
             deployment_container_id=self.deployment_container_id,
-            appliance_size=appliance_size, remote_access=False, dist=dist,
+            appliance_size=appliance_size, dist=dist,
             edge_ha=availability_zone.edge_ha)
         edge['id'] = edge_id
-        appliances = self._assemble_edge_appliances(availability_zone)
+        appliances = edge_utils.assemble_edge_appliances(availability_zone)
         if appliances:
             edge['appliances']['appliances'] = appliances
 
         if not dist:
-            vnic_external = self._assemble_edge_vnic(
+            vnic_external = edge_utils.assemble_edge_vnic(
                 constants.EXTERNAL_VNIC_NAME, constants.EXTERNAL_VNIC_INDEX,
                 self.external_network, type="uplink")
             edge['vnics']['vnics'].append(vnic_external)
@@ -483,7 +364,7 @@ class EdgeApplianceDriver(object):
                 'name': "mgmtInterface"}
 
         if internal_network:
-            internal_vnic = self._assemble_edge_vnic(
+            internal_vnic = edge_utils.assemble_edge_vnic(
                 constants.INTERNAL_VNIC_NAME, constants.INTERNAL_VNIC_INDEX,
                 internal_network,
                 constants.INTEGRATION_EDGE_IPADDRESS,
@@ -491,7 +372,7 @@ class EdgeApplianceDriver(object):
                 type="internal")
             edge['vnics']['vnics'].append(internal_vnic)
         if not dist and loadbalancer_enable:
-            self._enable_loadbalancer(edge)
+            edge_utils.enable_loadbalancer(edge)
 
         try:
             self.vcns.update_edge(edge_id, edge)

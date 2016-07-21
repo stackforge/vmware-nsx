@@ -2210,6 +2210,141 @@ def check_network_in_use_at_backend(context, network_id):
     LOG.error(_LE('NSXv: network is still in use at the backend'))
 
 
+def assemble_edge_appliance(resource_pool_id, datastore_id):
+    appliance = {}
+    if resource_pool_id:
+        appliance['resourcePoolId'] = resource_pool_id
+    if datastore_id:
+        appliance['datastoreId'] = datastore_id
+    return appliance
+
+
+def assemble_edge_appliances(availability_zone):
+    appliances = []
+    if availability_zone.datastore_id:
+        appliances.append(assemble_edge_appliance(
+            availability_zone.resource_pool,
+            availability_zone.datastore_id))
+    if availability_zone.ha_datastore_id and availability_zone.edge_ha:
+        appliances.append(assemble_edge_appliance(
+            availability_zone.resource_pool,
+            availability_zone.ha_datastore_id))
+    return appliances
+
+
+def assemble_edge_vnic(name, index, portgroup_id, tunnel_index=-1,
+                       primary_address=None, subnet_mask=None,
+                       secondary=None,
+                       type="internal",
+                       enable_proxy_arp=False,
+                       enable_send_redirects=True,
+                       is_connected=True,
+                       mtu=1500,
+                       address_groups=None):
+    vnic = {
+        'index': index,
+        'name': name,
+        'type': type,
+        'portgroupId': portgroup_id,
+        'mtu': mtu,
+        'enableProxyArp': enable_proxy_arp,
+        'enableSendRedirects': enable_send_redirects,
+        'isConnected': is_connected
+    }
+    if address_groups is None:
+        address_groups = []
+    if not address_groups:
+        if primary_address and subnet_mask:
+            address_group = {
+                'primaryAddress': primary_address,
+                'subnetMask': subnet_mask
+            }
+            if secondary:
+                address_group['secondaryAddresses'] = {
+                    'ipAddress': secondary,
+                    'type': 'secondary_addresses'
+                }
+
+            vnic['addressGroups'] = {
+                'addressGroups': [address_group]
+            }
+        else:
+            vnic['subInterfaces'] = {'subInterfaces': address_groups}
+    else:
+        if tunnel_index < 0:
+            vnic['addressGroups'] = {'addressGroups': address_groups}
+        else:
+            vnic['subInterfaces'] = {'subInterfaces': address_groups}
+
+    return vnic
+
+
+def enable_loadbalancer(edge):
+    if (not edge.get('featureConfigs') or
+            not edge['featureConfigs'].get('features')):
+        edge['featureConfigs'] = {'features': []}
+    edge['featureConfigs']['features'].append(
+        {'featureType': 'loadbalancer_4.0',
+         'enabled': True})
+
+
+def enable_high_availability(edge):
+    if (not edge.get('featureConfigs') or
+            not edge['featureConfigs'].get('features')):
+        edge['featureConfigs'] = {'features': []}
+    edge['featureConfigs']['features'].append(
+        {'featureType': 'highavailability_4.0',
+         'enabled': True})
+
+
+def assemble_edge(name, appliance_size="compact",
+                  deployment_container_id=None, datacenter_moid=None,
+                  dist=False, edge_ha=False):
+    edge = {
+        'name': name,
+        'fqdn': None,
+        'enableAesni': True,
+        'enableFips': False,
+        'featureConfigs': {
+            'features': [
+                {
+                    'featureType': 'firewall_4.0',
+                    'globalConfig': {
+                        'tcpTimeoutEstablished': 7200
+                    }
+                }
+            ]
+        },
+        'cliSettings': {
+            'remoteAccess': False
+        },
+        'autoConfiguration': {
+            'enabled': False,
+            'rulePriority': 'high'
+        },
+        'appliances': {
+            'applianceSize': appliance_size
+        },
+    }
+    if not dist:
+        edge['type'] = "gatewayServices"
+        edge['vnics'] = {'vnics': []}
+    else:
+        edge['type'] = "distributedRouter"
+        edge['interfaces'] = {'interfaces': []}
+
+    if deployment_container_id:
+        edge['appliances']['deploymentContainerId'] = (
+            deployment_container_id)
+    if datacenter_moid:
+        edge['datacenterMoid'] = datacenter_moid
+
+    if not dist and edge_ha:
+        enable_high_availability(edge)
+
+    return edge
+
+
 class NsxVCallbacks(object):
     """Edge callback implementation Callback functions for
     asynchronous tasks.
