@@ -31,11 +31,11 @@ class TestParentTagPortBinding(test_nsx_v3_plugin.NsxV3PluginTestCaseMixin):
     #                **binding)
 
     def test_create_port_with_parent_and_tag(self):
-        binding = {pbin.PROFILE: {"parent_name": '', 'tag': 1}}
+        binding = {pbin.PROFILE: {"parent_vif_id": '', 'tag': 1}}
         with self.network() as n:
             with self.subnet(n) as s:
                 with self.port(s) as p:
-                    binding[pbin.PROFILE]['parent_name'] = p['port']['id']
+                    binding[pbin.PROFILE]['parent_vif_id'] = p['port']['id']
                     res = self._create_port(self.fmt, n['network']['id'],
                                             arg_list=(pbin.PROFILE,),
                                             **binding)
@@ -44,11 +44,11 @@ class TestParentTagPortBinding(test_nsx_v3_plugin.NsxV3PluginTestCaseMixin):
                                      binding[pbin.PROFILE])
 
     def test_create_port_with_invalid_tag(self):
-        binding = {pbin.PROFILE: {"parent_name": '', 'tag': 10000000}}
+        binding = {pbin.PROFILE: {"parent_vif_id": '', 'tag': 10000000}}
         with self.network() as n:
             with self.subnet(n) as s:
                 with self.port(s) as p:
-                    binding[pbin.PROFILE]['parent_name'] = p['port']['id']
+                    binding[pbin.PROFILE]['parent_vif_id'] = p['port']['id']
                     self._create_port(self.fmt, n['network']['id'],
                                       arg_list=(pbin.PROFILE,),
                                       expected_res_status=400,
