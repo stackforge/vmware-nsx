@@ -1108,32 +1108,32 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 not validators.is_attr_set(port[pbin.PROFILE])):
             return None, None
 
-        parent_name = (
+        parent_vif_id = (
             port[pbin.PROFILE].get('parent_name'))
         tag = port[pbin.PROFILE].get('tag')
-        if not any((parent_name, tag)):
+        if not any((parent_vif_id, tag)):
             # An empty profile is fine.
             return None, None
-        if not all((parent_name, tag)):
+        if not all((parent_vif_id, tag)):
             # If one is set, they both must be set.
             msg = _('Invalid binding:profile. parent_name and tag are '
                     'both required.')
             raise n_exc.InvalidInput(error_message=msg)
-        if not isinstance(parent_name, six.string_types):
+        if not isinstance(parent_vif_id, six.string_types):
             msg = _('Invalid binding:profile. parent_name "%s" must be '
-                    'a string.') % parent_name
+                    'a string.') % parent_vif_id
             raise n_exc.InvalidInput(error_message=msg)
         if not n_utils.is_valid_vlan_tag(tag):
             msg = _('Invalid binding:profile. tag "%s" must be '
                     'an int between 1 and 4096, inclusive.') % tag
             raise n_exc.InvalidInput(error_message=msg)
         # Make sure we can successfully look up the port indicated by
-        # parent_name.  Just let it raise the right exception if there is a
+        # parent_vif_id.  Just let it raise the right exception if there is a
         # problem.
         # NOTE(arosen): For demo reasons the parent_port might not be a
         # a neutron managed port so for now do not perform this check.
-        # self.get_port(context, parent_name)
-        return parent_name, tag
+        # self.get_port(context, parent_vif_id)
+        return parent_vif_id, tag
 
     def _get_port_name(self, context, port_data):
         device_owner = port_data.get('device_owner')
@@ -1194,7 +1194,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 tags += security.get_lport_tags_for_security_groups(
                     port_data[ext_sg.SECURITYGROUPS])
 
-        parent_name, tag = self._get_data_from_binding_profile(
+        parent_vif_id, tag = self._get_data_from_binding_profile(
             context, port_data)
         address_bindings = (self._build_address_bindings(port_data)
                             if psec_is_on else [])
@@ -1245,7 +1245,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 admin_state=port_data['admin_state_up'],
                 address_bindings=address_bindings,
                 attachment_type=attachment_type,
-                parent_name=parent_name, parent_tag=tag,
+                parent_vif_id=parent_vif_id, parent_tag=tag,
                 switch_profile_ids=profiles)
         except nsx_exc.ManagerError as inst:
             # we may fail if the QoS is not supported for this port
@@ -1754,7 +1754,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                                updated_device_id)
 
         vif_uuid = updated_port['id']
-        parent_name, tag = self._get_data_from_binding_profile(
+        parent_vif_id, tag = self._get_data_from_binding_profile(
             context, updated_port)
         attachment_type = nsx_constants.ATTACHMENT_VIF
         if (not updated_device_owner or
@@ -1803,7 +1803,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 address_bindings=address_bindings,
                 switch_profile_ids=switch_profile_ids,
                 tags_update=tags_update,
-                parent_name=parent_name,
+                parent_vif_id=parent_vif_id,
                 parent_tag=tag)
         except nsx_exc.ManagerError as inst:
             # we may fail if the QoS is not supported for this port
