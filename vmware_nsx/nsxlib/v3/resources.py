@@ -236,27 +236,16 @@ class LogicalPort(AbstractRESTResource):
 
         return body
 
-    def _prepare_attachment(self, vif_uuid, parent_name, parent_tag,
+    def _prepare_attachment(self, vif_uuid, parent_vif_id, parent_tag,
                             address_bindings, attachment_type):
-        # NOTE(arosen): if a parent_name is specified we need to use the
-        # CIF's attachment.
-        key_values = None
-        if parent_name:
-            attachment_type = nsx_constants.ATTACHMENT_CIF
-            key_values = [
-                {'key': 'VLAN_ID', 'value': parent_tag},
-                {'key': 'Host_VIF_ID', 'value': parent_name},
-                {'key': 'IP', 'value': address_bindings[0].ip_address},
-                {'key': 'MAC', 'value': address_bindings[0].mac_address}]
-            # NOTE(arosen): The above api body structure might change
-            # in the future
-
         if attachment_type and vif_uuid:
             attachment = {'attachment_type': attachment_type,
                           'id': vif_uuid}
-
-            if key_values:
-                attachment['context'] = {'key_values': key_values}
+            if parent_vif_id:
+                attachment['context'] = {}
+                attachment['context']['vlan_tag'] = parent_tag
+                attachment['context']['container_host_vif_id'] = \
+                    parent_vif_id
                 attachment['context']['resource_type'] = \
                     nsx_constants.CIF_RESOURCE_TYPE
             return attachment
@@ -269,6 +258,10 @@ class LogicalPort(AbstractRESTResource):
         tags = tags or []
 
         body = {'logical_switch_id': lswitch_id}
+        # NOTE(arosen): If parent name is specified we need to use
+        # CIF attachment type.
+        if parent_name:
+            attachment_type = nsx_constants.ATTACHMENT_CIF
         attachment = self._prepare_attachment(vif_uuid, parent_name,
                                               parent_tag, address_bindings,
                                               attachment_type)
