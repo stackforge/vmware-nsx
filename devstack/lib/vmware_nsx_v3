@@ -27,6 +27,8 @@ Q_DHCP_CONF_FILE=$NEUTRON_CONF_DIR/dhcp_agent.ini
 
 # The interface which has connectivity to the NSX Gateway uplink
 NSX_GATEWAY_NETWORK_INTERFACE=${NSX_GATEWAY_NETWORK_INTERFACE:-}
+# Native support from platform
+NATIVE_DHCP_METADATA=${NATIVE_DHCP_METADATA:-False}
 
 
 # Save trace setting
@@ -132,8 +134,12 @@ function neutron_plugin_configure_service {
     _nsxv3_ini_set insecure $NSX_INSECURE
     _nsxv3_ini_set ca_file $NSX_CA_FILE
     _nsxv3_ini_set default_bridge_cluster $DEFAULT_BRIDGE_CLUSTER_UUID
-    _nsxv3_ini_set dhcp_profile_uuid $DHCP_PROFILE_UUID
-    _nsxv3_ini_set metadata_proxy_uuid $METADATA_PROXY_UUID
+    if [[ "$NATIVE_DHCP_METADATA" == "True" ]]; then
+        _nsxv3_ini_set native_dhcp_metadata $NATIVE_DHCP_METADATA
+        _nsxv3_ini_set dhcp_profile_uuid $DHCP_PROFILE_UUID
+        _nsxv3_ini_set metadata_proxy_uuid $METADATA_PROXY_UUID
+        iniset $NEUTRON_CONF DEFAULT dhcp_agent_notification False
+    fi
 }
 
 function neutron_plugin_setup_interface_driver {
@@ -147,6 +153,17 @@ function neutron_plugin_check_adv_test_requirements {
 
 
 function init_vmware_nsx_v3 {
+    if [[ "$NATIVE_DHCP_METADATA" == "True" ]]; then
+        if ! is_set DHCP_PROFILE_UUID; then
+            die $LINENO "DHCP profile needs to be configured!"
+        fi
+        if ! is_set METADATA_PROXY_UUID; then
+            die $LINENO "Metadata proxy needs to be configured!"
+        fi
+        if is_service_enabled q-dhcp q-meta; then
+            die $LINENO "Native support does not require DHCP and Metadata agents!"
+        fi
+    fi
     if ! is_set NSX_GATEWAY_NETWORK_INTERFACE; then
         echo "NSX_GATEWAY_NETWORK_INTERFACE not set not configuring routes"
         return
