@@ -20,6 +20,9 @@
 # Neutron VMware NSX plugin
 # -------------------------
 
+# NSX Version
+VER_1_0_0=${VER_1_0_0:-False}
+
 # Settings previously defined in devstack:lib/neutron-legacy
 NEUTRON_CONF_DIR=/etc/neutron
 export NEUTRON_TEST_CONFIG_FILE=${NEUTRON_TEST_CONFIG_FILE:-"$NEUTRON_CONF_DIR/debug.ini"}
@@ -35,10 +38,19 @@ set +o xtrace
 
 source $TOP_DIR/lib/neutron_plugins/ovs_base
 
+
+function _manager_set {
+    if [[ "VER_1_0_0" == "True" ]]; then
+        sudo ovs-vsctl set-manager tcp:127.0.0.1:6632
+    else
+        sudo ovs-vsctl set-manager unix:/var/run/vmware/nsx-agent/nsxagent_ovsdb.sock
+    fi
+}
+
 function setup_integration_bridge {
     _neutron_ovs_base_setup_bridge $OVS_BRIDGE
     sudo ovs-vsctl set bridge $OVS_BRIDGE external_ids:bridge-id=nsx-managed
-    sudo ovs-vsctl set-manager unix:/var/run/vmware/nsx-agent/nsxagent_ovsdb.sock
+    _manager_set
 }
 
 function is_neutron_ovs_base_plugin {
@@ -85,7 +97,7 @@ function neutron_plugin_configure_dhcp_agent {
     iniset $Q_DHCP_CONF_FILE DEFAULT enable_metadata_network True
     iniset $Q_DHCP_CONF_FILE DEFAULT ovs_use_veth True
     iniset $Q_DHCP_CONF_FILE DEFAULT ovs_integration_bridge $OVS_BRIDGE
-    iniset $Q_DHCP_CONF_FILE OVS ovsdb_connection unix:/var/run/vmware/nsx-agent/nsxagent_ovsdb.sock
+    _manager_set
     iniset $Q_DHCP_CONF_FILE OVS ovsdb_interface vsctl
 }
 
