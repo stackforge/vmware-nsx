@@ -690,14 +690,11 @@ class EdgeApplianceDriver(object):
                           e.response)
             raise e
 
-    def _create_nat_rule(self, task):
+    def _create_nat_rule(self, router_id, edge_id, rule, location):
         # TODO(fank): use POST for optimization
         #             return rule_id for future reference
-        rule = task.userdata['rule']
         LOG.debug("VCNS: start creating nat rules: %s", rule)
-        edge_id = task.userdata['edge_id']
         nat = self.get_nat_config(edge_id)
-        location = task.userdata['location']
 
         del nat['version']
 
@@ -706,34 +703,19 @@ class EdgeApplianceDriver(object):
         else:
             nat['rules']['natRulesDtos'].insert(location, rule)
 
-        try:
-            self.vcns.update_nat_config(edge_id, nat)
-            status = task_constants.TaskStatus.COMPLETED
-        except exceptions.VcnsApiException as e:
-            LOG.exception(_LE("VCNS: Failed to create snat rule:\n%s"),
-                          e.response)
-            status = task_constants.TaskStatus.ERROR
-
-        return status
+        self.vcns.update_nat_config(edge_id, nat)
+        return True
 
     def create_snat_rule(self, router_id, edge_id, src, translated,
-                         jobdata=None, location=None):
+                         location=None):
         LOG.debug("VCNS: create snat rule %(src)s/%(translated)s", {
             'src': src, 'translated': translated})
         snat_rule = self._assemble_nat_rule("snat", src, translated)
-        userdata = {
-            'router_id': router_id,
-            'edge_id': edge_id,
-            'rule': snat_rule,
-            'location': location,
-            'jobdata': jobdata
-        }
-        task_name = "create-snat-%s-%s-%s" % (edge_id, src, translated)
-        task = tasks.Task(task_name, router_id, self._create_nat_rule,
-                          userdata=userdata)
-        task.add_result_monitor(self.callbacks.snat_create_result)
-        self.task_manager.add(task)
-        return task
+
+        self._create_nat_rule(router_id, edge_id, snat_rule, location)
+        LOG.debug("VCNS: created snat rule %(src)s/%(translated)s",
+                  {'src': src, 'translated': translated})
+        return True
 
     def _delete_nat_rule(self, task):
         # TODO(fank): pass in rule_id for optimization
@@ -774,26 +756,18 @@ class EdgeApplianceDriver(object):
         return task
 
     def create_dnat_rule(self, router_id, edge_id, dst, translated,
-                         jobdata=None, location=None):
+                         location=None):
         # TODO(fank): use POST for optimization
         #             return rule_id for future reference
         LOG.debug("VCNS: create dnat rule %(dst)s/%(translated)s", {
             'dst': dst, 'translated': translated})
         dnat_rule = self._assemble_nat_rule(
             "dnat", dst, translated)
-        userdata = {
-            'router_id': router_id,
-            'edge_id': edge_id,
-            'rule': dnat_rule,
-            'location': location,
-            'jobdata': jobdata
-        }
-        task_name = "create-dnat-%s-%s-%s" % (edge_id, dst, translated)
-        task = tasks.Task(task_name, router_id, self._create_nat_rule,
-                          userdata=userdata)
-        task.add_result_monitor(self.callbacks.dnat_create_result)
-        self.task_manager.add(task)
-        return task
+
+        self._create_nat_rule(router_id, edge_id, dnat_rule, location)
+        LOG.debug("VCNS: created dnat rule %(dst)s/%(translated)s", {
+            'dst': dst, 'translated': translated})
+        return True
 
     def delete_dnat_rule(self, router_id, edge_id, translated,
                          jobdata=None):

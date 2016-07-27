@@ -440,17 +440,13 @@ class VcnsDriverTestCase(base.BaseTestCase):
         self.assertTrue(found)
 
     def _create_nat_rule(self, edge_id, action, org, translated):
-        jobdata = {}
         if action == 'snat':
-            task = self.vcns_driver.create_snat_rule(
-                'router-id', edge_id, org, translated, jobdata=jobdata)
-            key = 'snat_create_result'
+            ret = self.vcns_driver.create_snat_rule(
+                'router-id', edge_id, org, translated)
         else:
-            task = self.vcns_driver.create_dnat_rule(
-                'router-id', edge_id, org, translated, jobdata=jobdata)
-            key = 'dnat_create_result'
-        task.wait(ts_const.TaskState.RESULT)
-        self.assertTrue(jobdata.get(key))
+            ret = self.vcns_driver.create_dnat_rule(
+                'router-id', edge_id, org, translated)
+        self.assertTrue(ret)
 
     def _delete_nat_rule(self, edge_id, action, addr):
         jobdata = {}
