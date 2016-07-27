@@ -2410,18 +2410,6 @@ class NsxVCallbacks(object):
     def interface_update_result(self, task):
         LOG.debug("interface_update_result %d", task.status)
 
-    def snat_create_result(self, task):
-        LOG.debug("snat_create_result %d", task.status)
-
-    def snat_delete_result(self, task):
-        LOG.debug("snat_delete_result %d", task.status)
-
-    def dnat_create_result(self, task):
-        LOG.debug("dnat_create_result %d", task.status)
-
-    def dnat_delete_result(self, task):
-        LOG.debug("dnat_delete_result %d", task.status)
-
     def routes_update_result(self, task):
         LOG.debug("routes_update_result %d", task.status)
 
