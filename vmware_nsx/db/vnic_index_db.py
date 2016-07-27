@@ -18,6 +18,7 @@ from sqlalchemy.orm import exc
 from neutron.api.v2 import attributes as attr
 from neutron.db import db_base_plugin_v2
 
+from oslo_db import exception as db_exc
 from oslo_log import log as logging
 
 from vmware_nsx.db import nsxv_models
@@ -50,10 +51,17 @@ class VnicIndexDbMixin(object):
     def _set_port_vnic_index_mapping(self, context, port_id, device_id, index):
         """Save the port vnic-index to DB."""
         session = context.session
-        with session.begin(subtransactions=True):
-            index_mapping_model = nsxv_models.NsxvPortIndexMapping(
-                port_id=port_id, device_id=device_id, index=index)
-            session.add(index_mapping_model)
+        try:
+            with session.begin(subtransactions=True):
+                index_mapping_model = nsxv_models.NsxvPortIndexMapping(
+                    port_id=port_id, device_id=device_id, index=index)
+                session.add(index_mapping_model)
+        except db_exc.DBDuplicateEntry:
+            # A retry for the nova scheduling could result in this error.
+            LOG.debug("Entry already exists for %s %s %s", port_id,
+                      device_id, index)
+            if self._get_port_vnic_index(context, port_id) != index:
+                raise
 
     def _delete_port_vnic_index_mapping(self, context, port_id):
         """Delete the port vnic-index association."""

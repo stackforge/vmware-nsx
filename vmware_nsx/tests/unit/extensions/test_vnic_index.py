@@ -103,6 +103,19 @@ class VnicIndexDbTestCase(test_db_plugin.NeutronDbPluginV2TestCase):
         # TODO(kobis): deletion was removed from port - fix this assert
         # self.assertIsNone(plugin._get_port_vnic_index(context, port_id))
 
+    def test_vnic_index_db_duplicate(self):
+        plugin = manager.NeutronManager.get_plugin()
+        vnic_index = 2
+        device_id = _uuid()
+        context = neutron_context.get_admin_context()
+        with self.port(device_id=device_id,
+                       device_owner='compute:None') as port:
+            port_id = port['port']['id']
+            res = self._port_index_update(port_id, vnic_index)
+            self.assertEqual(res['port'][vnicidx.VNIC_INDEX], vnic_index)
+            plugin._set_port_vnic_index_mapping(context, port_id, device_id,
+                                                vnic_index)
+
 
 class TestVnicIndex(VnicIndexDbTestCase):
     pass
