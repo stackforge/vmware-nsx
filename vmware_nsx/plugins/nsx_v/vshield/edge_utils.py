@@ -439,6 +439,7 @@ class EdgeManager(object):
                 header, _ = self.nsxv_manager.vcns.delete_interface(edge_id,
                                                                     vnic_index)
                 if port_group_id:
+                    # TODO(asarfaty): no job_id any more...
                     objuri = header['location']
                     job_id = objuri[objuri.rfind("/") + 1:]
                     dvs_id, net_type = self._get_physical_provider_network(
