@@ -11,9 +11,9 @@
 # under the License.
 
 from oslo_log import log as logging
+import testtools
 
 from tempest import config
-from tempest.lib import decorators
 from tempest.lib import exceptions
 from tempest import test
 
@@ -220,7 +220,8 @@ class ListenersTest(base.BaseTestCase):
                                 listener_ids=[self.listener_id])
 
     @test.attr(type='negative')
-    @decorators.skip_because(bug="1637877")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1637877.")
     @test.idempotent_id('59d32fd7-06f6-4466-bdd4-0be23b15970c')
     def test_create_listener_invalid_name(self):
         """Test create listener with an invalid name"""
@@ -234,7 +235,8 @@ class ListenersTest(base.BaseTestCase):
                                 listener_ids=[self.listener_id])
 
     @test.attr(type='negative')
-    @decorators.skip_because(bug="1637877")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1637877.")
     @test.idempotent_id('95457f70-2c1a-4c14-aa80-db8e803d78a9')
     def test_create_listener_invalid_description(self):
         """Test create listener with an invalid description"""
@@ -312,7 +314,8 @@ class ListenersTest(base.BaseTestCase):
                                 listener_ids=[self.listener_id])
 
     @test.attr(type='negative')
-    @decorators.skip_because(bug="1638701")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1638701.")
     @test.idempotent_id('46fc3784-d676-42f7-953b-a23c1d62323d')
     def test_create_listener_empty_tenant_id(self):
         """Test create listener with an empty tenant id"""
@@ -417,7 +420,8 @@ class ListenersTest(base.BaseTestCase):
                                 listener_ids=[self.listener_id])
 
     @test.attr(type='negative')
-    @decorators.skip_because(bug="1637877")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1637877.")
     @test.idempotent_id('7c0efb63-90d9-43d0-b959-eb841ef39832')
     def test_update_listener_invalid_name(self):
         """Test update a listener with an invalid name"""
@@ -429,7 +433,8 @@ class ListenersTest(base.BaseTestCase):
                                 listener_ids=[self.listener_id])
 
     @test.attr(type='negative')
-    @decorators.skip_because(bug="1637877")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1637877.")
     @test.idempotent_id('ba9bfad8-dbb0-4cbc-b2e3-52bf72bc1fc5')
     def test_update_listener_invalid_description(self):
         """Test update a listener with an invalid description"""
