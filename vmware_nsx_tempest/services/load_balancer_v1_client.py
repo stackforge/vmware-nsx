@@ -234,7 +234,8 @@ class LoadBalancerV1Client(base.BaseNetworkClient):
         try:
             getattr(client, method)(id)
         except AttributeError:
-            raise Exception("Unknown resource type %s " % resource_type)
+            raise lib_exc.InvalidConfiguration("Unknown resource type %s "
+                                                % resource_type)
         except lib_exc.NotFound:
             return True
         return False
