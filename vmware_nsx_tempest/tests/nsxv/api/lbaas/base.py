@@ -35,7 +35,8 @@ from vmware_nsx_tempest.services.lbaas import pools_client
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
-NO_ROUTER_TYPE = CONF.nsxv.no_router_type
+NO_ROUTER_TYPE = (CONF.platform.os_backend != 'NSX-v')
+BUGS_TO_RESOLVE = CONF.platform.bugs_to_resolve
 
 
 class BaseTestCase(base.BaseNetworkTest):
@@ -414,8 +415,9 @@ class BaseAdminTestCase(BaseTestCase):
     def resource_setup(cls):
         super(BaseAdminTestCase, cls).resource_setup()
 
-        mgr = cls.get_client_manager(credential_type='admin')
-        cls.create_lbaas_clients(mgr)
+        cls.admin_mgr = cls.get_client_manager(credential_type='admin')
+        cls.admin_tenant_id = cls.admin_mgr.networks_client.tenant_id
+        cls.create_lbaas_clients(cls.admin_mgr)
         cls.setup_lbaas_core_network()
 
     @classmethod
