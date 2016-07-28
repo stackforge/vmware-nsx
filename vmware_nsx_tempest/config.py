@@ -66,6 +66,24 @@ NetworkGroup = [
                     " connectivity"),
 ]
 
+platform_group = cfg.OptGroup(name='platform',
+                              title="Specify Openstack release, and"
+                                    " backend version deployed so tests"
+                                    " can use to skip if matched.")
+PlatformGroup = [
+    cfg.StrOpt('os_release_name',
+               default='mitaka',
+               help="Openstack Release Name"),
+    cfg.FloatOpt('os_release_number',
+                 default=2015.1,
+                 help="release number match to release name."),
+    cfg.StrOpt('backend',
+               default='NSX-v',
+               help="Backend support openstack:"
+                    " NSX-v: NSX vSphere."
+                    " NSX-t: NSX Transformer."),
+]
+
 nsxv_group = cfg.OptGroup(name='nsxv',
                           title="NSX-v Configuration Options")
 NSXvGroup = [
