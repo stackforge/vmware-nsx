@@ -11,9 +11,9 @@
 # under the License.
 
 from oslo_log import log as logging
+import testtools
 
 from tempest import config
-from tempest.lib import decorators
 from tempest.lib import exceptions as ex
 from tempest import test
 
@@ -47,7 +47,10 @@ class LoadBalancersTest(base.BaseAdminTestCase):
         cls.load_balancer_id = cls.load_balancer['id']
 
     @test.attr(type='smoke')
-    @decorators.skip_because(bug="1641902")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1641902.")
+    @testtools.skipIf('1641902' in base.BUGS_TO_RESOLVED,
+                      "skip_because bug=1641902.")
     @test.idempotent_id('0008ae1e-77a2-45d9-b81e-0e3119b5a26d')
     def test_create_load_balancer_missing_tenant_id_field_for_admin(self):
         """Test create load balancer with a missing tenant id field.
@@ -65,7 +68,10 @@ class LoadBalancersTest(base.BaseAdminTestCase):
         self._wait_for_load_balancer_status(load_balancer['id'])
 
     @test.attr(type='smoke')
-    @decorators.skip_because(bug="1638571")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1638571.")
+    @testtools.skipIf('1641902' in base.BUGS_TO_RESOLVED,
+                      "skip_because bug=1641902.")
     @test.idempotent_id('37620941-47c1-40b2-84d8-db17ff823ebc')
     def test_create_load_balancer_missing_tenant_id_for_other_tenant(self):
         """Test create load balancer with a missing tenant id field.
@@ -81,7 +87,8 @@ class LoadBalancersTest(base.BaseAdminTestCase):
         self._wait_for_load_balancer_status(load_balancer['id'])
 
     @test.attr(type='negative')
-    @decorators.skip_because(bug="1638148")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1638148.")
     # Empty tenant_id causing ServerFault
     @test.idempotent_id('5bf483f5-ae28-47f5-8805-642da0ffcb40')
     def test_create_load_balancer_empty_tenant_id_field(self):
@@ -93,12 +100,13 @@ class LoadBalancersTest(base.BaseAdminTestCase):
                           tenant_id="")
 
     @test.attr(type='smoke')
-    @decorators.skip_because(bug="1638571")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1638571.")
     @test.idempotent_id('19fc8a44-1280-49f3-be5b-0d30e6e43363')
-    # 2nd tenant_id at the same subnet not supported; got serverFault
+    # NSX-v got serverFault if tenant-id is not exist
     def test_create_load_balancer_for_another_tenant(self):
         """Test create load balancer for other tenant"""
-        tenant = 'deffb4d7c0584e89a8ec99551565713c'
+        tenant = self.tenant_id or 'deffb4d7c0584e89a8ec99551565713c'
         load_balancer = self._create_load_balancer(
             vip_subnet_id=self.subnet['id'],
             tenant_id=tenant)

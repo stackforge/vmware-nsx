@@ -150,3 +150,38 @@ NSXv3Group = [
                default='default',
                help="NSX manager password"),
 ]
+
+platform_group = cfg.OptGroup(name='platform',
+                              title="Specify Openstack release, and"
+                                    " backend version deployed so tests"
+                                    " can use to skip if matched.")
+PlatformGroup = [
+    cfg.StrOpt('os_release_name',
+               default='Mitaka',
+               help="Openstack Release CodeName:"
+                    " http://releases.openstack.org/"),
+    cfg.FloatOpt('os_release_number',
+                 default=2016.1,
+                 help="release number match to release name."
+                      " 2015.1: Kilo; 2015.2: Liberty;"
+                      " 2016.1: Mitaka; 2016.2: Newton;"
+                      " 2017.1: Ocata;"),
+    cfg.ListOpt('lbaas_driver',
+                default=['nsx'],
+                help="Test cases are written for upstream LBaaS."
+                     " With this to identify which driver is being"
+                     " used for NSX-v and NSX-v platform."),
+    cfg.ListOpt('qos_driver',
+                default=[],
+                help="Test cases are written for upstream QoS."
+                     " With this to identify which driver is being"
+                     " used for NSX-v and NSX-v platform."),
+    cfg.StrOpt('os_backend',
+               default='NSX-v',
+               help="Backend support openstack:"
+                    " NSX-v: NSX vSphere."
+                    " NSX-t: NSX Transformer."),
+    cfg.ListOpt('bugs_to_resolved',
+                default=[],
+                help="Bugs to resolved in specific Openstack+os_backend.")
+]
