@@ -10,12 +10,15 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from tempest.lib import decorators
+import testtools
+
 from tempest.lib import exceptions as ex
+from tempest import config
 from tempest import test
 
 from vmware_nsx_tempest.tests.nsxv.api.lbaas import base
 
+CONF = config.CONF
 PROTOCOL_PORT = 80
 
 
@@ -64,7 +67,8 @@ class TestPools(base.BaseAdminTestCase):
 
     @test.attr(type='negative')
     @test.idempotent_id('71b9d3e1-3f13-4c84-a905-054c9cd3d4aa')
-    @decorators.skip_because(bug="1638148")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1638148.")
     def test_create_pool_using_empty_tenant_field(self):
         """Test create pool with empty tenant field should fail"""
         self.assertRaises(ex.BadRequest, self._create_pool,

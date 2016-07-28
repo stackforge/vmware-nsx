@@ -26,7 +26,7 @@ from tempest.lib import exceptions
 
 CONF = config.CONF
 LOG = log.getLogger(__name__)
-NO_ROUTER_TYPE = CONF.nsxv.no_router_type
+NO_ROUTER_TYPE = (CONF.plaform.os_backend != 'NSX-v')
 
 
 # following router methods are not support by upstream tempest,

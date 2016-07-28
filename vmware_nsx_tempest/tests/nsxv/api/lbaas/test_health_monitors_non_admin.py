@@ -10,11 +10,15 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from tempest.lib import decorators
+import testtools
+
+from tempest import config
 from tempest.lib import exceptions as ex
 from tempest import test
 
 from vmware_nsx_tempest.tests.nsxv.api.lbaas import base
+
+CONF = config.CONF
 
 
 class TestHealthMonitors(base.BaseTestCase):
@@ -305,7 +309,8 @@ class TestHealthMonitors(base.BaseTestCase):
 
     @test.attr(type='negative')
     @test.idempotent_id('0d637b7f-52ea-429f-8f97-584a5a9118aa')
-    @decorators.skip_because(bug="1641652")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1641652.")
     def test_create_health_monitor_invalid_url_path(self):
         """Test if a non_admin user
 
@@ -317,7 +322,8 @@ class TestHealthMonitors(base.BaseTestCase):
 
     @test.attr(type='negative')
     @test.idempotent_id('7d4061c4-1fbc-43c3-81b5-2d099a120297')
-    @decorators.skip_because(bug="1641643")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1641643.")
     def test_create_health_monitor_invalid_http_method(self):
         """Test if a non_admin user
 
@@ -379,7 +385,8 @@ class TestHealthMonitors(base.BaseTestCase):
 
     @test.attr(type='negative')
     @test.idempotent_id('9c8e8fe8-a3a2-481b-9ac8-eb9ecccd8330')
-    @decorators.skip_because(bug="1639340")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1639340.")
     def test_create_health_monitor_empty_max_http_method(self):
         """Test create health monitor with empty http_method"""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
@@ -388,7 +395,8 @@ class TestHealthMonitors(base.BaseTestCase):
 
     @test.attr(type='negative')
     @test.idempotent_id('9016c846-fc7c-4063-9f01-61fad37c435d')
-    @decorators.skip_because(bug="1639340")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1639340.")
     def test_create_health_monitor_empty_max_url_path(self):
         """Test create health monitor with empty url_path"""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
@@ -559,7 +567,8 @@ class TestHealthMonitors(base.BaseTestCase):
 
     @test.attr(type='negative')
     @test.idempotent_id('1e2fb718-de77-46a3-8897-6f5aff6cab5e')
-    @decorators.skip_because(bug="1641643")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1641643.")
     def test_update_health_monitor_invalid_http_method(self):
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
@@ -570,7 +579,8 @@ class TestHealthMonitors(base.BaseTestCase):
 
     @test.attr(type='negative')
     @test.idempotent_id('07d62a55-18b3-4b74-acb2-b73a0b5e4364')
-    @decorators.skip_because(bug="1641652")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1641652.")
     def test_update_health_monitor_invalid_url_path(self):
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
@@ -631,7 +641,8 @@ class TestHealthMonitors(base.BaseTestCase):
 
     @test.attr(type='negative')
     @test.idempotent_id('0c464bb3-ff84-4816-9237-4583e4da9881')
-    @decorators.skip_because(bug="1639340")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1639340.")
     def test_update_health_monitor_empty_empty_http_method(self):
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
@@ -642,7 +653,8 @@ class TestHealthMonitors(base.BaseTestCase):
 
     @test.attr(type='negative')
     @test.idempotent_id('3e87c0a8-ef15-457c-a58f-270de8c5c76c')
-    @decorators.skip_because(bug="1639340")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1639340.")
     def test_update_health_monitor_empty_url_path(self):
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
@@ -673,7 +685,8 @@ class TestHealthMonitors(base.BaseTestCase):
 
     @test.attr(type=['smoke', 'negative'])
     @test.idempotent_id('fe44e0d9-957b-44cf-806b-af7819444864')
-    @decorators.skip_because(bug="1639340")
+    @testtools.skipIf(CONF.platform.os_release_name == 'Kilo',
+                      "skip_because bug=1639340.")
     def test_delete_health_monitor(self):
         hm = self._create_health_monitor(cleanup=False, type='HTTP', delay=3,
                                          max_retries=10, timeout=5,

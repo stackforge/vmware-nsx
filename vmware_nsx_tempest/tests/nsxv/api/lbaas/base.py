@@ -35,7 +35,7 @@ from vmware_nsx_tempest.services.lbaas import pools_client
 
 CONF = config.CONF
 LOG = logging.getLogger(__name__)
-NO_ROUTER_TYPE = CONF.nsxv.no_router_type
+NO_ROUTER_TYPE = (CONF.plaform.os_backend != 'NSX-v')
 
 
 class BaseTestCase(base.BaseNetworkTest):

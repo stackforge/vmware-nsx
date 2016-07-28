@@ -56,6 +56,9 @@ class VMwareNsxTempestPlugin(plugins.TempestPlugin):
         config.register_opt_group(
             conf,
             config_nsx.nsxv3_group, config_nsx.NSXv3Group)
+        config.register_opt_group(
+            conf,
+            config_nsx.platform_group, config_nsx.PlatformGroup)
 
     def get_opt_lists(self):
         return [(config_nsx.scenario_group.name, config_nsx.scenario_group)]
