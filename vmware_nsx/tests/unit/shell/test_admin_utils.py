@@ -39,6 +39,7 @@ from vmware_nsx.tests import unit as vmware
 from vmware_nsx.tests.unit.nsx_v.vshield import fake_vcns
 from vmware_nsx.tests.unit.nsx_v3 import test_plugin as test_v3_plugin
 
+
 LOG = logging.getLogger(__name__)
 NSX_INI_PATH = vmware.get_fake_conf('nsx.ini.test')
 BASE_CONF_PATH = vmware.get_fake_conf('neutron.conf.test')
