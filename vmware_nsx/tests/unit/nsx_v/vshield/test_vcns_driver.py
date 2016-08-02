@@ -360,10 +360,6 @@ class VcnsDriverTestCase(base.BaseTestCase):
         if task.status == ts_const.TaskStatus.COMPLETED:
             task.userdata['jobdata']['edge_delete_result'] = True
 
-    def nat_update_result(self, task):
-        if task.status == ts_const.TaskStatus.COMPLETED:
-            task.userdata['jobdata']['nat_update_result'] = True
-
     def routes_update_result(self, task):
         if task.status == ts_const.TaskStatus.COMPLETED:
             task.userdata['jobdata']['routes_update_result'] = True
@@ -408,7 +404,6 @@ class VcnsDriverTestCase(base.BaseTestCase):
 
     def test_update_nat_rules(self):
         self._deploy_edge()
-        jobdata = {}
         snats = [{
             'src': '192.168.1.0/24',
             'translated': '10.0.0.1'
@@ -428,10 +423,8 @@ class VcnsDriverTestCase(base.BaseTestCase):
             'translated': '192.168.2.1'
         }
         ]
-        task = self.vcns_driver.update_nat_rules(
-            'router-id', self.edge_id, snats, dnats, jobdata=jobdata)
-        task.wait(ts_const.TaskState.RESULT)
-        self.assertTrue(jobdata.get('nat_update_result'))
+        result = self.vcns_driver.update_nat_rules(self.edge_id, snats, dnats)
+        self.assertTrue(result)
 
         natcfg = self.vcns_driver.get_nat_config(self.edge_id)
         rules = natcfg['rules']['natRulesDtos']
