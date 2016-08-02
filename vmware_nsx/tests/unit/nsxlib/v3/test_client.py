@@ -18,8 +18,8 @@ import copy
 from oslo_log import log
 from oslo_serialization import jsonutils
 
-from vmware_nsx.common import exceptions as exep
 from vmware_nsx.nsxlib.v3 import client
+from vmware_nsx.nsxlib.v3 import exceptions as nsxlib_exc
 from vmware_nsx.tests.unit.nsx_v3 import mocks
 from vmware_nsx.tests.unit.nsxlib.v3 import nsxlib_testcase
 
@@ -235,7 +235,7 @@ class NsxV3RESTClientTestCase(nsxlib_testcase.NsxClientTestCase):
             for code in client.RESTClient._VERB_RESP_CODES.get(verb):
                 _verb_response_code(verb, code)
             self.assertRaises(
-                exep.ManagerError,
+                nsxlib_exc.ManagerError,
                 _verb_response_code, verb, 500)
 
 
