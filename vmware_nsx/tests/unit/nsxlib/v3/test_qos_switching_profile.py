@@ -66,7 +66,8 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
                 break
 
         if qos_marking:
-            body = nsxlib._update_dscp_in_args(body, qos_marking, dscp)
+            body = nsxlib.NsxLib()._update_dscp_in_args(
+                body, qos_marking, dscp)
 
         return body
 
@@ -76,7 +77,7 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
         """
         api = self.mocked_rest_fns(nsxlib, 'client')
 
-        nsxlib.create_qos_switching_profile(
+        nsxlib.NsxLib().create_qos_switching_profile(
             tags=[],
             name=test_constants_v3.FAKE_NAME,
             description=test_constants_v3.FAKE_NAME)
@@ -98,7 +99,7 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
         with mock.patch.object(nsxlib.client, 'get_resource',
                         return_value=original_profile):
             # update the description of the profile
-            nsxlib.update_qos_switching_profile(
+            nsxlib.NsxLib().update_qos_switching_profile(
                 test_constants_v3.FAKE_QOS_PROFILE['id'],
                 tags=[],
                 description=new_description)
@@ -125,7 +126,7 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
         with mock.patch.object(nsxlib.client, 'get_resource',
                         return_value=original_profile):
             # update the bw shaping of the profile
-            nsxlib.update_qos_switching_profile_shaping(
+            nsxlib.NsxLib().update_qos_switching_profile_shaping(
                 test_constants_v3.FAKE_QOS_PROFILE['id'],
                 shaping_enabled=True,
                 burst_size=burst_size,
@@ -166,7 +167,7 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
         with mock.patch.object(nsxlib.client, 'get_resource',
                         return_value=original_profile):
             # update the bw shaping of the profile
-            nsxlib.update_qos_switching_profile_shaping(
+            nsxlib.NsxLib().update_qos_switching_profile_shaping(
                 test_constants_v3.FAKE_QOS_PROFILE['id'],
                 shaping_enabled=False, qos_marking="trusted")
 
@@ -184,7 +185,7 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
         """
         api = self.mocked_rest_fns(nsxlib, 'client')
 
-        nsxlib.delete_qos_switching_profile(
+        nsxlib.NsxLib().delete_qos_switching_profile(
             test_constants_v3.FAKE_QOS_PROFILE['id'])
 
         test_client.assert_json_call(

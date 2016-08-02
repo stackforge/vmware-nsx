@@ -51,7 +51,7 @@ def list_dhcp_bindings(resource, event, trigger, **kwargs):
 def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
     """Resync DHCP bindings for NSXv3 CrossHairs."""
 
-    nsx_version = nsxlib.get_version()
+    nsx_version = nsxlib.NsxLib.get_version()
     if not comm_utils.is_nsx_version_1_1_0(nsx_version):
         LOG.info(_LI("This utility is not available for NSX version %s"),
                  nsx_version)

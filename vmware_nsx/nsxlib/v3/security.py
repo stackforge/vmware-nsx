@@ -26,12 +26,12 @@ from oslo_log import log
 from oslo_utils import excutils
 
 from vmware_nsx._i18n import _, _LW, _LE
-from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import utils
 from vmware_nsx.db import nsx_models
 from vmware_nsx.extensions import secgroup_rule_local_ip_prefix
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.nsxlib.v3 import dfw_api as firewall
+from vmware_nsx.nsxlib.v3 import exceptions
 
 
 LOG = log.getLogger(__name__)
@@ -237,7 +237,7 @@ def _get_remote_nsg_mapping(context, sg_rule, nsgroup_id):
 
 def get_lport_tags_for_security_groups(secgroups):
     if len(secgroups) > MAX_NSGROUPS_CRITERIA_TAGS:
-        raise nsx_exc.NumberOfNsgroupCriteriaTagsReached(
+        raise exceptions.NumberOfNsgroupCriteriaTagsReached(
             max_num=MAX_NSGROUPS_CRITERIA_TAGS)
     tags = []
     for sg in secgroups:
@@ -256,15 +256,15 @@ def update_lport_with_security_groups(context, lport_id, original, updated):
         try:
             firewall.add_nsgroup_member(
                 nsgroup_id, firewall.LOGICAL_PORT, lport_id)
-        except firewall.NSGroupIsFull:
+        except exceptions.NSGroupIsFull:
             for sg_id in added:
                 nsgroup_id, s = get_sg_mappings(context.session, sg_id)
                 # NOTE(roeyc): If the port was not added to the nsgroup yet,
                 # then this request will silently fail.
                 firewall.remove_nsgroup_member(
                     nsgroup_id, firewall.LOGICAL_PORT, lport_id)
-            raise nsx_exc.SecurityGroupMaximumCapacityReached(sg_id=sg_id)
-        except nsx_exc.ResourceNotFound:
+            raise exceptions.SecurityGroupMaximumCapacityReached(sg_id=sg_id)
+        except exceptions.ResourceNotFound:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("NSGroup %s doesn't exists"), nsgroup_id)
     for sg_id in removed:
@@ -419,12 +419,12 @@ class NSGroupManager(object):
                                             firewall.NSGROUP,
                                             nsgroup_id)
                 break
-            except firewall.NSGroupIsFull:
+            except exceptions.NSGroupIsFull:
                 LOG.debug("Nested group %(group_id)s is full, trying the "
                           "next group..", {'group_id': group})
         else:
-            raise nsx_exc.NsxPluginException(
-                err_msg=_("Reached the maximum supported amount of "
+            raise exceptions.ManagerError(
+                details=_("Reached the maximum supported amount of "
                           "security groups."))
 
     def remove_nsgroup(self, nsgroup_id):
@@ -433,7 +433,7 @@ class NSGroupManager(object):
                 firewall.remove_nsgroup_member(
                     group, firewall.NSGROUP, nsgroup_id, verify=True)
                 break
-            except firewall.NSGroupMemberNotFound:
+            except exceptions.NSGroupMemberNotFound:
                 LOG.warning(_LW("NSGroup %(nsgroup)s was expected to be found "
                                 "in group %(group_id)s, but wasn't. "
                                 "Looking in the next group.."),

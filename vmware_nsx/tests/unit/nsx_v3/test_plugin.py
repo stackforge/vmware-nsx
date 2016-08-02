@@ -104,7 +104,7 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
 
         # Mock the nsx v3 version
         mock_nsxlib_get_version = mock.patch(
-            "vmware_nsx.nsxlib.v3.get_version",
+            "vmware_nsx.nsxlib.v3.NsxLib.get_version",
             return_value='1.1.0')
         mock_nsxlib_get_version.start()
 
