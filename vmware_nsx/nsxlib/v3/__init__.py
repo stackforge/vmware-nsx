@@ -17,10 +17,10 @@ from oslo_config import cfg
 from oslo_log import log
 
 from vmware_nsx._i18n import _, _LW
-from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils
 from vmware_nsx.nsxlib.v3 import client
+from vmware_nsx.nsxlib.v3 import exceptions
 
 LOG = log.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def get_edge_cluster(edge_cluster_uuid):
     return client.get_resource(resource)
 
 
-@utils.retry_upon_exception_nsxv3(nsx_exc.StaleRevision)
+@utils.retry_upon_exception_nsxv3(exceptions.StaleRevision)
 def update_resource_with_retry(resource, payload):
     revised_payload = client.get_resource(resource)
     for key_name in payload.keys():
@@ -62,7 +62,7 @@ def delete_resource_by_values(resource, skip_not_found=True, **kwargs):
             err_msg = (_("No resource in %(res)s matched for values: "
                          "%(values)s") % {'res': resource,
                                           'values': kwargs})
-            raise nsx_exc.ResourceNotFound(
+            raise exceptions.ResourceNotFound(
                 manager=client._get_nsx_managers_from_conf(),
                 operation=err_msg)
     elif matched_num > 1:
@@ -96,7 +96,7 @@ def create_logical_switch(display_name, transport_zone_id, tags,
     return client.create_resource(resource, body)
 
 
-@utils.retry_upon_exception_nsxv3(nsx_exc.StaleRevision,
+@utils.retry_upon_exception_nsxv3(exceptions.StaleRevision,
                                   max_attempts=cfg.CONF.nsx_v3.retries)
 def delete_logical_switch(lswitch_id):
     resource = 'logical-switches/%s?detach=true&cascade=true' % lswitch_id
@@ -108,7 +108,7 @@ def get_logical_switch(logical_switch_id):
     return client.get_resource(resource)
 
 
-@utils.retry_upon_exception_nsxv3(nsx_exc.StaleRevision,
+@utils.retry_upon_exception_nsxv3(exceptions.StaleRevision,
                                   max_attempts=cfg.CONF.nsx_v3.retries)
 def update_logical_switch(lswitch_id, name=None, admin_state=None, tags=None):
     resource = "logical-switches/%s" % lswitch_id
@@ -326,11 +326,13 @@ def _get_resource_by_name_or_id(name_or_id, resource):
     if len(matched_results) == 0:
         err_msg = (_("Could not find %(resource)s %(name)s") %
                    {'name': name_or_id, 'resource': resource})
-        raise nsx_exc.NsxPluginException(err_msg=err_msg)
+        # TODO improve exception handling...
+        raise exceptions.ManagerError(details=err_msg)
     elif len(matched_results) > 1:
         err_msg = (_("Found multiple %(resource)s named %(name)s") %
                    {'name': name_or_id, 'resource': resource})
-        raise nsx_exc.NsxPluginException(err_msg=err_msg)
+        # TODO improve exception handling...
+        raise exceptions.ManagerError(details=err_msg)
 
     return matched_results[0].get('id')
 
