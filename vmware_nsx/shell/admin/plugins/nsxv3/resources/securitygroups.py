@@ -187,7 +187,7 @@ def _update_security_group_dynamic_criteria():
 
 @admin_utils.output_header
 def migrate_nsgroups_to_dynamic_criteria(resource, event, trigger, **kwargs):
-    if not utils.is_nsx_version_1_1_0(nsxlib.get_version()):
+    if not utils.is_nsx_version_1_1_0(nsxlib.NsxLib.get_version()):
         LOG.error(_LE("Dynamic criteria grouping feature isn't supported by "
                       "this NSX version."))
         return

@@ -84,7 +84,7 @@ class QosNotificationsHandler(object):
     def create_policy(self, context, policy):
         policy_id = policy.id
         tags = self._get_tags(context, policy)
-        result = nsxlib.create_qos_switching_profile(
+        result = nsxlib.NsxLib.create_qos_switching_profile(
             tags=tags, name=policy.name,
             description=policy.description)
         if not result or not validators.is_attr_set(result.get('id')):
@@ -100,13 +100,13 @@ class QosNotificationsHandler(object):
     def delete_policy(self, context, policy_id):
         profile_id = nsx_db.get_switch_profile_by_qos_policy(
             context.session, policy_id)
-        nsxlib.delete_qos_switching_profile(profile_id)
+        nsxlib.NsxLib.delete_qos_switching_profile(profile_id)
 
     def update_policy(self, context, policy_id, policy):
         profile_id = nsx_db.get_switch_profile_by_qos_policy(
             context.session, policy_id)
         tags = self._get_tags(context, policy)
-        nsxlib.update_qos_switching_profile(
+        nsxlib.NsxLib.update_qos_switching_profile(
             profile_id,
             tags=tags,
             name=policy.name,
@@ -176,8 +176,7 @@ class QosNotificationsHandler(object):
             average_bw) = self._get_bw_values_from_rule(bw_rule)
 
         qos_marking, dscp = self._get_dscp_values_from_rule(dscp_rule)
-
-        nsxlib.update_qos_switching_profile_shaping(
+        nsxlib.NsxLib.update_qos_switching_profile_shaping(
             profile_id,
             shaping_enabled=shaping_enabled,
             burst_size=burst_size,
