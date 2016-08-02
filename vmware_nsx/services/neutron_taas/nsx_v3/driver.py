@@ -30,6 +30,7 @@ from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import utils as nsx_utils
 from vmware_nsx.db import db as nsx_db
 from vmware_nsx.nsxlib import v3 as nsxlib
+from vmware_nsx.nsxlib.v3 import exceptions as nsxlib_exc
 from vmware_nsx.nsxlib.v3 import resources as nsx_resources
 
 LOG = logging.getLogger(__name__)
@@ -272,14 +273,14 @@ class NsxV3Driver(base_driver.TaasBaseDriver,
             context._plugin_context.session, dest_port_id)
         # Create port mirror session on the backend
         try:
-            pm_session = nsxlib.create_port_mirror_session(
+            pm_session = nsxlib.NsxLib().create_port_mirror_session(
                 source_ports=nsx_src_ports,
                 dest_ports=nsx_dest_ports,
                 direction=direction,
                 description=tf.get('description'),
                 name=tf.get('name'),
                 tags=tags)
-        except nsx_exc.ManagerError:
+        except nsxlib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("Unable to create port mirror session %s "
                               "on NSX backend, rolling back "
@@ -298,7 +299,7 @@ class NsxV3Driver(base_driver.TaasBaseDriver,
                 LOG.error(_LE("Unable to create port mirror session db "
                               "mappings for tap flow %s. Rolling back "
                               "changes in Neutron."), tf['id'])
-                nsxlib.delete_port_mirror_session(pm_session['id'])
+                nsxlib.NsxLib().delete_port_mirror_session(pm_session['id'])
 
     def delete_tap_flow_precommit(self, context):
         pass
