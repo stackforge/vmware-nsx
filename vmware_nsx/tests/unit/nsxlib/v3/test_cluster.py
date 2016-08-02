@@ -19,9 +19,9 @@ import six.moves.urllib.parse as urlparse
 from oslo_config import cfg
 from oslo_serialization import jsonutils
 from requests import exceptions as requests_exceptions
-from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.nsxlib.v3 import client
 from vmware_nsx.nsxlib.v3 import cluster
+from vmware_nsx.nsxlib.v3 import exceptions as nsxlib_exc
 from vmware_nsx.tests.unit.nsx_v3 import mocks
 from vmware_nsx.tests.unit.nsxlib.v3 import nsxlib_testcase
 
@@ -60,7 +60,7 @@ class RequestsHTTPProviderTestCase(nsxlib_testcase.NsxClientTestCase):
         mock_ep = mock.Mock()
         mock_ep.provider.url = 'https://1.2.3.4'
         provider = cluster.NSXRequestsHTTPProvider()
-        self.assertRaises(nsx_exc.ResourceNotFound,
+        self.assertRaises(nsxlib_exc.ResourceNotFound,
                           provider.validate_connection,
                           mock.Mock(), mock_ep, mock_conn)
 
@@ -190,17 +190,17 @@ class ClusteredAPITestCase(nsxlib_testcase.NsxClientTestCase):
         api = cluster.NSXClusteredAPI(http_provider=mock_provider)
 
         self.assertEqual(len(api.endpoints), 3)
-        self.assertRaises(nsx_exc.ServiceClusterUnavailable,
+        self.assertRaises(nsxlib_exc.ServiceClusterUnavailable,
                           api.get, 'api/v1/transport-zones')
 
     def test_cluster_proxy_stale_revision(self):
 
         def stale_revision():
-            raise nsx_exc.StaleRevision(manager='1.1.1.1',
-                                        operation='whatever')
+            raise nsxlib_exc.StaleRevision(manager='1.1.1.1',
+                                           operation='whatever')
 
         api = self.mock_nsx_clustered_api(session_response=stale_revision)
-        self.assertRaises(nsx_exc.StaleRevision,
+        self.assertRaises(nsxlib_exc.StaleRevision,
                           api.get, 'api/v1/transport-zones')
 
     def test_cluster_proxy_connection_error(self):
@@ -210,7 +210,7 @@ class ClusteredAPITestCase(nsxlib_testcase.NsxClientTestCase):
 
         api = self.mock_nsx_clustered_api(session_response=connect_timeout)
         api._validate = mock.Mock()
-        self.assertRaises(nsx_exc.ServiceClusterUnavailable,
+        self.assertRaises(nsxlib_exc.ServiceClusterUnavailable,
                           api.get, 'api/v1/transport-zones')
 
     def test_cluster_round_robin_servicing(self):

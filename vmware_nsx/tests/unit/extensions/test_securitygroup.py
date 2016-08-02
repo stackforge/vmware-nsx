@@ -18,6 +18,7 @@ from neutron.extensions import securitygroup as ext_sg
 from neutron.tests.unit.extensions import test_securitygroup as test_ext_sg
 
 from vmware_nsx.nsxlib.v3 import dfw_api as firewall
+from vmware_nsx.nsxlib.v3 import exceptions as nsxlib_exc
 from vmware_nsx.nsxlib.v3 import security
 from vmware_nsx.plugins.nsx_v3 import plugin as nsx_plugin
 from vmware_nsx.tests.unit.nsx_v3 import test_plugin as test_nsxv3
@@ -122,7 +123,7 @@ class TestSecurityGroupsNoDynamicCriteria(test_nsxv3.NsxV3PluginTestCaseMixin,
 
         def _add_member_mock(nsgroup, target_type, target_id):
             if nsgroup in NSG_IDS:
-                raise firewall.NSGroupIsFull(nsgroup_id=nsgroup)
+                raise nsxlib_exc.NSGroupIsFull(nsgroup_id=nsgroup)
         add_member_mock.side_effect = _add_member_mock
 
         with self.network() as net:
@@ -142,7 +143,7 @@ class TestSecurityGroupsNoDynamicCriteria(test_nsxv3.NsxV3PluginTestCaseMixin,
                                                   remove_member_mock):
         def _add_member_mock(nsgroup, target_type, target_id):
             if nsgroup == NSG_IDS[2]:
-                raise firewall.NSGroupIsFull(nsgroup_id=nsgroup)
+                raise nsxlib_exc.NSGroupIsFull(nsgroup_id=nsgroup)
         add_member_mock.side_effect = _add_member_mock
 
         with self.port() as port:
@@ -235,11 +236,12 @@ class TestNSGroupManager(nsxlib_testcase.NsxLibTestCase):
 
         def _add_member_mock(nsgroup, target_type, target_id):
             if nsgroup == NSG_IDS[2]:
-                raise firewall.NSGroupIsFull(nsgroup_id=nsgroup)
+                raise nsxlib_exc.NSGroupIsFull(nsgroup_id=nsgroup)
 
         def _remove_member_mock(nsgroup, target_type, target_id, verify=False):
             if nsgroup == NSG_IDS[2]:
-                raise firewall.NSGroupMemberNotFound()
+                raise nsxlib_exc.NSGroupMemberNotFound(nsgroup_id=nsgroup,
+                                                       member_id=target_id)
 
         add_member_mock.side_effect = _add_member_mock
         remove_member_mock.side_effect = _remove_member_mock
