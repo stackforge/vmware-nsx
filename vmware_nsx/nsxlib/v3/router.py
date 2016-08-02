@@ -22,10 +22,10 @@ from neutron_lib import exceptions as n_exc
 from oslo_log import log
 
 from vmware_nsx._i18n import _, _LW
-from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils
 from vmware_nsx.nsxlib import v3 as nsxlib
+from vmware_nsx.nsxlib.v3 import exceptions
 
 LOG = log.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class RouterLib(object):
         err_msg = None
         try:
             lrouter = self._router_client.get(tier0_uuid)
-        except nsx_exc.ResourceNotFound:
+        except exceptions.ResourceNotFound:
             err_msg = (_("Tier0 router %s not found at the backend. Either a "
                          "valid UUID must be specified or a default tier0 "
                          "router UUID must be configured in nsx.ini") %
@@ -102,7 +102,7 @@ class RouterLib(object):
         try:
             tier1_link_port = (
                 self._router_port_client.get_tier1_link_port(tier1_uuid))
-        except nsx_exc.ResourceNotFound:
+        except exceptions.ResourceNotFound:
             LOG.warning(_LW("Logical router link port for tier1 router: %s "
                             "not found at the backend"), tier1_uuid)
             return
@@ -141,7 +141,7 @@ class RouterLib(object):
                                                  address_groups):
         try:
             port = self._router_port_client.get_by_lswitch_id(ls_id)
-        except nsx_exc.ResourceNotFound:
+        except exceptions.ResourceNotFound:
             return self._router_port_client.create(
                 logical_router_id,
                 display_name,
