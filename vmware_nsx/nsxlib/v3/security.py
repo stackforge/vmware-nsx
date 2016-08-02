@@ -25,12 +25,12 @@ from oslo_config import cfg
 from oslo_log import log
 
 from vmware_nsx._i18n import _, _LW
-from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import utils
 from vmware_nsx.db import nsx_models
 from vmware_nsx.extensions import secgroup_rule_local_ip_prefix
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.nsxlib.v3 import dfw_api as firewall
+from vmware_nsx.nsxlib.v3 import exceptions
 
 
 LOG = log.getLogger(__name__)
@@ -235,7 +235,7 @@ def _get_remote_nsg_mapping(context, sg_rule, nsgroup_id):
 
 def get_lport_tags_for_security_groups(secgroups):
     if len(secgroups) > MAX_NSGROUPS_CRITERIA_TAGS:
-        raise nsx_exc.NumberOfNsgroupCriteriaTagsReached(
+        raise exceptions.NumberOfNsgroupCriteriaTagsReached(
             max_num=MAX_NSGROUPS_CRITERIA_TAGS)
     tags = []
     for sg in secgroups:
@@ -261,7 +261,7 @@ def update_lport_with_security_groups(context, lport_id, original, updated):
                 # then this request will silently fail.
                 firewall.remove_nsgroup_member(
                     nsgroup_id, firewall.LOGICAL_PORT, lport_id)
-            raise nsx_exc.SecurityGroupMaximumCapacityReached(sg_id=sg_id)
+            raise exceptions.SecurityGroupMaximumCapacityReached(sg_id=sg_id)
     for sg_id in removed:
         nsgroup_id, s = get_sg_mappings(context.session, sg_id)
         firewall.remove_nsgroup_member(
@@ -418,8 +418,8 @@ class NSGroupManager(object):
                 LOG.debug("Nested group %(group_id)s is full, trying the "
                           "next group..", {'group_id': group})
         else:
-            raise nsx_exc.NsxPluginException(
-                err_msg=_("Reached the maximum supported amount of "
+            raise exceptions.ManagerError(
+                details=_("Reached the maximum supported amount of "
                           "security groups."))
 
     def remove_nsgroup(self, nsgroup_id):

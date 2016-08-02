@@ -20,9 +20,9 @@ NSX-V3 Distributed Firewall
 from oslo_log import log
 
 from vmware_nsx._i18n import _, _LW
-from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import utils
 from vmware_nsx.nsxlib.v3 import client as nsxclient
+from vmware_nsx.nsxlib.v3 import exceptions
 
 LOG = log.getLogger(__name__)
 
@@ -71,16 +71,6 @@ IPV6 = 'IPV6'
 IPV4_IPV6 = 'IPV4_IPV6'
 
 
-class NSGroupMemberNotFound(nsx_exc.NsxPluginException):
-    message = _("Could not find NSGroup %(nsgroup_id)s member %(member_id)s "
-                "for removal.")
-
-
-class NSGroupIsFull(nsx_exc.NsxPluginException):
-    message = _("NSGroup %(nsgroup_id)s contains has reached its maximum "
-                "capacity, unable to add additional members.")
-
-
 def get_nsservice(resource_type, **properties):
     service = {'resource_type': resource_type}
     service.update(properties)
@@ -109,7 +99,7 @@ def list_nsgroups():
         'ns-groups?populate_references=false').get('results', [])
 
 
-@utils.retry_upon_exception_nsxv3(nsx_exc.StaleRevision)
+@utils.retry_upon_exception_nsxv3(exceptions.StaleRevision)
 def update_nsgroup(nsgroup_id, display_name=None, description=None,
                    membership_criteria=None, members=None):
     nsgroup = read_nsgroup(nsgroup_id)
@@ -132,7 +122,7 @@ def get_nsgroup_member_expression(target_type, target_id):
             'value': target_id}
 
 
-@utils.retry_upon_exception_nsxv3(nsx_exc.ManagerError)
+@utils.retry_upon_exception_nsxv3(exceptions.ManagerError)
 def _update_nsgroup_with_members(nsgroup_id, members, action):
     members_update = 'ns-groups/%s?action=%s' % (nsgroup_id, action)
     return nsxclient.create_resource(members_update, members)
@@ -143,9 +133,9 @@ def add_nsgroup_member(nsgroup_id, target_type, target_id):
     members = {'members': [member_expr]}
     try:
         return _update_nsgroup_with_members(nsgroup_id, members, ADD_MEMBERS)
-    except nsx_exc.StaleRevision:
+    except exceptions.StaleRevision:
         raise
-    except nsx_exc.ManagerError:
+    except exceptions.ManagerError:
         # REVISIT(roeyc): A ManagerError might have been raised for a
         # different reason, e.g - NSGroup does not exists.
         LOG.warning(_LW("Failed to add %(target_type)s %(target_id)s to "
@@ -153,7 +143,7 @@ def add_nsgroup_member(nsgroup_id, target_type, target_id):
                     {'target_type': target_type,
                      'target_id': target_id,
                      'nsgroup_id': nsgroup_id})
-        raise NSGroupIsFull(nsgroup_id=nsgroup_id)
+        raise exceptions.NSGroupIsFull(nsgroup_id=nsgroup_id)
 
 
 def remove_nsgroup_member(nsgroup_id, target_type, target_id, verify=False):
@@ -162,10 +152,10 @@ def remove_nsgroup_member(nsgroup_id, target_type, target_id, verify=False):
     try:
         return _update_nsgroup_with_members(
             nsgroup_id, members, REMOVE_MEMBERS)
-    except nsx_exc.ManagerError:
+    except exceptions.ManagerError:
         if verify:
-            raise NSGroupMemberNotFound(member_id=target_id,
-                                        nsgroup_id=nsgroup_id)
+            raise exceptions.NSGroupMemberNotFound(member_id=target_id,
+                                                   nsgroup_id=nsgroup_id)
 
 
 def read_nsgroup(nsgroup_id):
@@ -196,7 +186,7 @@ def create_empty_section(display_name, description, applied_tos, tags,
     return nsxclient.create_resource(resource, body)
 
 
-@utils.retry_upon_exception_nsxv3(nsx_exc.StaleRevision)
+@utils.retry_upon_exception_nsxv3(exceptions.StaleRevision)
 def update_section(section_id, display_name=None, description=None,
                    applied_tos=None, rules=None):
     resource = 'firewall/sections/%s' % section_id
