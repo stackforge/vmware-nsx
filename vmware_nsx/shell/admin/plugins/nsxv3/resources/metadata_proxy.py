@@ -17,7 +17,7 @@ import logging
 from neutron.callbacks import registry
 from oslo_config import cfg
 
-from vmware_nsx._i18n import _LI, _LE
+from vmware_nsx._i18n import _LI
 from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils as nsx_utils
 from vmware_nsx.nsxlib.v3 import client
@@ -49,14 +49,13 @@ def nsx_update_metadata_proxy(resource, event, trigger, **kwargs):
             tags = nsx_utils.build_v3_tags_payload(
                 network, resource_type='os-neutron-net-id',
                 project_name='NSX Neutron plugin upgrade')
+            name = nsx_utils.get_name_and_uuid('%s-%s' % (
+                'mdproxy', network['name'] or 'network'), network['id'])
             port_resource.create(
                 lswitch_id, cfg.CONF.nsx_v3.metadata_proxy_uuid, tags=tags,
-                attachment_type=nsx_constants.ATTACHMENT_MDPROXY)
+                name=name, attachment_type=nsx_constants.ATTACHMENT_MDPROXY)
             LOG.info(_LI("Enabled native metadata proxy for network %s"),
                      network['id'])
-        else:
-            LOG.error(_LE("Unable to find logical switch for network %s"),
-                      network['id'])
 
 registry.subscribe(nsx_update_metadata_proxy,
                    constants.METADATA_PROXY,

@@ -13,6 +13,7 @@
 #    under the License.
 
 import logging
+import netaddr
 
 from neutron.callbacks import registry
 from neutron_lib import constants as const
@@ -63,7 +64,7 @@ def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
     port_resource = resources.LogicalPort(nsx_client)
     dhcp_server_resource = resources.LogicalDhcpServer(nsx_client)
 
-    port_bindings = {}    # lswitch_id: [(mac, ip, prefix_length), ...]
+    port_bindings = {}    # lswitch_id: [(port_id, mac, ip), ...]
     server_bindings = {}  # lswitch_id: dhcp_server_id
     ports = neutron_client.get_ports()
     for port in ports:
@@ -73,32 +74,38 @@ def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
             # For each DHCP-enabled network, create a logical DHCP server
             # and update the attachment type to DHCP on the corresponding
             # logical port of the Neutron DHCP port.
-            subnet_id = port['fixed_ips'][0]['subnet_id']
-            subnet = neutron_client.get_subnet(subnet_id)
-            network = neutron_client.get_network(port['network_id'])
-            if len(port['fixed_ips']) > 1:
-                LOG.info(_LI("Network %(network)s has multiple subnets - "
-                             "only enable native DHCP on subnet %(subnet)s"),
-                         {'network': port['network_id'], 'subnet': subnet_id})
-            server_data = native_dhcp.build_dhcp_server_config(
-                network, subnet, port, 'NSX Neutron plugin upgrade')
-            dhcp_server = dhcp_server_resource.create(**server_data)
-            lswitch_id, lport_id = neutron_client.get_lswitch_and_lport_id(
-                port['id'])
-            port_resource.update(lport_id, dhcp_server['id'],
-                                 attachment_type=nsx_constants.ATTACHMENT_DHCP)
-            server_bindings[lswitch_id] = dhcp_server['id']
+            for fixed_ip in port['fixed_ips']:
+                if netaddr.IPNetwork(fixed_ip['ip_address']).version == 4:
+                    subnet = neutron_client.get_subnet(fixed_ip['subnet_id'])
+                    network = neutron_client.get_network(port['network_id'])
+                    server_data = native_dhcp.build_dhcp_server_config(
+                        network, subnet, port, 'NSX Neutron plugin upgrade')
+                    dhcp_server = dhcp_server_resource.create(**server_data)
+                    LOG.info(_LI("Created logical DHCP server %(server)s for "
+                                 "network %(network)s"),
+                             {'server': dhcp_server['id'],
+                              'network': port['network_id']})
+                    lswitch_id, lport_id = (
+                        neutron_client.get_lswitch_and_lport_id(port['id']))
+                    port_resource.update(
+                        lport_id, dhcp_server['id'],
+                        attachment_type=nsx_constants.ATTACHMENT_DHCP)
+                    server_bindings[lswitch_id] = dhcp_server['id']
+                    LOG.info(_LI("Updated DHCP logical port %(port)s for "
+                                 "network %(network)s"),
+                             {'port': lport_id, 'network': port['network_id']})
+                    break
         elif device_owner.startswith(const.DEVICE_OWNER_COMPUTE_PREFIX):
             lswitch_id = neutron_client.net_id_to_lswitch_id(network_id)
             bindings = port_bindings.get(lswitch_id, [])
-            bindings.append((port['mac_address'],
+            bindings.append((port['id'], port['mac_address'],
                              port['fixed_ips'][0]['ip_address']))
             port_bindings[lswitch_id] = bindings
 
     # Populate mac/IP bindings in each logical DHCP server.
     for lswitch_id, bindings in port_bindings.items():
         dhcp_server_id = server_bindings[lswitch_id]
-        for (mac, ip) in bindings:
+        for (port_id, mac, ip) in bindings:
             hostname = 'host-%s' % ip.replace('.', '-')
             options = {'option121': {'static_routes': [
                 {'network': '%s' % cfg.CONF.nsx_v3.native_metadata_route,
@@ -106,6 +113,9 @@ def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
             dhcp_server_resource.create_binding(
                 dhcp_server_id, mac, ip, hostname,
                 cfg.CONF.nsx_v3.dhcp_lease_time, options)
+            LOG.info(_LI("Added DHCP binding (mac: %(mac)s, ip: %(ip)s) "
+                         "for neutron port %(port)s"),
+                     {'mac': mac, 'ip': ip, 'port': port_id})
 
 
 registry.subscribe(list_dhcp_bindings,
