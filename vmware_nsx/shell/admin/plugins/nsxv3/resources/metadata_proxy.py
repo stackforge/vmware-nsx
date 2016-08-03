@@ -17,9 +17,10 @@ import logging
 from neutron.callbacks import registry
 from oslo_config import cfg
 
-from vmware_nsx._i18n import _LI, _LE
+from vmware_nsx._i18n import _LE, _LI
 from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils as nsx_utils
+from vmware_nsx.nsxlib import v3 as nsxlib
 from vmware_nsx.nsxlib.v3 import client
 from vmware_nsx.nsxlib.v3 import cluster
 from vmware_nsx.nsxlib.v3 import resources
@@ -36,6 +37,16 @@ neutron_client = utils.NeutronDbClient()
 def nsx_update_metadata_proxy(resource, event, trigger, **kwargs):
     """Update Metadata proxy for NSXv3 CrossHairs."""
 
+    nsx_version = nsxlib.get_version()
+    if not nsx_utils.is_nsx_version_1_1_0(nsx_version):
+        LOG.info(_LI("This utility is not available for NSX version %s"),
+                 nsx_version)
+        return
+
+    if not cfg.CONF.nsx_v3.metadata_proxy_uuid:
+        LOG.error(_LE("metadata_proxy_uuid is not defined"))
+        return
+
     cluster_api = cluster.NSXClusteredAPI()
     nsx_client = client.NSX3Client(cluster_api)
     client._set_default_api_cluster(cluster_api)
@@ -49,14 +60,13 @@ def nsx_update_metadata_proxy(resource, event, trigger, **kwargs):
             tags = nsx_utils.build_v3_tags_payload(
                 network, resource_type='os-neutron-net-id',
                 project_name='NSX Neutron plugin upgrade')
+            name = nsx_utils.get_name_and_uuid('%s-%s' % (
+                'mdproxy', network['name'] or 'network'), network['id'])
             port_resource.create(
                 lswitch_id, cfg.CONF.nsx_v3.metadata_proxy_uuid, tags=tags,
-                attachment_type=nsx_constants.ATTACHMENT_MDPROXY)
+                name=name, attachment_type=nsx_constants.ATTACHMENT_MDPROXY)
             LOG.info(_LI("Enabled native metadata proxy for network %s"),
                      network['id'])
-        else:
-            LOG.error(_LE("Unable to find logical switch for network %s"),
-                      network['id'])
 
 registry.subscribe(nsx_update_metadata_proxy,
                    constants.METADATA_PROXY,
