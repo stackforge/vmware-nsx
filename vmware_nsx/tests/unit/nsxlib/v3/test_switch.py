@@ -48,7 +48,7 @@ class NsxLibSwitchTestCase(nsxlib_testcase.NsxClientTestCase):
         """
         api = self.mocked_rest_fns(nsxlib, 'client')
 
-        nsxlib.create_logical_switch(
+        nsxlib.NsxLib().create_logical_switch(
             nsx_v3_mocks.FAKE_NAME, NsxLibSwitchTestCase._tz_id, [])
 
         test_client.assert_json_call(
@@ -62,7 +62,7 @@ class NsxLibSwitchTestCase(nsxlib_testcase.NsxClientTestCase):
         """
         api = self.mocked_rest_fns(nsxlib, 'client')
 
-        nsxlib.create_logical_switch(
+        nsxlib.NsxLib().create_logical_switch(
             nsx_v3_mocks.FAKE_NAME, NsxLibSwitchTestCase._tz_id,
             [], admin_state=False)
 
@@ -79,7 +79,7 @@ class NsxLibSwitchTestCase(nsxlib_testcase.NsxClientTestCase):
         """
         api = self.mocked_rest_fns(nsxlib, 'client')
 
-        nsxlib.create_logical_switch(
+        nsxlib.NsxLib().create_logical_switch(
             nsx_v3_mocks.FAKE_NAME, NsxLibSwitchTestCase._tz_id,
             [], vlan_id='123')
 
@@ -96,7 +96,7 @@ class NsxLibSwitchTestCase(nsxlib_testcase.NsxClientTestCase):
         api = self.mocked_rest_fns(nsxlib, 'client')
 
         fake_switch = nsx_v3_mocks.make_fake_switch()
-        nsxlib.delete_logical_switch(fake_switch['id'])
+        nsxlib.NsxLib().delete_logical_switch(fake_switch['id'])
 
         test_client.assert_json_call(
             'delete', api,
