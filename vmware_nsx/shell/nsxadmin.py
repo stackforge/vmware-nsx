@@ -55,7 +55,6 @@ def _init_cfg():
     # so we unregister these options
     cfg.CONF.unregister_opts(_options.common_cli_opts)
     cfg.CONF.unregister_opts(_options.logging_cli_opts)
-    cfg.CONF.unregister_opts(neutron_config.core_cli_opts)
 
     # Init the neutron config
     neutron_config.init(args=['--config-file', constants.NEUTRON_CONF,
