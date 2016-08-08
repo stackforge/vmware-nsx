@@ -83,6 +83,7 @@ class EdgeApplianceDriver(object):
         else:
             edge['type'] = "distributedRouter"
             edge['interfaces'] = {'interfaces': []}
+            edge['appliances']['deployAppliances'] = False
 
         if deployment_container_id:
             edge['appliances']['deploymentContainerId'] = (
