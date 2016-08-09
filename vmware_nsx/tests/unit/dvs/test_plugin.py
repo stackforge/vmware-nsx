@@ -169,16 +169,18 @@ class NeutronSimpleDvsTest(test_plugin.NeutronDbPluginV2TestCase):
                 dvs_id = '%s-%s' % (network['network']['name'], id)
                 binding = nsx_db.get_network_bindings(ctx.session, id)
                 self.assertIsNotNone(binding)
-                self.assertEqual('dvs', binding[0].phy_uuid)
                 if network_type == 'flat':
                     self.assertEqual('flat', binding[0].binding_type)
                     self.assertEqual(0, binding[0].vlan_id)
+                    self.assertEqual('dvs', binding[0].phy_uuid)
                 elif network_type == 'vlan':
                     self.assertEqual('vlan', binding[0].binding_type)
                     self.assertEqual(vlan_tag, binding[0].vlan_id)
+                    self.assertEqual('dvs', binding[0].phy_uuid)
                 elif network_type == 'portgroup':
                     self.assertEqual('portgroup', binding[0].binding_type)
                     self.assertEqual(0, binding[0].vlan_id)
+                    self.assertEqual(id, binding[0].phy_uuid)
                 else:
                     self.fail()
             if network_type != 'portgroup':
