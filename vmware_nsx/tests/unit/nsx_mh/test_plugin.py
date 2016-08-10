@@ -789,7 +789,7 @@ class TestL3NatTestCase(L3NatTest,
             self.assertEqual(p['port']['id'], body['port_id'])
             expected_port_update = {'port_security_enabled': False,
                                     'security_groups': []}
-            update_port.assert_called_with(
+            update_port.assert_any_call(
                 mock.ANY, p['port']['id'], {'port': expected_port_update})
             # fetch port and confirm device_id
             body = self._show('ports', p['port']['id'])

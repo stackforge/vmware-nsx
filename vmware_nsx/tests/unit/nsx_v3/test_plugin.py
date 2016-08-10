@@ -513,6 +513,9 @@ class TestL3NatTestCase(L3NatTest,
     def test_router_add_interface_dup_subnet2_returns_400(self):
         self.skipTest('not supported')
 
+    def test_router_add_interface_dup_port(self):
+        self.skipTest('skipped')
+
     def test_router_add_interface_ipv6_port_existing_network_returns_400(self):
         self.skipTest('not supported')
 

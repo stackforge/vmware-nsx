@@ -1915,6 +1915,9 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxVPluginV2TestCase):
                                         {'network_id': network_id,
                                          'enable_snat': enable_snat}}})
 
+    def test_router_add_interface_delete_port_after_failure(self):
+        self.skipTest("Currently no support in plugin for this")
+
     def test_floatingip_association_on_unowned_router(self):
         self.skipTest("Currently no support in plugin for this")
 
@@ -3298,6 +3301,9 @@ class TestVdrTestCase(L3NatTest, L3NatTestCaseBase,
             self).test_router_update_gateway_with_different_external_subnet()
 
     def test_floatingip_multi_external_one_internal(self):
+        self.skipTest('skipped')
+
+    def test_router_add_interface_dup_port(self):
         self.skipTest('skipped')
 
     def test_router_add_interface_dup_subnet2_returns_400(self):

@@ -61,6 +61,33 @@ class MetaDataTestCase(object):
         meta_port_id = ports[0]['id'] if ports else None
         return meta_net_id, meta_sub_id, meta_port_id
 
+    def test_router_add_interface_port(self):
+        orig_update_port = self.plugin.update_port
+        with self.router() as r, (
+            self.port()) as p, (
+                mock.patch.object(self.plugin, 'update_port')) as update_port:
+            update_port.side_effect = orig_update_port
+            body = self._router_interface_action('add',
+                                                 r['router']['id'],
+                                                 None,
+                                                 p['port']['id'])
+            self.assertIn('port_id', body)
+            self.assertEqual(p['port']['id'], body['port_id'])
+            expected_port_update = {
+                'device_owner': constants.DEVICE_OWNER_ROUTER_INTF,
+                'device_id': r['router']['id']}
+            update_port.assert_any_call(
+                mock.ANY, p['port']['id'], {'port': expected_port_update})
+            # fetch port and confirm device_id
+            body = self._show('ports', p['port']['id'])
+            self.assertEqual(r['router']['id'], body['port']['device_id'])
+
+            # clean-up
+            self._router_interface_action('remove',
+                                          r['router']['id'],
+                                          None,
+                                          p['port']['id'])
+
     def test_router_add_interface_subnet_with_metadata_access(self):
         self._metadata_setup()
         self.test_router_add_interface_subnet()
