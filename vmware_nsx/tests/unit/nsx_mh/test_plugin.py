@@ -655,6 +655,9 @@ class TestL3NatTestCase(L3NatTest,
             'routers', data, self.fmt)
         return router_req.get_response(self.ext_api)
 
+    def test_router_add_interface_dup_port(self):
+        self.skipTest('skipped')
+
     def test_router_create_nsx_error_returns_500(self, vlan_id=None):
         with mock.patch.object(nsxlib.router,
                                'create_router_lport',
@@ -774,32 +777,6 @@ class TestL3NatTestCase(L3NatTest,
         with self.router(name=name) as rtr:
             # Assert Neutron name is not truncated
             self.assertEqual(rtr['router']['name'], name)
-
-    def test_router_add_interface_port(self):
-        orig_update_port = self.plugin.update_port
-        with self.router() as r, (
-            self.port()) as p, (
-                mock.patch.object(self.plugin, 'update_port')) as update_port:
-            update_port.side_effect = orig_update_port
-            body = self._router_interface_action('add',
-                                                 r['router']['id'],
-                                                 None,
-                                                 p['port']['id'])
-            self.assertIn('port_id', body)
-            self.assertEqual(p['port']['id'], body['port_id'])
-            expected_port_update = {'port_security_enabled': False,
-                                    'security_groups': []}
-            update_port.assert_called_with(
-                mock.ANY, p['port']['id'], {'port': expected_port_update})
-            # fetch port and confirm device_id
-            body = self._show('ports', p['port']['id'])
-            self.assertEqual(r['router']['id'], body['port']['device_id'])
-
-            # clean-up
-            self._router_interface_action('remove',
-                                          r['router']['id'],
-                                          None,
-                                          p['port']['id'])
 
     def _test_floatingip_update(self, expected_status):
         super(TestL3NatTestCase, self).test_floatingip_update(
