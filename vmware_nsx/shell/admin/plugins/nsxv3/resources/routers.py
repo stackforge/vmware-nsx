@@ -18,8 +18,6 @@ import logging
 from vmware_nsx._i18n import _LI
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.db import db as nsx_db
-from vmware_nsx.nsxlib.v3 import client as nsx_client
-from vmware_nsx.nsxlib.v3 import cluster as nsx_cluster
 from vmware_nsx.nsxlib.v3 import resources as nsx_resources
 from vmware_nsx.shell.admin.plugins.common import constants
 from vmware_nsx.shell.admin.plugins.common import formatters
@@ -40,8 +38,7 @@ class RoutersPlugin(db_base_plugin_v2.NeutronDbPluginV2,
 
 
 def get_router_client():
-    _api_cluster = nsx_cluster.NSXClusteredAPI()
-    _nsx_client = nsx_client.NSX3Client(_api_cluster)
+    _nsx_client = admin_utils.get_nsxv3_client()
     return nsx_resources.LogicalRouter(_nsx_client)
 
 

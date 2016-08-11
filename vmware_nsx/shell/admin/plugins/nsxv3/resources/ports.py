@@ -21,10 +21,9 @@ from vmware_nsx._i18n import _LI, _LW
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.db import db as nsx_db
 from vmware_nsx.db import nsx_models
-from vmware_nsx.nsxlib.v3 import client
-from vmware_nsx.nsxlib.v3 import cluster
 from vmware_nsx.nsxlib.v3 import resources
 from vmware_nsx.plugins.nsx_v3 import plugin
+from vmware_nsx.plugins.nsx_v3.resources import utils
 from vmware_nsx.services.qos.common import utils as qos_utils
 from vmware_nsx.shell.admin.plugins.common import constants
 from vmware_nsx.shell.admin.plugins.common import formatters
@@ -60,8 +59,7 @@ def get_port_nsx_id(session, neutron_id):
 
 
 def get_port_and_profile_clients():
-    _api_cluster = cluster.NSXClusteredAPI()
-    _nsx_client = client.NSX3Client(_api_cluster)
+    _nsx_client = utils.get_nsxv3_client()
     return (resources.LogicalPort(_nsx_client),
             resources.SwitchingProfile(_nsx_client))
 

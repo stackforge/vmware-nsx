@@ -84,14 +84,13 @@ from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.nsxlib import v3 as nsxlib
-from vmware_nsx.nsxlib.v3 import client as nsx_client
-from vmware_nsx.nsxlib.v3 import cluster as nsx_cluster
 from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 from vmware_nsx.nsxlib.v3 import exceptions as nsx_lib_exc
 from vmware_nsx.nsxlib.v3 import native_dhcp
 from vmware_nsx.nsxlib.v3 import resources as nsx_resources
 from vmware_nsx.nsxlib.v3 import router
 from vmware_nsx.nsxlib.v3 import security
+from vmware_nsx.nsxlib.v3 import ns_group_manager
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import utils as qos_utils
 
@@ -164,12 +163,22 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         super(NsxV3Plugin, self).__init__()
         LOG.info(_LI("Starting NsxV3Plugin"))
 
-        self.nsxlib = nsxlib.NsxLib(max_attempts=cfg.CONF.nsx_v3.retries)
+        self.nsxlib = nsxlib.NsxLib(
+            username=cfg.CONF.nsx_v3.nsx_api_user,
+            password=cfg.CONF.nsx_v3.nsx_api_password,
+            retries=cfg.CONF.nsx_v3.http_retries,
+            insecure=cfg.CONF.nsx_v3.insecure,
+            ca_file=cfg.CONF.nsx_v3.ca_file,
+            concurrent_connections=cfg.CONF.nsx_v3.concurrent_connections,
+            http_timeout=cfg.CONF.nsx_v3.http_timeout,
+            http_read_timeout=cfg.CONF.nsx_v3.http_read_timeout,
+            conn_idle_timeout=cfg.CONF.nsx_v3.conn_idle_timeout,
+            http_provider=None,
+            max_attempts=cfg.CONF.nsx_v3.retries)
+
         self._nsx_version = self.nsxlib.get_version()
         LOG.info(_LI("NSX Version: %s"), self._nsx_version)
-        self._api_cluster = nsx_cluster.NSXClusteredAPI()
-        self._nsx_client = nsx_client.NSX3Client(self._api_cluster)
-        nsx_client._set_default_api_cluster(self._api_cluster)
+        self._nsx_client = self.nsxlib.client
 
         self.cfg_group = 'nsx_v3'  # group name for nsx_v3 section in nsx.ini
         self.tier0_groups_dict = {}
@@ -185,47 +194,17 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._routerlib = router.RouterLib(self._router_client,
                                            self._router_port_client)
 
-        LOG.debug("Initializing NSX v3 port spoofguard switching profile")
         self._switching_profiles = nsx_resources.SwitchingProfile(
             self._nsx_client)
-        self._psec_profile = None
-        self._psec_profile = self._init_port_security_profile()
-        if not self._psec_profile:
-            msg = _("Unable to initialize NSX v3 port spoofguard "
-                    "switching profile: %s") % NSX_V3_PSEC_PROFILE_NAME
-            raise nsx_exc.NsxPluginException(msg)
-        profiles = nsx_resources.SwitchingProfile
-        self._no_psec_profile_id = profiles.build_switch_profile_ids(
-                self._switching_profiles,
-                self._switching_profiles.find_by_display_name(
-                        NSX_V3_NO_PSEC_PROFILE_NAME)[0])[0]
+
+        # init profiles on nsx backend
+        (self._psec_profile, self._no_psec_profile_id, self._dhcp_profile,
+         self._mac_learning_profile) = self._init_nsx_profiles()
 
         # Bind QoS notifications
         callbacks_registry.subscribe(qos_utils.handle_qos_notification,
                                      callbacks_resources.QOS_POLICY)
         self.start_rpc_listeners_called = False
-
-        LOG.debug("Initializing NSX v3 DHCP switching profile")
-        self._dhcp_profile = None
-        try:
-            self._dhcp_profile = self._init_dhcp_switching_profile()
-        except Exception:
-            msg = _("Unable to initialize NSX v3 DHCP "
-                    "switching profile: %s") % NSX_V3_DHCP_PROFILE_NAME
-            raise nsx_exc.NsxPluginException(msg)
-
-        self._mac_learning_profile = None
-        if utils.is_nsx_version_1_1_0(self._nsx_version):
-            LOG.debug("Initializing NSX v3 Mac Learning switching profile")
-            try:
-                self._mac_learning_profile = self._init_mac_learning_profile()
-                # Only expose the extension if it is supported
-                self.supported_extension_aliases.append('mac-learning')
-            except Exception as e:
-                LOG.warning(_LW("Unable to initialize NSX v3 MAC Learning "
-                                "profile: %(name)s. Reason: %(reason)s"),
-                            {'name': NSX_V3_MAC_LEARNING_PROFILE_NAME,
-                             'reason': e})
 
         self._unsubscribe_callback_events()
         if cfg.CONF.api_replay_mode:
@@ -233,6 +212,41 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         # translate configured transport zones/rotuers names to uuid
         self._translate_configured_names_2_uuids()
+
+    def _init_nsx_profiles(self):
+        LOG.debug("Initializing NSX v3 port spoofguard switching profile")
+        _psec_profile = self._init_port_security_profile()
+        if not self._psec_profile:
+            msg = _("Unable to initialize NSX v3 port spoofguard "
+                    "switching profile: %s") % NSX_V3_PSEC_PROFILE_NAME
+            raise nsx_exc.NsxPluginException(msg)
+        profiles = nsx_resources.SwitchingProfile
+        _no_psec_profile_id = profiles.build_switch_profile_ids(
+                self._switching_profiles,
+                self._switching_profiles.find_by_display_name(
+                        NSX_V3_NO_PSEC_PROFILE_NAME)[0])[0]
+
+        LOG.debug("Initializing NSX v3 DHCP switching profile")
+        try:
+            _dhcp_profile = self._init_dhcp_switching_profile()
+        except Exception:
+            msg = _("Unable to initialize NSX v3 DHCP "
+                    "switching profile: %s") % NSX_V3_DHCP_PROFILE_NAME
+            raise nsx_exc.NsxPluginException(msg)
+
+        if utils.is_nsx_version_1_1_0(self._nsx_version):
+            LOG.debug("Initializing NSX v3 Mac Learning switching profile")
+            try:
+                _mac_learning_profile = self._init_mac_learning_profile()
+                # Only expose the extension if it is supported
+                self.supported_extension_aliases.append('mac-learning')
+            except Exception as e:
+                LOG.warning(_LW("Unable to initialize NSX v3 MAC Learning "
+                                "profile: %(name)s. Reason: %(reason)s"),
+                            {'name': NSX_V3_MAC_LEARNING_PROFILE_NAME,
+                             'reason': e})
+        return (_psec_profile, _no_psec_profile_id,
+                _dhcp_profile, _mac_learning_profile)
 
     def _translate_configured_names_2_uuids(self):
         # default VLAN transport zone name / uuid
@@ -370,10 +384,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                                  sg_logging.LOGGING])
             for sg in [sg for sg in secgroups
                        if sg[sg_logging.LOGGING] is False]:
-                _, section_id = security.get_sg_mappings(context.session,
-                                                         sg['id'])
+                _, section_id = self.nsxlib.get_sg_mappings(context.session,
+                                                            sg['id'])
                 try:
-                    security.set_firewall_rule_logging_for_section(
+                    self.nsxlib.set_firewall_rule_logging_for_section(
                         section_id, logging=log_all_rules)
                 except nsx_lib_exc.ManagerError:
                     with excutils.save_and_reraise_exception():
@@ -384,7 +398,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def _init_nsgroup_manager_and_default_section_rules(self):
         with locking.LockManager.get_lock('nsxv3_nsgroup_manager_init'):
-            return security.init_nsgroup_manager_and_default_section_rules()
+            nsgroup_manager = ns_group_manager.NSGroupManager(
+                cfg.CONF.nsx_v3.number_of_nested_groups)
+            section_description = ("This section is handled by OpenStack to "
+                                   "contain default rules on security-groups.")
+            section_id = self.nsxlib._init_default_section(
+                security.DEFAULT_SECTION, section_description,
+                nsgroup_manager.nested_groups.values())
+            return nsgroup_manager, section_id
 
     def _init_dhcp_metadata(self):
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
@@ -1212,7 +1233,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # If port has no security-groups then we don't need to add any
             # security criteria tag.
             if port_data[ext_sg.SECURITYGROUPS]:
-                tags += security.get_lport_tags_for_security_groups(
+                tags += self.nsxlib.get_lport_tags_for_security_groups(
                     port_data[ext_sg.SECURITYGROUPS] +
                     port_data[provider_sg.PROVIDER_SECURITYGROUPS])
 
@@ -1614,7 +1635,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
             if not utils.is_nsx_version_1_1_0(self._nsx_version):
                 try:
-                    security.update_lport_with_security_groups(
+                    self.nsxlib.update_lport_with_security_groups(
                         context, lport['id'], [], sgids or [])
                 except Exception as e:
                     with excutils.save_and_reraise_exception(reraise=False):
@@ -1690,7 +1711,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 context.session, port_id)
             self._port_client.delete(nsx_port_id)
             if not utils.is_nsx_version_1_1_0(self._nsx_version):
-                security.update_lport_with_security_groups(
+                self.nsxlib.update_lport_with_security_groups(
                     context, nsx_port_id,
                     port.get(ext_sg.SECURITYGROUPS, []), [])
         self.disassociate_floatingips(context, port_id)
@@ -1810,11 +1831,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         name = self._get_port_name(context, updated_port)
 
         if utils.is_nsx_version_1_1_0(self._nsx_version):
-            tags_update += security.get_lport_tags_for_security_groups(
+            tags_update += self.nsxlib.get_lport_tags_for_security_groups(
                 updated_port.get(ext_sg.SECURITYGROUPS, []) +
                 updated_port.get(provider_sg.PROVIDER_SECURITYGROUPS, []))
         else:
-            security.update_lport_with_security_groups(
+            self.nsxlib.update_lport_with_security_groups(
                 context, lport_id,
                 original_port.get(ext_sg.SECURITYGROUPS, []) +
                 original_port.get(provider_sg.PROVIDER_SECURITYGROUPS, []),
@@ -2690,7 +2711,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         tags = utils.build_v3_tags_payload(
             secgroup, resource_type='os-neutron-secgr-id',
             project_name=context.tenant_name)
-        name = security.get_nsgroup_name(secgroup)
+        name = self.nsxlib.get_nsgroup_name(secgroup)
         ns_group = {}
         firewall_section = {}
 
@@ -2700,13 +2721,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         try:
             if utils.is_nsx_version_1_1_0(self._nsx_version):
                 tag_expression = (
-                    firewall.get_nsgroup_port_tag_expression(
+                    self.nsxlib.get_nsgroup_port_tag_expression(
                         security.PORT_SG_SCOPE, secgroup['id']))
             else:
                 tag_expression = None
             # NOTE(roeyc): We first create the nsgroup so that once the sg is
             # saved into db its already backed up by an nsx resource.
-            ns_group = firewall.create_nsgroup(
+            ns_group = self.nsxlib.create_nsgroup(
                 name, secgroup['description'], tags, tag_expression)
 
             operation = firewall.INSERT_BEFORE
@@ -2721,7 +2742,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
             # security-group rules are located in a dedicated firewall section.
             firewall_section = (
-                firewall.create_empty_section(
+                self.nsxlib.create_empty_section(
                     name, secgroup.get('description', ''), [ns_group['id']],
                     tags, operation=operation,
                     other_section=self.default_section))
@@ -2741,10 +2762,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         super(NsxV3Plugin, self).create_security_group(
                             context, security_group, default_sg))
 
-                security.save_sg_mappings(context.session,
-                                          secgroup_db['id'],
-                                          ns_group['id'],
-                                          firewall_section['id'])
+                self.nsxlib.save_sg_mappings(context.session,
+                                             secgroup_db['id'],
+                                             ns_group['id'],
+                                             firewall_section['id'])
 
                 self._process_security_group_properties_create(context,
                                                                secgroup_db,
@@ -2755,7 +2776,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 LOG.exception(_LE("Unable to create security-group on the "
                                   "backend."))
                 if ns_group:
-                    firewall.delete_nsgroup(ns_group['id'])
+                    self.nsxlib.delete_nsgroup(ns_group['id'])
         except Exception:
             with excutils.save_and_reraise_exception():
                 section_id = firewall_section.get('id')
@@ -2765,9 +2786,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                           "section %s, ns-group %s.",
                           section_id, nsgroup_id)
                 if nsgroup_id:
-                    firewall.delete_nsgroup(nsgroup_id)
+                    self.nsxlib.delete_nsgroup(nsgroup_id)
                 if section_id:
-                    firewall.delete_section(section_id)
+                    self.nsxlib.delete_section(section_id)
         try:
             sg_rules = secgroup_db['security_group_rules']
             # skip if there are no rules in group. i.e provider case
@@ -2775,11 +2796,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 # translate and creates firewall rules.
                 logging = (cfg.CONF.nsx_v3.log_security_groups_allowed_traffic
                            or secgroup.get(sg_logging.LOGGING, False))
-                rules = security.create_firewall_rules(
+                rules = self.nsxlib.create_firewall_rules(
                     context, firewall_section['id'], ns_group['id'],
                     logging, action, sg_rules)
-                security.save_sg_rule_mappings(context.session,
-                                               rules['rules'])
+                self.nsxlib.save_sg_rule_mappings(context.session,
+                                                  rules['rules'])
                 self.nsgroup_manager.add_nsgroup(ns_group['id'])
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
@@ -2806,7 +2827,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._process_security_group_properties_update(
                 context, secgroup_res, security_group['security_group'])
         try:
-            security.update_security_group_on_backend(context, secgroup_res)
+            self.nsxlib.update_security_group_on_backend(context, secgroup_res)
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to update security-group %(name)s "
@@ -2818,7 +2839,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return secgroup_res
 
     def delete_security_group(self, context, id):
-        nsgroup_id, section_id = security.get_sg_mappings(context.session, id)
+        nsgroup_id, section_id = self.nsxlib.get_sg_mappings(
+            context.session, id)
         super(NsxV3Plugin, self).delete_security_group(context, id)
         firewall.delete_section(section_id)
         firewall.delete_nsgroup(nsgroup_id)
@@ -2861,12 +2883,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 action = firewall.DROP
 
         sg_id = rules_db[0]['security_group_id']
-        nsgroup_id, section_id = security.get_sg_mappings(context.session,
-                                                          sg_id)
+        nsgroup_id, section_id = self.nsxlib.get_sg_mappings(context.session,
+                                                             sg_id)
         logging_enabled = (cfg.CONF.nsx_v3.log_security_groups_allowed_traffic
                            or self._is_security_group_logged(context, sg_id))
         try:
-            rules = security.create_firewall_rules(
+            rules = self.nsxlib.create_firewall_rules(
                 context, section_id, nsgroup_id,
                 logging_enabled, action, rules_db)
         except nsx_lib_exc.ManagerError:
@@ -2874,13 +2896,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 for rule in rules_db:
                     super(NsxV3Plugin, self).delete_security_group_rule(
                         context, rule['id'])
-        security.save_sg_rule_mappings(context.session, rules['rules'])
+        self.nsxlib.save_sg_rule_mappings(context.session, rules['rules'])
         return rules_db
 
     def delete_security_group_rule(self, context, id):
         rule_db = self._get_security_group_rule(context, id)
         sg_id = rule_db['security_group_id']
-        _, section_id = security.get_sg_mappings(context.session, sg_id)
-        fw_rule_id = security.get_sg_rule_mapping(context.session, id)
+        _, section_id = self.nsxlib.get_sg_mappings(context.session, sg_id)
+        fw_rule_id = self.nsxlib.get_sg_rule_mapping(context.session, id)
         firewall.delete_rule(section_id, fw_rule_id)
         super(NsxV3Plugin, self).delete_security_group_rule(context, id)

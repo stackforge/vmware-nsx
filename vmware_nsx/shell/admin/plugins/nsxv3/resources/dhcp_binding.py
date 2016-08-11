@@ -22,8 +22,6 @@ from vmware_nsx._i18n import _LI
 from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils as comm_utils
 from vmware_nsx.nsxlib import v3 as nsxlib
-from vmware_nsx.nsxlib.v3 import client
-from vmware_nsx.nsxlib.v3 import cluster
 from vmware_nsx.nsxlib.v3 import native_dhcp
 from vmware_nsx.nsxlib.v3 import resources
 from vmware_nsx.shell.admin.plugins.common import constants
@@ -57,9 +55,7 @@ def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
                  nsx_version)
         return
 
-    cluster_api = cluster.NSXClusteredAPI()
-    nsx_client = client.NSX3Client(cluster_api)
-    client._set_default_api_cluster(cluster_api)
+    nsx_client = utils.get_nsxv3_client()
     port_resource = resources.LogicalPort(nsx_client)
     dhcp_server_resource = resources.LogicalDhcpServer(nsx_client)
 
