@@ -84,8 +84,6 @@ from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.nsxlib import v3 as nsxlib
-from vmware_nsx.nsxlib.v3 import client as nsx_client
-from vmware_nsx.nsxlib.v3 import cluster as nsx_cluster
 from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 from vmware_nsx.nsxlib.v3 import exceptions as nsx_lib_exc
 from vmware_nsx.nsxlib.v3 import native_dhcp
@@ -164,12 +162,22 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         super(NsxV3Plugin, self).__init__()
         LOG.info(_LI("Starting NsxV3Plugin"))
 
-        self.nsxlib = nsxlib.NsxLib(max_attempts=cfg.CONF.nsx_v3.retries)
+        self.nsxlib = nsxlib.NsxLib(
+            username=cfg.CONF.nsx_v3.nsx_api_user,
+            password=cfg.CONF.nsx_v3.nsx_api_password,
+            retries=cfg.CONF.nsx_v3.http_retries,
+            insecure=cfg.CONF.nsx_v3.insecure,
+            ca_file=cfg.CONF.nsx_v3.ca_file,
+            concurrent_connections=cfg.CONF.nsx_v3.concurrent_connections,
+            http_timeout=cfg.CONF.nsx_v3.http_timeout,
+            http_read_timeout=cfg.CONF.nsx_v3.http_read_timeout,
+            conn_idle_timeout=cfg.CONF.nsx_v3.conn_idle_timeout,
+            http_provider=None,
+            max_attempts=cfg.CONF.nsx_v3.retries)
+
         self._nsx_version = self.nsxlib.get_version()
         LOG.info(_LI("NSX Version: %s"), self._nsx_version)
-        self._api_cluster = nsx_cluster.NSXClusteredAPI()
-        self._nsx_client = nsx_client.NSX3Client(self._api_cluster)
-        nsx_client._set_default_api_cluster(self._api_cluster)
+        self._nsx_client = self.nsxlib.client
 
         self.cfg_group = 'nsx_v3'  # group name for nsx_v3 section in nsx.ini
         self.tier0_groups_dict = {}
@@ -185,47 +193,17 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._routerlib = router.RouterLib(self._router_client,
                                            self._router_port_client)
 
-        LOG.debug("Initializing NSX v3 port spoofguard switching profile")
         self._switching_profiles = nsx_resources.SwitchingProfile(
             self._nsx_client)
-        self._psec_profile = None
-        self._psec_profile = self._init_port_security_profile()
-        if not self._psec_profile:
-            msg = _("Unable to initialize NSX v3 port spoofguard "
-                    "switching profile: %s") % NSX_V3_PSEC_PROFILE_NAME
-            raise nsx_exc.NsxPluginException(msg)
-        profiles = nsx_resources.SwitchingProfile
-        self._no_psec_profile_id = profiles.build_switch_profile_ids(
-                self._switching_profiles,
-                self._switching_profiles.find_by_display_name(
-                        NSX_V3_NO_PSEC_PROFILE_NAME)[0])[0]
+
+        # init profiles on nsx backend
+        (self._psec_profile, self._no_psec_profile_id, self._dhcp_profile,
+         self._mac_learning_profile) = self._init_nsx_profiles()
 
         # Bind QoS notifications
         callbacks_registry.subscribe(qos_utils.handle_qos_notification,
                                      callbacks_resources.QOS_POLICY)
         self.start_rpc_listeners_called = False
-
-        LOG.debug("Initializing NSX v3 DHCP switching profile")
-        self._dhcp_profile = None
-        try:
-            self._dhcp_profile = self._init_dhcp_switching_profile()
-        except Exception:
-            msg = _("Unable to initialize NSX v3 DHCP "
-                    "switching profile: %s") % NSX_V3_DHCP_PROFILE_NAME
-            raise nsx_exc.NsxPluginException(msg)
-
-        self._mac_learning_profile = None
-        if utils.is_nsx_version_1_1_0(self._nsx_version):
-            LOG.debug("Initializing NSX v3 Mac Learning switching profile")
-            try:
-                self._mac_learning_profile = self._init_mac_learning_profile()
-                # Only expose the extension if it is supported
-                self.supported_extension_aliases.append('mac-learning')
-            except Exception as e:
-                LOG.warning(_LW("Unable to initialize NSX v3 MAC Learning "
-                                "profile: %(name)s. Reason: %(reason)s"),
-                            {'name': NSX_V3_MAC_LEARNING_PROFILE_NAME,
-                             'reason': e})
 
         self._unsubscribe_callback_events()
         if cfg.CONF.api_replay_mode:
@@ -233,6 +211,41 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         # translate configured transport zones/rotuers names to uuid
         self._translate_configured_names_2_uuids()
+
+    def _init_nsx_profiles(self):
+        LOG.debug("Initializing NSX v3 port spoofguard switching profile")
+        _psec_profile = self._init_port_security_profile()
+        if not self._psec_profile:
+            msg = _("Unable to initialize NSX v3 port spoofguard "
+                    "switching profile: %s") % NSX_V3_PSEC_PROFILE_NAME
+            raise nsx_exc.NsxPluginException(msg)
+        profiles = nsx_resources.SwitchingProfile
+        _no_psec_profile_id = profiles.build_switch_profile_ids(
+                self._switching_profiles,
+                self._switching_profiles.find_by_display_name(
+                        NSX_V3_NO_PSEC_PROFILE_NAME)[0])[0]
+
+        LOG.debug("Initializing NSX v3 DHCP switching profile")
+        try:
+            _dhcp_profile = self._init_dhcp_switching_profile()
+        except Exception:
+            msg = _("Unable to initialize NSX v3 DHCP "
+                    "switching profile: %s") % NSX_V3_DHCP_PROFILE_NAME
+            raise nsx_exc.NsxPluginException(msg)
+
+        if utils.is_nsx_version_1_1_0(self._nsx_version):
+            LOG.debug("Initializing NSX v3 Mac Learning switching profile")
+            try:
+                _mac_learning_profile = self._init_mac_learning_profile()
+                # Only expose the extension if it is supported
+                self.supported_extension_aliases.append('mac-learning')
+            except Exception as e:
+                LOG.warning(_LW("Unable to initialize NSX v3 MAC Learning "
+                                "profile: %(name)s. Reason: %(reason)s"),
+                            {'name': NSX_V3_MAC_LEARNING_PROFILE_NAME,
+                             'reason': e})
+        return (_psec_profile, _no_psec_profile_id,
+                _dhcp_profile, _mac_learning_profile)
 
     def _translate_configured_names_2_uuids(self):
         # default VLAN transport zone name / uuid

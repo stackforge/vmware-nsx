@@ -220,7 +220,7 @@ class NsxV3Driver(base_driver.TaasBaseDriver,
                                        direction=direction,
                                        destinations=destinations,
                                        tags=tags))
-        except nsx_exc.ManagerError:
+        except nsxlib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("Unable to create port mirror switch profile "
                               "for tap flow %s on NSX backend, rolling back "
@@ -246,7 +246,7 @@ class NsxV3Driver(base_driver.TaasBaseDriver,
             self._update_port_at_backend(context=context, port_id=src_port_id,
                                          switching_profile=port_mirror_profile,
                                          delete_profile=False)
-        except nsx_exc.ManagerError:
+        except nsxlib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("Unable to update source port %(port)s with "
                               "switching profile %(profile) for tap flow "
@@ -344,7 +344,7 @@ class NsxV3Driver(base_driver.TaasBaseDriver,
             self._update_port_at_backend(context=context, port_id=src_port_id,
                                          switching_profile=port_mirror_profile,
                                          delete_profile=True)
-        except nsx_exc.ManagerError:
+        except nsxlib_exc.ManagerError:
             LOG.error(_LE("Unable to update source port %(port)s "
                           "to delete port mirror profile %(pm)s on NSX "
                           "backend."),
@@ -353,7 +353,7 @@ class NsxV3Driver(base_driver.TaasBaseDriver,
         try:
             # Delete port mirroring switching profile
             self._nsx_plugin._switching_profiles.delete(uuid=pm_profile_id)
-        except nsx_exc.ManagerError:
+        except nsxlib_exc.ManagerError:
             LOG.error(_LE("Unable to delete port mirror switching profile "
                           "%s on NSX backend."), pm_profile_id)
 
@@ -361,7 +361,7 @@ class NsxV3Driver(base_driver.TaasBaseDriver,
         # Delete port mirroring session on the backend
         try:
             nsxlib.delete_port_mirror_session(pm_session_id)
-        except nsx_exc.ManagerError:
+        except nsxlib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("Unable to delete port mirror session %s "
                               "on NSX backend."), pm_session_id)
