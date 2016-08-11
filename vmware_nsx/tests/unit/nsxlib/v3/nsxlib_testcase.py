@@ -22,6 +22,7 @@ from requests import exceptions as requests_exceptions
 
 from vmware_nsx.nsxlib.v3 import client as nsx_client
 from vmware_nsx.nsxlib.v3 import cluster as nsx_cluster
+from vmware_nsx.nsxlib import v3 as nsxlib
 
 NSX_USER = 'admin'
 NSX_PASSWORD = 'default'
@@ -63,6 +64,18 @@ class NsxLibTestCase(unittest.TestCase):
     def setUp(self, *args, **kwargs):
         super(NsxLibTestCase, self).setUp()
         NsxClientTestCase.setup_conf_overrides()
+        self.nsxlib = nsxlib.NsxLib(
+            username=cfg.CONF.nsx_v3.nsx_api_user,
+            password=cfg.CONF.nsx_v3.nsx_api_password,
+            retries=cfg.CONF.nsx_v3.http_retries,
+            insecure=cfg.CONF.nsx_v3.insecure,
+            ca_file=cfg.CONF.nsx_v3.ca_file,
+            concurrent_connections=cfg.CONF.nsx_v3.concurrent_connections,
+            http_timeout=cfg.CONF.nsx_v3.http_timeout,
+            http_read_timeout=cfg.CONF.nsx_v3.http_read_timeout,
+            conn_idle_timeout=cfg.CONF.nsx_v3.conn_idle_timeout,
+            http_provider=None,
+            max_attempts=cfg.CONF.nsx_v3.retries)
 
         # print diffs when assert comparisons fail
         self.maxDiff = None
@@ -254,9 +267,10 @@ class NsxClientTestCase(NsxLibTestCase):
         return client
 
     def mocked_rest_fns(self, module, attr, mock_validate=True,
-                        mock_cluster=None):
-        client = nsx_client.NSX3Client(
-            mock_cluster or self.mock_nsx_clustered_api())
+                        mock_cluster=None, client=None):
+        if client is None:
+            client = nsx_client.NSX3Client(
+                mock_cluster or self.mock_nsx_clustered_api())
         mocked_fns = NsxClientTestCase.MockBridge(client)
         mocked_fns.JSONRESTClient = nsx_client.JSONRESTClient
 
