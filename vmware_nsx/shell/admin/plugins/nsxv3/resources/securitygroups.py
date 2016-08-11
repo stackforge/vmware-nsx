@@ -28,8 +28,6 @@ from vmware_nsx.shell.admin.plugins.nsxv3.resources import ports
 from vmware_nsx.shell.admin.plugins.nsxv3.resources import utils as v3_utils
 from vmware_nsx.shell import resources as shell
 from vmware_nsx._i18n import _LE, _LI, _LW
-from vmware_nsx.nsxlib import v3 as nsxlib
-from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 from vmware_nsx.nsxlib.v3 import security
 
 LOG = logging.getLogger(__name__)
@@ -66,14 +64,15 @@ class NeutronSecurityGroupApi(sg_db.SecurityGroupDbMixin,
 
 neutron_sg = NeutronSecurityGroupApi()
 neutron_db = v3_utils.NeutronDbClient()
+nsxlib = v3_utils.get_connected_nsxlib()
 
 
 @admin_utils.output_header
 def nsx_list_security_groups(resource, event, trigger, **kwargs):
-    sections = firewall.list_sections()
+    sections = nsxlib.list_sections()
     LOG.info(formatters.output_formatter(constants.FIREWALL_SECTIONS,
                                          sections, ['display_name', 'id']))
-    nsgroups = firewall.list_nsgroups()
+    nsgroups = nsxlib.list_nsgroups()
     LOG.info(formatters.output_formatter(constants.FIREWALL_NSX_GROUPS,
                                          nsgroups, ['display_name', 'id']))
     return bool(sections) or bool(nsgroups)
@@ -91,7 +90,7 @@ def nsx_delete_security_groups(resource, event, trigger, **kwargs):
                 LOG.info(_LI('NSX security groups cleanup aborted by user'))
                 return
 
-    sections = firewall.list_sections()
+    sections = nsxlib.list_sections()
     # NOTE(roeyc): We use -2 indexing because don't want to delete the
     # default firewall sections.
     if sections:
@@ -101,9 +100,9 @@ def nsx_delete_security_groups(resource, event, trigger, **kwargs):
                          "section id %(id)s"),
                      {'display_name': section['display_name'],
                       'id': section['id']})
-            firewall.delete_section(section['id'])
+            nsxlib.delete_section(section['id'])
 
-    nsgroups = firewall.list_nsgroups()
+    nsgroups = nsxlib.list_nsgroups()
     if nsgroups:
         for nsgroup in [nsg for nsg in nsgroups
                         if not utils.is_internal_resource(nsg)]:
@@ -111,7 +110,7 @@ def nsx_delete_security_groups(resource, event, trigger, **kwargs):
                          "ns-group id %(id)s"),
                      {'display_name': nsgroup['display_name'],
                       'id': nsgroup['id']})
-            firewall.delete_nsgroup(nsgroup['id'])
+            nsxlib.delete_nsgroup(nsgroup['id'])
 
 
 @admin_utils.output_header
@@ -160,7 +159,7 @@ def _update_ports_dynamic_criteria_tags():
 
         _, lport_id = neutron_db.get_lswitch_and_lport_id(port['id'])
         lport = port_client.get(lport_id)
-        criteria_tags = security.get_lport_tags_for_security_groups(secgroups)
+        criteria_tags = nsxlib.get_lport_tags_for_security_groups(secgroups)
         lport['tags'] = utils.update_v3_tags(
             lport.get('tags', []), criteria_tags)
         port_client._client.update(lport_id, body=lport)
@@ -170,14 +169,14 @@ def _update_security_group_dynamic_criteria():
     secgroups = neutron_sg.get_security_groups()
     for sg in secgroups:
         nsgroup_id = neutron_sg.get_nsgroup_id(sg['id'])
-        membership_criteria = firewall.get_nsgroup_port_tag_expression(
+        membership_criteria = nsxlib.get_nsgroup_port_tag_expression(
             security.PORT_SG_SCOPE, sg['id'])
         try:
             # We want to add the dynamic criteria and remove all direct members
             # they will be added by the manager using the new criteria.
-            firewall.update_nsgroup(nsgroup_id,
-                                    membership_criteria=membership_criteria,
-                                    members=[])
+            nsxlib.update_nsgroup(nsgroup_id,
+                                  membership_criteria=membership_criteria,
+                                  members=[])
         except Exception as e:
             LOG.warning(_LW("Failed to update membership criteria for nsgroup "
                             "%(nsgroup_id)s, request to backend returned "
@@ -187,7 +186,7 @@ def _update_security_group_dynamic_criteria():
 
 @admin_utils.output_header
 def migrate_nsgroups_to_dynamic_criteria(resource, event, trigger, **kwargs):
-    if not utils.is_nsx_version_1_1_0(nsxlib.NsxLib.get_version()):
+    if not utils.is_nsx_version_1_1_0(nsxlib.get_version()):
         LOG.error(_LE("Dynamic criteria grouping feature isn't supported by "
                       "this NSX version."))
         return

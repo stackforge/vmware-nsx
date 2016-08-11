@@ -19,7 +19,10 @@ from vmware_nsx._i18n import _, _LW
 from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils
 from vmware_nsx.nsxlib.v3 import client
+from vmware_nsx.nsxlib.v3 import cluster
+from vmware_nsx.nsxlib.v3 import dfw_api
 from vmware_nsx.nsxlib.v3 import exceptions
+from vmware_nsx.nsxlib.v3 import security
 
 LOG = log.getLogger(__name__)
 
@@ -27,41 +30,62 @@ LOG = log.getLogger(__name__)
 DEFAULT_MAX_ATTEMPTS = 3
 
 
-class NsxLib(object):
+class NsxLib(dfw_api.DfwApi, security.Security):
 
     MAX_ATTEMPTS = DEFAULT_MAX_ATTEMPTS
 
-    def __init__(self, max_attempts=DEFAULT_MAX_ATTEMPTS):
-        NsxLib.MAX_ATTEMPTS = max_attempts
+    def __init__(self,
+                 username=None,
+                 password=None,
+                 retries=None,
+                 insecure=None,
+                 ca_file=None,
+                 concurrent_connections=None,
+                 http_timeout=None,
+                 http_read_timeout=None,
+                 conn_idle_timeout=None,
+                 http_provider=None,
+                 max_attempts=DEFAULT_MAX_ATTEMPTS):
 
-    @staticmethod
-    def get_version():
-        node = client.get_resource("node")
+        self.max_attempts = max_attempts
+        self.cluster = cluster.NSXClusteredAPI(
+            username=username, password=password,
+            retries=retries, insecure=insecure,
+            ca_file=ca_file,
+            concurrent_connections=concurrent_connections,
+            http_timeout=http_timeout,
+            http_read_timeout=http_read_timeout,
+            conn_idle_timeout=conn_idle_timeout,
+            http_provider=http_provider)
+
+        self.client = client.NSX3Client(self.cluster)
+        super(NsxLib, self).__init__()
+
+    def get_version(self):
+        node = self.client.get("node")
         version = node.get('node_version')
         return version
 
-    @staticmethod
-    def get_edge_cluster(edge_cluster_uuid):
+    def get_edge_cluster(self, edge_cluster_uuid):
         resource = "edge-clusters/%s" % edge_cluster_uuid
-        return client.get_resource(resource)
+        return self.client.get(resource)
 
-    @staticmethod
     @utils.retry_upon_exception_nsxv3(exceptions.StaleRevision)
-    def update_resource_with_retry(resource, payload):
-        revised_payload = client.get_resource(resource)
+    def update_resource_with_retry(self, resource, payload):
+        revised_payload = self.client.get(resource)
         for key_name in payload.keys():
             revised_payload[key_name] = payload[key_name]
-        return client.update_resource(resource, revised_payload)
+        return self.client.update(resource, revised_payload)
 
-    @staticmethod
-    def delete_resource_by_values(resource, skip_not_found=True, **kwargs):
-        resources_get = client.get_resource(resource)
+    def delete_resource_by_values(self, resource,
+                                  skip_not_found=True, **kwargs):
+        resources_get = self.client.get(resource)
         matched_num = 0
         for res in resources_get['results']:
             if utils.dict_match(kwargs, res):
                 LOG.debug("Deleting %s from resource %s", res, resource)
                 delete_resource = resource + "/" + str(res['id'])
-                client.delete_resource(delete_resource)
+                client.delete(delete_resource)
                 matched_num = matched_num + 1
         if matched_num == 0:
             if skip_not_found:
@@ -81,8 +105,7 @@ class NsxLib(object):
                                             'res': resource,
                                             'values': kwargs})
 
-    @staticmethod
-    def create_logical_switch(display_name, transport_zone_id, tags,
+    def create_logical_switch(self, display_name, transport_zone_id, tags,
                               replication_mode=nsx_constants.MTEP,
                               admin_state=True, vlan_id=None):
         # TODO(salv-orlando): Validate Replication mode and admin_state
@@ -103,27 +126,24 @@ class NsxLib(object):
         if vlan_id:
             body['vlan'] = vlan_id
 
-        return client.create_resource(resource, body)
+        return self.client.create(resource, body)
 
-    @staticmethod
     @utils.retry_upon_exception_nsxv3(exceptions.StaleRevision,
                                       max_attempts=MAX_ATTEMPTS)
-    def delete_logical_switch(lswitch_id):
+    def delete_logical_switch(self, lswitch_id):
         resource = 'logical-switches/%s?detach=true&cascade=true' % lswitch_id
-        client.delete_resource(resource)
+        self.client.delete(resource)
 
-    @staticmethod
-    def get_logical_switch(logical_switch_id):
+    def get_logical_switch(self, logical_switch_id):
         resource = "logical-switches/%s" % logical_switch_id
-        return client.get_resource(resource)
+        return self.client.get(resource)
 
-    @staticmethod
     @utils.retry_upon_exception_nsxv3(exceptions.StaleRevision,
                                       max_attempts=MAX_ATTEMPTS)
-    def update_logical_switch(lswitch_id, name=None, admin_state=None,
+    def update_logical_switch(self, lswitch_id, name=None, admin_state=None,
                               tags=None):
         resource = "logical-switches/%s" % lswitch_id
-        lswitch = NsxLib.get_logical_switch(lswitch_id)
+        lswitch = self.get_logical_switch(lswitch_id)
         if name is not None:
             lswitch['display_name'] = name
         if admin_state is not None:
@@ -133,10 +153,9 @@ class NsxLib(object):
                 lswitch['admin_state'] = nsx_constants.ADMIN_STATE_DOWN
         if tags is not None:
             lswitch['tags'] = tags
-        return client.update_resource(resource, lswitch)
+        return self.client.update(resource, lswitch)
 
-    @staticmethod
-    def add_nat_rule(logical_router_id, action, translated_network,
+    def add_nat_rule(self, logical_router_id, action, translated_network,
                      source_net=None, dest_net=None,
                      enabled=True, rule_priority=None):
         resource = 'logical-routers/%s/nat/rules' % logical_router_id
@@ -149,10 +168,9 @@ class NsxLib(object):
             body['match_destination_network'] = dest_net
         if rule_priority:
             body['rule_priority'] = rule_priority
-        return client.create_resource(resource, body)
+        return self.client.create(resource, body)
 
-    @staticmethod
-    def add_static_route(logical_router_id, dest_cidr, nexthop):
+    def add_static_route(self, logical_router_id, dest_cidr, nexthop):
         resource = ('logical-routers/%s/routing/static-routes' %
                     logical_router_id)
         body = {}
@@ -160,16 +178,14 @@ class NsxLib(object):
             body['network'] = dest_cidr
         if nexthop:
             body['next_hops'] = [{"ip_address": nexthop}]
-        return client.create_resource(resource, body)
+        return self.client.create(resource, body)
 
-    @staticmethod
-    def delete_static_route(logical_router_id, static_route_id):
+    def delete_static_route(self, logical_router_id, static_route_id):
         resource = 'logical-routers/%s/routing/static-routes/%s' % (
             logical_router_id, static_route_id)
-        client.delete_resource(resource)
+        self.client.delete(resource)
 
-    @staticmethod
-    def delete_static_route_by_values(logical_router_id,
+    def delete_static_route_by_values(self, logical_router_id,
                                       dest_cidr=None, nexthop=None):
         resource = ('logical-routers/%s/routing/static-routes' %
                     logical_router_id)
@@ -178,43 +194,39 @@ class NsxLib(object):
             kwargs['network'] = dest_cidr
         if nexthop:
             kwargs['next_hops'] = [{"ip_address": nexthop}]
-        return NsxLib.delete_resource_by_values(resource, **kwargs)
+        return self.delete_resource_by_values(resource, **kwargs)
 
-    @staticmethod
-    def delete_nat_rule(logical_router_id, nat_rule_id):
+    def delete_nat_rule(self, logical_router_id, nat_rule_id):
         resource = 'logical-routers/%s/nat/rules/%s' % (logical_router_id,
                                                         nat_rule_id)
-        client.delete_resource(resource)
+        self.client.delete(resource)
 
-    @staticmethod
-    def delete_nat_rule_by_values(logical_router_id, **kwargs):
+    def delete_nat_rule_by_values(self, logical_router_id, **kwargs):
         resource = 'logical-routers/%s/nat/rules' % logical_router_id
-        return NsxLib.delete_resource_by_values(resource, **kwargs)
+        return self.delete_resource_by_values(resource, **kwargs)
 
-    @staticmethod
-    def update_logical_router_advertisement(logical_router_id, **kwargs):
+    def update_logical_router_advertisement(self, logical_router_id, **kwargs):
         resource = ('logical-routers/%s/routing/advertisement' %
                     logical_router_id)
-        return NsxLib.update_resource_with_retry(resource, kwargs)
+        return self.update_resource_with_retry(resource, kwargs)
 
-    @staticmethod
-    def _build_qos_switching_profile_args(tags, name=None, description=None):
+    def _build_qos_switching_profile_args(self, tags, name=None,
+                                          description=None):
         body = {"resource_type": "QosSwitchingProfile",
                 "tags": tags}
-        return NsxLib._update_qos_switching_profile_args(
+        return self._update_qos_switching_profile_args(
             body, name=name, description=description)
 
-    @staticmethod
-    def _update_qos_switching_profile_args(body, name=None, description=None):
+    def _update_qos_switching_profile_args(self, body, name=None,
+                                           description=None):
         if name:
             body["display_name"] = name
         if description:
             body["description"] = description
         return body
 
-    @staticmethod
-    def _enable_shaping_in_args(body, burst_size=None, peak_bandwidth=None,
-                                average_bandwidth=None):
+    def _enable_shaping_in_args(self, body, burst_size=None,
+                                peak_bandwidth=None, average_bandwidth=None):
         for shaper in body["shaper_configuration"]:
             # Neutron currently supports only shaping of Egress traffic
             if shaper["resource_type"] == "EgressRateShaper":
@@ -229,8 +241,7 @@ class NsxLib(object):
 
         return body
 
-    @staticmethod
-    def _disable_shaping_in_args(body):
+    def _disable_shaping_in_args(self, body):
         for shaper in body["shaper_configuration"]:
             # Neutron currently supports only shaping of Egress traffic
             if shaper["resource_type"] == "EgressRateShaper":
@@ -242,8 +253,7 @@ class NsxLib(object):
 
         return body
 
-    @staticmethod
-    def _update_dscp_in_args(body, qos_marking, dscp):
+    def _update_dscp_in_args(self, body, qos_marking, dscp):
         body["dscp"] = {}
         body["dscp"]["mode"] = qos_marking.upper()
         if dscp:
@@ -251,57 +261,52 @@ class NsxLib(object):
 
         return body
 
-    @staticmethod
-    def create_qos_switching_profile(tags, name=None,
+    def create_qos_switching_profile(self, tags, name=None,
                                      description=None):
         resource = 'switching-profiles'
-        body = NsxLib._build_qos_switching_profile_args(tags, name,
-                                                        description)
-        return client.create_resource(resource, body)
+        body = self._build_qos_switching_profile_args(tags, name,
+                                                      description)
+        return self.client.create(resource, body)
 
-    @staticmethod
-    def update_qos_switching_profile(profile_id, tags, name=None,
+    def update_qos_switching_profile(self, profile_id, tags, name=None,
                                      description=None):
         resource = 'switching-profiles/%s' % profile_id
         # get the current configuration
-        body = NsxLib.get_qos_switching_profile(profile_id)
+        body = self.get_qos_switching_profile(profile_id)
         # update the relevant fields
-        body = NsxLib._update_qos_switching_profile_args(body, name,
-                                                         description)
-        return NsxLib.update_resource_with_retry(resource, body)
+        body = self._update_qos_switching_profile_args(body, name,
+                                                       description)
+        return self.update_resource_with_retry(resource, body)
 
-    @staticmethod
-    def update_qos_switching_profile_shaping(profile_id, shaping_enabled=False,
+    def update_qos_switching_profile_shaping(self, profile_id,
+                                             shaping_enabled=False,
                                              burst_size=None,
                                              peak_bandwidth=None,
                                              average_bandwidth=None,
                                              qos_marking=None, dscp=None):
         resource = 'switching-profiles/%s' % profile_id
         # get the current configuration
-        body = NsxLib.get_qos_switching_profile(profile_id)
+        body = self.get_qos_switching_profile(profile_id)
         # update the relevant fields
         if shaping_enabled:
-            body = NsxLib._enable_shaping_in_args(
+            body = self._enable_shaping_in_args(
                 body, burst_size=burst_size,
                 peak_bandwidth=peak_bandwidth,
                 average_bandwidth=average_bandwidth)
         else:
-            body = NsxLib._disable_shaping_in_args(body)
-        body = NsxLib._update_dscp_in_args(body, qos_marking, dscp)
-        return NsxLib.update_resource_with_retry(resource, body)
+            body = self._disable_shaping_in_args(body)
+        body = self._update_dscp_in_args(body, qos_marking, dscp)
+        return self.update_resource_with_retry(resource, body)
 
-    @staticmethod
-    def get_qos_switching_profile(profile_id):
+    def get_qos_switching_profile(self, profile_id):
         resource = 'switching-profiles/%s' % profile_id
-        return client.get_resource(resource)
+        return self.client.get(resource)
 
-    @staticmethod
-    def delete_qos_switching_profile(profile_id):
+    def delete_qos_switching_profile(self, profile_id):
         resource = 'switching-profiles/%s' % profile_id
-        client.delete_resource(resource)
+        self.client.delete(resource)
 
-    @staticmethod
-    def create_bridge_endpoint(device_name, seg_id, tags):
+    def create_bridge_endpoint(self, device_name, seg_id, tags):
         """Create a bridge endpoint on the backend.
 
         Create a bridge endpoint resource on a bridge cluster for the L2
@@ -315,21 +320,19 @@ class NsxLib(object):
         body = {'bridge_cluster_id': device_name,
                 'tags': tags,
                 'vlan': seg_id}
-        return client.create_resource(resource, body)
+        return self.client.create(resource, body)
 
-    @staticmethod
-    def delete_bridge_endpoint(bridge_endpoint_id):
+    def delete_bridge_endpoint(self, bridge_endpoint_id):
         """Delete a bridge endpoint on the backend.
 
         :param bridge_endpoint_id: string representing the UUID of the bridge
                                    endpoint to be deleted.
         """
         resource = 'bridge-endpoints/%s' % bridge_endpoint_id
-        client.delete_resource(resource)
+        self.client.delete(resource)
 
-    @staticmethod
-    def _get_resource_by_name_or_id(name_or_id, resource):
-        all_results = client.get_resource(resource)['results']
+    def _get_resource_by_name_or_id(self, name_or_id, resource):
+        all_results = self.client.get(resource)['results']
         matched_results = []
         for rs in all_results:
             if rs.get('id') == name_or_id:
@@ -353,41 +356,37 @@ class NsxLib(object):
 
         return matched_results[0].get('id')
 
-    @staticmethod
-    def get_transport_zone_id_by_name_or_id(name_or_id):
+    def get_transport_zone_id_by_name_or_id(self, name_or_id):
         """Get a transport zone by it's display name or uuid
 
         Return the transport zone data, or raise an exception if not found or
         not unique
         """
 
-        return NsxLib._get_resource_by_name_or_id(name_or_id,
-                                                  'transport-zones')
+        return self._get_resource_by_name_or_id(name_or_id,
+                                                'transport-zones')
 
-    @staticmethod
-    def get_logical_router_id_by_name_or_id(name_or_id):
+    def get_logical_router_id_by_name_or_id(self, name_or_id):
         """Get a logical router by it's display name or uuid
 
         Return the logical router data, or raise an exception if not found or
         not unique
         """
 
-        return NsxLib._get_resource_by_name_or_id(name_or_id,
-                                                  'logical-routers')
+        return self._get_resource_by_name_or_id(name_or_id,
+                                                'logical-routers')
 
-    @staticmethod
-    def get_bridge_cluster_id_by_name_or_id(name_or_id):
+    def get_bridge_cluster_id_by_name_or_id(self, name_or_id):
         """Get a bridge cluster by it's display name or uuid
 
         Return the bridge cluster data, or raise an exception if not found or
         not unique
         """
 
-        return NsxLib._get_resource_by_name_or_id(name_or_id,
-                                                  'bridge-clusters')
+        return self._get_resource_by_name_or_id(name_or_id,
+                                                'bridge-clusters')
 
-    @staticmethod
-    def create_port_mirror_session(source_ports, dest_ports, direction,
+    def create_port_mirror_session(self, source_ports, dest_ports, direction,
                                    description, name, tags):
         """Create a PortMirror Session on the backend.
 
@@ -409,14 +408,13 @@ class NsxLib(object):
                 'description': description,
                 'mirror_sources': source_ports,
                 'mirror_destination': dest_ports}
-        return client.create_resource(resource, body)
+        return self.client.create(resource, body)
 
-    @staticmethod
-    def delete_port_mirror_session(mirror_session_id):
+    def delete_port_mirror_session(self, mirror_session_id):
         """Delete a PortMirror session on the backend.
 
         :param mirror_session_id: string representing the UUID of the port
                                   mirror session to be deleted.
         """
         resource = 'mirror-sessions/%s' % mirror_session_id
-        client.delete_resource(resource)
+        self.client.delete(resource)
