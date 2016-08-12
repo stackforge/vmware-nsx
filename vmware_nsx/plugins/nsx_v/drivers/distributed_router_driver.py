@@ -226,7 +226,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             err_msg = _("network can only be attached to just one distributed "
                         "router, the network is already attached to router "
                         "%(router_id)s") % {'router_id': dist_routers[0]['id']}
-            raise n_exc.InvalidInput(error_message=err_msg)
+            raise n_exc.Conflict(error_message=err_msg)
 
     def add_router_interface(self, context, router_id, interface_info):
         self._validate_multiple_subnets_routers(

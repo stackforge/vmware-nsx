@@ -2366,7 +2366,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         "to router %(router_id)s") % {
                 'net_id': net_id,
                 'router_id': router_ids[0]}
-            raise n_exc.InvalidInput(error_message=err_msg)
+            raise n_exc.Conflict(error_message=err_msg)
 
     def _add_router_interface_wrapper(self, context, router_id,
                                       interface_info):

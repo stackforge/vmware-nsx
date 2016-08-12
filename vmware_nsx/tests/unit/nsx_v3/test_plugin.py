@@ -513,9 +513,6 @@ class TestL3NatTestCase(L3NatTest,
     def test_router_add_interface_port_with_metadata_access(self):
         self.skipTest("FIXME")
 
-    def test_router_add_interface_dup_port(self):
-        self.skipTest("FIXME")
-
     def test_router_add_interface_dup_subnet2_returns_400(self):
         self.skipTest('not supported')
 

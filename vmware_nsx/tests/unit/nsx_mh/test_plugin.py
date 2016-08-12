@@ -572,9 +572,6 @@ class TestL3NatTestCase(L3NatTest,
     def test_router_add_interface_port_with_metadata_access(self):
         self.skipTest("FIXME")
 
-    def test_router_add_interface_dup_port(self):
-        self.skipTest("FIXME")
-
     def test_create_l3_ext_network_without_vlan(self):
         self._test_create_l3_ext_network()
 
