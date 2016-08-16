@@ -127,7 +127,7 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
 
         if listener.default_pool and listener.default_pool.id:
             pool_binding = nsxv_db.get_nsxv_lbaas_pool_binding(
-                context.session, lb_id, listener.id, listener.default_pool.id)
+                context.session, lb_id, listener.default_pool.id)
             if pool_binding:
                 default_pool = pool_binding['edge_pool_id']
 
@@ -183,7 +183,7 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
         default_pool = None
         if new_listener.default_pool and new_listener.default_pool.id:
             pool_binding = nsxv_db.get_nsxv_lbaas_pool_binding(
-                context.session, new_listener.default_pool.id, None, None)
+                context.session, new_listener.default_pool.id, None)
             if pool_binding:
                 default_pool = pool_binding['edge_pool_id']
 
