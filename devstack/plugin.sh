@@ -43,11 +43,14 @@ elif [[ $Q_PLUGIN == 'vmware_nsx_v3' ]]; then
         init_vmware_nsx_v3
     elif [[ "$1" == "unstack" ]]; then
         stop_vmware_nsx_v3
-        NSX_MANAGER=${NSX_MANAGERS:-$NSX_MANAGER}
-        IFS=','
-        NSX_MANAGER=($NSX_MANAGER)
-        unset IFS
-        python $dir/tools/nsxv3_cleanup.py --mgr-ip $NSX_MANAGER --user $NSX_USER --password $NSX_PASSWORD
+        # only clean up when q-svc is enabled
+        if is_service_enabled q-svc; then
+            NSX_MANAGER=${NSX_MANAGERS:-$NSX_MANAGER}
+            IFS=','
+            NSX_MANAGER=($NSX_MANAGER)
+            unset IFS
+            python $dir/tools/nsxv3_cleanup.py --mgr-ip $NSX_MANAGER --user $NSX_USER --password $NSX_PASSWORD
+        fi
     fi
 elif [[ $Q_PLUGIN == 'vmware_dvs' ]]; then
     source $dir/lib/vmware_dvs
