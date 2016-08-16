@@ -81,6 +81,10 @@ IPAM_POOL_SERVICE = "ipam/pools"
 CSR = "csr"
 CERTIFICATE = "certificate"
 
+# Dynamic routing constants
+DYNAMIC_ROUTE_SERVICE = "routing/config/global"
+BGP_DYNAMIC_ROUTING = "routing/config/bgp"
+
 
 def retry_upon_exception(exc, delay=500, max_delay=4000,
                          max_attempts=cfg.CONF.nsxv.retries):
@@ -983,3 +987,23 @@ class Vcns(object):
         uri = '%s/%s/%s/%s/%s' % (SERVICES_PREFIX, IPAM_POOL_SERVICE, pool_id,
                                'ipaddresses', ip_addr)
         return self.do_request(HTTP_DELETE, uri)
+
+    def enable_dynamic_routing_service(self, edge_id, request_config):
+        uri = self._build_uri_path(edge_id, DYNAMIC_ROUTE_SERVICE)
+        return self.do_request(HTTP_PUT, uri, request_config)
+
+    def get_dynamic_routing_service(self, edge_id):
+        uri = self._build_uri_path(edge_id, DYNAMIC_ROUTE_SERVICE)
+        return self.do_request(HTTP_GET, uri)
+
+    def enable_bgp_dynamic_routing(self, edge_id, bgp_request):
+        uri = self._build_uri_path(edge_id, BGP_DYNAMIC_ROUTING)
+        return self.do_request(HTTP_PUT, uri, bgp_request)
+
+    def get_bgp_routing_config(self, edge_id):
+        uri = self._build_uri_path(edge_id, BGP_DYNAMIC_ROUTING)
+        return self.do_request(HTTP_GET, uri, decode=True)
+
+    def delete_bgp_routing_config(self, edge_id):
+        uri = self._build_uri_path(edge_id, BGP_DYNAMIC_ROUTING)
+        return self.do_request(HTTP_DELETE, uri, decode=False)

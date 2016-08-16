@@ -166,3 +166,4 @@ class NsxPortMirrorSessionMappingNotFound(n_exc.NotFound):
 class NsxInvalidConfiguration(n_exc.InvalidConfigurationOption):
     message = _("An invalid value was provided for %(opt_name)s: "
                 "%(opt_value)s: %(reason)s")
+
