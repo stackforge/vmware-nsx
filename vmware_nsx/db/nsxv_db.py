@@ -682,7 +682,6 @@ def add_nsxv_lbaas_pool_binding(session, loadbalancer_id, listener_id,
     with session.begin(subtransactions=True):
         binding = nsxv_models.NsxvLbaasPoolBinding(
             loadbalancer_id=loadbalancer_id,
-            listener_id=listener_id,
             pool_id=pool_id,
             edge_pool_id=edge_pool_id)
         session.add(binding)
@@ -695,7 +694,6 @@ def get_nsxv_lbaas_pool_binding(session, loadbalancer_id, listener_id,
         return session.query(
             nsxv_models.NsxvLbaasPoolBinding).filter_by(
             loadbalancer_id=loadbalancer_id,
-            listener_id=listener_id,
             pool_id=pool_id).one()
     except exc.NoResultFound:
         return
@@ -705,7 +703,6 @@ def del_nsxv_lbaas_pool_binding(session, loadbalancer_id, listener_id,
                                 pool_id):
     return (session.query(nsxv_models.NsxvLbaasPoolBinding).
             filter_by(loadbalancer_id=loadbalancer_id,
-                      listener_id=listener_id,
                       pool_id=pool_id).delete())
 
 
@@ -714,7 +711,6 @@ def add_nsxv_lbaas_monitor_binding(session, loadbalancer_id, listener_id,
     with session.begin(subtransactions=True):
         binding = nsxv_models.NsxvLbaasMonitorBinding(
             loadbalancer_id=loadbalancer_id,
-            listener_id=listener_id,
             pool_id=pool_id,
             hm_id=hm_id,
             edge_id=edge_id,
@@ -729,7 +725,6 @@ def get_nsxv_lbaas_monitor_binding(session, loadbalancer_id, listener_id,
         return session.query(
             nsxv_models.NsxvLbaasMonitorBinding).filter_by(
             loadbalancer_id=loadbalancer_id,
-            listener_id=listener_id,
             pool_id=pool_id,
             hm_id=hm_id,
             edge_id=edge_id).one()
@@ -741,7 +736,6 @@ def del_nsxv_lbaas_monitor_binding(session, loadbalancer_id, listener_id,
                                    pool_id, hm_id, edge_id):
     return (session.query(nsxv_models.NsxvLbaasMonitorBinding).
             filter_by(loadbalancer_id=loadbalancer_id,
-                      listener_id=listener_id,
                       pool_id=pool_id,
                       hm_id=hm_id,
                       edge_id=edge_id).delete())
