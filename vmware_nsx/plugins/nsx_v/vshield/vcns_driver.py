@@ -20,6 +20,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from vmware_nsx.plugins.nsx_v.vshield import edge_appliance_driver
+from vmware_nsx.plugins.nsx_v.vshield import edge_dynamic_routing_driver
 from vmware_nsx.plugins.nsx_v.vshield import edge_firewall_driver
 from vmware_nsx.plugins.nsx_v.vshield.tasks import tasks
 from vmware_nsx.plugins.nsx_v.vshield import vcns
@@ -33,7 +34,8 @@ LOG = logging.getLogger(__name__)
 class VcnsDriver(edge_appliance_driver.EdgeApplianceDriver,
                  edge_loadbalancer_driver.EdgeLbDriver,
                  lbaas_v2.EdgeLoadbalancerDriverV2,
-                 edge_firewall_driver.EdgeFirewallDriver):
+                 edge_firewall_driver.EdgeFirewallDriver,
+                 edge_dynamic_routing_driver.EdgeDynamicRoutingDriver):
 
     def __init__(self, callbacks):
         super(VcnsDriver, self).__init__()

@@ -350,3 +350,13 @@ class NsxvSubnetExtAttributes(model_base.BASEV2, models.TimestampMixin):
         models_v2.Subnet,
         backref=orm.backref("nsxv_subnet_attributes", lazy='joined',
                             uselist=False, cascade='delete'))
+
+class NsxvBGPDynamicRoutingBinding(model_base.BASEV2, model_base.HasId):
+    # Maps bgp_speaker_id to NSXv edge id
+    __tablename__ = 'nsxv_bgp_speaker_binding'
+
+    edge_id = sa.Column(sa.String(36), primary_key=True)
+    bgp_speaker_id = sa.Column(sa.String(36),
+                               sa.ForeignKey('bgp_speakers.id',
+                                             name='fk_bgp_speakers_id',
+                                             ondelete="CASCADE"))

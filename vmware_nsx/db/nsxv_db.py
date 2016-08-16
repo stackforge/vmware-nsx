@@ -804,3 +804,23 @@ def update_nsxv_subnet_ext_attributes(session, subnet_id,
         binding[ext_dns_search_domain.DNS_SEARCH_DOMAIN] = dns_search_domain
         binding[ext_dhcp_mtu.DHCP_MTU] = dhcp_mtu
     return binding
+
+def add_nsxv_bgp_speaker_binding(session, edge_id, speaker_id):
+    with session.begin(subtransaction=True):
+        binding = nsxv_models.NsxvBGPDynamicRoutingBinding(
+            edge_id=edge_id,
+            bgp_speaker_id=speaker_id)
+        session.add(binding)
+        return binding
+
+def get_nsxv_bgp_speaker_bindings(session, speaker_id):
+    try:
+        return (session.query(nsxv_models.NsxvBGPDynamicRoutingBinding).
+                filter_by(bgp_speaker_id=speaker_id).all())
+    except exc.NoResultFound:
+        return
+
+def delete_nsxv_bgp_speaker_binding(session, edge_id, speaker_id):
+    return (session.query(nsxv_models.NsxvBGPDynamicRoutingBinding).
+            filter_by(edge_id=edge_id,
+                      bgp_speaker_id=speaker_id).delete())
