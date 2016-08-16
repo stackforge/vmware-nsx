@@ -2775,9 +2775,43 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def _is_external_interface_info(self, context, interface_info):
         net_id = self._get_interface_info_net_id(context, interface_info)
         network = self.get_network(context, net_id)
-        if (network.get(ext_net_extn.EXTERNAL)):
+        if network.get(ext_net_extn.EXTERNAL):
             return True
         return False
+
+    def _get_interface_info_subnet(self, context, interface_info):
+        is_port, is_sub = self._validate_interface_info(interface_info)
+        if is_port:
+            port = super(NsxVPluginV2, self).get_port(
+                    context, interface_info['port_id'])
+            subnet_id = port['fixed_ips'].get('subnet_id')
+        elif is_sub:
+            subnet_id = interface_info['subnet_id']
+
+        subnet = super(NsxVPluginV2, self).get_subnet(context, subnet_id)
+        return subnet
+
+    def _update_dynamic_routing_table(self, context, edge_id,
+                                      interface_info):
+        # Check if the router has dynamic routing enabled
+        binding = nsxv_db.get_nsxv_bgp_speaker_binding(context.session,
+                                                       edge_id)
+        if binding:
+            subnet = self._get_interface_info_subnet(context, interface_info)
+            self.nsx_v.add_bgp_redistribution_rule(context,
+                                                   edge_id,
+                                                   subnet)
+
+    def _remove_dynamic_routing_table(self, context, edge_id,
+                                      interface_info):
+        # Check if the router has dynamic routing enabled
+        binding = nsxv_db.get_nsxv_bgp_speaker_binding(context.session,
+                                                       edge_id)
+        if binding:
+            subnet = self._get_interface_info_subnet(context, interface_info)
+            self.nsx_v.delete_bgp_redistribution_rule(context,
+                                                      edge_id,
+                                                      subnet)
 
     def add_router_interface(self, context, router_id, interface_info):
         # Do not support external subnet/port as a router interface
@@ -2787,8 +2821,12 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                      'interface'))
             raise n_exc.InvalidInput(error_message=msg)
 
+        edge_id = edge_utils.get_router_edge_id(context, router_id)
         router_driver = self._find_router_driver(context, router_id)
         try:
+            if edge_id:
+                self._update_dynamic_routing_table(context, edge_id,
+                                                   interface_info)
             return router_driver.add_router_interface(
                 context, router_id, interface_info)
         except vsh_exc.VcnsApiException:
@@ -2801,7 +2839,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     context, router_id, interface_info)
 
     def remove_router_interface(self, context, router_id, interface_info):
+        edge_id = edge_utils.get_router_edge_id(context, router_id)
         router_driver = self._find_router_driver(context, router_id)
+        if edge_id:
+            try:
+                self._remove_dynamic_routing_table(context, edge_id,
+                                                   interface_info)
+            except vsh_exc.VcnsApiException:
+                LOG.error(_LE("Failed to update dynamic routing for "
+                              "router %s"), router_id)
         return router_driver.remove_router_interface(
             context, router_id, interface_info)
 
