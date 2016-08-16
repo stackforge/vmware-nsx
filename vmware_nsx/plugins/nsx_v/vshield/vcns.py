@@ -83,6 +83,10 @@ CERTIFICATE = "certificate"
 
 NETWORK_TYPES = ['Network', 'VirtualWire', 'DistributedVirtualPortgroup']
 
+# Dynamic routing constants
+DYNAMIC_ROUTE_SERVICE = "routing/config/global"
+BGP_DYNAMIC_ROUTING = "routing/config/bgp"
+
 
 def retry_upon_exception_exclude_error_codes(
     exc, excluded_errors, delay=0.5, max_delay=4, max_attempts=0):
@@ -1030,3 +1034,28 @@ class Vcns(object):
         uri = '%s/all' % (SECURITY_POLICY_PREFIX)
         h, policies = self.do_request(HTTP_GET, uri, decode=True)
         return policies
+
+    def update_dynamic_routing_service(self, edge_id, request_config):
+        uri = self._build_uri_path(edge_id,
+                                   DYNAMIC_ROUTE_SERVICE, is_async=True)
+        return self.do_request(HTTP_PUT, uri, request_config)
+
+    def get_dynamic_routing_service(self, edge_id):
+        uri = self._build_uri_path(edge_id,
+                                   DYNAMIC_ROUTE_SERVICE, is_async=True)
+        return self.do_request(HTTP_GET, uri)
+
+    def update_bgp_dynamic_routing(self, edge_id, bgp_request):
+        uri = self._build_uri_path(edge_id,
+                                   BGP_DYNAMIC_ROUTING, is_async=True)
+        return self.do_request(HTTP_PUT, uri, bgp_request)
+
+    def get_bgp_routing_config(self, edge_id):
+        uri = self._build_uri_path(edge_id,
+                                   BGP_DYNAMIC_ROUTING, is_async=True)
+        return self.do_request(HTTP_GET, uri, decode=True)
+
+    def delete_bgp_routing_config(self, edge_id):
+        uri = self._build_uri_path(edge_id,
+                                   BGP_DYNAMIC_ROUTING, is_async=True)
+        return self.do_request(HTTP_DELETE, uri, decode=False)
