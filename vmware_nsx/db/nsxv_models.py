@@ -356,3 +356,11 @@ class NsxvSubnetIpam(model_base.BASEV2, models.TimestampMixin):
     # before the pool does
     subnet_id = sa.Column(sa.String(36), primary_key=True)
     nsx_pool_id = sa.Column(sa.String(36), primary_key=True)
+
+
+class NsxvBGPDynamicRoutingBinding(model_base.BASEV2):
+    # Maps bgp_speaker_id to NSXv edge id
+    __tablename__ = 'nsxv_bgp_speaker_bindings'
+
+    edge_id = sa.Column(sa.String(36), primary_key=True)
+    bgp_speaker_id = sa.Column(sa.String(36), nullable=False)
