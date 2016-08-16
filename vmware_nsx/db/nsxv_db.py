@@ -798,6 +798,7 @@ def update_nsxv_subnet_ext_attributes(session, subnet_id,
     return binding
 
 
+<<<<<<< HEAD
 def add_nsxv_ipam_subnet_pool(session, subnet_id, nsx_pool_id):
     with session.begin(subtransactions=True):
         binding = nsxv_models.NsxvSubnetIpam(
@@ -813,8 +814,38 @@ def get_nsxv_ipam_pool_for_subnet(session, subnet_id):
             nsxv_models.NsxvSubnetIpam).filter_by(
             subnet_id=subnet_id).one()
         return entry.nsx_pool_id
+=======
+def add_nsxv_bgp_speaker_binding(session, edge_id, speaker_id):
+    with session.begin(subtransactions=True):
+        binding = nsxv_models.NsxvBGPDynamicRoutingBinding(
+            edge_id=edge_id,
+            bgp_speaker_id=speaker_id)
+        session.add(binding)
+        return binding
+
+
+def get_nsxv_bgp_speaker_binding(session, edge_id):
+    try:
+        binding = (session.query(nsxv_models.NsxvBGPDynamicRoutingBinding).
+                   filter_by(edge_id=edge_id).
+                   one())
+        return binding
+    except exc.NoResultFound:
+        LOG.debug("No dynamic routing enabled on edge %s.", edge_id)
+
+
+def get_nsxv_bgp_speaker_bindings(session, speaker_id):
+    try:
+        return (session.query(nsxv_models.NsxvBGPDynamicRoutingBinding).
+                filter_by(bgp_speaker_id=speaker_id).all())
     except exc.NoResultFound:
         return
+
+
+def delete_nsxv_bgp_speaker_binding(session, edge_id, speaker_id):
+    return (session.query(nsxv_models.NsxvBGPDynamicRoutingBinding).
+            filter_by(edge_id=edge_id,
+                      bgp_speaker_id=speaker_id).delete())
 
 
 def del_nsxv_ipam_subnet_pool(session, subnet_id, nsx_pool_id):
