@@ -384,6 +384,9 @@ nsx_v3_opts = [
                       "be used to enable native metadata service. It needs "
                       "to be created in NSX before starting Neutron with "
                       "the NSX plugin.")),
+    cfg.StrOpt('metadata_proxy_shared_secret',
+               secret=True,
+               help=_("(Optional) Shared secret to sign metadata requests.")),
     cfg.BoolOpt('log_security_groups_blocked_traffic',
                 default=False,
                 help=_("(Optional) Indicates whether distributed-firewall "

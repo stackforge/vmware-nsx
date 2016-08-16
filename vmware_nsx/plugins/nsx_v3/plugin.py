@@ -412,6 +412,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def _init_native_metadata(self):
         if not cfg.CONF.nsx_v3.metadata_proxy_uuid:
             raise cfg.RequiredOptError("metadata_proxy_uuid")
+        if not cfg.CONF.nsx_v3.metadata_proxy_shared_secret:
+            LOG.warning(_LW("metadata_proxy_shared_secret is not configured, "
+                            "the metadata information returned by the proxy "
+                            "cannot be trusted"))
         try:
             nsx_resources.MetaDataProxy(self._nsx_client).get(
                 cfg.CONF.nsx_v3.metadata_proxy_uuid)
