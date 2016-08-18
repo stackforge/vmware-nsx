@@ -17,8 +17,12 @@ import netaddr
 from neutron_lib.api import validators
 from neutron_lib import constants
 from oslo_config import cfg
+from oslo_log import log as logging
 
+from vmware_nsx._i18n import _LE
 from vmware_nsx.common import utils
+
+LOG = logging.getLogger(__name__)
 
 
 def build_dhcp_server_config(network, subnet, port, project_name):
@@ -38,13 +42,17 @@ def build_dhcp_server_config(network, subnet, port, project_name):
     # Add route for directly connected network.
     host_routes = [{'network': subnet['cidr'], 'next_hop': '0.0.0.0'}]
     # Copy routes from subnet host_routes attribute.
+    LOG.error(_LE("===> ZLATAN ROCK - %s"), hr)
     for hr in subnet['host_routes']:
-        if hr.destination == constants.IPv4_ANY:
-            if not gateway_ip:
-                gateway_ip = hr.nexthop
+        if hasattr(hr, 'destination'):
+            if hr.destination == constants.IPv4_ANY:
+                if not gateway_ip:
+                    gateway_ip = hr.nexthop
+            else:
+                host_routes.append({'network': hr.destination,
+                                    'next_hop': hr.nexthop})
         else:
-            host_routes.append({'network': hr.destination,
-                                'next_hop': hr.nexthop})
+            LOG.error(_LE("======> MISSING - %s"), hr)
     # If gateway_ip is defined, add default route via this gateway.
     if gateway_ip:
         host_routes.append({'network': constants.IPv4_ANY,
