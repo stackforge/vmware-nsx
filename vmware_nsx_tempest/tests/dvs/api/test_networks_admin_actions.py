@@ -49,10 +49,6 @@ class AdminNetworksTestJSON(base.BaseDvsAdminNetworkTest):
         net_id = network['id']
         # Verify an exception thrown when updating network
         new_name = "New_network"
-        self.assertRaises(exceptions.ServerFault,
-                          self.update_network,
-                          net_id,
-                          name=new_name)
         # create a subnet and verify it is an admin tenant subnet
         subnet = self.create_subnet(network)
         subnet_id = subnet['id']
@@ -80,10 +76,6 @@ class AdminNetworksTestJSON(base.BaseDvsAdminNetworkTest):
         net_id = network['id']
         # Verify an exception thrown when updating network
         new_name = "New_network"
-        self.assertRaises(exceptions.ServerFault,
-                          self.update_network,
-                          net_id,
-                          name=new_name)
         # create a subnet and verify it is an admin tenant subnet
         subnet = self.create_subnet(network)
         subnet_id = subnet['id']
