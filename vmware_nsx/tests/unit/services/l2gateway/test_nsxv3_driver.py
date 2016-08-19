@@ -65,15 +65,12 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
 
     def test_nsxl2gw_driver_init(self):
         with mock.patch.object(nsx_v3_driver.NsxV3Driver,
-                               '_ensure_default_l2_gateway') as def_gw:
-            with mock.patch.object(nsx_v3_driver.NsxV3Driver,
-                                   'subscribe_callback_notifications') as sub:
-                with mock.patch.object(nsx_v3_driver.LOG,
-                                       'debug') as debug:
-                    nsx_v3_driver.NsxV3Driver(mock.MagicMock())
-                    self.assertTrue(def_gw.called)
-                    self.assertTrue(sub.called)
-                    self.assertTrue(debug.called)
+                               'subscribe_callback_notifications') as sub:
+            with mock.patch.object(nsx_v3_driver.LOG,
+                                   'debug') as debug:
+                nsx_v3_driver.NsxV3Driver(mock.MagicMock())
+                self.assertTrue(sub.called)
+                self.assertTrue(debug.called)
 
     def test_create_default_l2_gateway(self):
         def_bridge_cluster_name = nsx_v3_mocks.NSX_BRIDGE_CLUSTER_NAME
