@@ -45,6 +45,8 @@ class TestNsxV3TaaSDriver(test_taas_db.TaaSDbTestCase,
                    return_value=mock.MagicMock()).start()
         self.taas_plugin = taas_plugin.TaasPlugin()
         self.core_plugin = importutils.import_object(NSX_V3_PLUGIN_CLASS)
+        self.core_plugin.get_floatingips = mock.Mock(
+            return_value=[{'floating_ip_address': '172.10.10.10'}])
         self.ctx = context.get_admin_context()
 
     def test_validate_tap_flow_same_network_same_port_fail(self):
