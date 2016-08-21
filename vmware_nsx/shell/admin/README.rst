@@ -157,6 +157,32 @@ Example
      }
 
 
+Upgrade Steps
+-------------
+From Bumblebee to CrossHairs
+
+1. Upgrade NSX backend from Bumblebee to CrossHairs
+
+2. Create a DHCP-Profile and a Metadata-Proxy in NSX backend
+
+3. Stop Neutron
+
+4. Install CrossHairs Neutron plugin
+
+5. Run admin tools to migrate Bumblebee objects to CrossHairs objects
+
+   * nsxadmin -r dhcp-binding -o nsx-update --property dhcp_profile_uuid=<UUID of DHCP-Profile created in Step 2>
+
+   * nsxadmin -r metadata-proxy -o nsx-update --property metadata_proxy_uuid=<UUID of Metadata-Proxy created in Step 2>
+
+6. Start Neutron
+
+7. Make sure /etc/nova/nova.conf has
+   metadata_proxy_shared_secret = <Secret of Metadata-Proxy created in Step 2>
+
+8. Restart VMs or ifdown/ifup their network interface to get new DHCP options
+
+
 Help
 ----
 ::
