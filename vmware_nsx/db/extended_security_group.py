@@ -238,6 +238,12 @@ class ExtendedSecurityGroupPropertiesMixin(object):
                 context, updated_port,
                 updated_port[provider_sg.PROVIDER_SECURITYGROUPS])
 
+    def _prevent_non_admin_delete_provider_sg(self, context, sg_id):
+        # Only someone who is an admin is allowed to delete this.
+        if not context.is_admin and self._is_provider_security_group(context,
+                                                                     sg_id):
+            raise provider_sg.ProviderSecurityGroupDeleteNotAdmin(id=sg_id)
+
     def _extend_security_group_with_properties(self, sg_res, sg_db):
         if sg_db.ext_properties:
             sg_res[sg_logging.LOGGING] = sg_db.ext_properties.logging

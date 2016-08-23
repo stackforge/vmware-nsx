@@ -96,6 +96,11 @@ class ProviderSecurityGroupTestPlugin(
                 context, port, original_port, updated_port)
             return self.get_port(context, id)
 
+    def delete_security_group(self, context, id):
+        self._prevent_non_admin_delete_provider_sg(context, id)
+        super(ProviderSecurityGroupTestPlugin,
+              self).delete_security_group(context, id)
+
 
 class ProviderSecurityGroupExtTestCase(
         test_securitygroup.SecurityGroupDBTestCase):
@@ -243,9 +248,31 @@ class ProviderSecurityGroupExtTestCase(
                                  port['port']['provider_security_groups'])
                 self.assertEqual([sg_id], port['port']['security_groups'])
 
+    def test_non_admin_cannot_delete_provider_sg_and_admin_can(self):
+        provider_secgroup = self._create_provider_security_group()
+        pvd_sg_id = provider_secgroup['security_group']['id']
 
-class TestNSXv3ProviderSecurityGrp(ProviderSecurityGroupExtTestCase,
-                                   test_nsxv3_plugin.NsxV3PluginTestCaseMixin):
+        # Try deleting the request as the normal tenant returns forbidden
+        # as a tenant is not allowed to delete this.
+        ctx = context.Context('', self._tenant_id)
+        self._delete('security-groups', pvd_sg_id,
+                     expected_code=webob.exc.HTTPForbidden.code,
+                     neutron_context=ctx)
+        # can be deleted though as admin
+        self._delete('security-groups', pvd_sg_id,
+                     expected_code=webob.exc.HTTPNoContent.code)
+
+    def test_non_admin_cannot_delete_provider_sg_rule(self):
+        # This testcase should be implemented
+        pass
+
+    def test_non_admin_cannot_add_provider_sg_rule(self):
+        # This testcase should be implemented
+        pass
+
+
+class TestNSXv3ProviderSecurityGrp(test_nsxv3_plugin.NsxV3PluginTestCaseMixin,
+                                   ProviderSecurityGroupExtTestCase):
     pass
 
 
