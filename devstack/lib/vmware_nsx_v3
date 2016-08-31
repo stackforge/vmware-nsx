@@ -170,6 +170,7 @@ function neutron_plugin_configure_service {
         _nsxv3_ini_set metadata_proxy_uuid $METADATA_PROXY_UUID
         iniset $NEUTRON_CONF DEFAULT dhcp_agent_notification False
     fi
+    iniset $NEUTRON_CONF DEFAULT max_fixed_ips_per_port 1
 }
 
 function neutron_plugin_setup_interface_driver {
