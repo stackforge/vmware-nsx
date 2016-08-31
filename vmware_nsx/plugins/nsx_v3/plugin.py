@@ -184,6 +184,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         self.cfg_group = 'nsx_v3'  # group name for nsx_v3 section in nsx.ini
         self.tier0_groups_dict = {}
+        # Translate configured transport zones, routers, dhcp profile and
+        # metadata proxy names to uuid.
+        self._translate_configured_names_to_uuids()
         self._init_dhcp_metadata()
 
         self._port_client = nsx_resources.LogicalPort(self._nsx_client)
@@ -212,9 +215,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._unsubscribe_callback_events()
         if cfg.CONF.api_replay_mode:
             self.supported_extension_aliases.append('api-replay')
-
-        # translate configured transport zones/rotuers names to uuid
-        self._translate_configured_names_2_uuids()
 
         # Register NSXv3 trunk driver to support trunk extensions
         self.trunk_driver = trunk_driver.NsxV3TrunkDriver.create(self)
@@ -260,7 +260,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return (self._psec_profile, self._no_psec_profile_id,
                 self._dhcp_profile, self._mac_learning_profile)
 
-    def _translate_configured_names_2_uuids(self):
+    def _translate_configured_names_to_uuids(self):
         # default VLAN transport zone name / uuid
         self._default_vlan_tz_uuid = None
         if cfg.CONF.nsx_v3.default_vlan_tz:
@@ -281,6 +281,23 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             rtr_id = self.nsxlib.get_logical_router_id_by_name_or_id(
                 cfg.CONF.nsx_v3.default_tier0_router)
             self._default_tier0_router = rtr_id
+
+        self._native_dhcp_profile_uuid = None
+        self._native_md_proxy_uuid = None
+        if cfg.CONF.nsx_v3.native_dhcp_metadata:
+            if cfg.CONF.nsx_v3.dhcp_profile:
+                profile_id = self.nsxlib.get_dhcp_profile_id_by_name_or_id(
+                                cfg.CONF.nsx_v3.dhcp_profile)
+                self._native_dhcp_profile_uuid = profile_id
+            else:
+                raise cfg.RequiredOptError("dhcp_profile")
+
+            if cfg.CONF.nsx_v3.metadata_proxy:
+                proxy_id = self.nsxlib.get_md_proxy_id_by_name_or_id(
+                                cfg.CONF.nsx_v3.metadata_proxy)
+                self._native_md_proxy_uuid = proxy_id
+            else:
+                raise cfg.RequiredOptError("metadata_proxy")
 
     def _extend_port_dict_binding(self, context, port_data):
         port_data[pbin.VIF_TYPE] = pbin.VIF_TYPE_OVS
@@ -432,30 +449,26 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._start_rpc_notifiers()
 
     def _init_native_dhcp(self):
-        if not cfg.CONF.nsx_v3.dhcp_profile_uuid:
-            raise cfg.RequiredOptError("dhcp_profile_uuid")
         try:
             nsx_resources.DhcpProfile(self._nsx_client).get(
-                cfg.CONF.nsx_v3.dhcp_profile_uuid)
+                self._native_dhcp_profile_uuid)
             self._dhcp_server = nsx_resources.LogicalDhcpServer(
                 self._nsx_client)
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("Unable to retrieve DHCP Profile %s, "
                               "native DHCP service is not supported"),
-                          cfg.CONF.nsx_v3.dhcp_profile_uuid)
+                          self._native_dhcp_profile_uuid)
 
     def _init_native_metadata(self):
-        if not cfg.CONF.nsx_v3.metadata_proxy_uuid:
-            raise cfg.RequiredOptError("metadata_proxy_uuid")
         try:
             nsx_resources.MetaDataProxy(self._nsx_client).get(
-                cfg.CONF.nsx_v3.metadata_proxy_uuid)
+                self._native_md_proxy_uuid)
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("Unable to retrieve Metadata Proxy %s, "
                               "native metadata service is not supported"),
-                          cfg.CONF.nsx_v3.metadata_proxy_uuid)
+                          self._native_md_proxy_uuid)
 
     def _setup_rpc(self):
         self.endpoints = [dhcp_rpc.DhcpRpcCallback(),
@@ -720,7 +733,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     'mdproxy', created_net['name'] or 'network'),
                                                created_net['id'])
                 md_port = self._port_client.create(
-                    nsx_net_id, cfg.CONF.nsx_v3.metadata_proxy_uuid,
+                    nsx_net_id, self._native_md_proxy_uuid,
                     tags=tags, name=name,
                     attachment_type=nsx_constants.ATTACHMENT_MDPROXY)
                 LOG.debug("Created MD-Proxy logical port %(port)s "
@@ -911,7 +924,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         port_data = {
             "name": "",
             "admin_state_up": True,
-            "device_id": cfg.CONF.nsx_v3.dhcp_profile_uuid,
+            "device_id": self._native_dhcp_profile_uuid,
             "device_owner": const.DEVICE_OWNER_DHCP,
             "network_id": network['id'],
             "tenant_id": network["tenant_id"],
@@ -922,6 +935,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             context, {'port': port_data})
         server_data = native_dhcp.build_dhcp_server_config(
             network, subnet, neutron_port, context.tenant_name)
+        server_data['dhcp_profile_id'] = self._native_dhcp_profile_uuid
         nsx_net_id = self._get_network_nsx_id(context, network['id'])
         tags = utils.build_v3_tags_payload(
             neutron_port, resource_type='os-neutron-dport-id',

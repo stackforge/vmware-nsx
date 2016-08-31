@@ -85,6 +85,14 @@ def _mock_nsxlib():
         side_effect=_return_id_key).start()
 
     mock.patch(
+        "vmware_nsx.nsxlib.v3.NsxLib.get_dhcp_profile_id_by_name_or_id",
+        return_value=NSX_DHCP_PROFILE_ID).start()
+
+    mock.patch(
+        "vmware_nsx.nsxlib.v3.NsxLib.get_md_proxy_id_by_name_or_id",
+        return_value=NSX_METADATA_PROXY_ID).start()
+
+    mock.patch(
         "vmware_nsx.nsxlib.v3.NsxLib.get_version",
         return_value='1.1.0').start()
 
@@ -95,9 +103,9 @@ class NsxLibTestCase(unittest.TestCase):
     def setup_conf_overrides(cls):
         cfg.CONF.set_override('default_overlay_tz', NSX_TZ_NAME, 'nsx_v3')
         cfg.CONF.set_override('native_dhcp_metadata', False, 'nsx_v3')
-        cfg.CONF.set_override('dhcp_profile_uuid',
+        cfg.CONF.set_override('dhcp_profile',
                               NSX_DHCP_PROFILE_ID, 'nsx_v3')
-        cfg.CONF.set_override('metadata_proxy_uuid',
+        cfg.CONF.set_override('metadata_proxy',
                               NSX_METADATA_PROXY_ID, 'nsx_v3')
         cfg.CONF.set_override('nsx_api_user', NSX_USER, 'nsx_v3')
         cfg.CONF.set_override('nsx_api_password', NSX_PASSWORD, 'nsx_v3')
