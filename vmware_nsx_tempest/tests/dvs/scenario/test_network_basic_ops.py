@@ -16,6 +16,7 @@ import netaddr
 from oslo_log import log as logging
 
 from tempest import config
+from tempest.common.utils.linux import remote_client
 from tempest import exceptions
 from tempest.lib.common.utils import data_utils
 from tempest.scenario import manager
@@ -131,9 +132,14 @@ class TestDvsNetworkBasicOps(manager.NetworkScenarioTest):
 
     def _check_server_connectivity(self, address_list,
                                    should_connect=True):
-        private_key = self._get_server_key(self.servers[0])
         ip_address = address_list[0]
-        ssh_source = self._ssh_to_server(ip_address, private_key)
+        # Use username/password for ssh authentication since
+        # dvs plugin don't support metadata
+        username = CONF.validation.image_ssh_user
+        password = CONF.validation.image_ssh_password
+        ssh_source = remote_client.RemoteClient(ip_address, username,
+                                                pkey=None,
+                                                password=password)
         for remote_ip in address_list:
             if should_connect:
                 msg = "Timed out waiting for "

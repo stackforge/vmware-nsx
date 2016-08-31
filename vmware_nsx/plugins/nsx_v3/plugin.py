@@ -278,6 +278,20 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 cfg.CONF.nsx_v3.default_tier0_router)
             self._default_tier0_router = rtr_id
 
+        # native dhcp profile
+        self._native_dhcp_profile = None
+        if cfg.CONF.nsx_v3.dhcp_profile:
+            profile_id = self.nsxlib.get_dhcp_profile_id_by_name_or_id(
+                cfg.CONF.nsx_v3.dhcp_profile)
+            self._native_dhcp_profile_uuid = profile_id
+
+        # native metadata proxy
+        self._native_md_proxy = None
+        if cfg.CONF.nsx_v3.metadata_proxy:
+            proxy_id = self.nsxlib.get_md_proxy_id_by_name_or_id(
+                cfg.CONF.nsx_v3.metadata_proxy)
+            self._native_md_proxy_uuid = proxy_id  
+
     def _extend_port_dict_binding(self, context, port_data):
         port_data[pbin.VIF_TYPE] = pbin.VIF_TYPE_OVS
         port_data[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
@@ -428,30 +442,30 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._start_rpc_notifiers()
 
     def _init_native_dhcp(self):
-        if not cfg.CONF.nsx_v3.dhcp_profile_uuid:
-            raise cfg.RequiredOptError("dhcp_profile_uuid")
+        if not cfg.CONF.nsx_v3.dhcp_profile:
+            raise cfg.RequiredOptError("dhcp_profile")
         try:
             nsx_resources.DhcpProfile(self._nsx_client).get(
-                cfg.CONF.nsx_v3.dhcp_profile_uuid)
+                self._native_dhcp_profile_uuid)
             self._dhcp_server = nsx_resources.LogicalDhcpServer(
                 self._nsx_client)
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("Unable to retrieve DHCP Profile %s, "
                               "native DHCP service is not supported"),
-                          cfg.CONF.nsx_v3.dhcp_profile_uuid)
+                          cfg.CONF.nsx_v3.dhcp_profile)
 
     def _init_native_metadata(self):
-        if not cfg.CONF.nsx_v3.metadata_proxy_uuid:
-            raise cfg.RequiredOptError("metadata_proxy_uuid")
+        if not cfg.CONF.nsx_v3.metadata_proxy:
+            raise cfg.RequiredOptError("metadata_proxy")
         try:
             nsx_resources.MetaDataProxy(self._nsx_client).get(
-                cfg.CONF.nsx_v3.metadata_proxy_uuid)
+                self._native_md_proxy)
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("Unable to retrieve Metadata Proxy %s, "
                               "native metadata service is not supported"),
-                          cfg.CONF.nsx_v3.metadata_proxy_uuid)
+                          cfg.CONF.nsx_v3.metadata_proxy)
 
     def _setup_rpc(self):
         self.endpoints = [dhcp_rpc.DhcpRpcCallback(),
