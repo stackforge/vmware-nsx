@@ -1,0 +1,9 @@
+---
+prelude: >
+  - The 'dhcp_profile_uuid' and 'metadata_proxy_uuid'
+    options have been deprecated and replaced by 'dhcp_profile'
+    and 'metadata_proxy' respectively, which can accept both name or uuid
+deprecations:
+  - The 'dhcp_profile_uuid' and 'metadata_proxy_uuid'
+    options have been deprecated and replaced by 'dhcp_profile'
+    and 'metadata_proxy' respectively, which can accept both name or uuid
