@@ -17,6 +17,7 @@ import logging
 import xml.etree.ElementTree as et
 
 from neutron import context
+from neutron.db.models import securitygroup
 from neutron.db import models_v2
 from neutron.db import securitygroups_db
 
@@ -41,8 +42,8 @@ class NeutronSecurityGroupDB(utils.NeutronDbClient,
 
     def get_security_groups_mappings(self):
         q = self.context.session.query(
-            securitygroups_db.SecurityGroup.name,
-            securitygroups_db.SecurityGroup.id,
+            securitygroup.SecurityGroup.name,
+            securitygroup.SecurityGroup.id,
             nsxv_models.NsxvSecurityGroupSectionMapping.ip_section_id,
             nsx_models.NeutronNsxSecurityGroupMapping.nsx_id).join(
                 nsxv_models.NsxvSecurityGroupSectionMapping,
