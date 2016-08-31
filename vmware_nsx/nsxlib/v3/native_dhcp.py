@@ -56,7 +56,6 @@ def build_dhcp_server_config(network, subnet, port, project_name):
     tags = utils.build_v3_tags_payload(
         network, resource_type='os-neutron-net-id', project_name=project_name)
     return {'name': name,
-            'dhcp_profile_id': cfg.CONF.nsx_v3.dhcp_profile_uuid,
             'server_ip': server_ip,
             'dns_servers': dns_servers,
             'domain_name': cfg.CONF.nsx_v3.dns_domain,
