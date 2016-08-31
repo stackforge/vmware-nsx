@@ -386,6 +386,26 @@ class NsxLib(dfw_api.DfwApi, security.Security):
         return self._get_resource_by_name_or_id(name_or_id,
                                                 'bridge-clusters')
 
+    def get_dhcp_profile_id_by_name_or_id(self, name_or_id):
+        """Get a dhcp profile by it's display name or uuid
+
+        Return the dhcp profile data, or raise an exception if not found or
+        not unique
+        """
+
+        return self._get_resource_by_name_or_id(name_or_id,
+                                                'dhcp/server-profiles')
+
+    def get_md_proxy_id_by_name_or_id(self, name_or_id):
+        """Get a metadata proxy by it's display name or uuid
+
+        Return the metadata proxy data, or raise an exception if not found or
+        not unique
+        """
+
+        return self._get_resource_by_name_or_id(name_or_id,
+                                                'md-proxies')
+
     def create_port_mirror_session(self, source_ports, dest_ports, direction,
                                    description, name, tags):
         """Create a PortMirror Session on the backend.
