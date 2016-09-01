@@ -73,6 +73,10 @@ SYSCTL_SERVICE = 'systemcontrol/config'
 # L2 gateway constants
 BRIDGE = "bridging/config"
 
+# IPAM constants
+IPAM_POOL_SCOPE = "scope/globalroot-0"
+IPAM_POOL_SERVICE = "ipam/pools"
+
 # Self Signed Certificate constants
 CSR = "csr"
 CERTIFICATE = "certificate"
@@ -949,3 +953,18 @@ class Vcns(object):
                                      profile_id, 'binding')
         return self.do_request(HTTP_POST, profiles_uri, request, format='xml',
                                decode=False)
+
+    # DEBUG ADIT - add those apis to fake_vcns too
+    def create_ipam_ip_pool(self, request):
+        uri = '%s/%s/%s' % (SERVICES_PREFIX, IPAM_POOL_SERVICE,
+                            IPAM_POOL_SCOPE)
+        return self.do_request(HTTP_POST, uri, request, format='xml',
+                               decode=False)
+
+    def delete_ipam_ip_pool(self, pool_id):
+        uri = '%s/%s/%s' % (SERVICES_PREFIX, IPAM_POOL_SERVICE, pool_id)
+        return self.do_request(HTTP_DELETE, uri)
+
+    def get_ipam_ip_pool(self, pool_id):
+        uri = '%s/%s/%s' % (SERVICES_PREFIX, IPAM_POOL_SERVICE, pool_id)
+        return self.do_request(HTTP_GET, uri, decode=True)
