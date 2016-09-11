@@ -18,7 +18,7 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 
 from neutron.db import db_base_plugin_v2
-from neutron.db import securitygroups_db
+from neutron.db.models import securitygroups_db
 from neutron.extensions import securitygroup as ext_sg
 from neutron_lib.api import validators
 from neutron_lib import exceptions as nexception
