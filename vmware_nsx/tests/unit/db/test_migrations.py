@@ -22,7 +22,7 @@ from neutron.tests.functional.db import test_migrations
 from neutron.tests.unit import testlib_api
 
 from vmware_nsx.db.migration import alembic_migrations
-from vmware_nsx.db.models import head
+from vmware_nsx.db.migration.models import head
 
 # EXTERNAL_TABLES should contain all names of tables that are not related to
 # current repo.
@@ -46,8 +46,7 @@ class _TestModelsMigrationsFoo(test_migrations._TestModelsMigrations):
                                  name == alembic_migrations.VERSION_TABLE or
                                  name in EXTERNAL_TABLES):
             return False
-        else:
-            return True
+        return True
 
 
 class TestModelsMigrationsMysql(testlib_api.MySQLTestCaseMixin,
