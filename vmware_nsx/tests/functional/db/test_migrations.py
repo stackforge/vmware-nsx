@@ -22,7 +22,7 @@ from neutron.tests.functional.db import test_migrations
 from neutron.tests.unit import testlib_api
 
 from vmware_nsx.db.migration import alembic_migrations
-from vmware_nsx.db.models import head
+from vmware_nsx.db.migration.models import head
 
 # EXTERNAL_TABLES should contain all names of tables that are not related to
 # current repo.
