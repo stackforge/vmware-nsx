@@ -24,8 +24,8 @@ from neutron_lib import exceptions
 from oslo_config import cfg
 from oslo_context import context as common_context
 from oslo_log import log
-import retrying
 import six
+import tenacity
 
 from vmware_nsx._i18n import _, _LE
 
@@ -192,12 +192,13 @@ def update_v3_tags(current_tags, tags_update):
     return tags
 
 
-def retry_upon_exception_nsxv3(exc, delay=500, max_delay=2000,
-                               max_attempts=cfg.CONF.nsx_v3.retries):
-    return retrying.retry(retry_on_exception=lambda e: isinstance(e, exc),
-                          wait_exponential_multiplier=delay,
-                          wait_exponential_max=max_delay,
-                          stop_max_attempt_number=max_attempts)
+def retry_upon_exception_nsxv3(exc, delay=0.5, max_delay=2, max_attempts=0):
+    if not max_attempts:
+        max_attempts = cfg.CONF.nsx_v3.retries
+    return tenacity.retry(retry=tenacity.retry_if_exception_type(exc),
+                          wait=tenacity.wait_exponential(
+                                multiplier=delay, max=max_delay),
+                          stop=tenacity.stop_after_attempt(max_attempts))
 
 
 def list_match(list1, list2):
