@@ -24,8 +24,9 @@ from neutron_lib import exceptions
 from oslo_config import cfg
 from oslo_context import context as common_context
 from oslo_log import log
-import retrying
 import six
+import tenacity
+import xml.etree.ElementTree as et
 
 from vmware_nsx._i18n import _, _LE
 
@@ -192,12 +193,49 @@ def update_v3_tags(current_tags, tags_update):
     return tags
 
 
-def retry_upon_exception_nsxv3(exc, delay=500, max_delay=2000,
-                               max_attempts=cfg.CONF.nsx_v3.retries):
-    return retrying.retry(retry_on_exception=lambda e: isinstance(e, exc),
-                          wait_exponential_multiplier=delay,
-                          wait_exponential_max=max_delay,
-                          stop_max_attempt_number=max_attempts)
+def _get_bad_request_error_code(e):
+    """Get the error code out of the exception"""
+    try:
+        desc = et.fromstring(e.response)
+        return int(desc.find('errorCode').text)
+    except Exception:
+        pass
+
+
+def retry_upon_exception_exclude_error_codes(
+    exc, excluded_errors, delay, max_delay, max_attempts):
+    """Retry with the configured exponential delay, unless the exception error
+    code is in the given list
+    """
+    def retry_if_not_error_codes(e):
+        # return True only for BadRequests without error codes or with error
+        # codes not in the exclude list
+        if isinstance(e, exc):
+            error_code = _get_bad_request_error_code(e)
+            if error_code and error_code not in excluded_errors:
+                return True
+        return False
+
+    if not max_attempts:
+        max_attempts = cfg.CONF.nsxv.retries
+    return tenacity.retry(retry=tenacity.retry_if_exception(
+                                retry_if_not_error_codes),
+                          wait=tenacity.wait_exponential(
+                                multiplier=delay, max=max_delay),
+                          stop=tenacity.stop_after_attempt(max_attempts))
+
+
+def retry_upon_exception(exc, delay, max_delay, max_attempts):
+    return tenacity.retry(retry=tenacity.retry_if_exception_type(exc),
+                          wait=tenacity.wait_exponential(
+                                multiplier=delay, max=max_delay),
+                          stop=tenacity.stop_after_attempt(max_attempts))
+
+
+def retry_upon_exception_nsxv3(exc, delay=0.5, max_delay=2, max_attempts=0):
+    if not max_attempts:
+        max_attempts = cfg.CONF.nsx_v3.retries
+    return retry_upon_exception(exc, delay, max_delay, max_attempts)
 
 
 def list_match(list1, list2):
