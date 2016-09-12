@@ -25,6 +25,7 @@ import vmware_nsx.shell.resources as shell
 
 from neutron.callbacks import registry
 from neutron_lib import exceptions
+from oslo_config import cfg
 
 from vmware_nsx._i18n import _LE, _LI
 from vmware_nsx.common import nsxv_constants
@@ -228,6 +229,27 @@ def change_edge_appliance(edge_id):
         change_edge_ha(az.edge_ha, edge_id)
 
 
+def change_edge_resourcepool(edge_id):
+    """Update the resource pool ID for the edge
+
+    Update the edge's resource pool ID. The resource pool ID is collected
+    from the ini file.
+    """
+    appliances = [{'resourcePoolId': cfg.CONF.nsxv.resource_pool_id,
+                   'datastoreId': cfg.CONF.nsxv.datastore_id}]
+    size = _get_edge_az_and_size(edge_id)[1]
+    if cfg.CONF.nsxv.ha_datastore_id:
+        appliances.append({'resourcePoolId': cfg.CONF.nsxv.resource_pool_id,
+                           'datastoreId': cfg.CONF.nsxv.ha_datastore_id})
+    request = {'appliances': appliances, 'applianceSize': size}
+    try:
+        nsxv.change_edge_appliance(edge_id, request)
+    except nsxv_exceptions.ResourceNotFound as e:
+        LOG.error(_LE("Edge %s not found"), edge_id)
+    except exceptions.NeutronException as e:
+        LOG.error(_LE("%s"), str(e))
+
+
 @admin_utils.output_header
 def nsx_update_edge(resource, event, trigger, **kwargs):
     """Update edge properties"""
@@ -258,6 +280,22 @@ def nsx_update_edge(resource, event, trigger, **kwargs):
         LOG.error(usage_msg)
 
 
+@admin_utils.output_header
+def nsx_update_edges(resource, event, trigger, **kwargs):
+    """Update all edges with the given property"""
+    usage_msg = _LE("Need to specify an attribute to update. "
+                    "Add --property resourcepool=<True/False>")
+    if not kwargs.get('property'):
+        LOG.error(usage_msg)
+        return
+
+    edges = utils.get_nsxv_backend_edges()
+    properties = admin_utils.parse_multi_keyval_opt(kwargs['property'])
+    for edge in edges:
+        if properties.get('resourcepool'):
+            change_edge_resourcepool(edge.get('edge-id'))
+
+
 registry.subscribe(nsx_list_edges,
                    constants.EDGES,
                    shell.Operations.NSX_LIST.value)
@@ -274,5 +312,8 @@ registry.subscribe(nsx_list_missing_edges,
                    constants.MISSING_EDGES,
                    shell.Operations.LIST.value)
 registry.subscribe(nsx_update_edge,
+                   constants.EDGES,
+                   shell.Operations.NSX_UPDATE.value)
+registry.subscribe(nsx_update_edges,
                    constants.EDGES,
                    shell.Operations.NSX_UPDATE.value)
