@@ -22,7 +22,7 @@ from neutron.tests.functional.db import test_migrations
 from neutron.tests.unit import testlib_api
 
 from vmware_nsx.db.migration import alembic_migrations
-from vmware_nsx.db.models import head
+from vmware_nsx.db.migration.models import head
 
 # EXTERNAL_TABLES should contain all names of tables that are not related to
 # current repo.
@@ -42,12 +42,13 @@ class _TestModelsMigrationsFoo(test_migrations._TestModelsMigrations):
         return head.get_metadata()
 
     def include_object(self, object_, name, type_, reflected, compare_to):
-        if type_ == 'table' and (name == 'alembic' or
+        if type_ == 'table' and (name.startswith('alembic') or
                                  name == alembic_migrations.VERSION_TABLE or
                                  name in EXTERNAL_TABLES):
             return False
-        else:
-            return True
+        if type_ == 'index' and reflected and name.startswith("idx_autoinc_"):
+            return False
+        return True
 
 
 class TestModelsMigrationsMysql(testlib_api.MySQLTestCaseMixin,
