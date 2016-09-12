@@ -22,11 +22,28 @@ from neutron.tests.functional.db import test_migrations
 from neutron.tests.unit import testlib_api
 
 from vmware_nsx.db.migration import alembic_migrations
-from vmware_nsx.db.models import head
+from vmware_nsx.db.migration.models import head
+
+#TODO(abhiraut): Remove this list from here once networking-l2gw forms its
+#                own list.
+# Add networking-l2gw tables to EXTERNAL_TABLES since they should not be
+# tested.
+REPO_L2GW_TABLES = [
+    'ucast_macs_remotes',
+    'ucast_macs_locals',
+    'physical_locators',
+    'physical_ports',
+    'vlan_bindings',
+    'l2gw_alembic_version',
+    'physical_switches',
+    'pending_ucast_macs_remotes',
+    'logical_switches',
+]
 
 # EXTERNAL_TABLES should contain all names of tables that are not related to
 # current repo.
-EXTERNAL_TABLES = set(external.TABLES) - set(external.REPO_VMWARE_TABLES)
+EXTERNAL_TABLES = (set(external.TABLES + REPO_L2GW_TABLES) -
+                   set(external.REPO_VMWARE_TABLES))
 
 
 class _TestModelsMigrationsFoo(test_migrations._TestModelsMigrations):
@@ -42,12 +59,13 @@ class _TestModelsMigrationsFoo(test_migrations._TestModelsMigrations):
         return head.get_metadata()
 
     def include_object(self, object_, name, type_, reflected, compare_to):
-        if type_ == 'table' and (name == 'alembic' or
+        if type_ == 'table' and (name.startswith('alembic') or
                                  name == alembic_migrations.VERSION_TABLE or
                                  name in EXTERNAL_TABLES):
             return False
-        else:
-            return True
+        if type_ == 'index' and reflected and name.startswith("idx_autoinc_"):
+            return False
+        return True
 
 
 class TestModelsMigrationsMysql(testlib_api.MySQLTestCaseMixin,
