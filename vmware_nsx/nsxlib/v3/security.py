@@ -15,7 +15,7 @@
 #    under the License.
 
 """
-NSX-V3 Plugin security integration module
+NSX-V3 Plugin security integration & Distributed Firewall module
 """
 
 from neutron_lib import constants
@@ -23,13 +23,13 @@ from oslo_config import cfg
 from oslo_log import log
 from oslo_utils import excutils
 
-from vmware_nsx._i18n import _LE
-from vmware_nsx.common import utils
-from vmware_nsx.db import nsx_models
-from vmware_nsx.extensions import secgroup_rule_local_ip_prefix
-from vmware_nsx.extensions import securitygrouplogging as sg_logging
-from vmware_nsx.nsxlib.v3 import dfw_api as firewall
+from vmware_nsx._i18n import _LE, _LW
+#Todo(asarfaty) remove the DB dependency from this file
+from vmware_nsx.db import db
+from vmware_nsx.nsxlib.v3 import client as nsxclient
 from vmware_nsx.nsxlib.v3 import exceptions
+from vmware_nsx.nsxlib.v3 import firewall_constants as firewall
+from vmware_nsx.nsxlib.v3 import utils
 
 
 LOG = log.getLogger(__name__)
@@ -41,8 +41,6 @@ PORT_SG_SCOPE = 'os-security-group'
 MAX_NSGROUPS_CRITERIA_TAGS = 10
 
 
-# XXX this method should be refactored to pull the common stuff out to
-# a security_group utils file.
 class Security(object):
 
     def _get_l4_protocol_name(self, protocol_number):
@@ -104,9 +102,9 @@ class Security(object):
         ip_protocol = sg_rule['ethertype'].upper()
         direction = self._get_direction(sg_rule)
 
-        if sg_rule.get(secgroup_rule_local_ip_prefix.LOCAL_IP_PREFIX):
+        if sg_rule.get(firewall.LOCAL_IP_PREFIX):
             local_ip_prefix = self.get_ip_cidr_reference(
-                sg_rule[secgroup_rule_local_ip_prefix.LOCAL_IP_PREFIX],
+                sg_rule[firewall.LOCAL_IP_PREFIX],
                 ip_protocol)
         else:
             local_ip_prefix = None
@@ -167,13 +165,12 @@ class Security(object):
             section_id, logging)
         self.update_section(section_id, rules=rules)
 
-    def update_security_group_on_backend(self, context, security_group):
-        nsgroup_id, section_id = self.get_sg_mappings(context.session,
-                                                      security_group['id'])
+    def update_security_group_on_backend(self, context, security_group,
+                                         nsgroup_id, section_id):
         name = self.get_nsgroup_name(security_group)
         description = security_group['description']
         logging = (cfg.CONF.nsx_v3.log_security_groups_allowed_traffic or
-                   security_group[sg_logging.LOGGING])
+                   security_group[firewall.LOGGING])
         rules = self._process_firewall_section_rules_logging_for_update(
             section_id, logging)
         self.update_nsgroup(nsgroup_id, name, description)
@@ -184,27 +181,6 @@ class Security(object):
         # for usability purposes.
         return '%(name)s - %(id)s' % security_group
 
-    # XXX remove db calls from nsxlib
-    def save_sg_rule_mappings(self, session, firewall_rules):
-        # REVISIT(roeyc): This method should take care db access only.
-        rules = [(rule['display_name'], rule['id']) for rule in firewall_rules]
-        with session.begin(subtransactions=True):
-            for neutron_id, nsx_id in rules:
-                mapping = nsx_models.NeutronNsxRuleMapping(
-                    neutron_id=neutron_id, nsx_id=nsx_id)
-                session.add(mapping)
-        return mapping
-
-    # XXX db calls should not be here...
-    def get_sg_mappings(self, session, sg_id):
-        nsgroup_mapping = session.query(
-            nsx_models.NeutronNsxSecurityGroupMapping
-        ).filter_by(neutron_id=sg_id).one()
-        section_mapping = session.query(
-            nsx_models.NeutronNsxFirewallSectionMapping
-        ).filter_by(neutron_id=sg_id).one()
-        return nsgroup_mapping.nsx_id, section_mapping.nsx_id
-
     def _get_remote_nsg_mapping(self, context, sg_rule, nsgroup_id):
         remote_nsgroup_id = None
         remote_group_id = sg_rule.get('remote_group_id')
@@ -212,8 +188,8 @@ class Security(object):
         if remote_group_id == sg_rule['security_group_id']:
             remote_nsgroup_id = nsgroup_id
         elif remote_group_id:
-            remote_nsgroup_id, s = self.get_sg_mappings(context.session,
-                                                        remote_group_id)
+            remote_nsgroup_id = db.get_nsx_security_group_id(context.session,
+                                                             remote_group_id)
         return remote_nsgroup_id
 
     def get_lport_tags_for_security_groups(self, secgroups):
@@ -233,13 +209,13 @@ class Security(object):
         added = set(updated) - set(original)
         removed = set(original) - set(updated)
         for sg_id in added:
-            nsgroup_id, s = self.get_sg_mappings(context.session, sg_id)
+            nsgroup_id = db.get_nsx_security_group_id(context.session, sg_id)
             try:
                 self.add_nsgroup_members(
                     nsgroup_id, firewall.LOGICAL_PORT, [lport_id])
             except exceptions.NSGroupIsFull:
                 for sg_id in added:
-                    nsgroup_id, s = self.get_sg_mappings(
+                    nsgroup_id = db.get_nsx_security_group_id(
                         context.session, sg_id)
                     # NOTE(roeyc): If the port was not added to the nsgroup
                     # yet, then this request will silently fail.
@@ -251,7 +227,7 @@ class Security(object):
                 with excutils.save_and_reraise_exception():
                     LOG.error(_LE("NSGroup %s doesn't exists"), nsgroup_id)
         for sg_id in removed:
-            nsgroup_id, s = self.get_sg_mappings(context.session, sg_id)
+            nsgroup_id = db.get_nsx_security_group_id(context.session, sg_id)
             self.remove_nsgroup_member(
                 nsgroup_id, firewall.LOGICAL_PORT, lport_id)
 
@@ -291,3 +267,200 @@ class Security(object):
                                    dhcp_client_rule_in,
                                    block_rule])
         return section['id']
+
+    def get_nsservice(self, resource_type, **properties):
+        service = {'resource_type': resource_type}
+        service.update(properties)
+        return {'service': service}
+
+    def get_nsgroup_port_tag_expression(self, scope, tag):
+        return {'resource_type': firewall.NSGROUP_TAG_EXPRESSION,
+                'target_type': firewall.LOGICAL_PORT,
+                'scope': scope,
+                'tag': tag}
+
+    def create_nsgroup(self, display_name, description, tags,
+                       membership_criteria=None):
+        body = {'display_name': display_name,
+                'description': description,
+                'tags': tags,
+                'members': []}
+        if membership_criteria:
+            body.update({'membership_criteria': [membership_criteria]})
+        return self.client.create('ns-groups', body)
+
+    def list_nsgroups(self):
+        return self.client.get(
+            'ns-groups?populate_references=false').get('results', [])
+
+    @utils.retry_upon_exception(exceptions.StaleRevision)
+    def update_nsgroup(self, nsgroup_id, display_name=None, description=None,
+                       membership_criteria=None, members=None):
+        nsgroup = self.read_nsgroup(nsgroup_id)
+        if display_name is not None:
+            nsgroup['display_name'] = display_name
+        if description is not None:
+            nsgroup['description'] = description
+        if members is not None:
+            nsgroup['members'] = members
+        if membership_criteria is not None:
+            nsgroup['membership_criteria'] = [membership_criteria]
+        return self.client.update(
+            'ns-groups/%s' % nsgroup_id, nsgroup)
+
+    def get_nsgroup_member_expression(self, target_type, target_id):
+        return {'resource_type': firewall.NSGROUP_SIMPLE_EXPRESSION,
+                'target_property': 'id',
+                'target_type': target_type,
+                'op': firewall.EQUALS,
+                'value': target_id}
+
+    @utils.retry_upon_exception(exceptions.ManagerError)
+    def _update_nsgroup_with_members(self, nsgroup_id, members, action):
+        members_update = 'ns-groups/%s?action=%s' % (nsgroup_id, action)
+        return self.client.create(members_update, members)
+
+    def add_nsgroup_members(self, nsgroup_id, target_type, target_ids):
+        members = []
+        for target_id in target_ids:
+            member_expr = self.get_nsgroup_member_expression(
+                target_type, target_id)
+            members.append(member_expr)
+        members = {'members': members}
+        try:
+            return self._update_nsgroup_with_members(
+                nsgroup_id, members, firewall.ADD_MEMBERS)
+        except (exceptions.StaleRevision, exceptions.ResourceNotFound):
+            raise
+        except exceptions.ManagerError:
+            # REVISIT(roeyc): A ManagerError might have been raised for a
+            # different reason, e.g - NSGroup does not exists.
+            LOG.warning(_LW("Failed to add %(target_type)s resources "
+                            "(%(target_ids))s to NSGroup %(nsgroup_id)s"),
+                        {'target_type': target_type,
+                         'target_ids': target_ids,
+                         'nsgroup_id': nsgroup_id})
+
+            raise exceptions.NSGroupIsFull(nsgroup_id=nsgroup_id)
+
+    def remove_nsgroup_member(self, nsgroup_id, target_type,
+                              target_id, verify=False):
+        member_expr = self.get_nsgroup_member_expression(
+            target_type, target_id)
+        members = {'members': [member_expr]}
+        try:
+            return self._update_nsgroup_with_members(
+                nsgroup_id, members, firewall.REMOVE_MEMBERS)
+        except exceptions.ManagerError:
+            if verify:
+                raise exceptions.NSGroupMemberNotFound(member_id=target_id,
+                                                       nsgroup_id=nsgroup_id)
+
+    def read_nsgroup(self, nsgroup_id):
+        return self.client.get(
+            'ns-groups/%s?populate_references=true' % nsgroup_id)
+
+    def delete_nsgroup(self, nsgroup_id):
+        try:
+            return self.client.delete(
+                'ns-groups/%s?force=true' % nsgroup_id)
+        # FIXME(roeyc): Should only except NotFound error.
+        except Exception:
+            LOG.debug("NSGroup %s does not exists for delete request.",
+                      nsgroup_id)
+
+    def _build_section(self, display_name, description, applied_tos, tags):
+        return {'display_name': display_name,
+                'description': description,
+                'stateful': True,
+                'section_type': firewall.LAYER3,
+                'applied_tos': [self.get_nsgroup_reference(t_id)
+                                for t_id in applied_tos],
+                'tags': tags}
+
+    def create_empty_section(self, display_name, description, applied_tos,
+                             tags, operation=firewall.INSERT_BOTTOM,
+                             other_section=None):
+        resource = 'firewall/sections?operation=%s' % operation
+        body = self._build_section(display_name, description,
+                                   applied_tos, tags)
+        if other_section:
+            resource += '&id=%s' % other_section
+        return self.client.create(resource, body)
+
+    @utils.retry_upon_exception(exceptions.StaleRevision)
+    def update_section(self, section_id, display_name=None, description=None,
+                       applied_tos=None, rules=None):
+        resource = 'firewall/sections/%s' % section_id
+        section = self.read_section(section_id)
+
+        if rules is not None:
+            resource += '?action=update_with_rules'
+            section.update({'rules': rules})
+        if display_name is not None:
+            section['display_name'] = display_name
+        if description is not None:
+            section['description'] = description
+        if applied_tos is not None:
+            section['applied_tos'] = [self.get_nsgroup_reference(nsg_id)
+                                      for nsg_id in applied_tos]
+        if rules is not None:
+            return nsxclient.create_resource(resource, section)
+        elif any(p is not None for p in (display_name, description,
+                                         applied_tos)):
+            return self.client.update(resource, section)
+
+    def read_section(self, section_id):
+        resource = 'firewall/sections/%s' % section_id
+        return self.client.get(resource)
+
+    def list_sections(self):
+        resource = 'firewall/sections'
+        return self.client.get(resource).get('results', [])
+
+    def delete_section(self, section_id):
+        resource = 'firewall/sections/%s?cascade=true' % section_id
+        return self.client.delete(resource)
+
+    def get_nsgroup_reference(self, nsgroup_id):
+        return {'target_id': nsgroup_id,
+                'target_type': firewall.NSGROUP}
+
+    def get_ip_cidr_reference(self, ip_cidr_block, ip_protocol):
+        target_type = (firewall.IPV4ADDRESS if ip_protocol == firewall.IPV4
+                       else firewall.IPV6ADDRESS)
+        return {'target_id': ip_cidr_block,
+                'target_type': target_type}
+
+    def get_firewall_rule_dict(self, display_name, source=None,
+                               destination=None,
+                               direction=firewall.IN_OUT,
+                               ip_protocol=firewall.IPV4_IPV6,
+                               service=None, action=firewall.ALLOW,
+                               logged=False):
+        return {'display_name': display_name,
+                'sources': [source] if source else [],
+                'destinations': [destination] if destination else [],
+                'direction': direction,
+                'ip_protocol': ip_protocol,
+                'services': [service] if service else [],
+                'action': action,
+                'logged': logged}
+
+    def add_rule_in_section(self, rule, section_id):
+        resource = 'firewall/sections/%s/rules' % section_id
+        params = '?operation=insert_bottom'
+        return self.client.create(resource + params, rule)
+
+    def add_rules_in_section(self, rules, section_id):
+        resource = 'firewall/sections/%s/rules' % section_id
+        params = '?action=create_multiple&operation=insert_bottom'
+        return self.client.create(resource + params, {'rules': rules})
+
+    def delete_rule(self, section_id, rule_id):
+        resource = 'firewall/sections/%s/rules/%s' % (section_id, rule_id)
+        return self.client.delete(resource)
+
+    def get_section_rules(self, section_id):
+        resource = 'firewall/sections/%s/rules' % section_id
+        return self.client.get(resource)
