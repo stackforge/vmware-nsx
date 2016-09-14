@@ -361,8 +361,26 @@ def save_sg_mappings(session, sg_id, nsgroup_id, section_id):
                                                       nsx_id=nsgroup_id))
 
 
+def get_sg_mappings(session, sg_id):
+    nsgroup_mapping = session.query(
+        nsx_models.NeutronNsxSecurityGroupMapping
+    ).filter_by(neutron_id=sg_id).one()
+    section_mapping = session.query(
+        nsx_models.NeutronNsxFirewallSectionMapping
+    ).filter_by(neutron_id=sg_id).one()
+    return nsgroup_mapping.nsx_id, section_mapping.nsx_id
+
+
 def get_sg_rule_mapping(session, rule_id):
     rule_mapping = session.query(
         nsx_models.NeutronNsxRuleMapping).filter_by(
         neutron_id=rule_id).one()
     return rule_mapping.nsx_id
+
+
+def save_sg_rule_mappings(session, rules):
+    with session.begin(subtransactions=True):
+        for neutron_id, nsx_id in rules:
+            mapping = nsx_models.NeutronNsxRuleMapping(
+                neutron_id=neutron_id, nsx_id=nsx_id)
+            session.add(mapping)

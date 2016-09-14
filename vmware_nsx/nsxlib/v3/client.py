@@ -19,6 +19,7 @@ import six.moves.urllib.parse as urlparse
 from oslo_config import cfg
 from oslo_log import log
 from oslo_serialization import jsonutils
+
 from vmware_nsx._i18n import _, _LW
 from vmware_nsx.nsxlib.v3 import exceptions
 
