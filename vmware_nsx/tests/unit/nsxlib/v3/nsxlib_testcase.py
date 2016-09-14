@@ -70,7 +70,7 @@ def _mock_nsxlib():
         side_effect=_return_id_key).start()
 
     mock.patch(
-        "vmware_nsx.nsxlib.v3.NsxLib._init_default_section",
+        "vmware_nsx.nsxlib.v3.NsxLib.init_default_section",
         side_effect=_return_id_key).start()
 
     mock.patch(
