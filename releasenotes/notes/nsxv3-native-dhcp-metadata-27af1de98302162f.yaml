@@ -1,0 +1,20 @@
+---
+prelude: >
+    The NSX-V3 plugin supports native DHCP and metadata services provided
+    by NSX backend.
+features:
+  - The NSX-V3 plugin version 1.1.0 allows users to use native DHCP and
+    metadata services provided by designated edge cluster in NSX backend
+    version 1.1.0.
+upgrade:
+  - Upgrade NSX backend from version 1.0.0 to version 1.1.0
+  - Create a DHCP-Profile and a Metadata-Proxy in NSX backend
+  - Stop Neutron
+  - Install version 1.1.0 Neutron plugin
+  - - Run admin tools to migrate version 1.0.0 objects to version 1.1.0 objects
+    - nsxadmin -r metadata-proxy -o nsx-update --property metadata_proxy_uuid=<UUID of Metadata-Proxy created in Step 2>
+    - nsxadmin -r dhcp-binding -o nsx-update --property dhcp_profile_uuid=<UUID of DHCP-Profile created in Step 2>
+  - Start Neutron
+  - Make sure /etc/nova/nova.conf has
+    metadata_proxy_shared_secret = <Secret of Metadata-Proxy created in Step 2>
+  - Restart VMs or ifdown/ifup their network interface to get new DHCP options
