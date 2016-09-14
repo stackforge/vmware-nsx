@@ -34,6 +34,7 @@ from oslo_log import log
 from oslo_service import loopingcall
 from requests import adapters
 from requests import exceptions as requests_exceptions
+
 from vmware_nsx._i18n import _, _LI, _LW
 from vmware_nsx.nsxlib.v3 import client as nsx_client
 from vmware_nsx.nsxlib.v3 import exceptions

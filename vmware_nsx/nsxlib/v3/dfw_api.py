@@ -20,9 +20,9 @@ NSX-V3 Distributed Firewall
 from oslo_log import log
 
 from vmware_nsx._i18n import _LW
-from vmware_nsx.common import utils
 from vmware_nsx.nsxlib.v3 import client as nsxclient
 from vmware_nsx.nsxlib.v3 import exceptions
+from vmware_nsx.nsxlib.v3 import utils
 
 LOG = log.getLogger(__name__)
 
@@ -99,7 +99,7 @@ class DfwApi(object):
         return self.client.get(
             'ns-groups?populate_references=false').get('results', [])
 
-    @utils.retry_upon_exception_nsxv3(exceptions.StaleRevision)
+    @utils.retry_upon_exception(exceptions.StaleRevision)
     def update_nsgroup(self, nsgroup_id, display_name=None, description=None,
                        membership_criteria=None, members=None):
         nsgroup = self.read_nsgroup(nsgroup_id)
@@ -121,7 +121,7 @@ class DfwApi(object):
                 'op': EQUALS,
                 'value': target_id}
 
-    @utils.retry_upon_exception_nsxv3(exceptions.ManagerError)
+    @utils.retry_upon_exception(exceptions.ManagerError)
     def _update_nsgroup_with_members(self, nsgroup_id, members, action):
         members_update = 'ns-groups/%s?action=%s' % (nsgroup_id, action)
         return self.client.create(members_update, members)
@@ -194,7 +194,7 @@ class DfwApi(object):
             resource += '&id=%s' % other_section
         return self.client.create(resource, body)
 
-    @utils.retry_upon_exception_nsxv3(exceptions.StaleRevision)
+    @utils.retry_upon_exception(exceptions.StaleRevision)
     def update_section(self, section_id, display_name=None, description=None,
                        applied_tos=None, rules=None):
         resource = 'firewall/sections/%s' % section_id

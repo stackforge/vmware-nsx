@@ -16,7 +16,7 @@
 from neutron import version
 from neutron_lib import exceptions as n_exc
 
-from vmware_nsx.common import utils
+from vmware_nsx.nsxlib.v3 import utils
 from vmware_nsx.tests.unit.nsx_v3 import test_plugin
 
 

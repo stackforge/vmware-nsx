@@ -24,12 +24,13 @@ from oslo_log import log
 from oslo_utils import excutils
 
 from vmware_nsx._i18n import _LE
-from vmware_nsx.common import utils
-from vmware_nsx.db import nsx_models
+#Todo(asarfaty) remove the DB dependency from this file
+from vmware_nsx.db import db
 from vmware_nsx.extensions import secgroup_rule_local_ip_prefix
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.nsxlib.v3 import dfw_api as firewall
 from vmware_nsx.nsxlib.v3 import exceptions
+from vmware_nsx.nsxlib.v3 import utils
 
 
 LOG = log.getLogger(__name__)
@@ -41,8 +42,6 @@ PORT_SG_SCOPE = 'os-security-group'
 MAX_NSGROUPS_CRITERIA_TAGS = 10
 
 
-# XXX this method should be refactored to pull the common stuff out to
-# a security_group utils file.
 class Security(object):
 
     def _get_l4_protocol_name(self, protocol_number):
@@ -167,9 +166,8 @@ class Security(object):
             section_id, logging)
         self.update_section(section_id, rules=rules)
 
-    def update_security_group_on_backend(self, context, security_group):
-        nsgroup_id, section_id = self.get_sg_mappings(context.session,
-                                                      security_group['id'])
+    def update_security_group_on_backend(self, context, security_group,
+                                         nsgroup_id, section_id):
         name = self.get_nsgroup_name(security_group)
         description = security_group['description']
         logging = (cfg.CONF.nsx_v3.log_security_groups_allowed_traffic or
@@ -184,27 +182,6 @@ class Security(object):
         # for usability purposes.
         return '%(name)s - %(id)s' % security_group
 
-    # XXX remove db calls from nsxlib
-    def save_sg_rule_mappings(self, session, firewall_rules):
-        # REVISIT(roeyc): This method should take care db access only.
-        rules = [(rule['display_name'], rule['id']) for rule in firewall_rules]
-        with session.begin(subtransactions=True):
-            for neutron_id, nsx_id in rules:
-                mapping = nsx_models.NeutronNsxRuleMapping(
-                    neutron_id=neutron_id, nsx_id=nsx_id)
-                session.add(mapping)
-        return mapping
-
-    # XXX db calls should not be here...
-    def get_sg_mappings(self, session, sg_id):
-        nsgroup_mapping = session.query(
-            nsx_models.NeutronNsxSecurityGroupMapping
-        ).filter_by(neutron_id=sg_id).one()
-        section_mapping = session.query(
-            nsx_models.NeutronNsxFirewallSectionMapping
-        ).filter_by(neutron_id=sg_id).one()
-        return nsgroup_mapping.nsx_id, section_mapping.nsx_id
-
     def _get_remote_nsg_mapping(self, context, sg_rule, nsgroup_id):
         remote_nsgroup_id = None
         remote_group_id = sg_rule.get('remote_group_id')
@@ -212,8 +189,8 @@ class Security(object):
         if remote_group_id == sg_rule['security_group_id']:
             remote_nsgroup_id = nsgroup_id
         elif remote_group_id:
-            remote_nsgroup_id, s = self.get_sg_mappings(context.session,
-                                                        remote_group_id)
+            remote_nsgroup_id = db.get_nsx_security_group_id(context.session,
+                                                             remote_group_id)
         return remote_nsgroup_id
 
     def get_lport_tags_for_security_groups(self, secgroups):
@@ -233,13 +210,13 @@ class Security(object):
         added = set(updated) - set(original)
         removed = set(original) - set(updated)
         for sg_id in added:
-            nsgroup_id, s = self.get_sg_mappings(context.session, sg_id)
+            nsgroup_id = db.get_nsx_security_group_id(context.session, sg_id)
             try:
                 self.add_nsgroup_members(
                     nsgroup_id, firewall.LOGICAL_PORT, [lport_id])
             except exceptions.NSGroupIsFull:
                 for sg_id in added:
-                    nsgroup_id, s = self.get_sg_mappings(
+                    nsgroup_id = db.get_nsx_security_group_id(
                         context.session, sg_id)
                     # NOTE(roeyc): If the port was not added to the nsgroup
                     # yet, then this request will silently fail.
@@ -251,7 +228,7 @@ class Security(object):
                 with excutils.save_and_reraise_exception():
                     LOG.error(_LE("NSGroup %s doesn't exists"), nsgroup_id)
         for sg_id in removed:
-            nsgroup_id, s = self.get_sg_mappings(context.session, sg_id)
+            nsgroup_id = db.get_nsx_security_group_id(context.session, sg_id)
             self.remove_nsgroup_member(
                 nsgroup_id, firewall.LOGICAL_PORT, lport_id)
 
