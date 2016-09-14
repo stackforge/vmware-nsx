@@ -32,8 +32,9 @@ from vmware_nsx.shell.admin.plugins.nsxv3.resources import ports
 from vmware_nsx.shell.admin.plugins.nsxv3.resources import utils as v3_utils
 from vmware_nsx.shell import resources as shell
 from vmware_nsx._i18n import _LE, _LW
-from vmware_nsx.nsxlib.v3 import dfw_api as firewall
+from vmware_nsx.nsxlib.v3 import firewall_constants as firewall
 from vmware_nsx.nsxlib.v3 import security
+from vmware_nsx.nsxlib.v3 import utils as nsxlib_utils
 
 LOG = logging.getLogger(__name__)
 
@@ -232,11 +233,11 @@ def fix_security_groups(resource, event, trigger, **kwargs):
         action = (firewall.DROP
                   if secgroup.get(provider_sg.PROVIDER)
                   else firewall.ALLOW)
-        rules = nsxlib.create_firewall_rules(
+        rules = plugin._create_firewall_rules(
             context_, fw_section['id'], nsgroup['id'],
             secgroup.get(sg_logging.LOGGING, False), action,
             secgroup['security_group_rules'])
-        nsxlib.save_sg_rule_mappings(context_.session, rules['rules'])
+        plugin.save_security_group_rule_mappings(context_, rules['rules'])
         # Add nsgroup to a nested group
         plugin.nsgroup_manager.add_nsgroup(nsgroup['id'])
 
@@ -252,7 +253,7 @@ def _update_ports_dynamic_criteria_tags():
         _, lport_id = neutron_db.get_lswitch_and_lport_id(port['id'])
         lport = port_client.get(lport_id)
         criteria_tags = nsxlib.get_lport_tags_for_security_groups(secgroups)
-        lport['tags'] = utils.update_v3_tags(
+        lport['tags'] = nsxlib_utils.update_v3_tags(
             lport.get('tags', []), criteria_tags)
         port_client._client.update(lport_id, body=lport)
 
