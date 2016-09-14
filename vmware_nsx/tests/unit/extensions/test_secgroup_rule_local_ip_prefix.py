@@ -125,6 +125,7 @@ class TestNSXv3ExtendedSGRule(test_nsxv3_plugin.NsxV3PluginTestCaseMixin,
     def test_create_rule_with_local_ip_prefix(self):
         sg_rules = [
             {'tenant_id': mock.ANY,
+             'project_id': mock.ANY,
              'id': mock.ANY,
              'port_range_min': None,
              'local_ip_prefix': '239.255.0.0/16',
@@ -149,4 +150,5 @@ class TestNSXv3ExtendedSGRule(test_nsxv3_plugin.NsxV3PluginTestCaseMixin,
                 mock.ANY,  # ns_group_id
                 False,  # logging
                 'ALLOW',  # action
-                sg_rules)  # sg_rules
+                sg_rules,  # sg_rules
+                mock.ANY)  # ruleid_2_remote_nsgroup_map
