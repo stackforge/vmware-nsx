@@ -214,8 +214,8 @@ def _get_client(client):
     return client or NSX3Client(_get_default_api_cluster())
 
 
-# NOTE(shihli): tmp until all refs use client class
-def _get_nsx_managers_from_conf():
+ # NOTE(shihli): tmp until all refs use client class
+ def _get_nsx_managers_from_conf():
     return cfg.CONF.nsx_v3.nsx_api_managers
 
 
