@@ -121,7 +121,7 @@ class DfwApi(object):
                 'op': EQUALS,
                 'value': target_id}
 
-    @utils.retry_upon_exception_nsxv3(exceptions.ManagerError)
+    @utils.retry_upon_exception_nsxv3(exceptions.StaleRevision)
     def _update_nsgroup_with_members(self, nsgroup_id, members, action):
         members_update = 'ns-groups/%s?action=%s' % (nsgroup_id, action)
         return self.client.create(members_update, members)
