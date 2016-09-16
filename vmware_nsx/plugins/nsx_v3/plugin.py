@@ -1057,11 +1057,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def update_subnet(self, context, subnet_id, subnet):
         updated_subnet = None
-        if (cfg.CONF.nsx_v3.native_dhcp_metadata and
-            'enable_dhcp' in subnet['subnet']):
+        if cfg.CONF.nsx_v3.native_dhcp_metadata:
             orig_subnet = self.get_subnet(context, subnet_id)
-            enable_dhcp = subnet['subnet']['enable_dhcp']
-            if orig_subnet['enable_dhcp'] != enable_dhcp:
+            enable_dhcp = subnet['subnet'].get('enable_dhcp')
+            if enable_dhcp and enable_dhcp != orig_subnet['enable_dhcp']:
                 lock = 'nsxv3_network_' + orig_subnet['network_id']
                 with locking.LockManager.get_lock(lock):
                     network = self._get_network(
@@ -1095,10 +1094,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             dns_servers = subnet['subnet'].get('dns_nameservers')
             gateway_ip = subnet['subnet'].get('gateway_ip')
             kwargs = {}
-            if (dns_servers and
-                dns_servers != updated_subnet['dns_nameservers']):
+            if dns_servers and dns_servers != orig_subnet['dns_nameservers']:
                 kwargs['dns_servers'] = dns_servers
-            if gateway_ip and gateway_ip != updated_subnet['gateway_ip']:
+            if gateway_ip and gateway_ip != orig_subnet['gateway_ip']:
                 kwargs['gateway_ip'] = gateway_ip
             if kwargs:
                 dhcp_service = nsx_db.get_nsx_service_binding(
