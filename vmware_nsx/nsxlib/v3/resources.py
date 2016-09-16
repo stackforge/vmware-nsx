@@ -474,18 +474,20 @@ class LogicalDhcpServer(AbstractRESTResource):
 
     def _construct_server(self, body, dhcp_profile_id=None, server_ip=None,
                           name=None, dns_servers=None, domain_name=None,
-                          gateway_ip=None, options=None, tags=None):
+                          gateway_ip=False, options=None, tags=None):
         if name:
             body['display_name'] = name
         if dhcp_profile_id:
             body['dhcp_profile_id'] = dhcp_profile_id
         if server_ip:
             body['ipv4_dhcp_server']['dhcp_server_ip'] = server_ip
-        if dns_servers:
+        if dns_servers is not None:
+            # Note that [] is valid for dns_servers, meaning delete it.
             body['ipv4_dhcp_server']['dns_nameservers'] = dns_servers
         if domain_name:
             body['ipv4_dhcp_server']['domain_name'] = domain_name
-        if gateway_ip:
+        if gateway_ip is not False:
+            # Note that None is valid for gateway_ip, meaning delete it.
             body['ipv4_dhcp_server']['gateway_ip'] = gateway_ip
         if options:
             body['ipv4_dhcp_server']['options'] = options
@@ -493,7 +495,7 @@ class LogicalDhcpServer(AbstractRESTResource):
             body['tags'] = tags
 
     def create(self, dhcp_profile_id, server_ip, name=None, dns_servers=None,
-               domain_name=None, gateway_ip=None, options=None, tags=None):
+               domain_name=None, gateway_ip=False, options=None, tags=None):
         body = {'ipv4_dhcp_server': {}}
         self._construct_server(body, dhcp_profile_id, server_ip, name,
                                dns_servers, domain_name, gateway_ip, options,
@@ -504,7 +506,7 @@ class LogicalDhcpServer(AbstractRESTResource):
         exceptions.StaleRevision,
         max_attempts=cfg.CONF.nsx_v3.retries)
     def update(self, uuid, dhcp_profile_id=None, server_ip=None, name=None,
-               dns_servers=None, domain_name=None, gateway_ip=None,
+               dns_servers=None, domain_name=None, gateway_ip=False,
                options=None, tags=None):
         body = self._client.get(uuid)
         self._construct_server(body, dhcp_profile_id, server_ip, name,
