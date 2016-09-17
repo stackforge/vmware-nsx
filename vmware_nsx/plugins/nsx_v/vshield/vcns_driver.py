@@ -32,7 +32,6 @@ LOG = logging.getLogger(__name__)
 class VcnsDriver(edge_appliance_driver.EdgeApplianceDriver,
                  lbaas_v2.EdgeLoadbalancerDriverV2,
                  edge_firewall_driver.EdgeFirewallDriver):
-
     def __init__(self, callbacks):
         super(VcnsDriver, self).__init__()
 
