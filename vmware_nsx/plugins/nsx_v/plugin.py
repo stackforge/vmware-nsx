@@ -192,7 +192,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 'security-group' in self.supported_extension_aliases}}
         # Create the client to interface with the NSX-v
         _nsx_v_callbacks = edge_utils.NsxVCallbacks(self)
-        self.nsx_v = vcns_driver.VcnsDriver(_nsx_v_callbacks)
+        self.nsx_v = vcns_driver.VcnsDriver(callbacks=_nsx_v_callbacks)
         # Ensure that edges do concurrency
         self._ensure_lock_operations()
         # Configure aggregate publishing

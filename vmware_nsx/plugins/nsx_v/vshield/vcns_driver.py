@@ -33,10 +33,10 @@ class VcnsDriver(edge_appliance_driver.EdgeApplianceDriver,
                  lbaas_v2.EdgeLoadbalancerDriverV2,
                  edge_firewall_driver.EdgeFirewallDriver):
 
-    def __init__(self, callbacks):
-        super(VcnsDriver, self).__init__()
+    def __init__(self, *args, **kwargs):
+        super(VcnsDriver, self).__init__(*args, **kwargs)
 
-        self.callbacks = callbacks
+        self.callbacks = kwargs.get('callbacks')
         self.vcns_uri = cfg.CONF.nsxv.manager_uri
         self.vcns_user = cfg.CONF.nsxv.user
         self.vcns_passwd = cfg.CONF.nsxv.password
