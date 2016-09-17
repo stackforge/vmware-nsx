@@ -34,7 +34,7 @@ class VcnsDriver(edge_appliance_driver.EdgeApplianceDriver,
                  edge_firewall_driver.EdgeFirewallDriver):
 
     def __init__(self, callbacks):
-        super(VcnsDriver, self).__init__()
+        #super(VcnsDriver, self).__init__()
 
         self.callbacks = callbacks
         self.vcns_uri = cfg.CONF.nsxv.manager_uri
