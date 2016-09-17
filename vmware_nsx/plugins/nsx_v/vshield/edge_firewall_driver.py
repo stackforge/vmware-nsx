@@ -30,7 +30,7 @@ FWAAS_ALLOW = "allow"
 FWAAS_DENY = "deny"
 
 
-class EdgeFirewallDriver(db_base_plugin_v2.NeutronDbPluginV2):
+class EdgeFirewallDriver(object):
     """Implementation of driver APIs for
        Edge Firewall feature configuration
     """
