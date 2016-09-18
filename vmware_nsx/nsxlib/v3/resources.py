@@ -20,7 +20,6 @@ import six
 from oslo_config import cfg
 
 from vmware_nsx._i18n import _
-from vmware_nsx.nsxlib.v3 import client
 from vmware_nsx.nsxlib.v3 import exceptions
 from vmware_nsx.nsxlib.v3 import nsx_constants
 from vmware_nsx.nsxlib.v3 import utils
@@ -414,7 +413,7 @@ class LogicalRouterPort(AbstractRESTResource):
             err_msg = (_("Logical router link port not found on logical "
                          "switch %s") % logical_switch_id)
             raise exceptions.ResourceNotFound(
-                manager=client._get_nsx_managers_from_conf(),
+                manager=self._client.nsx_api_managers,
                 operation=err_msg)
 
     def update_by_lswitch_id(self, logical_router_id, ls_id, **payload):
@@ -436,7 +435,7 @@ class LogicalRouterPort(AbstractRESTResource):
             if port['resource_type'] == nsx_constants.LROUTERPORT_LINKONTIER1:
                 return port
         raise exceptions.ResourceNotFound(
-            manager=client._get_nsx_managers_from_conf(),
+            manager=self._client.nsx_api_managers,
             operation="get router link port")
 
 
