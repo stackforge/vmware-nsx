@@ -17,7 +17,6 @@ import retrying
 
 from neutron import version as n_version
 from neutron_lib import exceptions
-from oslo_config import cfg
 from oslo_log import log
 
 from vmware_nsx._i18n import _
@@ -112,10 +111,8 @@ def update_v3_tags(current_tags, tags_update):
     return tags
 
 
-#Todo(asarfaty): figure out a way to use an NsxLib class variable in the
-#retry decorator instread of the configuration one
-def retry_upon_exception(exc, delay=500, max_delay=2000,
-                         max_attempts=cfg.CONF.nsx_v3.retries):
+def retry_upon_exception(exc, delay=500, max_delay=2000, max_attempts=10):
+    #print "DEBUG ADIT retry_upon_exception =%s"%max_attempts
     return retrying.retry(retry_on_exception=lambda e: isinstance(e, exc),
                           wait_exponential_multiplier=delay,
                           wait_exponential_max=max_delay,

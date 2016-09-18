@@ -16,7 +16,6 @@
 import requests
 import six.moves.urllib.parse as urlparse
 
-from oslo_config import cfg
 from oslo_log import log
 from oslo_serialization import jsonutils
 from vmware_nsx._i18n import _, _LW
@@ -26,6 +25,7 @@ LOG = log.getLogger(__name__)
 
 ERRORS = {requests.codes.NOT_FOUND: exceptions.ResourceNotFound,
           requests.codes.PRECONDITION_FAILED: exceptions.StaleRevision}
+DEFAULT_MAX_ATTEMPTS = 10
 
 
 class RESTClient(object):
@@ -38,10 +38,12 @@ class RESTClient(object):
     }
 
     def __init__(self, connection, url_prefix=None,
-                 default_headers=None):
+                 default_headers=None,
+                 nsx_api_managers=None):
         self._conn = connection
         self._url_prefix = url_prefix or ""
         self._default_headers = default_headers or {}
+        self.nsx_api_managers = nsx_api_managers or []
 
     def new_client_for(self, *uri_segments):
         uri = self._build_url('/'.join(uri_segments))
@@ -102,7 +104,7 @@ class RESTClient(object):
                     result_msg += " relatedErrors: %s" % ' '.join(
                         related_errors)
             raise manager_error(
-                manager=_get_nsx_managers_from_conf(),
+                manager=self.nsx_api_managers,
                 operation=operation,
                 details=result_msg)
 
@@ -155,13 +157,15 @@ class JSONRESTClient(RESTClient):
     }
 
     def __init__(self, connection, url_prefix=None,
-                 default_headers=None):
+                 default_headers=None,
+                 nsx_api_managers=None):
 
         super(JSONRESTClient, self).__init__(
             connection,
             url_prefix=url_prefix,
             default_headers=RESTClient.merge_headers(
-                JSONRESTClient._DEFAULT_HEADERS, default_headers))
+                JSONRESTClient._DEFAULT_HEADERS, default_headers),
+            nsx_api_managers=nsx_api_managers)
 
     def _rest_call(self, *args, **kwargs):
         if kwargs.get('body') is not None:
@@ -175,7 +179,9 @@ class NSX3Client(JSONRESTClient):
     _NSX_V1_API_PREFIX = 'api/v1/'
 
     def __init__(self, connection, url_prefix=None,
-                 default_headers=None):
+                 default_headers=None,
+                 nsx_api_managers=None,
+                 max_attempts=DEFAULT_MAX_ATTEMPTS):
 
         url_prefix = url_prefix or NSX3Client._NSX_V1_API_PREFIX
         if url_prefix and NSX3Client._NSX_V1_API_PREFIX not in url_prefix:
@@ -184,52 +190,9 @@ class NSX3Client(JSONRESTClient):
             else:
                 url_prefix = "%s/%s" % (NSX3Client._NSX_V1_API_PREFIX,
                                         url_prefix or '')
+        self.max_attempts = max_attempts
 
         super(NSX3Client, self).__init__(
             connection, url_prefix=url_prefix,
-            default_headers=default_headers)
-
-
-# TODO(boden): remove mod level fns and vars below
-_DEFAULT_API_CLUSTER = None
-
-
-def _get_default_api_cluster():
-    global _DEFAULT_API_CLUSTER
-    if _DEFAULT_API_CLUSTER is None:
-        # removes circular ref between client / cluster
-        import vmware_nsx.nsxlib.v3.cluster as nsx_cluster
-        _DEFAULT_API_CLUSTER = nsx_cluster.NSXClusteredAPI()
-    return _DEFAULT_API_CLUSTER
-
-
-def _set_default_api_cluster(cluster):
-    global _DEFAULT_API_CLUSTER
-    old = _DEFAULT_API_CLUSTER
-    _DEFAULT_API_CLUSTER = cluster
-    return old
-
-
-def _get_client(client):
-    return client or NSX3Client(_get_default_api_cluster())
-
-
-# NOTE(shihli): tmp until all refs use client class
-def _get_nsx_managers_from_conf():
-    return cfg.CONF.nsx_v3.nsx_api_managers
-
-
-def get_resource(resource, client=None):
-    return _get_client(client).get(resource)
-
-
-def create_resource(resource, data, client=None):
-    return _get_client(client).url_post(resource, body=data)
-
-
-def update_resource(resource, data, client=None):
-    return _get_client(client).update(resource, body=data)
-
-
-def delete_resource(resource, client=None):
-    return _get_client(client).delete(resource)
+            default_headers=default_headers,
+            nsx_api_managers=nsx_api_managers)

@@ -29,7 +29,6 @@ from eventlet import pools
 from neutron.callbacks import events
 from neutron.callbacks import registry
 from neutron.callbacks import resources
-from oslo_config import cfg
 from oslo_log import log
 from oslo_service import loopingcall
 from requests import adapters
@@ -89,9 +88,9 @@ class TimeoutSession(requests.Session):
     at the session level.
     """
 
-    def __init__(self, timeout=None, read_timeout=None):
-        self.timeout = timeout or cfg.CONF.nsx_v3.http_timeout
-        self.read_timeout = read_timeout or cfg.CONF.nsx_v3.http_read_timeout
+    def __init__(self, timeout, read_timeout):
+        self.timeout = timeout
+        self.read_timeout = read_timeout
         super(TimeoutSession, self).__init__()
 
     # wrapper timeouts at the session level
@@ -458,19 +457,18 @@ class NSXClusteredAPI(ClusteredAPI):
                  http_timeout=None,
                  http_read_timeout=None,
                  conn_idle_timeout=None,
-                 http_provider=None):
-        self.username = username or cfg.CONF.nsx_v3.nsx_api_user
-        self.password = password or cfg.CONF.nsx_v3.nsx_api_password
-        self.retries = retries or cfg.CONF.nsx_v3.http_retries
-        self.insecure = insecure or cfg.CONF.nsx_v3.insecure
-        self.ca_file = ca_file or cfg.CONF.nsx_v3.ca_file
-        self.conns_per_pool = (concurrent_connections or
-                               cfg.CONF.nsx_v3.concurrent_connections)
-        self.http_timeout = http_timeout or cfg.CONF.nsx_v3.http_timeout
-        self.http_read_timeout = (http_read_timeout or
-                                  cfg.CONF.nsx_v3.http_read_timeout)
-        self.conn_idle_timeout = (conn_idle_timeout or
-                                  cfg.CONF.nsx_v3.conn_idle_timeout)
+                 http_provider=None,
+                 nsx_api_managers=None):
+        self.username = username
+        self.password = password
+        self.retries = retries
+        self.insecure = insecure
+        self.ca_file = ca_file
+        self.conns_per_pool = concurrent_connections
+        self.http_timeout = http_timeout
+        self.http_read_timeout = http_read_timeout
+        self.conn_idle_timeout = conn_idle_timeout
+        self.nsx_api_managers = nsx_api_managers
 
         self._http_provider = http_provider or NSXRequestsHTTPProvider()
 
@@ -491,7 +489,7 @@ class NSXClusteredAPI(ClusteredAPI):
                 uri if uri.startswith('http') else
                 "%s://%s" % (self._http_provider.default_scheme, uri))
 
-        conf_urls = cfg.CONF.nsx_v3.nsx_api_managers[:]
+        conf_urls = self.nsx_api_managers[:]
         urls = []
         providers = []
 
