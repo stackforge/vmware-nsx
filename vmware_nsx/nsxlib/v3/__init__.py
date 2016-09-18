@@ -39,9 +39,10 @@ class NsxLib(security.Security):
                  http_read_timeout=None,
                  conn_idle_timeout=None,
                  http_provider=None,
-                 max_attempts=0):
+                 max_attempts=0,
+                 nsx_api_managers=None):
 
-        #Todo(asarfaty) use max_attempts instead of cfg value
+        self.max_attempts = max_attempts
 
         # create the Cluster
         self.cluster = cluster.NSXClusteredAPI(
@@ -52,7 +53,8 @@ class NsxLib(security.Security):
             http_timeout=http_timeout,
             http_read_timeout=http_read_timeout,
             conn_idle_timeout=conn_idle_timeout,
-            http_provider=http_provider)
+            http_provider=http_provider,
+            nsx_api_managers=nsx_api_managers)
 
         # create the Client
         self.client = client.NSX3Client(self.cluster)
@@ -68,12 +70,17 @@ class NsxLib(security.Security):
         resource = "edge-clusters/%s" % edge_cluster_uuid
         return self.client.get(resource)
 
-    @utils.retry_upon_exception(exceptions.StaleRevision)
     def update_resource_with_retry(self, resource, payload):
+        #Using internal method so we can access max_attempts in the decorator
+        @utils.retry_upon_exception(exceptions.StaleRevision,
+                                    max_attempts=self.max_attempts)
+        def update_resource_int(client, resource, revised_payload):
+            return client.update(resource, revised_payload)
+
         revised_payload = self.client.get(resource)
         for key_name in payload.keys():
             revised_payload[key_name] = payload[key_name]
-        return self.client.update(resource, revised_payload)
+        return update_resource_int(self.client, resource, revised_payload)
 
     def delete_resource_by_values(self, resource,
                                   skip_not_found=True, **kwargs):
@@ -95,7 +102,7 @@ class NsxLib(security.Security):
                              "%(values)s") % {'res': resource,
                                               'values': kwargs})
                 raise exceptions.ResourceNotFound(
-                    manager=client._get_nsx_managers_from_conf(),
+                    manager=self.cluster.nsx_api_managers,
                     operation=err_msg)
         elif matched_num > 1:
             LOG.warning(_LW("%(num)s resources in %(res)s matched for values: "
@@ -126,18 +133,29 @@ class NsxLib(security.Security):
 
         return self.client.create(resource, body)
 
-    @utils.retry_upon_exception(exceptions.StaleRevision)
     def delete_logical_switch(self, lswitch_id):
-        resource = 'logical-switches/%s?detach=true&cascade=true' % lswitch_id
-        self.client.delete(resource)
+        #Using internal method so we can access max_attempts in the decorator
+        @utils.retry_upon_exception(exceptions.StaleRevision,
+                                    max_attempts=self.max_attempts)
+        def delete_logical_switch_int(client, lswitch_id):
+            resource = ('logical-switches/%s?detach=true&cascade=true' %
+                        lswitch_id)
+            client.delete(resource)
+
+        return delete_logical_switch_int(self.client, lswitch_id)
 
     def get_logical_switch(self, logical_switch_id):
         resource = "logical-switches/%s" % logical_switch_id
         return self.client.get(resource)
 
-    @utils.retry_upon_exception(exceptions.StaleRevision)
     def update_logical_switch(self, lswitch_id, name=None, admin_state=None,
                               tags=None):
+        #Using internal method so we can access max_attempts in the decorator
+        @utils.retry_upon_exception(exceptions.StaleRevision,
+                                    max_attempts=self.max_attempts)
+        def update_logical_switch_int(client, resource, lswitch):
+            return client.update(resource, lswitch)
+
         resource = "logical-switches/%s" % lswitch_id
         lswitch = self.get_logical_switch(lswitch_id)
         if name is not None:
@@ -149,7 +167,7 @@ class NsxLib(security.Security):
                 lswitch['admin_state'] = nsx_constants.ADMIN_STATE_DOWN
         if tags is not None:
             lswitch['tags'] = tags
-        return self.client.update(resource, lswitch)
+        return update_logical_switch_int(self.client, resource, lswitch)
 
     def add_nat_rule(self, logical_router_id, action, translated_network,
                      source_net=None, dest_net=None,

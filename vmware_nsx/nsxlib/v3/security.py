@@ -23,7 +23,6 @@ from oslo_log import log
 from oslo_utils import excutils
 
 from vmware_nsx._i18n import _LE, _LW
-from vmware_nsx.nsxlib.v3 import client as nsxclient
 from vmware_nsx.nsxlib.v3 import exceptions
 from vmware_nsx.nsxlib.v3 import firewall_constants as firewall
 from vmware_nsx.nsxlib.v3 import utils
@@ -385,7 +384,7 @@ class Security(object):
             section['applied_tos'] = [self.get_nsgroup_reference(nsg_id)
                                       for nsg_id in applied_tos]
         if rules is not None:
-            return nsxclient.create_resource(resource, section)
+            return self.client.create(resource, section)
         elif any(p is not None for p in (display_name, description,
                                          applied_tos)):
             return self.client.update(resource, section)
