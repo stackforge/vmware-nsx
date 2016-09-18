@@ -279,6 +279,7 @@ class NsxV3Driver(base_driver.TaasBaseDriver,
             context._plugin_context.session, dest_port_id)
         # Create port mirror session on the backend
         try:
+            # DEBUG ADIT use NSXLIB wrapper !!!
             pm_session = nsxlib.NsxLib().create_port_mirror_session(
                 source_ports=nsx_src_ports,
                 dest_ports=nsx_dest_ports,
@@ -305,6 +306,7 @@ class NsxV3Driver(base_driver.TaasBaseDriver,
                 LOG.error(_LE("Unable to create port mirror session db "
                               "mappings for tap flow %s. Rolling back "
                               "changes in Neutron."), tf['id'])
+                # DEBUG ADIT use NSXLIB wrapper !!!
                 nsxlib.NsxLib().delete_port_mirror_session(pm_session['id'])
 
     def delete_tap_flow_precommit(self, context):

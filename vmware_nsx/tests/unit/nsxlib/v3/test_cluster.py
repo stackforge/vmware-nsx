@@ -95,7 +95,9 @@ class NsxV3ClusteredAPITestCase(nsxlib_testcase.NsxClientTestCase):
         mock_provider.default_scheme = 'https'
         mock_provider.validate_connection = _validate_conn_up
 
-        api = cluster.NSXClusteredAPI(http_provider=mock_provider)
+        api = cluster.NSXClusteredAPI(
+            http_provider=mock_provider,
+            nsx_api_managers=cfg.CONF.nsx_v3.nsx_api_managers)
 
         self._assert_providers(
             api, [(p, "https://%s" % p) for p in conf_managers])
@@ -109,7 +111,9 @@ class NsxV3ClusteredAPITestCase(nsxlib_testcase.NsxClientTestCase):
         mock_provider.default_scheme = 'https'
         mock_provider.validate_connection = _validate_conn_up
 
-        api = cluster.NSXClusteredAPI(http_provider=mock_provider)
+        api = cluster.NSXClusteredAPI(
+            http_provider=mock_provider,
+            nsx_api_managers=cfg.CONF.nsx_v3.nsx_api_managers)
 
         self._assert_providers(
             api, [(urlparse.urlparse(p).netloc, p) for p in conf_managers])
@@ -134,7 +138,9 @@ class NsxV3ClusteredAPITestCase(nsxlib_testcase.NsxClientTestCase):
         mock_provider.default_scheme = 'https'
         mock_provider.validate_connection = _validate_conn_up
 
-        api = cluster.NSXClusteredAPI(http_provider=mock_provider)
+        api = cluster.NSXClusteredAPI(
+            http_provider=mock_provider,
+            nsx_api_managers=cfg.CONF.nsx_v3.nsx_api_managers)
 
         for ep_id, ep in api.endpoints.items():
             self.assertEqual(ep.pool.max_size, 11)
@@ -163,7 +169,9 @@ class ClusteredAPITestCase(nsxlib_testcase.NsxClientTestCase):
         mock_provider.default_scheme = 'https'
 
         mock_provider.validate_connection = validate_fn
-        api = cluster.NSXClusteredAPI(http_provider=mock_provider)
+        api = cluster.NSXClusteredAPI(
+            http_provider=mock_provider,
+            nsx_api_managers=cfg.CONF.nsx_v3.nsx_api_managers)
         self.assertEqual(api.health, expected_health)
 
     def test_orange_health(self):
@@ -189,7 +197,9 @@ class ClusteredAPITestCase(nsxlib_testcase.NsxClientTestCase):
         mock_provider.default_scheme = 'https'
 
         mock_provider.validate_connection = _validate_conn_down
-        api = cluster.NSXClusteredAPI(http_provider=mock_provider)
+        api = cluster.NSXClusteredAPI(
+            http_provider=mock_provider,
+            nsx_api_managers=cfg.CONF.nsx_v3.nsx_api_managers)
 
         self.assertEqual(len(api.endpoints), 3)
         self.assertRaises(nsxlib_exc.ServiceClusterUnavailable,

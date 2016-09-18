@@ -39,7 +39,8 @@ def get_connected_nsxlib():
         http_read_timeout=cfg.CONF.nsx_v3.http_read_timeout,
         conn_idle_timeout=cfg.CONF.nsx_v3.conn_idle_timeout,
         http_provider=None,
-        max_attempts=cfg.CONF.nsx_v3.retries)
+        max_attempts=cfg.CONF.nsx_v3.retries,
+        nsx_api_managers=cfg.CONF.nsx_v3.nsx_api_managers)
 
 
 class NeutronDbClient(db_base_plugin_v2.NeutronDbPluginV2):

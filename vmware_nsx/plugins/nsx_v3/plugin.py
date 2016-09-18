@@ -176,7 +176,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             http_read_timeout=cfg.CONF.nsx_v3.http_read_timeout,
             conn_idle_timeout=cfg.CONF.nsx_v3.conn_idle_timeout,
             http_provider=None,
-            max_attempts=cfg.CONF.nsx_v3.retries)
+            max_attempts=cfg.CONF.nsx_v3.retries,
+            nsx_api_managers=cfg.CONF.nsx_v3.nsx_api_managers)
 
         self._nsx_version = self.nsxlib.get_version()
         LOG.info(_LI("NSX Version: %s"), self._nsx_version)

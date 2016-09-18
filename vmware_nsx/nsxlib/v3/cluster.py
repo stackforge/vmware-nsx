@@ -458,7 +458,8 @@ class NSXClusteredAPI(ClusteredAPI):
                  http_timeout=None,
                  http_read_timeout=None,
                  conn_idle_timeout=None,
-                 http_provider=None):
+                 http_provider=None,
+                 nsx_api_managers=None):
         self.username = username or cfg.CONF.nsx_v3.nsx_api_user
         self.password = password or cfg.CONF.nsx_v3.nsx_api_password
         self.retries = retries or cfg.CONF.nsx_v3.http_retries
@@ -471,6 +472,7 @@ class NSXClusteredAPI(ClusteredAPI):
                                   cfg.CONF.nsx_v3.http_read_timeout)
         self.conn_idle_timeout = (conn_idle_timeout or
                                   cfg.CONF.nsx_v3.conn_idle_timeout)
+        self.nsx_api_managers = nsx_api_managers or []
 
         self._http_provider = http_provider or NSXRequestsHTTPProvider()
 
@@ -491,7 +493,7 @@ class NSXClusteredAPI(ClusteredAPI):
                 uri if uri.startswith('http') else
                 "%s://%s" % (self._http_provider.default_scheme, uri))
 
-        conf_urls = cfg.CONF.nsx_v3.nsx_api_managers[:]
+        conf_urls = self.nsx_api_managers[:]
         urls = []
         providers = []
 

@@ -193,7 +193,8 @@ class NsxClientTestCase(NsxLibTestCase):
         def __init__(self, session_response=None):
             super(NsxClientTestCase.MockNSXClusteredAPI, self).__init__(
                 http_provider=NsxClientTestCase.MockHTTPProvider(
-                    session_response=session_response))
+                    session_response=session_response),
+                nsx_api_managers=cfg.CONF.nsx_v3.nsx_api_managers)
             self._record = mock.Mock()
 
         def record_call(self, request, **kwargs):

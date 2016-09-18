@@ -39,7 +39,8 @@ class NsxLib(security.Security):
                  http_read_timeout=None,
                  conn_idle_timeout=None,
                  http_provider=None,
-                 max_attempts=0):
+                 max_attempts=0,
+                 nsx_api_managers=None):
 
         #Todo(asarfaty) use max_attempts instead of cfg value
 
@@ -52,7 +53,8 @@ class NsxLib(security.Security):
             http_timeout=http_timeout,
             http_read_timeout=http_read_timeout,
             conn_idle_timeout=conn_idle_timeout,
-            http_provider=http_provider)
+            http_provider=http_provider,
+            nsx_api_managers=nsx_api_managers)
 
         # create the Client
         self.client = client.NSX3Client(self.cluster)
@@ -95,7 +97,7 @@ class NsxLib(security.Security):
                              "%(values)s") % {'res': resource,
                                               'values': kwargs})
                 raise exceptions.ResourceNotFound(
-                    manager=client._get_nsx_managers_from_conf(),
+                    manager=self.cluster.nsx_api_managers,
                     operation=err_msg)
         elif matched_num > 1:
             LOG.warning(_LW("%(num)s resources in %(res)s matched for values: "

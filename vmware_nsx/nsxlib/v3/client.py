@@ -16,7 +16,6 @@
 import requests
 import six.moves.urllib.parse as urlparse
 
-from oslo_config import cfg
 from oslo_log import log
 from oslo_serialization import jsonutils
 from vmware_nsx._i18n import _, _LW
@@ -38,10 +37,12 @@ class RESTClient(object):
     }
 
     def __init__(self, connection, url_prefix=None,
-                 default_headers=None):
+                 default_headers=None,
+                 nsx_api_managers=None):
         self._conn = connection
         self._url_prefix = url_prefix or ""
         self._default_headers = default_headers or {}
+        self.nsx_api_managers = nsx_api_managers or []
 
     def new_client_for(self, *uri_segments):
         uri = self._build_url('/'.join(uri_segments))
@@ -102,7 +103,7 @@ class RESTClient(object):
                     result_msg += " relatedErrors: %s" % ' '.join(
                         related_errors)
             raise manager_error(
-                manager=_get_nsx_managers_from_conf(),
+                manager=self.nsx_api_managers,
                 operation=operation,
                 details=result_msg)
 
@@ -155,13 +156,15 @@ class JSONRESTClient(RESTClient):
     }
 
     def __init__(self, connection, url_prefix=None,
-                 default_headers=None):
+                 default_headers=None,
+                 nsx_api_managers=None):
 
         super(JSONRESTClient, self).__init__(
             connection,
             url_prefix=url_prefix,
             default_headers=RESTClient.merge_headers(
-                JSONRESTClient._DEFAULT_HEADERS, default_headers))
+                JSONRESTClient._DEFAULT_HEADERS, default_headers),
+            nsx_api_managers=nsx_api_managers)
 
     def _rest_call(self, *args, **kwargs):
         if kwargs.get('body') is not None:
@@ -175,7 +178,8 @@ class NSX3Client(JSONRESTClient):
     _NSX_V1_API_PREFIX = 'api/v1/'
 
     def __init__(self, connection, url_prefix=None,
-                 default_headers=None):
+                 default_headers=None,
+                 nsx_api_managers=None):
 
         url_prefix = url_prefix or NSX3Client._NSX_V1_API_PREFIX
         if url_prefix and NSX3Client._NSX_V1_API_PREFIX not in url_prefix:
@@ -187,13 +191,15 @@ class NSX3Client(JSONRESTClient):
 
         super(NSX3Client, self).__init__(
             connection, url_prefix=url_prefix,
-            default_headers=default_headers)
+            default_headers=default_headers,
+            nsx_api_managers=nsx_api_managers)
 
 
 # TODO(boden): remove mod level fns and vars below
 _DEFAULT_API_CLUSTER = None
 
 
+# DEBUG ADIT ???
 def _get_default_api_cluster():
     global _DEFAULT_API_CLUSTER
     if _DEFAULT_API_CLUSTER is None:
@@ -212,11 +218,6 @@ def _set_default_api_cluster(cluster):
 
 def _get_client(client):
     return client or NSX3Client(_get_default_api_cluster())
-
-
-# NOTE(shihli): tmp until all refs use client class
-def _get_nsx_managers_from_conf():
-    return cfg.CONF.nsx_v3.nsx_api_managers
 
 
 def get_resource(resource, client=None):
