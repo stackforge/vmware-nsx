@@ -107,15 +107,15 @@ def _mock_nsx_backend_calls():
         side_effect=_return_id_key).start()
 
     mock.patch(
-        "vmware_nsx.nsxlib.v3.NsxLib.get_bridge_cluster_id_by_name_or_id",
+        "vmware_nsx.nsxlib.v3.NsxLib.bridge_cluster.get_id_by_name_or_id",
         return_value=uuidutils.generate_uuid()).start()
 
     mock.patch(
-        "vmware_nsx.nsxlib.v3.NsxLib.create_bridge_endpoint",
+        "vmware_nsx.nsxlib.v3.NsxLib.bridge_endpoint.create",
         side_effect=_return_id_key).start()
 
     mock.patch(
-        "vmware_nsx.nsxlib.v3.NsxLib.create_logical_switch",
+        "vmware_nsx.nsxlib.v3.NsxLib.logical_switch.create",
         side_effect=_return_id_key).start()
 
     mock.patch(

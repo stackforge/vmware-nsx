@@ -250,21 +250,21 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # default VLAN transport zone name / uuid
         self._default_vlan_tz_uuid = None
         if cfg.CONF.nsx_v3.default_vlan_tz:
-            tz_id = self.nsxlib.get_transport_zone_id_by_name_or_id(
+            tz_id = self.nsxlib.transport_zone.get_id_by_name_or_id(
                 cfg.CONF.nsx_v3.default_vlan_tz)
             self._default_vlan_tz_uuid = tz_id
 
         # default overlay transport zone name / uuid
         self._default_overlay_tz_uuid = None
         if cfg.CONF.nsx_v3.default_overlay_tz:
-            tz_id = self.nsxlib.get_transport_zone_id_by_name_or_id(
+            tz_id = self.nsxlib.transport_zone.get_id_by_name_or_id(
                 cfg.CONF.nsx_v3.default_overlay_tz)
             self._default_overlay_tz_uuid = tz_id
 
         # default tier0 router
         self._default_tier0_router = None
         if cfg.CONF.nsx_v3.default_tier0_router:
-            rtr_id = self.nsxlib.get_logical_router_id_by_name_or_id(
+            rtr_id = self.nsxlib.logical_router.get_id_by_name_or_id(
                 cfg.CONF.nsx_v3.default_tier0_router)
             self._default_tier0_router = rtr_id
 
@@ -602,7 +602,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                    'tags': tags,
                    'admin_state': admin_state,
                    'vlan_id': vlan_id})
-        nsx_result = self.nsxlib.create_logical_switch(
+        nsx_result = self.nsxlib.logical_switch.create(
             net_name, physical_net, tags,
             admin_state=admin_state,
             vlan_id=vlan_id)
@@ -720,7 +720,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 LOG.exception(_LE('Failed to create network %s'),
                               created_net['id'])
                 if net_type != utils.NetworkTypes.L3_EXT:
-                    self.nsxlib.delete_logical_switch(created_net['id'])
+                    self.nsxlib.logical_switch.delete(created_net['id'])
 
         # this extra lookup is necessary to get the
         # latest db model for the extension functions
@@ -802,7 +802,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # TODO(salv-orlando): Handle backend failure, possibly without
             # requiring us to un-delete the DB object. For instance, ignore
             # failures occurring if logical switch is not found
-            self.nsxlib.delete_logical_switch(nsx_net_id)
+            self.nsxlib.logical_switch.delete(nsx_net_id)
         else:
             # TODO(berlin): delete subnets public announce on the network
             pass
@@ -842,7 +842,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             try:
                 # get the nsx switch id from the DB mapping
                 nsx_id = self._get_network_nsx_id(context, id)
-                self.nsxlib.update_logical_switch(
+                self.nsxlib.logical_switch.update(
                     nsx_id,
                     name=utils.get_name_and_uuid(net_data['name'] or 'network',
                                                  id),
@@ -1226,7 +1226,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def _get_qos_profile_id(self, context, policy_id):
         switch_profile_id = nsx_db.get_switch_profile_by_qos_policy(
             context.session, policy_id)
-        qos_profile = self.nsxlib.get_qos_switching_profile(switch_profile_id)
+        qos_profile = self.nsxlib.qos_switching_profile.get(switch_profile_id)
         if qos_profile:
             profile_ids = self._switching_profiles.build_switch_profile_ids(
                 self._switching_profiles, qos_profile)

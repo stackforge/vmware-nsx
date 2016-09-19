@@ -74,7 +74,7 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
         """
 
         with mock.patch.object(self.nsxlib.client, 'create') as create:
-            self.nsxlib.create_qos_switching_profile(
+            self.nsxlib.qos_switching_profile.create(
                 tags=[],
                 name=test_constants_v3.FAKE_NAME,
                 description=test_constants_v3.FAKE_NAME)
@@ -92,7 +92,7 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
             with mock.patch.object(self.nsxlib.client, 'update') as update:
 
                 # update the description of the profile
-                self.nsxlib.update_qos_switching_profile(
+                self.nsxlib.qos_switching_profile.update(
                     test_constants_v3.FAKE_QOS_PROFILE['id'],
                     tags=[],
                     description=new_description)
@@ -117,7 +117,7 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
                                return_value=original_profile):
             with mock.patch.object(self.nsxlib.client, 'update') as update:
                 # update the bw shaping of the profile
-                self.nsxlib.update_qos_switching_profile_shaping(
+                self.nsxlib.qos_switching_profile.update_shaping(
                     test_constants_v3.FAKE_QOS_PROFILE['id'],
                     shaping_enabled=True,
                     burst_size=burst_size,
@@ -155,7 +155,7 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
                                return_value=original_profile):
             with mock.patch.object(self.nsxlib.client, 'update') as update:
                 # update the bw shaping of the profile
-                self.nsxlib.update_qos_switching_profile_shaping(
+                self.nsxlib.qos_switching_profile.update_shaping(
                     test_constants_v3.FAKE_QOS_PROFILE['id'],
                     shaping_enabled=False, qos_marking="trusted")
 
@@ -169,7 +169,7 @@ class NsxLibQosTestCase(nsxlib_testcase.NsxClientTestCase):
         Test deleting qos-switching-profile
         """
         with mock.patch.object(self.nsxlib.client, 'delete') as delete:
-            self.nsxlib.delete_qos_switching_profile(
+            self.nsxlib.qos_switching_profile.delete(
                 test_constants_v3.FAKE_QOS_PROFILE['id'])
             delete.assert_called_with(
                 'switching-profiles/%s'
