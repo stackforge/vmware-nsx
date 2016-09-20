@@ -88,8 +88,11 @@ def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
                 # and update the attachment type to DHCP on the corresponding
                 # logical port of the Neutron DHCP port.
                 network = neutron_client.get_network(port['network_id'])
+                net_tags = utils.get_connected_nsxlib().build_v3_tags_payload(
+                    network, resource_type='os-neutron-net-id',
+                    project_name='admin')
                 server_data = native_dhcp.build_dhcp_server_config(
-                    network, subnet, port, 'admin',
+                    network, subnet, port, net_tags,
                     cfg.CONF.nsx_v3.nameservers,
                     cfg.CONF.nsx_v3.dhcp_profile_uuid,
                     cfg.CONF.nsx_v3.dns_domain)
