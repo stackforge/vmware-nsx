@@ -447,36 +447,17 @@ class NSXClusteredAPI(ClusteredAPI):
     NSX v3 cluster.
     """
 
-    def __init__(self,
-                 username=None,
-                 password=None,
-                 retries=None,
-                 insecure=None,
-                 ca_file=None,
-                 concurrent_connections=None,
-                 http_timeout=None,
-                 http_read_timeout=None,
-                 conn_idle_timeout=None,
-                 http_provider=None,
-                 nsx_api_managers=None):
-        self.username = username
-        self.password = password
-        self.retries = retries
-        self.insecure = insecure
-        self.ca_file = ca_file
-        self.conns_per_pool = concurrent_connections
-        self.http_timeout = http_timeout
-        self.http_read_timeout = http_read_timeout
-        self.conn_idle_timeout = conn_idle_timeout
-        self.nsx_api_managers = nsx_api_managers
+    def __init__(self, nsxlib_config):
+        self.nsxlib_config = nsxlib_config
 
-        self._http_provider = http_provider or NSXRequestsHTTPProvider()
+        self._http_provider = (nsxlib_config.http_provider or
+                               NSXRequestsHTTPProvider())
 
         super(NSXClusteredAPI, self).__init__(
             self._build_conf_providers(),
             self._http_provider,
-            max_conns_per_pool=self.conns_per_pool,
-            keepalive_interval=self.conn_idle_timeout)
+            max_conns_per_pool=self.nsxlib_config.concurrent_connections,
+            keepalive_interval=self.nsxlib_config.conn_idle_timeout)
 
         LOG.debug("Created NSX clustered API with '%s' "
                   "provider", self._http_provider.provider_id)
@@ -489,7 +470,7 @@ class NSXClusteredAPI(ClusteredAPI):
                 uri if uri.startswith('http') else
                 "%s://%s" % (self._http_provider.default_scheme, uri))
 
-        conf_urls = self.nsx_api_managers[:]
+        conf_urls = self.nsxlib_config.nsx_api_managers[:]
         urls = []
         providers = []
 

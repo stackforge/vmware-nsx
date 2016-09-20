@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# DEBUG ADIT - get rid of those neutron imports!!
 from neutron.tests.unit.db import test_db_base_plugin_v2 as test_plugin
 from neutron import version
+
 from neutron_lib import exceptions as n_exc
 
 from vmware_nsx.nsxlib.v3 import utils
@@ -25,7 +27,7 @@ class TestNsxV3Utils(test_plugin.NeutronDbPluginV2TestCase,
                      nsxlib_testcase.NsxClientTestCase):
 
     def test_build_v3_tags_payload(self):
-        result = utils.build_v3_tags_payload(
+        result = self.nsxlib.build_v3_tags_payload(
             {'id': 'fake_id',
              'tenant_id': 'fake_tenant_id'},
             resource_type='os-neutron-net-id',
@@ -38,7 +40,7 @@ class TestNsxV3Utils(test_plugin.NeutronDbPluginV2TestCase,
         self.assertEqual(expected, result)
 
     def test_build_v3_tags_payload_internal(self):
-        result = utils.build_v3_tags_payload(
+        result = self.nsxlib.build_v3_tags_payload(
             {'id': 'fake_id',
              'tenant_id': 'fake_tenant_id'},
             resource_type='os-neutron-net-id',
@@ -52,32 +54,32 @@ class TestNsxV3Utils(test_plugin.NeutronDbPluginV2TestCase,
 
     def test_build_v3_tags_payload_invalid_length(self):
         self.assertRaises(n_exc.InvalidInput,
-                          utils.build_v3_tags_payload,
+                          self.nsxlib.build_v3_tags_payload,
                           {'id': 'fake_id',
                            'tenant_id': 'fake_tenant_id'},
                           resource_type='os-neutron-maldini-rocks-id',
                           project_name='fake')
 
     def test_build_v3_api_version_tag(self):
-        result = utils.build_v3_api_version_tag()
-        expected = [{'scope': 'os-neutron-id',
-                     'tag': 'NSX Neutron plugin'},
+        result = self.nsxlib.build_v3_api_version_tag()
+        expected = [{'scope': nsxlib_testcase.PLUGIN_SCOPE,
+                     'tag': nsxlib_testcase.PLUGIN_TAG},
                     {'scope': 'os-api-version',
-                     'tag': version.version_info.release_string()}]
+                     'tag': nsxlib_testcase.PLUGIN_VERSION}]
         self.assertEqual(expected, result)
 
     def test_is_internal_resource(self):
-        project_tag = utils.build_v3_tags_payload(
+        project_tag = self.nsxlib.build_v3_tags_payload(
             {'id': 'fake_id',
              'tenant_id': 'fake_tenant_id'},
             resource_type='os-neutron-net-id',
             project_name=None)
-        internal_tag = utils.build_v3_api_version_tag()
+        internal_tag = self.nsxlib.build_v3_api_version_tag()
 
-        expect_false = utils.is_internal_resource({'tags': project_tag})
+        expect_false = self.nsxlib.is_internal_resource({'tags': project_tag})
         self.assertFalse(expect_false)
 
-        expect_true = utils.is_internal_resource({'tags': internal_tag})
+        expect_true = self.nsxlib.is_internal_resource({'tags': internal_tag})
         self.assertTrue(expect_true)
 
     def test_get_name_and_uuid(self):
@@ -93,7 +95,7 @@ class TestNsxV3Utils(test_plugin.NeutronDbPluginV2TestCase,
         self.assertEqual(expected, short_name)
 
     def test_build_v3_tags_max_length_payload(self):
-        result = utils.build_v3_tags_payload(
+        result = self.nsxlib.build_v3_tags_payload(
             {'id': 'X' * 255,
              'tenant_id': 'X' * 255},
             resource_type='os-neutron-net-id',

@@ -28,60 +28,41 @@ LOG = log.getLogger(__name__)
 
 class NsxLib(object):
 
-    def __init__(self,
-                 username=None,
-                 password=None,
-                 retries=None,
-                 insecure=None,
-                 ca_file=None,
-                 concurrent_connections=None,
-                 http_timeout=None,
-                 http_read_timeout=None,
-                 conn_idle_timeout=None,
-                 http_provider=None,
-                 max_attempts=0,
-                 nsx_api_managers=None):
+    def __init__(self, nsxlib_config):
 
-        self.max_attempts = max_attempts
+        self.nsxlib_config = nsxlib_config
 
         # create the Cluster
-        self.cluster = cluster.NSXClusteredAPI(
-            username=username, password=password,
-            retries=retries, insecure=insecure,
-            ca_file=ca_file,
-            concurrent_connections=concurrent_connections,
-            http_timeout=http_timeout,
-            http_read_timeout=http_read_timeout,
-            conn_idle_timeout=conn_idle_timeout,
-            http_provider=http_provider,
-            nsx_api_managers=nsx_api_managers)
+        self.cluster = cluster.NSXClusteredAPI(nsxlib_config)
 
         # create the Client
         self.client = client.NSX3Client(
             self.cluster,
-            max_attempts=max_attempts)
+            max_attempts=nsxlib_config.max_attempts)
 
         # init the api object
+        self.general_apis = utils.NsxLibApiBase(
+            self.client, nsxlib_config)
         self.port_mirror = NsxLibPortMirror(
-            self.client, self.max_attempts)
+            self.client, nsxlib_config)
         self.bridge_endpoint = NsxLibBridgeEndpoint(
-            self.client, self.max_attempts)
+            self.client, nsxlib_config)
         self.logical_switch = NsxLibLogicalSwitch(
-            self.client, self.max_attempts)
+            self.client, nsxlib_config)
         self.logical_router = NsxLibLogicalRouter(
-            self.client, self.max_attempts)
+            self.client, nsxlib_config)
         self.qos_switching_profile = NsxLibQosSwitchingProfile(
-            self.client, self.max_attempts)
+            self.client, nsxlib_config)
         self.edge_cluster = NsxLibEdgeCluster(
-            self.client, self.max_attempts)
+            self.client, nsxlib_config)
         self.bridge_cluster = NsxLibBridgeCluster(
-            self.client, self.max_attempts)
+            self.client, nsxlib_config)
         self.transport_zone = NsxLibTransportZone(
-            self.client, self.max_attempts)
+            self.client, nsxlib_config)
         self.firewall_section = security.NsxLibFirewallSection(
-            self.client, self.max_attempts)
+            self.client, nsxlib_config)
         self.ns_group = security.NsxLibNsGroup(
-            self.client, self.max_attempts, self.firewall_section)
+            self.client, nsxlib_config, self.firewall_section)
 
         super(NsxLib, self).__init__()
 
@@ -89,6 +70,16 @@ class NsxLib(object):
         node = self.client.get("node")
         version = node.get('node_version')
         return version
+
+    def build_v3_api_version_tag(self):
+        return self.general_apis.build_v3_api_version_tag()
+
+    def is_internal_resource(self, nsx_resource):
+        return self.general_apis.is_internal_resource(nsx_resource)
+
+    def build_v3_tags_payload(self, resource, resource_type, project_name):
+        return self.general_apis.build_v3_tags_payload(
+            resource, resource_type, project_name)
 
 
 class NsxLibPortMirror(utils.NsxLibApiBase):
@@ -182,8 +173,9 @@ class NsxLibLogicalSwitch(utils.NsxLibApiBase):
 
     def delete(self, lswitch_id):
         #Using internal method so we can access max_attempts in the decorator
-        @utils.retry_upon_exception(exceptions.StaleRevision,
-                                    max_attempts=self.max_attempts)
+        @utils.retry_upon_exception(
+            exceptions.StaleRevision,
+            max_attempts=self.nsxlib_config.max_attempts)
         def do_delete():
             resource = ('logical-switches/%s?detach=true&cascade=true' %
                         lswitch_id)
@@ -197,8 +189,9 @@ class NsxLibLogicalSwitch(utils.NsxLibApiBase):
 
     def update(self, lswitch_id, name=None, admin_state=None, tags=None):
         #Using internal method so we can access max_attempts in the decorator
-        @utils.retry_upon_exception(exceptions.StaleRevision,
-                                    max_attempts=self.max_attempts)
+        @utils.retry_upon_exception(
+            exceptions.StaleRevision,
+            max_attempts=self.nsxlib_config.max_attempts)
         def do_update():
             resource = "logical-switches/%s" % lswitch_id
             lswitch = self.get(lswitch_id)
