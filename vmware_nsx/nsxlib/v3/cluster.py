@@ -26,9 +26,6 @@ import six.moves.urllib.parse as urlparse
 
 from eventlet import greenpool
 from eventlet import pools
-from neutron.callbacks import events
-from neutron.callbacks import registry
-from neutron.callbacks import resources
 from oslo_log import log
 from oslo_service import loopingcall
 from requests import adapters
@@ -121,21 +118,22 @@ class NSXRequestsHTTPProvider(AbstractHTTPProvider):
                 manager=endpoint.provider.url, operation=msg)
 
     def new_connection(self, cluster_api, provider):
-        session = TimeoutSession(cluster_api.http_timeout,
-                                 cluster_api.http_read_timeout)
-        session.auth = (cluster_api.username, cluster_api.password)
+        config = cluster_api.nsxlib_config
+        session = TimeoutSession(config.http_timeout,
+                                 config.http_read_timeout)
+        session.auth = (config.username, config.password)
         # NSX v3 doesn't use redirects
         session.max_redirects = 0
 
-        session.verify = not cluster_api.insecure
-        if session.verify and cluster_api.ca_file:
+        session.verify = not config.insecure
+        if session.verify and config.ca_file:
             # verify using the said ca bundle path
-            session.verify = cluster_api.ca_file
+            session.verify = config.ca_file
 
         # we are pooling with eventlet in the cluster class
         adapter = adapters.HTTPAdapter(
             pool_connections=1, pool_maxsize=1,
-            max_retries=cluster_api.retries,
+            max_retries=config.retries,
             pool_block=False)
         session.mount('http://', adapter)
         session.mount('https://', adapter)
@@ -255,10 +253,10 @@ class ClusteredAPI(object):
 
         _init_cluster()
 
-        # reinitialize upon fork for api workers to ensure each
-        # process has its own keepalive loops + state
-        registry.subscribe(
-                _init_cluster, resources.PROCESS, events.AFTER_INIT)
+        # keep this internal method for reinitialize upon fork
+        # for api workers to ensure each process has its own keepalive
+        # loops + state
+        self._reinit_cluster = _init_cluster
 
     def _init_endpoints(self, providers,
                         min_conns_per_pool, max_conns_per_pool):
@@ -447,36 +445,17 @@ class NSXClusteredAPI(ClusteredAPI):
     NSX v3 cluster.
     """
 
-    def __init__(self,
-                 username=None,
-                 password=None,
-                 retries=None,
-                 insecure=None,
-                 ca_file=None,
-                 concurrent_connections=None,
-                 http_timeout=None,
-                 http_read_timeout=None,
-                 conn_idle_timeout=None,
-                 http_provider=None,
-                 nsx_api_managers=None):
-        self.username = username
-        self.password = password
-        self.retries = retries
-        self.insecure = insecure
-        self.ca_file = ca_file
-        self.conns_per_pool = concurrent_connections
-        self.http_timeout = http_timeout
-        self.http_read_timeout = http_read_timeout
-        self.conn_idle_timeout = conn_idle_timeout
-        self.nsx_api_managers = nsx_api_managers
+    def __init__(self, nsxlib_config):
+        self.nsxlib_config = nsxlib_config
 
-        self._http_provider = http_provider or NSXRequestsHTTPProvider()
+        self._http_provider = (nsxlib_config.http_provider or
+                               NSXRequestsHTTPProvider())
 
         super(NSXClusteredAPI, self).__init__(
             self._build_conf_providers(),
             self._http_provider,
-            max_conns_per_pool=self.conns_per_pool,
-            keepalive_interval=self.conn_idle_timeout)
+            max_conns_per_pool=self.nsxlib_config.concurrent_connections,
+            keepalive_interval=self.nsxlib_config.conn_idle_timeout)
 
         LOG.debug("Created NSX clustered API with '%s' "
                   "provider", self._http_provider.provider_id)
@@ -489,7 +468,7 @@ class NSXClusteredAPI(ClusteredAPI):
                 uri if uri.startswith('http') else
                 "%s://%s" % (self._http_provider.default_scheme, uri))
 
-        conf_urls = self.nsx_api_managers[:]
+        conf_urls = self.nsxlib_config.nsx_api_managers[:]
         urls = []
         providers = []
 
