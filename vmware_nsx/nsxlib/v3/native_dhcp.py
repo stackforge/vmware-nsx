@@ -20,7 +20,7 @@ from neutron_lib import constants
 from vmware_nsx.nsxlib.v3 import utils
 
 
-def build_dhcp_server_config(network, subnet, port, project_name,
+def build_dhcp_server_config(network, subnet, port, tags,
                              nameservers, dhcp_profile_uuid, dns_domain):
     # Prepare the configuration for a new logical DHCP server.
     server_ip = "%s/%u" % (port['fixed_ips'][0]['ip_address'],
@@ -53,8 +53,6 @@ def build_dhcp_server_config(network, subnet, port, project_name,
     options = {'option121': {'static_routes': host_routes}}
     name = utils.get_name_and_uuid(network['name'] or 'dhcpserver',
                                    network['id'])
-    tags = utils.build_v3_tags_payload(
-        network, resource_type='os-neutron-net-id', project_name=project_name)
     return {'name': name,
             'dhcp_profile_id': dhcp_profile_uuid,
             'server_ip': server_ip,
