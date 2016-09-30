@@ -20,7 +20,7 @@ from tempest import config
 from tempest.lib.common.utils import data_utils
 from tempest import test
 from tempest.lib import exceptions as lib_exc
-from vmware_nsx_tempest.services import taas_client  
+from vmware_nsx_tempest.services import taas_client
 from vmware_nsx_tempest._i18n import _LI
 from vmware_nsx_tempest._i18n import _LW
 
@@ -54,7 +54,6 @@ class TaaSJsonTest(base.BaseNetworkTest):
         cls.router = cls.create_router(data_utils.rand_name('router-'),
                                        external_network_id=cls.ext_net_id)
         cls.create_router_interface(cls.router['id'], cls.subnet['id'])
-        LOG.debug("coming from router")
         for i in range(4):
             cls.create_port(cls.network)
 
@@ -85,14 +84,9 @@ class TaaSJsonTest(base.BaseNetworkTest):
         self.addCleanup(self.floating_ips_client.delete_floatingip,
                         fip['id'])
         if tapflow_id != 'null' :
-            print(tapflow_id)
             self.tclient.delete_tf(tapflow_id)
         if tapservice_id != 'null' :
-            print(tapservice_id)
             self.tclient.delete_ts(tapservice_id)
-
-
-       
 
     @test.attr(type='nsxv3')
     @test.idempotent_id('66bc2b1c-85d7-11e6-ae22-56b6b6499611')
@@ -114,7 +108,6 @@ class TaaSJsonTest(base.BaseNetworkTest):
                          "Response code is not 201 ")
         self.assertIn(self.ports[0]['id'],rsp['tap_service']['port_id'])
         self._resource_clean(fip,rsp['tap_service']['id'],'null')
-       
 
     @test.attr(type='nsxv3')
     @test.idempotent_id('66bc2b1c-85d7-11e6-ae22-56b6b6499611')
@@ -161,7 +154,6 @@ class TaaSJsonTest(base.BaseNetworkTest):
         self.assertIn(self.ports[0]['id'], rsp_list['tap_services'][0]['port_id'])
         self._resource_clean(fip, 'null', 'null')
 
- 
     @test.attr(type='nsxv3')
     @test.idempotent_id('66bc309e-85d7-11e6-ae22-56b6b6499611')
     def test_show_tap_service(self):
@@ -441,7 +433,7 @@ class TaaSJsonTest(base.BaseNetworkTest):
            print(e)
            LOG.info(_LI("response from  exception  %(rsp)s") % {"rsp": e})
 
-          
+
     @test.attr(type='nsxv3')
     @test.idempotent_id('66bc3dd2-85d7-11e6-ae22-56b6b6499611')
     def test_create_tap_flow_negative_nosrcport(self):
@@ -468,4 +460,4 @@ class TaaSJsonTest(base.BaseNetworkTest):
            print(e)
            LOG.info(_LI("response from  exception  %(rsp)s") % {"rsp": e})
 
- 
+
