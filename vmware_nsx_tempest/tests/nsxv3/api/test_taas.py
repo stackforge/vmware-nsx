@@ -54,7 +54,6 @@ class TaaSJsonTest(base.BaseNetworkTest):
         cls.router = cls.create_router(data_utils.rand_name('router-'),
                                        external_network_id=cls.ext_net_id)
         cls.create_router_interface(cls.router['id'], cls.subnet['id'])
-        LOG.debug("coming from router")
         for i in range(4):
             cls.create_port(cls.network)
 
@@ -85,10 +84,8 @@ class TaaSJsonTest(base.BaseNetworkTest):
         self.addCleanup(self.floating_ips_client.delete_floatingip,
                         fip['id'])
         if tapflow_id != 'null' :
-            print(tapflow_id)
             self.tclient.delete_tf(tapflow_id)
         if tapservice_id != 'null' :
-            print(tapservice_id)
             self.tclient.delete_ts(tapservice_id)
 
 

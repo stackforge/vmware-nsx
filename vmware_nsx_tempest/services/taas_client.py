@@ -71,9 +71,8 @@ class TaaSClient(base.BaseNetworkClient):
 def get_client(client_mgr):
 
     """
-    Create a l2-gateway client from manager or networks_client
+    Create a TaaS client from manager or networks_client
     """
-    LOG.debug("coming from get client ") 
     try:
         manager = getattr(client_mgr, "manager", client_mgr)
         net_client = getattr(manager, "networks_client")
