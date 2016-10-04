@@ -36,6 +36,7 @@ class AbstractRESTResource(object):
 
     def __init__(self, rest_client, *args, **kwargs):
         self._client = rest_client.new_client_for(self.uri_segment)
+        self._client.max_attempts = rest_client.max_attempts
 
     @abc.abstractproperty
     def uri_segment(self):
