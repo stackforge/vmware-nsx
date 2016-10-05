@@ -44,6 +44,8 @@ FIREWALL_RULE_RESOURCE = "rules"
 #NSXv Constants
 FIREWALL_PREFIX = '/api/4.0/firewall/globalroot-0/config'
 FIREWALL_REDIRECT_SEC_TYPE = 'layer3redirectsections'
+FIREWALL_L3_SEC_TYPE = 'layer3sections'
+FIREWALL_L2_SEC_TYPE = 'layer2sections'
 SECURITYGROUP_PREFIX = '/api/2.0/services/securitygroup'
 VDN_PREFIX = '/api/2.0/vdn'
 SERVICES_PREFIX = '/api/2.0/services'
@@ -51,6 +53,7 @@ SPOOFGUARD_PREFIX = '/api/4.0/services/spoofguard'
 TRUSTSTORE_PREFIX = '%s/%s' % (SERVICES_PREFIX, 'truststore')
 EXCLUDELIST_PREFIX = '/api/2.1/app/excludelist'
 SERVICE_INSERTION_PROFILE_PREFIX = '/api/2.0/si/serviceprofile'
+SECURITY_POLICY_PREFIX = '/api/2.0/services/policy/securitypolicy'
 
 #LbaaS Constants
 LOADBALANCER_SERVICE = "loadbalancer/config"
@@ -576,9 +579,9 @@ class Vcns(object):
         The method will return the uri to newly created section.
         """
         if type == 'ip':
-            sec_type = 'layer3sections'
+            sec_type = FIREWALL_L3_SEC_TYPE
         else:
-            sec_type = 'layer2sections'
+            sec_type = FIREWALL_L2_SEC_TYPE
         uri = '%s/%s?autoSaveDraft=false' % (FIREWALL_PREFIX, sec_type)
         if insert_top:
             uri += '&operation=insert_top'
@@ -623,9 +626,9 @@ class Vcns(object):
     def update_section_by_id(self, id, type, request):
         """Update a section while building its uri from the id."""
         if type == 'ip':
-            sec_type = 'layer3sections'
+            sec_type = FIREWALL_L3_SEC_TYPE
         else:
-            sec_type = 'layer2sections'
+            sec_type = FIREWALL_L2_SEC_TYPE
         section_uri = '%s/%s/%s' % (FIREWALL_PREFIX, sec_type, id)
         self.update_section(section_uri, request, h=None)
 
@@ -984,3 +987,16 @@ class Vcns(object):
         uri = '%s/%s/%s/%s/%s' % (SERVICES_PREFIX, IPAM_POOL_SERVICE, pool_id,
                                'ipaddresses', ip_addr)
         return self.do_request(HTTP_DELETE, uri)
+
+    def get_security_policy(self, policy_id):
+        # get the policy configuration as an xml string
+        uri = '%s/%s' % (SECURITY_POLICY_PREFIX, policy_id)
+        h, policy = self.do_request(HTTP_GET, uri, format='xml', decode=False)
+        return policy
+
+    def update_security_policy(self, policy_id, request):
+        # update the policy configuration. request should be an xml string
+        uri = '%s/%s' % (SECURITY_POLICY_PREFIX, policy_id)
+        return self.do_request(HTTP_PUT, uri, request,
+                               format='xml',
+                               decode=False, encode=True)
