@@ -19,6 +19,8 @@ import requests
 
 from oslo_serialization import jsonutils
 
+from vmware_nsx.plugins.nsx_v3 import utils
+
 
 requests.packages.urllib3.disable_warnings()
 
@@ -41,6 +43,8 @@ class NSXClient(object):
         self.url = None
         self.headers = None
         self.api_version = NSXClient.API_VERSION
+        self.nsxlib = utls.get_nsxlib_wrapper()
+
 
         self.__set_headers()
 
@@ -286,7 +290,8 @@ class NSXClient(object):
         Retrieve all NSGroups on NSX backend
         """
         response = self.get(endpoint="/ns-groups")
-        return response.json()['results']
+        return [nsg for nsg in response.json()['results']
+                if self.nsxlib.general_apis.is_internal_resource(nsg)]
 
     def cleanup_os_ns_groups(self):
         """
