@@ -1427,6 +1427,57 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                              "of port %(port)s: other ports still in list"),
                          {"dev": device_id, "port": port_id})
 
+    def _add_port_to_tenant_policy(self, context, original_port, updated_port,
+                                   vnic_id):
+        """Add the port to a special nsx tenant security group
+
+        This will be done only if:
+        - The neutron port has only the default security group
+        - The neutron port has no provider sec group
+        - Tenant security group exists on the backed
+
+        This function will return True if the port was added to the tenant
+        group, and False if not.
+        In addition: delete the default sec group from this port (?)
+        """
+        if vnic_id is None:
+            return False
+
+        sg_ids = original_port.get(ext_sg.SECURITYGROUPS, [])
+        provider_sg_ids = original_port.get(
+            provider_sg.PROVIDER_SECURITYGROUPS, [])
+        tenant_id = original_port['tenant_id']
+        default_sg = self._ensure_default_security_group(context, tenant_id)
+
+        if (len(provider_sg_ids) > 0 or len(sg_ids) > 1 or
+            (len(sg_ids) == 1 and sg_ids[0] != default_sg)):
+            # Neutron port has non default security groups
+            LOG.debug("Non default security groups for port %s",
+                original_port['id'])
+            return False
+
+        # Look for the tenant security group at the backend by its name
+        # TODO(asarfaty): create a mapping per tenant at plugin init?
+        # or at least cache this result for the next time
+        # TODO(asarfaty): configurable name prefix?
+        # or use a different logic to know the name of the group
+        tenant_nsx_sg = self.nsx_v.vcns.get_security_group_id(
+            'tenant-' + tenant_id)
+        if not tenant_nsx_sg:
+            # didn't find a special tenant sg in the backend
+            LOG.debug("Didn't find backend security group for tenant %s",
+                tenant_id)
+            return False
+
+        # Add the vnic to the nsx tenant security group
+        self._add_member_to_security_group(tenant_nsx_sg, vnic_id)
+        LOG.debug("Added port %s to tenant security group %s",
+            original_port['id'], tenant_nsx_sg)
+
+        # TODO(asarfaty): Delete the default sg from the neutron port?
+        # do we want it to be empty?
+        return True
+
     def update_port(self, context, id, port):
         with locking.LockManager.get_lock('port-update-%s' % id):
 
@@ -1490,10 +1541,13 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 self._set_port_vnic_index_mapping(
                     context, id, device_id, vnic_idx)
             vnic_id = self._get_port_vnic_id(vnic_idx, device_id)
-            self._add_security_groups_port_mapping(
-                context.session, vnic_id,
-                original_port[ext_sg.SECURITYGROUPS] +
-                original_port[provider_sg.PROVIDER_SECURITYGROUPS])
+            # Check if this port should use the tenants backend security group
+            if not self._add_port_to_tenant_policy(
+                context, original_port, port_data, vnic_id):
+                self._add_security_groups_port_mapping(
+                    context.session, vnic_id,
+                    original_port[ext_sg.SECURITYGROUPS] +
+                    original_port[provider_sg.PROVIDER_SECURITYGROUPS])
             if has_port_security:
                 LOG.debug("Assigning vnic port fixed-ips: port %s, "
                           "vnic %s, with fixed-ips %s", id, vnic_id,
