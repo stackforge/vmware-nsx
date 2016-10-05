@@ -613,6 +613,12 @@ nsxv_opts = [
                 help=_("(Optional) If set to True, the plugin will create "
                        "a redirect rule to send all the traffic to the "
                        "security partner")),
+    # DEBUG ADIT policy ID or name??
+    cfg.StrOpt('default_policy_id',
+               help=_("(Optional) If this is set, the plugin will use NSX "
+                      "policies instead of security groups. This will be the "
+                      "default policy for new tenants and the admin can set a "
+                      "policy in the tenants default security groups.")),
 ]
 
 # Register the configuration options
