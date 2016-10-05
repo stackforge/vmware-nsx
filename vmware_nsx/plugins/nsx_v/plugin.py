@@ -101,6 +101,7 @@ from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import routersize
 from vmware_nsx.extensions import secgroup_rule_local_ip_prefix
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
+from vmware_nsx.extensions import securitygrouppolicy as sg_policy
 from vmware_nsx.plugins.nsx_v import availability_zones as nsx_az
 from vmware_nsx.plugins.nsx_v import managers
 from vmware_nsx.plugins.nsx_v import md_proxy as nsx_v_md_proxy
@@ -212,9 +213,26 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self.nsx_v)
         self._availability_zones_data = nsx_az.ConfiguredAvailabilityZones()
         self._validate_config()
-        self.sg_container_id = self._create_security_group_container()
-        self.default_section = self._create_cluster_default_fw_section()
-        self._process_security_groups_rules_logging()
+
+        self._use_nsx_policies = False
+        if cfg.CONF.nsxv.use_nsx_policies:
+            if not c_utils.is_nsxv_version_6_2(self.nsx_v.vcns.get_version()):
+                error = (_("NSX policies are not supported for version "
+                           "%(ver)s.") %
+                         {'ver': self.nsx_v.vcns.get_version()})
+                raise nsx_exc.NsxPluginException(err_msg=error)
+
+            # Support NSX policies in default security groups
+            self._use_nsx_policies = True
+            # enable the extension
+            self.supported_extension_aliases.append("security-group-policy")
+
+        if not self._use_nsx_policies:
+            #TODO(asarfaty): add support for tenant sg with rules too
+            self.sg_container_id = self._create_security_group_container()
+            self.default_section = self._create_cluster_default_fw_section()
+            self._process_security_groups_rules_logging()
+
         self._router_managers = managers.RouterTypeManager(self)
 
         if cfg.CONF.nsxv.use_dvs_features:
@@ -712,9 +730,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # Return unique DVS-IDs only and ignore duplicates
         return list(set(
             dvs.strip() for dvs in physical_network.split(',') if dvs))
-
-    def _get_default_security_group(self, context, tenant_id):
-        return self._ensure_default_security_group(context, tenant_id)
 
     def _add_member_to_security_group(self, sg_id, vnic_id):
         with locking.LockManager.get_lock('neutron-security-ops' + str(sg_id)):
@@ -3021,6 +3036,21 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                                          context,
                                                          securitygroup):
         nsx_sg_id = self._create_nsx_security_group(context, securitygroup)
+        if self._use_nsx_policies:
+            # When using policies - no rules should be created.
+            # just add the security group to the policy on the backend.
+            self._update_nsx_security_group_policies(
+                securitygroup[sg_policy.POLICY], None, nsx_sg_id)
+
+            # Delete the neutron default rules (do not exist on the backend)
+            if securitygroup.get(ext_sg.SECURITYGROUPRULES):
+                with context.session.begin(subtransactions=True):
+                    for rule in securitygroup[ext_sg.SECURITYGROUPRULES]:
+                        rule_db = self._get_security_group_rule(context,
+                                                                rule['id'])
+                        context.session.delete(rule_db)
+                securitygroup.pop(ext_sg.SECURITYGROUPRULES)
+            return
         try:
             self._create_fw_section_for_security_group(
                 context, securitygroup, nsx_sg_id)
@@ -3029,15 +3059,41 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 self._delete_nsx_security_group(nsx_sg_id)
 
         if not securitygroup[provider_sg.PROVIDER]:
-            # Add Security Group to the Security Groups container inorder to
+            # Add Security Group to the Security Groups container in order to
             # apply the default block rule. provider security-groups should not
             # have a default blocking rule.
-            self._add_member_to_security_group(self.sg_container_id, nsx_sg_id)
+            self._add_member_to_security_group(self.sg_container_id,
+                                               nsx_sg_id)
+
+    def _validate_security_group_create(self, security_group, default_sg):
+        if self._use_nsx_policies:
+            # must have a policy (unless flag allows it):
+            if not security_group.get(sg_policy.POLICY):
+                if default_sg:
+                    # in case of a default sg, we just add the default policy
+                    security_group[sg_policy.POLICY] = (
+                        cfg.CONF.nsxv.default_policy_id)
+                else:
+                    msg = _('The security group must be assigned to a policy')
+                    raise n_exc.InvalidInput(error_message=msg)
+                #TODO(asarfaty): add support for tenant sg with rules too
+
+            # validate that the new policy exists
+            policy = security_group[sg_policy.POLICY]
+            if not self.nsx_v.vcns.validate_inventory(policy):
+                msg = _('Policy %s was not found on the NSX') % policy
+                raise n_exc.InvalidInput(error_message=msg)
+        else:
+            # must not have a policy:
+            if security_group.get(sg_policy.POLICY):
+                msg = _('The security group cannot be assigned to a policy')
+                raise n_exc.InvalidInput(error_message=msg)
 
     def create_security_group(self, context, security_group, default_sg=False):
         """Create a security group."""
         sg_data = security_group['security_group']
         sg_id = sg_data["id"] = str(uuid.uuid4())
+        self._validate_security_group_create(sg_data, default_sg)
 
         with context.session.begin(subtransactions=True):
             if sg_data.get(provider_sg.PROVIDER):
@@ -3063,6 +3119,47 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 LOG.exception(_LE('Failed to create security group'))
         return new_sg
 
+    def _update_security_group_with_policy(self, updated_group,
+                                           sg_data, nsx_sg_id):
+        """Handle security group update when using NSX policies
+
+        Remove the security group from the old policies, and apply on the new
+        policies
+        """
+        # Verify that the policy was not removed from the security group
+        if (sg_policy.POLICY in updated_group and
+            not updated_group[sg_policy.POLICY]):
+            msg = _('It is not allowed to remove the policy from security '
+                    'group %s') % nsx_sg_id
+            raise n_exc.InvalidInput(error_message=msg)
+
+        if (updated_group.get(sg_policy.POLICY) and
+            updated_group[sg_policy.POLICY] != sg_data[sg_policy.POLICY]):
+
+            new_policy = updated_group[sg_policy.POLICY]
+            old_policy = sg_data[sg_policy.POLICY]
+
+            self._update_nsx_security_group_policies(
+                new_policy, old_policy, nsx_sg_id)
+
+    def _update_nsx_security_group_policies(self, new_policy, old_policy,
+                                            nsx_sg_id):
+        # validate that the new policies exists
+        if not self.nsx_v.vcns.validate_inventory(new_policy):
+            msg = _('Policy %s was not found on the NSX') % new_policy
+            raise n_exc.InvalidInput(error_message=msg)
+
+        # update the NSX security group to use this policy
+        if old_policy:
+            with locking.LockManager.get_lock(
+                'neutron-security-policy-' + str(old_policy)):
+                self.nsx_sg_utils.del_nsx_security_group_from_policy(
+                    old_policy, nsx_sg_id)
+        with locking.LockManager.get_lock(
+            'neutron-security-policy-' + str(new_policy)):
+            self.nsx_sg_utils.add_nsx_security_group_to_policy(
+                new_policy, nsx_sg_id)
+
     def update_security_group(self, context, id, security_group):
         s = security_group['security_group']
         nsx_sg_id = nsx_db.get_nsx_security_group_id(context.session, id)
@@ -3071,6 +3168,13 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         sg_data = super(NsxVPluginV2, self).update_security_group(
             context, id, security_group)
+
+        # security groups with NSX policy, and no rules
+        if self._use_nsx_policies and sg_policy.POLICY in sg_data:
+            self._update_security_group_with_policy(s, sg_data, nsx_sg_id)
+            self._process_security_group_properties_update(
+                context, sg_data, s)
+            return sg_data
 
         # Reflect security-group name or description changes in the backend,
         # dfw section name needs to be updated as well.
@@ -3097,6 +3201,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def delete_security_group(self, context, id):
         """Delete a security group."""
         self._prevent_non_admin_delete_provider_sg(context, id)
+        self._prevent_non_admin_delete_policy_sg(context, id)
         try:
             # Find nsx rule sections
             section_uri = self._get_section_uri(context.session, id)
@@ -3194,6 +3299,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         :param security_group_rules: list of rules to create
         """
+        if self._use_nsx_policies:
+            # If policies are enabled - this should be disabled
+            return
+
         sg_rules = security_group_rules['security_group_rules']
         sg_id = sg_rules[0]['security_group_rule']['security_group_id']
         self._prevent_non_admin_delete_provider_sg(context, sg_id)
@@ -3379,6 +3488,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         az_resources = self._availability_zones_data.get_resources()
         for res in az_resources:
             inventory.append((res, 'availability_zones'))
+
+        if cfg.CONF.nsxv.default_policy_id:
+            inventory.append((cfg.CONF.nsxv.default_policy_id, 'policy'))
 
         for moref, field in inventory:
             if moref and not self.nsx_v.vcns.validate_inventory(moref):
