@@ -184,7 +184,7 @@ class NSXClient(object):
         """
         os_resources = [r for r in resources if 'tags' in r
                         for tag in r['tags']
-                        if 'os-project-id' in tag.values()]
+                        if 'os-api-version' in tag.values()]
         return os_resources
 
     def get_logical_switches(self):
@@ -293,6 +293,7 @@ class NSXClient(object):
         Cleanup all NSGroups created from OpenStack plugin
         """
         ns_groups = self.get_ns_groups()
+        ns_groups = self.get_os_resources(ns_groups)
         print("Number of OS NSGroups to be deleted: %s" % len(ns_groups))
         for nsg in ns_groups:
             endpoint = "/ns-groups/%s?force=true" % nsg['id']
