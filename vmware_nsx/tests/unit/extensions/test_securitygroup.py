@@ -181,6 +181,7 @@ class TestSecurityGroupsNoDynamicCriteria(test_nsxv3.NsxV3PluginTestCaseMixin,
         self.skipTest('not supported')
 
 
+#TODO(asarfaty): move this class to nsxlib
 class TestNSGroupManager(nsxlib_testcase.NsxLibTestCase):
     """
     This test suite is responsible for unittesting of class
