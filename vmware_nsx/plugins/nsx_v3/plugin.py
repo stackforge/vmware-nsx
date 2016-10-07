@@ -351,10 +351,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             return self._mac_learning_profile
         profile = self._switching_profiles.find_by_display_name(
             NSX_V3_MAC_LEARNING_PROFILE_NAME)
-        return nsx_resources.SwitchingProfileTypeId(
-            profile_type=(nsx_resources.SwitchingProfileTypes.
-                          MAC_LEARNING),
-            profile_id=profile[0]['id']) if profile else None
+        return profile[0] if profile else None
+
+    def _get_mac_learning_profile_id(self):
+        return nsx_resources.SwitchingProfile.build_switch_profile_ids(
+            self._switching_profiles, self._get_mac_learning_profile())[0]
 
     def _get_port_security_profile_id(self):
         return nsx_resources.SwitchingProfile.build_switch_profile_ids(
@@ -1308,7 +1309,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         profiles = []
         if psec_is_on and address_bindings:
-            profiles = [self._get_port_security_profile_id()]
+            profiles = [self._get_port_security_profile_id(),
+                        self._get_mac_learning_profile_id()]
         if device_owner == const.DEVICE_OWNER_DHCP:
             profiles.append(self._dhcp_profile)
 
@@ -2043,7 +2045,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         address_bindings = self._build_address_bindings(updated_port)
         if port_security and address_bindings:
-            switch_profile_ids = [self._get_port_security_profile_id()]
+            switch_profile_ids = [self._get_port_security_profile_id(),
+                                  self._get_mac_learning_profile_id()]
         else:
             switch_profile_ids = [self._no_psec_profile_id]
             address_bindings = []
