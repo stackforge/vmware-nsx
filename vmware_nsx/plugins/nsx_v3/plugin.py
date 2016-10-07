@@ -1307,8 +1307,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             vif_uuid = port_data['id']
 
         profiles = []
+        mac_learning_profile_set = False
+        address_pairs = port_data.get(addr_pair.ADDRESS_PAIRS)
         if psec_is_on and address_bindings:
-            profiles = [self._get_port_security_profile_id()]
+            if address_pairs:
+                mac_learning_profile_set = True
+            profiles.append(self._get_port_security_profile_id())
         if device_owner == const.DEVICE_OWNER_DHCP:
             profiles.append(self._dhcp_profile)
 
@@ -1325,10 +1329,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             profiles.append(qos_profile_id)
 
         # Add mac_learning profile if it exists and is configured
-        if (self._mac_learning_profile and
-            validators.is_attr_set(port_data.get(mac_ext.MAC_LEARNING)) and
-            port_data.get(mac_ext.MAC_LEARNING) is True):
-            profiles.append(self._mac_learning_profile)
+        if ((validators.is_attr_set(port_data.get(mac_ext.MAC_LEARNING)) and
+             port_data.get(mac_ext.MAC_LEARNING) is True) or
+            mac_learning_profile_set):
+            profiles.append(self._get_mac_learning_profile())
 
         name = self._get_port_name(context, port_data)
 
@@ -1868,8 +1872,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def _update_port_on_backend(self, context, lport_id,
                                 original_port, updated_port,
-                                address_bindings,
-                                switch_profile_ids):
+                                address_bindings, port_security):
         original_device_owner = original_port.get('device_owner')
         original_device_id = original_port.get('device_id')
         updated_device_owner = updated_port.get('device_owner')
@@ -1923,6 +1926,18 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 updated_port.get(ext_sg.SECURITYGROUPS, []) +
                 updated_port.get(provider_sg.PROVIDER_SECURITYGROUPS, []))
 
+        switch_profile_ids = []
+        mac_learning_profile_set = False
+        address_pairs = updated_port.get(addr_pair.ADDRESS_PAIRS)
+        # Update port security profile
+        if port_security and address_bindings:
+            if address_pairs:
+                mac_learning_profile_set = True
+            switch_profile_ids.append(self._get_port_security_profile_id())
+        else:
+            switch_profile_ids.append(self._no_psec_profile_id)
+            address_bindings = []
+
         # Update the DHCP profile
         if updated_device_owner == const.DEVICE_OWNER_DHCP:
             switch_profile_ids.append(self._dhcp_profile)
@@ -1940,9 +1955,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             switch_profile_ids.append(qos_profile_id)
 
         # Add mac_learning profile if it exists and is configured
-        if (self._mac_learning_profile and
-            updated_port.get(mac_ext.MAC_LEARNING) is True):
-            switch_profile_ids.append(self._mac_learning_profile)
+        if (updated_port.get(mac_ext.MAC_LEARNING) is True or
+            mac_learning_profile_set):
+            switch_profile_ids.append(self._get_mac_learning_profile())
 
         try:
             self._port_client.update(
@@ -2042,11 +2057,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                                 new_mac_learning_state)
 
         address_bindings = self._build_address_bindings(updated_port)
-        if port_security and address_bindings:
-            switch_profile_ids = [self._get_port_security_profile_id()]
-        else:
-            switch_profile_ids = [self._no_psec_profile_id]
-            address_bindings = []
 
         # update the port in the backend, only if it exists in the DB
         # (i.e not external net)
@@ -2054,8 +2064,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             try:
                 self._update_port_on_backend(context, nsx_lport_id,
                                              original_port, updated_port,
-                                             address_bindings,
-                                             switch_profile_ids)
+                                             address_bindings, port_security)
             except (nsx_lib_exc.ManagerError,
                     nsx_lib_exc.SecurityGroupMaximumCapacityReached) as e:
                 # In case if there is a failure on NSX-v3 backend, rollback the
