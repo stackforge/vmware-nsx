@@ -1,0 +1,9 @@
+Code-Review+2: Kobi Samoray <ksamoray@vmware.com>
+Code-Review+2: garyk <gkotton@vmware.com>
+Workflow+1: garyk <gkotton@vmware.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Sat, 08 Oct 2016 07:20:39 +0000
+Reviewed-on: https://review.openstack.org/383556
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/newton
