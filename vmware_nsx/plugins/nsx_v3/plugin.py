@@ -2297,14 +2297,16 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         tags = self.nsxlib.build_v3_tags_payload(
             router['router'], resource_type='os-neutron-router-id',
             project_name=context.tenant_name)
-        result = self._router_client.create(
-            display_name=utils.get_name_and_uuid(
-                router['router']['name'] or 'router', router['router']['id']),
-            tags=tags)
 
         with context.session.begin():
             router = super(NsxV3Plugin, self).create_router(
                 context, router)
+            # Create backend entries here in case neutron DB exception
+            # occurred during super.create_router(), which will cause
+            # API retry and leave dangling backend entries.
+            result = self._router_client.create(
+                display_name=utils.get_name_and_uuid(
+                    router['name'] or 'router', router['id']), tags=tags)
             nsx_db.add_neutron_nsx_router_mapping(
                 context.session, router['id'], result['id'])
 
