@@ -49,7 +49,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
     def setUp(self):
         super(TestNsxV3L2GatewayDriver, self).setUp()
         self.core_plugin = importutils.import_object(NSX_V3_PLUGIN_CLASS)
-        self.driver = nsx_v3_driver.NsxV3Driver(mock.MagicMock())
+        self.driver = nsx_v3_driver.NsxV3Driver(mock.Mock())
         mock.patch.object(config, 'register_l2gw_opts_helper')
         mock.patch('neutron.services.service_base.load_drivers',
                    return_value=({'dummyprovider': self.driver},
@@ -57,7 +57,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         mock.patch.object(l2gateway_db.L2GatewayMixin, '__init__'),
         mock.patch.object(l2gateway_db, 'subscribe')
         mock.patch('neutron.db.servicetype_db.ServiceTypeManager.get_instance',
-                   return_value=mock.MagicMock()).start()
+                   return_value=mock.Mock()).start()
         self.l2gw_plugin = core_l2gw_plugin.L2GatewayPlugin()
         self.context = context.get_admin_context()
 
@@ -71,7 +71,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
                                'subscribe_callback_notifications') as sub:
             with mock.patch.object(nsx_v3_driver.LOG,
                                    'debug') as debug:
-                nsx_v3_driver.NsxV3Driver(mock.MagicMock())
+                nsx_v3_driver.NsxV3Driver(mock.Mock())
                 self.assertTrue(sub.called)
                 self.assertTrue(debug.called)
 
@@ -80,10 +80,10 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         cfg.CONF.set_override("default_bridge_cluster",
                               def_bridge_cluster_name,
                               "nsx_v3")
-        nsx_v3_driver.NsxV3Driver(mock.MagicMock())
+        nsx_v3_driver.NsxV3Driver(mock.Mock())
         # fake the callback invoked after init
         registry.notify(resources.PROCESS, events.BEFORE_SPAWN,
-                        mock.MagicMock())
+                        mock.Mock())
         l2gws = self.driver._get_l2_gateways(self.context)
         def_bridge_cluster_id = (
             self.nsxlib.bridge_cluster.get_id_by_name_or_id(
@@ -105,10 +105,10 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
                               def_bridge_cluster_name,
                               "nsx_v3")
         for i in range(0, 2):
-            nsx_v3_driver.NsxV3Driver(mock.MagicMock())
+            nsx_v3_driver.NsxV3Driver(mock.Mock())
             # fake the callback invoked after init
             registry.notify(resources.PROCESS, events.BEFORE_SPAWN,
-                            mock.MagicMock())
+                            mock.Mock())
         l2gws = self.driver._get_l2_gateways(self.context)
         # Verify whether only one default L2 gateway is created
         self.assertEqual(1, len(l2gws))
@@ -116,7 +116,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
     def test_create_default_l2_gateway_no_bc_uuid_noop(self):
         with mock.patch.object(nsx_v3_driver.NsxV3Driver,
                                'subscribe_callback_notifications'):
-            nsx_v3_driver.NsxV3Driver(mock.MagicMock())
+            nsx_v3_driver.NsxV3Driver(mock.Mock())
             l2gws = self.driver._get_l2_gateways(self.context)
             # Verify no default L2 gateway is created if bridge cluster id is
             # not configured in nsx.ini

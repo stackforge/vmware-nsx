@@ -37,12 +37,12 @@ class TestNsxV3TaaSDriver(test_taas_db.TaaSDbTestCase,
                           test_plugin.NeutronDbPluginV2TestCase):
     def setUp(self):
         super(TestNsxV3TaaSDriver, self).setUp()
-        self.driver = nsx_v3_driver.NsxV3Driver(mock.MagicMock())
+        self.driver = nsx_v3_driver.NsxV3Driver(mock.Mock())
         mock.patch('neutron.services.service_base.load_drivers',
                    return_value=({'dummyprovider': self.driver},
                                  'dummyprovider')).start()
         mock.patch('neutron.db.servicetype_db.ServiceTypeManager.get_instance',
-                   return_value=mock.MagicMock()).start()
+                   return_value=mock.Mock()).start()
         self.taas_plugin = taas_plugin.TaasPlugin()
         self.core_plugin = importutils.import_object(NSX_V3_PLUGIN_CLASS)
         mock.patch(

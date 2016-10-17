@@ -322,7 +322,7 @@ class VcnsDriverTestCase(base.BaseTestCase):
 
         self.ctx = neutron_context.get_admin_context()
         self.temp_e_drv_nsxv_db = e_drv.nsxv_db
-        e_drv.nsxv_db = mock.MagicMock()
+        e_drv.nsxv_db = mock.Mock()
         self.config_parse(args=['--config-file', VCNS_CONFIG_FILE])
 
         self.fc = fake_vcns.FakeVcns()

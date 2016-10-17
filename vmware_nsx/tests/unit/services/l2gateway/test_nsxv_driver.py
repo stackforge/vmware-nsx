@@ -34,7 +34,7 @@ class TestL2gatewayDriver(base.BaseTestCase):
     def setUp(self):
         super(TestL2gatewayDriver, self).setUp()
         self.context = context.get_admin_context()
-        self.plugin = nsx_v_driver.NsxvL2GatewayDriver(mock.MagicMock())
+        self.plugin = nsx_v_driver.NsxvL2GatewayDriver(mock.Mock())
 
     def test_validate_device_with_multi_devices(self):
         fake_l2gw_dict = {"l2_gateway":
@@ -187,7 +187,7 @@ class TestL2GatewayDriverRouter(test_plugin.NsxVPluginV2TestCase):
                                                      ext_mgr=None)
         self.context = context.get_admin_context()
         # init the L2 gateway driver
-        self.driver = nsx_v_driver.NsxvL2GatewayDriver(mock.MagicMock())
+        self.driver = nsx_v_driver.NsxvL2GatewayDriver(mock.Mock())
 
     @mock.patch('vmware_nsx.services.l2gateway.'
                 'nsx_v.driver.NsxvL2GatewayDriver._validate_device_list')
