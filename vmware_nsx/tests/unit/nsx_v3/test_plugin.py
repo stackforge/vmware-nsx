@@ -564,7 +564,7 @@ class TestL3NatTestCase(L3NatTest,
                     self.router() as r2:
                 self._router_interface_action('add', r1['router']['id'],
                                               s1['subnet']['id'], None)
-                self.assertRaises(n_exc.Conflict,
+                self.assertRaises(n_exc.InvalidInput,
                                   self.plugin_instance.add_router_interface,
                                   context.get_admin_context(),
                                   r2['router']['id'],
