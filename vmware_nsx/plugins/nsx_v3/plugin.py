@@ -2592,7 +2592,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             else:
                 LOG.error(err_msg)
                 # attach to multiple routers
-                raise n_exc.Conflict(error_message=err_msg)
+                raise n_exc.Conflict()
 
     def _add_router_interface_wrapper(self, context, router_id,
                                       interface_info):
