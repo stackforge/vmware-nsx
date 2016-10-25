@@ -7,7 +7,7 @@
 #
 #         http://www.apache.org/licenses/LICENSE-2.0
 #
-#    Unless required by applicable law or agreed to in writing, software
+#    Unless required by applicable law or agreed to in writing, softwar
 #    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
@@ -25,3 +25,8 @@ EXPECTED_HTTP_RESPONSE_200 = "200"
 EXPECTED_HTTP_RESPONSE_201 = "201"
 EXPECTED_HTTP_RESPONSE_204 = "204"
 L2GWC = "l2_gateway_connection"
+
+# MAC Learning constants
+MAC_SW_PROFILE = "MacManagementSwitchingProfile"
+PORT_SEC_PROFILE = "SpoofGuardSwitchingProfile"
+SEC_GRPS_PROFILE = "SwitchSecuritySwitchingProfile"
