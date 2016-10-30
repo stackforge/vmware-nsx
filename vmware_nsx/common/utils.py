@@ -108,10 +108,15 @@ def check_and_truncate(display_name):
     return display_name or ''
 
 
-def _get_bad_request_error_code(e):
+def normalize_xml(data):
+    data = data.encode('ascii', 'ignore')
+    return et.fromstring(data)
+
+
+def get_bad_request_error_code(e):
     """Get the error code out of the exception"""
     try:
-        desc = et.fromstring(e.response)
+        desc = normalize_xml(e.response)
         return int(desc.find('errorCode').text)
     except Exception:
         pass
@@ -126,7 +131,7 @@ def retry_upon_exception_exclude_error_codes(
         # return True only for BadRequests without error codes or with error
         # codes not in the exclude list
         if isinstance(e, exc):
-            error_code = _get_bad_request_error_code(e)
+            error_code = get_bad_request_error_code(e)
             if error_code and error_code not in excluded_errors:
                 return True
         return False
