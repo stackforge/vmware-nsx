@@ -533,7 +533,7 @@ class Vcns(object):
     def get_security_group_id(self, sg_name):
         """Returns NSXv security group id which match the given name."""
         h, secgroups = self.list_security_groups()
-        root = et.fromstring(secgroups)
+        root = utils.normalize_xml(secgroups)
         for sg in root.iter('securitygroup'):
             if sg.find('name').text == sg_name:
                 return sg.find('objectId').text
@@ -608,7 +608,7 @@ class Vcns(object):
     def get_section_id(self, section_name):
         """Retrieve the id of a section from nsx."""
         h, firewall_config = self.get_dfw_config()
-        root = et.fromstring(firewall_config)
+        root = utils.normalize_xml(firewall_config)
         for sec in root.iter('section'):
             if sec.attrib['name'] == section_name:
                 return sec.attrib['id']
@@ -797,8 +797,7 @@ class Vcns(object):
         uri = '%s/usermgmt/scopingobjects' % SERVICES_PREFIX
         h, so_list = self.do_request(HTTP_GET, uri, decode=False,
                                      format='xml')
-
-        root = et.fromstring(so_list)
+        root = utils.normalize_xml(so_list)
         for obj in root.iter('object'):
             if (obj.find('objectTypeName').text in type_names and
                     obj.find('objectId').text == object_id and
@@ -820,8 +819,7 @@ class Vcns(object):
         uri = '%s/scopes' % VDN_PREFIX
         h, scope_list = self.do_request(HTTP_GET, uri, decode=False,
                                         format='xml')
-
-        root = et.fromstring(scope_list)
+        root = utils.normalize_xml(scope_list)
         for obj_id in root.iter('objectId'):
             if obj_id.text == object_id:
                 return True
@@ -832,8 +830,7 @@ class Vcns(object):
         uri = '%s/switches' % VDN_PREFIX
         h, dvs_list = self.do_request(HTTP_GET, uri, decode=False,
                                       format='xml')
-
-        root = et.fromstring(dvs_list)
+        root = utils.normalize_xml(dvs_list)
         for obj_id in root.iter('objectId'):
             if obj_id.text == object_id:
                 return True
