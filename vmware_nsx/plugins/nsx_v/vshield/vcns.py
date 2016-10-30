@@ -814,6 +814,7 @@ class Vcns(object):
         uri = '%s/usermgmt/scopingobjects' % SERVICES_PREFIX
         h, so_list = self.do_request(HTTP_GET, uri, decode=False,
                                      format='xml')
+        so_list = so_list.encode('ascii', 'ignore')
         root = et.fromstring(so_list)
         for obj in root.iter('object'):
             if (obj.find('objectTypeName').text in type_names and
@@ -836,7 +837,7 @@ class Vcns(object):
         uri = '%s/scopes' % VDN_PREFIX
         h, scope_list = self.do_request(HTTP_GET, uri, decode=False,
                                         format='xml')
-
+        scope_list = scope_list.encode('ascii', 'ignore')
         root = et.fromstring(scope_list)
         for obj_id in root.iter('objectId'):
             if obj_id.text == object_id:
@@ -848,7 +849,7 @@ class Vcns(object):
         uri = '%s/switches' % VDN_PREFIX
         h, dvs_list = self.do_request(HTTP_GET, uri, decode=False,
                                       format='xml')
-
+        dvs_list = dvs_list.encode('ascii', 'ignore')
         root = et.fromstring(dvs_list)
         for obj_id in root.iter('objectId'):
             if obj_id.text == object_id:
