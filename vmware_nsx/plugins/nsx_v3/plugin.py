@@ -1144,15 +1144,21 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             lock = 'nsxv3_network_' + subnet['subnet']['network_id']
             with locking.LockManager.get_lock(lock):
                 # Check if it is the first DHCP-enabled subnet to create.
-                network = self._get_network(context,
-                                            subnet['subnet']['network_id'])
-                if self._has_no_dhcp_enabled_subnet(context, network):
+                network = self.get_network(context,
+                                           subnet['subnet']['network_id'])
+                if network.get(pnet.NETWORK_TYPE) not in (
+                    None, utils.NsxV3NetworkTypes.VXLAN):
+                    msg = _("Native DHCP is not supported for non-overlay "
+                            "network %s") % subnet['subnet']['network_id']
+                elif self._has_no_dhcp_enabled_subnet(context, network):
                     created_subnet = super(NsxV3Plugin, self).create_subnet(
                         context, subnet)
                     self._enable_native_dhcp(context, network, created_subnet)
+                    msg = None
                 else:
                     msg = _("Can not create more than one DHCP-enabled subnet "
                             "in network %s") % subnet['subnet']['network_id']
+                if msg:
                     LOG.error(msg)
                     raise n_exc.InvalidInput(error_message=msg)
         else:
@@ -1185,19 +1191,27 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 enable_dhcp != orig_subnet['enable_dhcp']):
                 lock = 'nsxv3_network_' + orig_subnet['network_id']
                 with locking.LockManager.get_lock(lock):
-                    network = self._get_network(
+                    network = self.get_network(
                         context, orig_subnet['network_id'])
                     if enable_dhcp:
-                        if self._has_no_dhcp_enabled_subnet(context, network):
+                        if network.get(pnet.NETWORK_TYPE) not in (
+                            None, utils.NsxV3NetworkTypes.VXLAN):
+                            msg = _("Native DHCP is not supported for "
+                                    "non-overlay network %s") % orig_subnet[
+                                'network_id']
+                        elif self._has_no_dhcp_enabled_subnet(
+                            context, network):
                             updated_subnet = super(
                                 NsxV3Plugin, self).update_subnet(
                                 context, subnet_id, subnet)
                             self._enable_native_dhcp(context, network,
                                                      updated_subnet)
+                            msg = None
                         else:
                             msg = (_("Multiple DHCP-enabled subnets is not "
                                      "allowed in network %s") %
                                    orig_subnet['network_id'])
+                        if msg:
                             LOG.error(msg)
                             raise n_exc.InvalidInput(error_message=msg)
                     elif self._has_single_dhcp_enabled_subnet(context,
