@@ -169,15 +169,6 @@ class ExtendedSecurityGroupPropertiesMixin(object):
         if default_sg:
             raise provider_sg.DefaultSecurityGroupIsNotProvider()
 
-        tenant_id = security_group['tenant_id']
-        ssg = self._get_tenant_provider_security_groups(context, tenant_id)
-        if ssg:
-            # REVISIT(roeyc): At the moment we only allow on provider
-            # security-group per tenant, this might change in the future.
-            raise Exception(_("Provider Security-group already exists"
-                              "(%(pvdsg)s) for tenant %(tenant_id)s.")
-                            % {'pvdsg': ssg, 'tenant_id': tenant_id})
-
     def _get_provider_security_groups_on_port(self, context, port):
         p = port['port']
         tenant_id = p['tenant_id']
