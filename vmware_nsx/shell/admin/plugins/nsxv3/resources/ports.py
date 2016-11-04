@@ -19,7 +19,6 @@ from oslo_config import cfg
 from sqlalchemy.orm import exc
 
 from vmware_nsx._i18n import _LE, _LI, _LW
-from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.db import db as nsx_db
 from vmware_nsx.db import nsx_models
 from vmware_nsx.dvs import dvs
