@@ -2242,7 +2242,11 @@ def _delete_interface(nsxv_manager, context, router_id, network_id,
 def update_nat_rules(nsxv_manager, context, router_id, snat, dnat):
     binding = nsxv_db.get_nsxv_router_binding(context.session, router_id)
     if binding:
-        nsxv_manager.update_nat_rules(binding['edge_id'], snat, dnat)
+        edge_id = binding['edge_id']
+        vnic_bindings = nsxv_db.get_edge_vnic_bindings_by_edge(
+            context.session, edge_id)
+        indices = [vnic_binding.vnic_index for vnic_binding in vnic_bindings]
+        nsxv_manager.update_nat_rules(edge_id, snat, dnat, indices)
     else:
         LOG.warning(_LW("Bindings do not exists for %s"), router_id)
 

@@ -593,31 +593,37 @@ class EdgeApplianceDriver(object):
                           e.response)
             raise e
 
-    def update_nat_rules(self, edge_id, snats, dnats):
+    def update_nat_rules(self, edge_id, snats, dnats, indices=None):
         LOG.debug("VCNS: update nat rule\n"
                   "SNAT:%(snat)s\n"
                   "DNAT:%(dnat)s\n", {
                         'snat': snats, 'dnat': dnats})
         nat_rules = []
+        indices = indices or []
+        # Add the external vnic index
+        indices.insert(0, constants.EXTERNAL_VNIC_INDEX)
+        for index in indices:
+            for dnat in dnats:
+                vnic_index = index
+                if 'vnic_index' in dnat:
+                    vnic_index = dnat['vnic_index']
+                nat_rules.append(self._assemble_nat_rule(
+                    'dnat', dnat['dst'], dnat['translated'],
+                    vnic_index=vnic_index
+                ))
+                nat_rules.append(self._assemble_nat_rule(
+                    'snat', dnat['translated'], dnat['dst'],
+                    vnic_index=vnic_index
+                ))
 
-        for dnat in dnats:
-            vnic_index = constants.EXTERNAL_VNIC_INDEX
-            if 'vnic_index' in dnat:
-                vnic_index = dnat['vnic_index']
-            nat_rules.append(self._assemble_nat_rule(
-                'dnat', dnat['dst'], dnat['translated'], vnic_index=vnic_index
-            ))
-            nat_rules.append(self._assemble_nat_rule(
-                'snat', dnat['translated'], dnat['dst'], vnic_index=vnic_index
-            ))
-
-        for snat in snats:
-            vnic_index = constants.EXTERNAL_VNIC_INDEX
-            if 'vnic_index' in snat:
-                vnic_index = snat['vnic_index']
-            nat_rules.append(self._assemble_nat_rule(
-                'snat', snat['src'], snat['translated'], vnic_index=vnic_index
-            ))
+            for snat in snats:
+                vnic_index = index
+                if 'vnic_index' in snat:
+                    vnic_index = snat['vnic_index']
+                nat_rules.append(self._assemble_nat_rule(
+                    'snat', snat['src'], snat['translated'],
+                    vnic_index=vnic_index
+                ))
 
         nat = {
             'featureType': 'nat',
