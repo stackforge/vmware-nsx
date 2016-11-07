@@ -121,3 +121,20 @@ class SecGroupPolicyExtensionTestCase(
         # can be deleted though as admin
         self._delete('security-groups', sg_id,
                      expected_code=webob.exc.HTTPNoContent.code)
+
+
+class SecGroupPolicyExtensionTestCaseWithRules(
+    SecGroupPolicyExtensionTestCase):
+
+    def setUp(self, plugin=PLUGIN_NAME, ext_mgr=None):
+        cfg.CONF.set_override('allow_tenant_rules_with_policy',
+                              True, group='nsxv')
+        super(SecGroupPolicyExtensionTestCaseWithRules, self).setUp(
+            plugin=plugin, ext_mgr=ext_mgr)
+
+    def test_secgroup_create_without_policy(self):
+        # in case allow_tenant_rules_with_policy is True, it is allowed to
+        # create a regular sg
+        res = self._create_secgroup_with_policy(None)
+        sg = self.deserialize(self.fmt, res)
+        self.assertIsNone(sg['security_group']['policy'])
