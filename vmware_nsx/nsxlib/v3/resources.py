@@ -376,7 +376,8 @@ class LogicalRouterPort(AbstractRESTResource):
                resource_type,
                logical_port_id,
                address_groups,
-               edge_cluster_member_index=None):
+               edge_cluster_member_index=None,
+               vrf_id=None):
         body = {'display_name': display_name,
                 'resource_type': resource_type,
                 'logical_router_id': logical_router_id,
@@ -394,6 +395,8 @@ class LogicalRouterPort(AbstractRESTResource):
             body['linked_logical_router_port_id'] = logical_port_id
         if edge_cluster_member_index:
             body['edge_cluster_member_index'] = edge_cluster_member_index
+        if vrf_id:
+            body['vrf_id'] = vrf_id
 
         return self._client.create(body=body)
 
