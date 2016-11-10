@@ -1546,10 +1546,11 @@ class EdgeManager(object):
         plr_vnic_index = nsxv_db.allocate_edge_vnic(
             context.session, plr_edge_id, lswitch_id).vnic_index
         #TODO(berlin): the internal ip should change based on vnic_index
-        self.nsxv_manager.update_interface(
-            plr_router['id'], plr_edge_id, plr_vnic_index, lswitch_id,
-            address=vcns_const.INTEGRATION_EDGE_IPADDRESS,
-            netmask=vcns_const.INTEGRATION_SUBNET_NETMASK)
+        with locking.LockManager.get_lock(str(plr_edge_id)):
+            self.nsxv_manager.update_interface(
+                plr_router['id'], plr_edge_id, plr_vnic_index, lswitch_id,
+                address=vcns_const.INTEGRATION_EDGE_IPADDRESS,
+                netmask=vcns_const.INTEGRATION_SUBNET_NETMASK)
         return plr_router['id']
 
     def delete_plr_by_tlr_id(self, context, plr_id, router_id):
@@ -2022,9 +2023,18 @@ def update_external_interface(
     nsxv_manager, context, router_id, ext_net_id,
     ipaddr, netmask, secondary=None):
     with locking.LockManager.get_lock(str(router_id)):
-        _update_external_interface(nsxv_manager, context, router_id,
-                                   ext_net_id, ipaddr, netmask,
-                                   secondary=secondary)
+        binding = nsxv_db.get_nsxv_router_binding(context.session, router_id)
+
+        # If no binding was found, no interface to update - exit
+        if not binding:
+            LOG.error(_LE('Edge binding not found for router %s'), router_id)
+            return
+
+        edge_id = binding['edge_id']
+        with locking.LockManager.get_lock(str(edge_id)):
+            _update_external_interface(nsxv_manager, context, router_id,
+                                       ext_net_id, edge_id, ipaddr, netmask,
+                                       secondary=secondary)
 
 
 def _check_ipnet_ip(ipnet, ip_address):
@@ -2038,15 +2048,9 @@ def _check_ipnet_ip(ipnet, ip_address):
 
 
 def _update_external_interface(
-    nsxv_manager, context, router_id, ext_net_id,
+    nsxv_manager, context, router_id, ext_net_id, edge_id,
     ipaddr, netmask, secondary=None):
     secondary = secondary or []
-    binding = nsxv_db.get_nsxv_router_binding(context.session, router_id)
-
-    # If no binding was found, no interface to update - exit
-    if not binding:
-        LOG.error(_LE('Edge binding not found for router %s'), router_id)
-        return
 
     net_bindings = nsxv_db.get_network_bindings(context.session, ext_net_id)
     if not net_bindings:
@@ -2090,13 +2094,13 @@ def _update_external_interface(
             if missed_ip_sec:
                 LOG.error(_LE("secondary address %s of ext vnic are not "
                           "configured"), str(missed_ip_sec))
-        nsxv_manager.update_interface(router_id, binding['edge_id'],
+        nsxv_manager.update_interface(router_id, edge_id,
                                       vcns_const.EXTERNAL_VNIC_INDEX,
                                       vcns_network_id,
                                       address_groups=address_groups)
 
     else:
-        nsxv_manager.update_interface(router_id, binding['edge_id'],
+        nsxv_manager.update_interface(router_id, edge_id,
                                       vcns_const.EXTERNAL_VNIC_INDEX,
                                       vcns_network_id,
                                       address=ipaddr,
