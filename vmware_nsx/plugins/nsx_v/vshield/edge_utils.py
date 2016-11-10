@@ -439,7 +439,8 @@ class EdgeManager(object):
                     self.nsxv_manager.delete_port_group(dvs_id,
                                                        port_group_id)
             else:
-                self.nsxv_manager.vcns.update_interface(edge_id, vnic_config)
+                with locking.LockManager.get_lock('nsx-inf' + edge_id):
+                    self.nsxv_manager.vcns.update_interface(edge_id, vnic_config)
         except nsxapi_exc.VcnsApiException:
             LOG.exception(_LE('Failed to delete vnic %(vnic_index)d '
                               'tunnel %(tunnel_index)d on edge %(edge_id)s '
@@ -1412,7 +1413,9 @@ class EdgeManager(object):
                     not is_uplink and vnic['type'] != 'uplink'):
                     if self._update_address_in_dict(
                         vnic['addressGroups'], old_ip, new_ip, subnet_mask):
-                        self.nsxv_manager.vcns.update_interface(edge_id, vnic)
+                        with locking.LockManager.get_lock('nsx-inf' + edge_id):
+                            self.nsxv_manager.vcns.update_interface(edge_id,
+                                                                    vnic)
                         return
 
         # If we got here - we didn't find the old ip:

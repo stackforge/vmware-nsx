@@ -25,6 +25,7 @@ from sqlalchemy.orm import exc as sa_exc
 
 from vmware_nsx._i18n import _, _LE, _LI, _LW
 from vmware_nsx.common import exceptions as nsxv_exc
+from vmware_nsx.common import locking
 from vmware_nsx.common import nsxv_constants
 from vmware_nsx.common import utils
 from vmware_nsx.db import nsxv_db
@@ -309,7 +310,8 @@ class EdgeApplianceDriver(object):
             address, netmask, secondary, type=intf_type,
             address_groups=address_groups, is_connected=is_connected)
 
-        self.vcns.update_interface(edge_id, config)
+        with locking.LockManager.get_lock('nsx-inf' + edge_id):
+            self.vcns.update_interface(edge_id, config)
 
     def add_vdr_internal_interface(self, edge_id,
                                    network, address=None, netmask=None,
