@@ -931,6 +931,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # entries are still there.
         self._disable_native_dhcp(context, network['id'])
 
+        # get existing ports on subnet
+        existing_ports = super(NsxV3Plugin, self).get_ports(
+            context, filters={'network_id': [network['id']],
+                              'fixed_ips': {'subnet_id': [subnet['id']]}})
         port_data = {
             "name": "",
             "admin_state_up": True,
@@ -991,6 +995,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                           neutron_port['id'])
                 self._dhcp_server.delete(dhcp_server['id'])
                 self._cleanup_port(context, neutron_port['id'], nsx_port['id'])
+
+        # Configure existing ports to work with the new DHCP server
+        try:
+            for port_data in existing_ports:
+                self._add_dhcp_binding(context, port_data)
+        except Exception:
+            LOG.error(_LE('Unable to create DHCP bindings for existing ports '
+                          'on subnet %s'), subnet['id'])
 
     def _disable_native_dhcp(self, context, network_id):
         # Disable native DHCP service on the backend for this network.
