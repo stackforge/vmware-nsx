@@ -1846,16 +1846,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         data = subnet['subnet']
 
         if data['cidr'] not in (constants.ATTR_NOT_SPECIFIED, None):
-            range = netaddr.IPNetwork(data['cidr'])
-
-            # Check each reserved subnet for intersection
-            for reserved_subnet in reserved_subnets:
-                # translate the reserved subnet to a range object
-                reserved_range = netaddr.IPNetwork(reserved_subnet)
-                # check if new subnet overlaps this reserved subnet
-                if (range.first <= reserved_range.last
-                    and reserved_range.first <= range.last):
-                    return True
+            return edge_utils.is_overlapping_reserved_subnets(data['cidr'])
 
         return False
 
@@ -3550,6 +3541,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             if moref and not self.nsx_v.vcns.validate_inventory(moref):
                 error = _("Configured %s not found") % field
                 raise nsx_exc.NsxPluginException(err_msg=error)
+
+        if cfg.CONF.nsxv.vdr_transit_network:
+            edge_utils.validate_vdr_transit_network()
 
     def _handle_qos_notification(self, qos_policys, event_type):
         qos_utils.handle_qos_notification(qos_policys, event_type, self._dvs)
