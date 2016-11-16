@@ -153,6 +153,15 @@ class NeutronNsxRouterMapping(model_base.BASEV2, models.TimestampMixin):
     nsx_id = sa.Column(sa.String(36))
 
 
+class NeutronRouterVrfBinding(model_base.BASEV2, models.TimestampMixin):
+    """Represents a binding of a Neutron router with VRF info."""
+    __tablename__ = 'neutron_router_vrf_bindings'
+    router_id = sa.Column(sa.String(36),
+                          sa.ForeignKey('routers.id', ondelete='CASCADE'),
+                          nullable=False, primary_key=True)
+    vrf_id = sa.Column(sa.String(36), nullable=False)
+
+
 class NeutronNsxServiceBinding(model_base.BASEV2, models.TimestampMixin):
     """Represents a binding of a Neutron network with enabled NSX services."""
     __tablename__ = 'neutron_nsx_service_bindings'
