@@ -296,13 +296,9 @@ class SyncTestCase(testlib_api.SqlTestCase):
         cfg.CONF.set_override('allow_overlapping_ips', True)
         self._plugin = plugin.NsxPlugin()
         # Mock neutron manager plugin load functions to speed up tests
-        mock_nm_get_plugin = mock.patch('neutron.manager.NeutronManager.'
-                                        'get_plugin')
-        mock_nm_get_service_plugins = mock.patch(
-            'neutron.manager.NeutronManager.get_service_plugins')
+        mock_nm_get_plugin = mock.patch('directory.get_plugin')
         self.mock_nm_get_plugin = mock_nm_get_plugin.start()
         self.mock_nm_get_plugin.return_value = self._plugin
-        mock_nm_get_service_plugins.start()
         super(SyncTestCase, self).setUp()
         self.addCleanup(self.fc.reset_all)
 
