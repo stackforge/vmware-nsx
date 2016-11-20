@@ -18,9 +18,11 @@ import webob.exc
 
 from neutron.api.v2 import attributes as attr
 from neutron import context
+from neutron.tests.unit.api import test_extensions
 from neutron.tests.unit.extensions import test_securitygroup
 from neutron_lib import constants
 
+from vmware_nsx.extensions import nsxpolicy
 from vmware_nsx.extensions import securitygrouplogging as ext_logging
 from vmware_nsx.extensions import securitygrouppolicy as ext_policy
 from vmware_nsx.tests.unit.nsx_v import test_plugin
@@ -211,3 +213,41 @@ class SecGroupPolicyExtensionTestCaseWithRules(
         self.assertEqual(
             sg['security_group']['id'],
             rule_data['security_group_rule']['security_group_id'])
+
+
+class NsxPolExtensionManager(object):
+
+    def get_resources(self):
+        return nsxpolicy.Nsxpolicy.get_resources()
+
+    def get_actions(self):
+        return []
+
+    def get_request_extensions(self):
+        return []
+
+
+class TestNsxPolicies(test_plugin.NsxVPluginV2TestCase):
+
+    def setUp(self, plugin=None):
+        super(TestNsxPolicies, self).setUp()
+        ext_mgr = NsxPolExtensionManager()
+        self.ext_api = test_extensions.setup_extensions_middleware(ext_mgr)
+
+    def test_get_policy(self):
+        id = 'policy-1'
+        req = self.new_show_request('nsx-policies', id)
+        res = self.deserialize(
+            self.fmt, req.get_response(self.ext_api)
+        )
+        policy = res['nsx_policy']
+        self.assertEqual(id, policy['id'])
+
+    def test_list_policies(self):
+        req = self.new_list_request('nsx-policies')
+        res = self.deserialize(
+            self.fmt, req.get_response(self.ext_api)
+        )
+        self.assertIn('nsx_policies', res)
+        # the fake_vcns api returns 3 policies
+        self.assertEqual(3, len(res['nsx_policies']))
