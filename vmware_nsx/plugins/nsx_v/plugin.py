@@ -98,6 +98,7 @@ from vmware_nsx.extensions import (
     vnicindex as ext_vnic_idx)
 from vmware_nsx.extensions import dhcp_mtu as ext_dhcp_mtu
 from vmware_nsx.extensions import dns_search_domain as ext_dns_search_domain
+from vmware_nsx.extensions import nsxpolicy
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import routersize
 from vmware_nsx.extensions import secgroup_rule_local_ip_prefix
@@ -136,7 +137,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                    securitygroups_db.SecurityGroupDbMixin,
                    extended_secgroup.ExtendedSecurityGroupPropertiesMixin,
                    vnic_index_db.VnicIndexDbMixin,
-                   dns_db.DNSDbMixin):
+                   dns_db.DNSDbMixin, nsxpolicy.NsxPolicyPluginBase):
 
     supported_extension_aliases = ["agent",
                                    "allowed-address-pairs",
@@ -227,6 +228,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self._use_nsx_policies = True
             # enable the extension
             self.supported_extension_aliases.append("security-group-policy")
+            self.supported_extension_aliases.append("nsx-policy")
 
         self.sg_container_id = self._create_security_group_container()
         self.default_section = self._create_cluster_default_fw_section()
@@ -3562,6 +3564,34 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
     def get_default_az(self):
         return self._availability_zones_data.get_default_availability_zone()
+
+    def _nsx_policy_is_hidden(self, policy):
+        for attrib in policy.get('extendedAttributes', []):
+            if (attrib['name'].lower() == 'ishidden' and
+                attrib['value'].lower() == 'true'):
+                return True
+        return False
+
+    def _nsx_policy_to_dict(self, policy):
+        return {'id': policy['objectId'],
+                'name': policy.get('name'),
+                'description': policy.get('description')}
+
+    def get_nsx_policy(self, context, id, fields=None):
+        policy = self.nsx_v.vcns.get_security_policy(id, return_xml=False)
+        if self._nsx_policy_is_hidden(policy):
+            raise n_exc.ObjectNotFound(id=id)
+        return self._nsx_policy_to_dict(policy)
+
+    def get_nsx_policies(self, context, filters=None, fields=None,
+                         sorts=None, limit=None, marker=None,
+                         page_reverse=False):
+        policies = self.nsx_v.vcns.get_security_policies()
+        results = []
+        for policy in policies.get('policies', []):
+            if not self._nsx_policy_is_hidden(policy):
+                results.append(self._nsx_policy_to_dict(policy))
+        return results
 
 
 # Register the callback
