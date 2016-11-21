@@ -378,8 +378,9 @@ class TestDvrBasicOps(manager.NetworkScenarioTest):
                                                    "floating ip")
 
     @test.idempotent_id('d99b62ec-28ce-44db-a195-edb74037a354')
-    @testtools.skipIf(CONF.baremetal.driver_enabled,
-                      'Baremetal relies on a shared physical network.')
+    @testtools.skipIf(CONF.network.shared_physical_network,
+                      'Connectivity can only be tested when in a '
+                      'multitenant network environment')
     @test.services('compute', 'network')
     def test_dvr_connectivity_between_vms_on_different_networks(self):
         """
@@ -427,9 +428,9 @@ class TestDvrBasicOps(manager.NetworkScenarioTest):
                                                   should_connect=True)
 
     @test.idempotent_id('a73fd605-d55e-4151-b25e-41e7a7ff2258')
-    @testtools.skipIf(CONF.baremetal.driver_enabled,
-                      'Router state cannot be altered on a shared baremetal '
-                      'network')
+    @testtools.skipIf(CONF.network.shared_physical_network,
+                      'Router state can be altered only with multitenant '
+                      'networks capabilities')
     @test.services('compute', 'network')
     def test_dvr_update_router_admin_state(self):
         """
