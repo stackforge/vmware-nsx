@@ -2354,6 +2354,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             if nsx_rule_id and section_uri:
                 self.nsx_v.vcns.remove_rule_from_section(
                     section_uri, nsx_rule_id)
+        except vsh_exc.ResourceNotFound:
+            LOG.debug("Security group rule %(id)s deleted, backend "
+                      "nsx-rule %(nsx_rule_id)s doesn't exist.",
+                      {'id': id, 'nsx_rule_id': nsx_rule_id})
 
             with context.session.begin(subtransactions=True):
                 context.session.delete(rule_db)
