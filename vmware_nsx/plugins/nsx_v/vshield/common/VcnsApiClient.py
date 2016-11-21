@@ -13,10 +13,13 @@
 #    under the License.
 
 import base64
-
-from oslo_serialization import jsonutils
-import requests
 import six
+import ssl
+
+import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.poolmanager import PoolManager
+from oslo_serialization import jsonutils
 
 from vmware_nsx.plugins.nsx_v.vshield.common import exceptions
 
@@ -64,6 +67,13 @@ def _xmldump(obj):
 def xmldumps(obj):
     attr, xml = _xmldump(obj)
     return xml
+
+
+class MyAdapter(HTTPAdapter):
+        def init_poolmanager(self, connections, maxsize):
+            self.poolmanager = PoolManager(num_pools=connections,
+                                           maxsize=maxsize,
+                                           ssl_version=ssl.PROTOCOL_TLSv1)
 
 
 class VcnsApiHelper(object):
