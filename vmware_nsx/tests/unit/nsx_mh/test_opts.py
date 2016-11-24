@@ -75,9 +75,6 @@ class ConfigurationTest(base.BaseTestCase):
 
     def setUp(self):
         super(ConfigurationTest, self).setUp()
-        self.useFixture(fixtures.MonkeyPatch(
-                        'neutron_lib.plugins.directory._instance',
-                        None))
         # Avoid runs of the synchronizer looping call
         patch_sync = mock.patch.object(sync, '_start_loopingcall')
         patch_sync.start()
@@ -240,9 +237,6 @@ class OldNVPConfigurationTest(base.BaseTestCase):
 
     def setUp(self):
         super(OldNVPConfigurationTest, self).setUp()
-        self.useFixture(fixtures.MonkeyPatch(
-                        'neutron_lib.plugins.directory._instance',
-                        None))
         # Avoid runs of the synchronizer looping call
         patch_sync = mock.patch.object(sync, '_start_loopingcall')
         patch_sync.start()
