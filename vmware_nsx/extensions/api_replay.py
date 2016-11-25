@@ -16,8 +16,9 @@
 #
 
 from neutron_lib.db import constants as db_const
+from neutron_lib.api import extensions
 
-from neutron.api import extensions
+from neutron.api.v2 import attributes
 
 
 # The attributes map is here for 2 reasons:
