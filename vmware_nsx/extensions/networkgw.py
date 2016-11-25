@@ -17,10 +17,10 @@ import abc
 
 from oslo_config import cfg
 
-from neutron.api import extensions
 from neutron.api.v2 import attributes
 from neutron.api.v2 import resource_helper
 
+from neutron_lib.api import extensions
 from neutron_lib.api import validators
 from neutron_lib import constants
 
