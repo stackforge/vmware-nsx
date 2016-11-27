@@ -16,11 +16,11 @@
 
 import abc
 
-from neutron.api import extensions
 from neutron.api.v2 import attributes as attr
 from neutron.api.v2 import base
 
 from neutron_lib.api import converters
+from neutron_lib.api import extensions
 from neutron_lib import exceptions as nexception
 from neutron_lib.plugins import directory
 
