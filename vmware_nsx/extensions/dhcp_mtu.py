@@ -12,9 +12,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.api import extensions
-
 from neutron_lib import constants
+from neutron_lib.api import extensions
+
 
 DHCP_MTU = 'dhcp_mtu'
 EXTENDED_ATTRIBUTES_2_0 = {

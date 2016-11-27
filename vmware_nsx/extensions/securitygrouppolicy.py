@@ -12,8 +12,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.api import extensions
 from neutron_lib import exceptions as nexception
+from neutron_lib.api import extensions
 
 POLICY = 'policy'
 
