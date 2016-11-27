@@ -279,6 +279,40 @@ def change_edge_appliance(edge_id):
         change_edge_ha(az.edge_ha, edge_id)
 
 
+def change_edge_appliance_reservations(properties):
+    reservations = {}
+    res = {}
+    if properties.get('limit'):
+        res['limit'] = properties.get('limit')
+    if properties.get('reservation'):
+        res['reservation'] = properties.get('reservation')
+    if properties.get('shares'):
+        res['shares'] = properties.get('shares')
+    resource = properties.get('resource')
+    if not res:
+        LOG.error(_LE("Please configure reservations"))
+        return
+    if resource == 'cpu':
+        reservations['cpuReservation'] = res
+    elif resource == 'memory':
+        reservations['memoryReservation'] = res
+    else:
+        LOG.error(_LE("Please configure resource"))
+        return
+    edge_id = properties.get('edge-id')
+    h, edge = nsxv.get_edge(edge_id)
+    appliances = edge['appliances']['appliances']
+    for appliance in appliances:
+        appliance.update(reservations)
+    request = {'appliances': appliances}
+    try:
+        nsxv.change_edge_appliance(edge_id, request)
+    except nsxv_exceptions.ResourceNotFound as e:
+        LOG.error(_LE("Edge %s not found"), edge_id)
+    except exceptions.NeutronException as e:
+        LOG.error(_LE("%s"), str(e))
+
+
 @admin_utils.output_header
 def nsx_update_edge(resource, event, trigger, **kwargs):
     """Update edge properties"""
@@ -312,6 +346,8 @@ def nsx_update_edge(resource, event, trigger, **kwargs):
             delete_edge_syslog(properties['edge-id'])
         else:
             change_edge_syslog(properties)
+    elif properties.get('resource'):
+        change_edge_appliance_reservations(properties)
     else:
         # no attribute was specified
         LOG.error(usage_msg)
