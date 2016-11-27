@@ -12,9 +12,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.api import extensions
+from neutron_lib.api import extensions
 from neutron_lib import constants
-
 
 ROUTER_SIZE = 'router_size'
 VALID_EDGE_SIZES = ['compact', 'large', 'xlarge', 'quadlarge']

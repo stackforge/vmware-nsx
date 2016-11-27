@@ -16,10 +16,12 @@
 
 import abc
 
-from neutron.api import extensions
+from neutron.api import extensions as neutron_extensions
+from neutron.api.v2 import attributes as attr
 from neutron.api.v2 import base
 
 from neutron_lib.api import converters
+from neutron_lib.api import extensions
 from neutron_lib.db import constants as db_const
 from neutron_lib import exceptions as nexception
 from neutron_lib.plugins import directory
@@ -197,8 +199,8 @@ class Qos_queue(extensions.ExtensionDescriptor):
                                           resource_name,
                                           plugin, params, allow_bulk=False)
 
-        ex = extensions.ResourceExtension(collection_name,
-                                          controller)
+        ex = neutron_extensions.ResourceExtension(collection_name,
+                                                  controller)
         exts.append(ex)
 
         return exts
