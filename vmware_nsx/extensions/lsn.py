@@ -14,8 +14,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 #
-from neutron.api import extensions
+from neutron.api import extensions as neutron_extensions
 from neutron.api.v2 import base
+from neutron_lib.api import extensions
 from neutron_lib.plugins import directory
 
 
@@ -66,7 +67,7 @@ class Lsn(extensions.ExtensionDescriptor):
         controller = base.create_resource(collection_name,
                                           resource_name,
                                           plugin, params, allow_bulk=False)
-        ex = extensions.ResourceExtension(collection_name, controller)
+        ex = neutron_extensions.ResourceExtension(collection_name, controller)
         exts.append(ex)
         return exts
 

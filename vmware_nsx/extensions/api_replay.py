@@ -17,8 +17,8 @@
 
 from neutron_lib.db import constants as db_const
 
-from neutron.api import extensions
-
+from neutron.api.v2 import attributes
+from neutron_lib.api import extensions
 
 # The attributes map is here for 2 reasons:
 # 1) allow posting id for the different objects we are importing
