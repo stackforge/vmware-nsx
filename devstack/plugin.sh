@@ -17,9 +17,12 @@
 #    under the License.
 
 
+GITDIR['vmware-nsxlib'] = $DEST/vmware-nsxlib
+
 dir=${GITDIR['vmware-nsx']}/devstack
 
 if [[ "$1" == "stack" && "$2" == "install" ]]; then
+    setup_dev_lib 'vmware-nsxlib'
     setup_develop ${GITDIR['vmware-nsx']}
 fi
 
