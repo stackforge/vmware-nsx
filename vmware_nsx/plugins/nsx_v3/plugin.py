@@ -1409,7 +1409,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if resource_type:
             tags = utils.add_v3_tag(tags, resource_type, device_id)
 
-        if utils.is_nsx_version_1_1_0(self._nsx_version):
+        if utils.is_nsx_tags(self._nsx_version):
             # If port has no security-groups then we don't need to add any
             # security criteria tag.
             if port_data[ext_sg.SECURITYGROUPS]:
@@ -1834,7 +1834,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                               {'id': neutron_db['id'], 'e': e})
                     self._cleanup_port(context, neutron_db['id'], None)
 
-            if not utils.is_nsx_version_1_1_0(self._nsx_version):
+            if not utils.is_nsx_tags(self._nsx_version):
                 try:
                     self.nsxlib.update_lport_with_security_groups(
                         context, lport['id'], [], sgids or [])
@@ -1911,7 +1911,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             _net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
                 context.session, port_id)
             self._port_client.delete(nsx_port_id)
-            if not utils.is_nsx_version_1_1_0(self._nsx_version):
+            if not utils.is_nsx_tags(self._nsx_version):
                 self.nsxlib.update_lport_with_security_groups(
                     context, nsx_port_id,
                     port.get(ext_sg.SECURITYGROUPS, []), [])
@@ -2039,7 +2039,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         name = self._get_port_name(context, updated_port)
 
-        if utils.is_nsx_version_1_1_0(self._nsx_version):
+        if utils.is_nsx_tags(self._nsx_version):
             tags_update += self.nsxlib.get_lport_tags_for_security_groups(
                 updated_port.get(ext_sg.SECURITYGROUPS, []) +
                 updated_port.get(provider_sg.PROVIDER_SECURITYGROUPS, []))
@@ -2970,7 +2970,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             project_name=secgroup['tenant_id'])
         name = self.nsxlib.get_nsgroup_name(secgroup)
 
-        if utils.is_nsx_version_1_1_0(self._nsx_version):
+        if utils.is_nsx_tags(self._nsx_version):
                 tag_expression = (
                     self.nsxlib.get_nsgroup_port_tag_expression(
                         security.PORT_SG_SCOPE, secgroup['id']))

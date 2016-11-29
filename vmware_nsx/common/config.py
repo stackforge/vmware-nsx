@@ -392,6 +392,9 @@ nsx_v3_opts = [
                 default=False,
                 help=_("(Optional) Indicates whether distributed-firewall "
                        "security-groups rules are logged.")),
+    cfg.BoolOpt('use_tags',
+                default=True,
+                help=_("Use tags")),
 ]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000

@@ -76,6 +76,12 @@ def is_nsx_version_1_1_0(nsx_version):
             version.LooseVersion(NSXV3_VERSION_1_1_0))
 
 
+def is_nsx_tags(nsx_version):
+    return (version.LooseVersion(nsx_version) >=
+            version.LooseVersion(NSXV3_VERSION_1_1_0) and
+            cfg.CONF.nsx_v3.use_tags)
+
+
 def is_nsxv_version_6_2(nsx_version):
     return (version.LooseVersion(nsx_version) >=
             version.LooseVersion('6.2'))
