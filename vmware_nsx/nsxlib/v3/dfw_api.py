@@ -176,12 +176,14 @@ class DfwApi(object):
                       nsgroup_id)
 
     def _build_section(self, display_name, description, applied_tos, tags):
+        if applied_tos is not None:
+            applied_tos = [self.get_nsgroup_reference(t_id)
+                           for t_id in applied_tos]
         return {'display_name': display_name,
                 'description': description,
                 'stateful': True,
                 'section_type': LAYER3,
-                'applied_tos': [self.get_nsgroup_reference(t_id)
-                                for t_id in applied_tos],
+                'applied_tos': applied_tos,
                 'tags': tags}
 
     def create_empty_section(self, display_name, description, applied_tos,
