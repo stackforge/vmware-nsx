@@ -188,8 +188,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._init_dhcp_metadata()
 
         self._port_client = nsx_resources.LogicalPort(self._nsx_client)
-        self.nsgroup_manager, self.default_section = (
-            self._init_nsgroup_manager_and_default_section_rules())
+        #self.nsgroup_manager, self.default_section = (
+        #    self._init_nsgroup_manager_and_default_section_rules())
         self._process_security_group_logging()
         self._router_client = nsx_resources.LogicalRouter(self._nsx_client)
         self._router_port_client = nsx_resources.LogicalRouterPort(
@@ -3053,7 +3053,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     logging, action, sg_rules)
                 self.nsxlib.save_sg_rule_mappings(context.session,
                                                   rules['rules'])
-                self.nsgroup_manager.add_nsgroup(ns_group['id'])
+                #self.nsgroup_manager.add_nsgroup(ns_group['id'])
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to create backend firewall rules "
@@ -3097,7 +3097,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         super(NsxV3Plugin, self).delete_security_group(context, id)
         self.nsxlib.delete_section(section_id)
         self.nsxlib.delete_nsgroup(nsgroup_id)
-        self.nsgroup_manager.remove_nsgroup(nsgroup_id)
+        #self.nsgroup_manager.remove_nsgroup(nsgroup_id)
 
     def create_security_group_rule(self, context, security_group_rule):
         bulk_rule = {'security_group_rules': [security_group_rule]}
