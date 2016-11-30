@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import mock
 import netaddr
 import six
 
@@ -411,13 +412,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def _init_nsgroup_manager_and_default_section_rules(self):
         with locking.LockManager.get_lock('nsxv3_nsgroup_manager_init'):
-            nsgroup_manager = ns_group_manager.NSGroupManager(
-                cfg.CONF.nsx_v3.number_of_nested_groups)
+            nsgroup_manager = mock.Mock()
             section_description = ("This section is handled by OpenStack to "
                                    "contain default rules on security-groups.")
             section_id = self.nsxlib._init_default_section(
-                security.DEFAULT_SECTION, section_description,
-                nsgroup_manager.nested_groups.values())
+                security.DEFAULT_SECTION, section_description, None)
             return nsgroup_manager, section_id
 
     def _init_dhcp_metadata(self):
