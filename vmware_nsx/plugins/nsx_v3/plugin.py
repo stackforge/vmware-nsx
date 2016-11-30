@@ -430,13 +430,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def _init_nsgroup_manager_and_default_section_rules(self):
         with locking.LockManager.get_lock('nsxv3_nsgroup_manager_init'):
-            nsgroup_manager = ns_group_manager.NSGroupManager(
-                self.nsxlib, cfg.CONF.nsx_v3.number_of_nested_groups)
+            nsgroup_manager = mock.Mock()
             section_description = ("This section is handled by OpenStack to "
                                    "contain default rules on security-groups.")
             section_id = self.nsxlib.firewall_section.init_default(
-                NSX_V3_FW_DEFAULT_SECTION, section_description,
-                nsgroup_manager.nested_groups.values(),
+                NSX_V3_FW_DEFAULT_SECTION, section_description, None,
                 cfg.CONF.nsx_v3.log_security_groups_blocked_traffic)
             return nsgroup_manager, section_id
 
