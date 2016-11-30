@@ -2960,7 +2960,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self.nsxlib.create_empty_section(
                 nsgroup.get('display_name'), nsgroup.get('description'),
                 [nsgroup.get('id')], nsgroup.get('tags'),
-                operation=operation,
                 other_section=self.default_section))
         return firewall_section
 
@@ -3053,7 +3052,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     logging, action, sg_rules)
                 self.nsxlib.save_sg_rule_mappings(context.session,
                                                   rules['rules'])
-                self.nsgroup_manager.add_nsgroup(ns_group['id'])
+                #self.nsgroup_manager.add_nsgroup(ns_group['id'])
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE("Failed to create backend firewall rules "
@@ -3097,7 +3096,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         super(NsxV3Plugin, self).delete_security_group(context, id)
         self.nsxlib.delete_section(section_id)
         self.nsxlib.delete_nsgroup(nsgroup_id)
-        self.nsgroup_manager.remove_nsgroup(nsgroup_id)
+        #self.nsgroup_manager.remove_nsgroup(nsgroup_id)
 
     def create_security_group_rule(self, context, security_group_rule):
         bulk_rule = {'security_group_rules': [security_group_rule]}
