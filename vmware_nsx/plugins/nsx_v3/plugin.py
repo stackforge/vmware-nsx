@@ -2138,6 +2138,16 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                                  updated_port['id'],
                                                  qos_policy_id)
 
+        # If port has no port-security-enabled then we exclude the port from
+        # the firewall.
+        if updated_port[psec.PORTSECURITY] != original_port[psec.PORTSECURITY]:
+            if update_port[psec.PORTSECURITY]:
+                self.nsxlib.firewall_section.add_member_to_fw_exclude_list(
+                    lport_id, nsxlib_consts.TARGET_TYPE_LOGICAL_PORT )
+            else:
+                self.nsxlib.firewall_section.remove_member_from_exclude_list(
+                    lport_id)
+
     def _get_port_qos_ids(self, context, updated_port, is_new_compute):
         # when a port is updated, get the current QoS policy/profile ids
         policy_id = None
