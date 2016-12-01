@@ -1170,16 +1170,21 @@ class FakeVcns(object):
         return (header, response)
 
     def get_edge_syslog(self, edge_id):
-        header = {
-            'status': 200,
-        }
-        response = {
-            'protocol': 'tcp',
-            'serverAddresses': {'ipAddress': ['1.1.1.1']}
-        }
+        if (not self._edges.get(edge_id) or
+            'syslog' not in self._edges.get(edge_id)):
+            header = {
+                'status': 400
+            }
+            response = {}
+        else:
+            header = {
+                'status': 200
+            }
+            response = self._edges.get(edge_id)['syslog']
         return (header, response)
 
     def update_edge_syslog(self, edge_id, config):
+        self._edges[edge_id]['syslog'] = config
         header = {
             'status': 204
         }
