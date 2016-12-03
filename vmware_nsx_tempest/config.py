@@ -52,6 +52,9 @@ ScenarioGroup = [
                      " This is for the 2nd subnet, required attrs:"
                      " start:10.1.1.31,end:10.1.1.33,cidr=10.1.2.0/24"
                      " AND limit to only 3 ip addresses defined."),
+    cfg.BoolOpt('native_mdproxy',
+                default=False,
+                help="Enable or disable Native MDProxy for nsxv3"),
 ]
 
 network_group = config.network_group
@@ -167,4 +170,12 @@ NSXv3Group = [
     cfg.StrOpt('nsx_password',
                default='default',
                help="NSX manager password"),
+]
+
+openstack_fvt_group = cfg.OptGroup(name='openstack_fvt',
+                          title="l2-gateway Configuration Options")
+OpenStackFvtGroup = [
+    cfg.ListOpt("os_feature_enabled",
+                default=[],
+                help="Name of the feature under test. eg. 'native_mdproxy'"),
 ]
