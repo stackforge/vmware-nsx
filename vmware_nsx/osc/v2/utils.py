@@ -19,7 +19,7 @@ cached_extensions = None
 
 
 def get_extensions(client_manager):
-    """Return a list of all current extensions aliases"""
+    """Return a list of all current extensions aliases."""
     # Return previously calculated results
     if cached_extensions is not None:
         return cached_extensions

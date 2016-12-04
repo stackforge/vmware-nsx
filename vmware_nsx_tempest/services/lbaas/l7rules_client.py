@@ -43,7 +43,7 @@ class L7RulesClient(base.BaseNetworkClient):
 
 
 def get_client(client_mgr):
-    """create a lbaas l7rules client from manager or networks_client"""
+    """create a lbaas l7rules client from manager or networks_client."""
     manager = getattr(client_mgr, 'manager', client_mgr)
     net_client = getattr(manager, 'networks_client')
     try:

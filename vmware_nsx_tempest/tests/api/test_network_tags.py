@@ -76,7 +76,9 @@ class BaseTagsTest(base.BaseNetworkTest):
     @classmethod
     def tag_replace(cls, network_id, tags, resource_type='network'):
         req_body = dict(resource_type=resource_type, resource_id=network_id)
-        if type(tags) in (list, tuple, set):
+        if (isinstance(tags, list) or
+            isinstance(tags, tuple) or
+            isinstance(tags, set)):
             req_body['tags'] = tags
         else:
             req_body['tags'] = [tags]
@@ -297,7 +299,7 @@ class NetworkTagFilterTest(BaseTagsTest):
 
     @test.idempotent_id('a9b42503-5dd1-490d-b0c6-673951cc86a1')
     def test_tags(self):
-        """find networks having tags (and operation)"""
+        """find networks having tags (and operation)."""
         tags = ['gold', 'production']
         m_net_list = x_and_y(tags, self.GG)
         filters = {'tags': tags}
@@ -307,7 +309,7 @@ class NetworkTagFilterTest(BaseTagsTest):
 
     @test.idempotent_id('c38e788d-749e-401a-8bbb-26e36a7b573f')
     def test_tags_any(self):
-        """find networks having tags-any (or operation)"""
+        """find networks having tags-any (or operation)."""
         tags = ['gold', 'production']
         m_net_list = x_or_y(tags, self.GG)
         filters = {'tags-any': tags}
@@ -317,7 +319,7 @@ class NetworkTagFilterTest(BaseTagsTest):
 
     @test.idempotent_id('e7bb1cea-3271-418c-bfe2-038fff6187e6')
     def test_not_tags(self):
-        """find networks not having not-tags (and operation)"""
+        """find networks not having not-tags (and operation)."""
         tags = ['gold', 'production']
         m_net_list = not_x_and_y(tags, self.GG)
         filters = {'not-tags': tags}
@@ -327,7 +329,7 @@ class NetworkTagFilterTest(BaseTagsTest):
 
     @test.idempotent_id('c36a1d00-c131-4297-86c1-a3fc06c61629')
     def test_not_tags_any(self):
-        """find networks not having not-tags-any (or operation)"""
+        """find networks not having not-tags-any (or operation)."""
         tags = ['gold', 'production']
         m_net_list = not_x_or_y(tags, self.GG)
         filters = {'not-tags-any': tags}
@@ -415,7 +417,7 @@ class NetworkTagFilterTest(BaseTagsTest):
 # search/filter methods
 # K_sets: Dict of sets
 def x_and_y(x_and_y, K_sets, on_keys=None):
-    """tags=x_and_y"""
+    """tags=x_and_y."""
     s_xy = set(x_and_y)
     xy_s = [k for k, S in K_sets.items()
             if (on_keys is None or k in on_keys) and s_xy.issubset(S)]
@@ -423,7 +425,7 @@ def x_and_y(x_and_y, K_sets, on_keys=None):
 
 
 def not_x_and_y(x_and_y, K_sets, on_keys=None):
-    """not-tags=x_and_y"""
+    """not-tags=x_and_y."""
     s_xy = set(x_and_y)
     xy_s = [k for k, S in K_sets.items()
             if (on_keys is None or k in on_keys) and not s_xy.issubset(S)]
@@ -431,7 +433,7 @@ def not_x_and_y(x_and_y, K_sets, on_keys=None):
 
 
 def x_or_y(x_or_y, K_sets, on_keys=None):
-    """tags-any=x_or_y"""
+    """tags-any=x_or_y."""
     s_xy = set(x_or_y)
     xy_s = [k for k, S in K_sets.items()
             if (on_keys is None or k in on_keys) and len(S & s_xy) > 0]
@@ -439,7 +441,7 @@ def x_or_y(x_or_y, K_sets, on_keys=None):
 
 
 def not_x_or_y(x_or_y, K_sets, on_keys=None):
-    """not tags-any=x_or_y"""
+    """not tags-any=x_or_y."""
     s_xy = set(x_or_y)
     xy_s = [k for k, S in K_sets.items()
             if (on_keys is None or k in on_keys) and len(S & s_xy) == 0]

@@ -40,7 +40,7 @@ def get_spoofguard_policies():
 
 @admin_utils.output_header
 def nsx_list_spoofguard_policies(resource, event, trigger, **kwargs):
-    """List spoofguard policies from NSXv backend"""
+    """List spoofguard policies from NSXv backend."""
     policies = get_spoofguard_policies()
     LOG.info(formatters.output_formatter(constants.SPOOFGUARD_POLICY, policies,
                                          ['policyId', 'name']))
@@ -103,7 +103,7 @@ def nsx_list_missing_spoofguard_policies(resource, event, trigger,
 
 
 def nsx_clean_spoofguard_policy(resource, event, trigger, **kwargs):
-    """Delete spoofguard policy"""
+    """Delete spoofguard policy."""
     errmsg = ("Need to specify policy-id. Add --property "
               "policy-id=<policy-id>")
     if not kwargs.get('property'):

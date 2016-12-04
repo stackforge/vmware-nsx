@@ -105,7 +105,7 @@ def list_missing_dhcp_bindings(resource, event, trigger, **kwargs):
 
 @admin_utils.output_header
 def nsx_update_dhcp_edge_binding(resource, event, trigger, **kwargs):
-    """Resync DHCP bindings on NSXv Edge"""
+    """Resync DHCP bindings on NSXv Edge."""
     if not kwargs.get('property'):
         LOG.error(_LE("Need to specify edge-id parameter"))
         return
@@ -240,7 +240,7 @@ def recreate_network_dhcp(context, plugin, edge_manager, old_edge_id, net_id):
 
 @admin_utils.output_header
 def nsx_recreate_dhcp_edge(resource, event, trigger, **kwargs):
-    """Recreate a dhcp edge with all the networks n a new NSXv edge"""
+    """Recreate a dhcp edge with all the networks n a new NSXv edge."""
     if not kwargs.get('property'):
         LOG.error(_LE("Need to specify edge-id parameter"))
         return

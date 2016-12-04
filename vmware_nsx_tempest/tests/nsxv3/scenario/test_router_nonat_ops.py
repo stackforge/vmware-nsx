@@ -213,7 +213,7 @@ class TestRouterNoNATOps(manager.NetworkScenarioTest):
                 raise
 
     def _test_router_nat_update(self, snat=True):
-        """Test update router from NATed to NoNAT scenario"""
+        """Test update router from NATed to NoNAT scenario."""
         self._setup_network_topo(enable_snat=snat)
         nsx_router = self.nsx.get_logical_router(
             self.router['name'], self.router['id'])
@@ -256,11 +256,11 @@ class TestRouterNoNATOps(manager.NetworkScenarioTest):
     @test.attr(type='nsxv3')
     @test.idempotent_id('5e5bfdd4-0962-47d3-a89b-7ce64322b53e')
     def test_router_nat_to_nonat_ops(self):
-        """Test update router from NATed to NoNAT scenario"""
+        """Test update router from NATed to NoNAT scenario."""
         self._test_router_nat_update(snat=True)
 
     @test.attr(type='nsxv3')
     @test.idempotent_id('a0274738-d3e7-49db-bf10-a5563610940d')
     def test_router_nonat_to_nat_ops(self):
-        """Test update router from NoNAT to NATed scenario"""
+        """Test update router from NoNAT to NATed scenario."""
         self._test_router_nat_update(snat=False)

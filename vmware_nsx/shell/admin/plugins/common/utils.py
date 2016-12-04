@@ -42,7 +42,7 @@ def output_header(func):
 
 
 def parse_multi_keyval_opt(opt_list):
-    """Converts a MutliStrOpt to a key-value dict"""
+    """Converts a MutliStrOpt to a key-value dict."""
 
     result = dict()
     for opt_value in opt_list:

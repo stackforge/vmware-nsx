@@ -39,7 +39,7 @@ nsxv = utils.get_nsxv_client()
 
 @admin_utils.output_header
 def nsx_list_edges(resource, event, trigger, **kwargs):
-    """List edges from NSXv backend"""
+    """List edges from NSXv backend."""
 
     headers = ['id', 'name', 'type', 'size']
     edges = utils.get_nsxv_backend_edges()
@@ -51,7 +51,7 @@ def nsx_list_edges(resource, event, trigger, **kwargs):
 
 
 def extend_edge_info(edges):
-    """Add syslog info to each edge in list"""
+    """Add syslog info to each edge in list."""
 
     for edge in edges:
         # for the table to remain human readable, we need to
@@ -67,7 +67,7 @@ def get_router_edge_bindings():
 
 @admin_utils.output_header
 def neutron_list_router_edge_bindings(resource, event, trigger, **kwargs):
-    """List NSXv edges from Neutron DB"""
+    """List NSXv edges from Neutron DB."""
     edges = get_router_edge_bindings()
     LOG.info(formatters.output_formatter(constants.EDGES, edges,
                                          ['edge_id', 'router_id']))
@@ -108,7 +108,7 @@ def nsx_list_orphaned_edges(resource, event, trigger, **kwargs):
 
 @admin_utils.output_header
 def nsx_delete_orphaned_edges(resource, event, trigger, **kwargs):
-    """Delete orphaned edges from NSXv backend"""
+    """Delete orphaned edges from NSXv backend."""
     orphaned_edges = get_orphaned_edges()
     LOG.info(_LI("Before delete; Orphaned Edges: %s"), orphaned_edges)
 
@@ -223,7 +223,7 @@ def delete_edge_syslog(edge_id):
 
 
 def default_loglevel_modifier(config, level):
-    """Modify log level settings in edge config bulk (standard syntax)"""
+    """Modify log level settings in edge config bulk (standard syntax)."""
 
     if 'logging' not in config:
         LOG.error(_LE("Logging section missing in configuration"))
@@ -240,7 +240,7 @@ def default_loglevel_modifier(config, level):
 
 
 def routing_loglevel_modifier(config, level):
-    """Modify log level in routing global settings"""
+    """Modify log level in routing global settings."""
 
     if 'routingGlobalConfig' not in config:
         LOG.error(_LE("routingGlobalConfig section missing in configuration"))
@@ -250,7 +250,7 @@ def routing_loglevel_modifier(config, level):
 
 
 def get_loglevel_modifier(module, level):
-    """This function picks modifier according to module and sets log level"""
+    """This function picks modifier according to module and sets log level."""
     special_modifiers = {'routing': routing_loglevel_modifier}
 
     modifier = default_loglevel_modifier
@@ -420,7 +420,7 @@ def change_edge_appliance_reservations(properties):
 
 @admin_utils.output_header
 def nsx_update_edge(resource, event, trigger, **kwargs):
-    """Update edge properties"""
+    """Update edge properties."""
     usage_msg = _LE("Need to specify edge-id parameter and "
                     "attribute to update. Add --property edge-id=<edge-id> "
                     "and --property highavailability=<True/False> or "
@@ -471,7 +471,7 @@ def nsx_update_edge(resource, event, trigger, **kwargs):
 
 @admin_utils.output_header
 def nsx_update_edges(resource, event, trigger, **kwargs):
-    """Update all edges with the given property"""
+    """Update all edges with the given property."""
     if not kwargs.get('property'):
         usage_msg = _LE("Need to specify a property to update all edges. "
                         "Add --property appliances=<True/False>")

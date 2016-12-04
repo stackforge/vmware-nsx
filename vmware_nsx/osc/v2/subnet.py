@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Subnet extensions action implementations"""
+"""Subnet extensions action implementations."""
 
 from openstackclient.network.v2 import subnet
 
@@ -64,7 +64,7 @@ subnet._get_attrs = _get_plugin_attrs
 
 
 class NsxCreateSubnet(subnet.CreateSubnet):
-    """Create a new subnet with vmware nsx extensions """
+    """Create a new subnet with vmware nsx extensions."""
 
     def get_parser(self, prog_name):
         # Add the nsx attributes to the neutron subnet attributes
@@ -74,7 +74,7 @@ class NsxCreateSubnet(subnet.CreateSubnet):
 
 
 class NsxSetSubnet(subnet.SetSubnet):
-    """Set subnet properties with vmware nsx extensions """
+    """Set subnet properties with vmware nsx extensions."""
 
     def get_parser(self, prog_name):
         # Add the nsx attributes to the neutron subnet attributes

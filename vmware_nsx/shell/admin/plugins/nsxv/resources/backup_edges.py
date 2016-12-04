@@ -54,14 +54,14 @@ def get_nsxv_backup_edges():
 
 @admin_utils.output_header
 def nsx_list_backup_edges(resource, event, trigger, **kwargs):
-    """List backup edges"""
+    """List backup edges."""
     backup_edges = get_nsxv_backup_edges()
     LOG.info(formatters.output_formatter(constants.BACKUP_EDGES, backup_edges,
                                          ['id', 'name', 'size', 'type']))
 
 
 def nsx_clean_backup_edge(resource, event, trigger, **kwargs):
-    """Delete backup edge"""
+    """Delete backup edge."""
     errmsg = ("Need to specify edge-id property. Add --property "
               "edge-id=<edge-id>")
     if not kwargs.get('property'):

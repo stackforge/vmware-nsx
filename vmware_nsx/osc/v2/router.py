@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Router action implementations with nsx extensions"""
+"""Router action implementations with nsx extensions."""
 
 from openstackclient.network.v2 import router
 
@@ -67,7 +67,7 @@ router._get_attrs = _get_plugin_attrs
 
 
 class NsxCreateRouter(router.CreateRouter):
-    """Create a new router with vmware nsx extensions """
+    """Create a new router with vmware nsx extensions."""
 
     def get_parser(self, prog_name):
         # Add the nsx attributes to the neutron router attributes
@@ -77,7 +77,7 @@ class NsxCreateRouter(router.CreateRouter):
 
 
 class NsxSetRouter(router.SetRouter):
-    """Set router properties with vmware nsx extensions """
+    """Set router properties with vmware nsx extensions."""
 
     def get_parser(self, prog_name):
         # Add the nsx attributes to the neutron router attributes

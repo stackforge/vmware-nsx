@@ -105,7 +105,7 @@ class TestPools(base.BaseAdminTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('1cf07f5c-7609-4b64-b5b8-f27050860132')
     def test_create_pool_for_another_tenant(self):
-        """Test create pool for other tenant field"""
+        """Test create pool for other tenant field."""
         tenant = 'deffb4d7c0584e89a8ec99551565713c'
         new_pool = self._prepare_and_create_pool(
             tenant_id=tenant)

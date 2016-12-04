@@ -71,7 +71,7 @@ def get_nsxv_backend_edges():
 
 
 def get_edge_syslog_info(edge_id):
-    """Get syslog information for specific edge id"""
+    """Get syslog information for specific edge id."""
 
     nsxv = get_nsxv_client()
     syslog_info = nsxv.get_edge_syslog(edge_id)[1]

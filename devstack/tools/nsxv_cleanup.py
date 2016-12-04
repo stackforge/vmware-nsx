@@ -60,7 +60,7 @@ requests.packages.urllib3.disable_warnings()
 
 
 class VSMClient(object):
-    """Base VSM REST client """
+    """Base VSM REST client."""
     API_VERSION = "2.0"
 
     def __init__(self, host, username, password, *args, **kwargs):

@@ -24,7 +24,7 @@ requests.packages.urllib3.disable_warnings()
 
 
 class NSXClient(object):
-    """Base NSX REST client"""
+    """Base NSX REST client."""
     API_VERSION = "v1"
 
     def __init__(self, host, username, password, *args, **kwargs):
@@ -381,7 +381,7 @@ class NSXClient(object):
                       (lp['display_name'], lp['id']))
             else:
                 print("Failed to delete lr port %s-%s, and response is %s" %
-                      (lp['display_name'], lp['id']))
+                      (lp['display_name'], lp['id'], response.status_code))
 
     def cleanup_os_logical_routers(self):
         """
@@ -401,7 +401,7 @@ class NSXClient(object):
                       (lr['display_name'], lr['id']))
             else:
                 print("Failed to delete lrouter %s-%s, and response is %s" %
-                      (lr['display_name'], lr['id']))
+                      (lr['display_name'], lr['id'], response.status_code))
 
     def cleanup_os_tier0_logical_ports(self):
         """

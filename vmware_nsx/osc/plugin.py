@@ -46,6 +46,5 @@ def make_client(instance):
 
 
 def build_option_parser(parser):
-    """Hook to add global options"""
-
+    """Hook to add global options."""
     return parser

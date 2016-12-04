@@ -20,10 +20,10 @@ from tempest.lib.common.utils import data_utils
 from tempest.lib.common.utils import test_utils
 from tempest.lib import decorators
 
-import base_provider as base
 from tempest import config
 from tempest import test
 from vmware_nsx_tempest.services import nsxv_client
+from vmware_nsx_tempest.tests.nsxv.api import base_provider as base
 
 CONF = config.CONF
 
@@ -218,7 +218,7 @@ class MultipleTransportZonesTest(base.BaseAdminNetworkTest):
 
     @test.idempotent_id('4e1717d6-df39-4539-99da-df23814cfe14')
     def test_mtz_overlay_network(self):
-        """overlay subnets with the same TZ"""
+        """overlay subnets with the same TZ."""
         scope_id_list = self.get_all_scope_id_list(with_default_scope=True)
         s_id = scope_id_list[0]
         nets = {}
