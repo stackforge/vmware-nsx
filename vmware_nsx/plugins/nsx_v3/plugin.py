@@ -843,8 +843,10 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
 
         name = self._get_port_name(context, port_data)
 
-        # Add the DHCP port to the exlcude-port NSGroup.
-        if device_owner == const.DEVICE_OWNER_DHCP:
+        # Add the DHCP port to the exlcude-port NSGroup or if port security is
+        # disabled
+        if (device_owner == const.DEVICE_OWNER_DHCP or
+            not psec_is_on):
             tags.append({'scope': 'os-security-group',
                          'tag': firewall.EXCLUDE_PORT})
 
@@ -1149,10 +1151,14 @@ class NsxV3Plugin(addr_pair_db.AllowedAddressPairsMixin,
             if self._dhcp_profile:
                 switch_profile_ids.append(self._dhcp_profile)
 
-        mac_learning_profile_set = (
-            self._get_port_security_profile_id() in switch_profile_ids)
-        if mac_learning_profile_set and self._mac_learning_profile:
+        psec_is_on = self._get_port_security_profile_id() in switch_profile_ids
+        if psec_is_on and self._mac_learning_profile:
             switch_profile_ids.append(self._mac_learning_profile)
+
+        # add the port to exclude list if necessary
+        if not psec_is_on:
+            tags_update.append({'scope': 'os-security-group',
+                                'tag': firewall.EXCLUDE_PORT})
 
         self._port_client.update(
             lport_id, vif_uuid, name=name,
