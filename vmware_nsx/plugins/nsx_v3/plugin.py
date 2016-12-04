@@ -1502,12 +1502,15 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
               port_data.get(mac_ext.MAC_LEARNING) is True))):
             profiles.append(self._mac_learning_profile)
 
-        name = self._get_port_name(context, port_data)
+        # If port security is disabled then add the port to the exclude list
+        if (attachment_type == nsx_constants.ATTACHMENT_VIF and
+            (not psec_is_on or
+             (not cfg.CONF.nsx_v3.native_dhcp_metadata and
+              device_owner == const.DEVICE_OWNER_DHCP))):
+            tags.append({'scope': security.PORT_SG_SCOPE,
+                         'tag': firewall.EXCLUDE_PORT})
 
-        if not cfg.CONF.nsx_v3.native_dhcp_metadata:
-            if device_owner == const.DEVICE_OWNER_DHCP:
-                tags.append({'scope': security.PORT_SG_SCOPE,
-                             'tag': firewall.EXCLUDE_PORT})
+        name = self._get_port_name(context, port_data)
 
         nsx_net_id = port_data[pbin.VIF_DETAILS]['nsx-logical-switch-id']
 
@@ -2076,6 +2079,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             vif_uuid = None
 
         name = self._get_port_name(context, updated_port)
+
+        original_ps = original_port.get('port_security_enabled')
+        updated_ps = updated_port.get('port_security_enabled')
+        if original_ps != updated_ps:
+            if not updated_ps:
+                tags_update.append({'scope': security.PORT_SG_SCOPE,
+                                    'tag': firewall.EXCLUDE_PORT})
 
         if utils.is_nsx_version_1_1_0(self._nsx_version):
             tags_update += self.nsxlib.get_lport_tags_for_security_groups(
