@@ -157,6 +157,12 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
         plugin_instance._get_edge_id_by_rtr_id.return_value = False
         plugin_instance.edge_manager.is_dhcp_opt_enabled = True
 
+        mock.patch(vmware.nsx_method('add_neutron_nsx_network_mapping',
+                                     module_name='db.db')).start()
+        mock.patch(vmware.nsx_method('map_spoofguard_policy_for_network',
+                                     module_name='db.nsxv_db')).start()
+
+
     def _get_core_plugin_with_dvs(self):
         # enable dvs features to allow policy with QOS
         cfg.CONF.set_default('use_dvs_features', True, 'nsxv')
