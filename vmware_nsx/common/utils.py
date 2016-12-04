@@ -114,7 +114,7 @@ def normalize_xml(data):
 
 
 def _get_bad_request_error_code(e):
-    """Get the error code out of the exception"""
+    """Get the error code out of the exception."""
     try:
         desc = normalize_xml(e.response)
         return int(desc.find('errorCode').text)

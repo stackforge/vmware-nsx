@@ -72,7 +72,7 @@ class ListenersTest(base.BaseAdminTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('71ebb8d6-ff2a-410d-a089-b086f195609d')
     def test_create_listener_invalid_tenant_id(self):
-        """Test create listener with an invalid tenant id"""
+        """Test create listener with an invalid tenant id."""
         create_new_listener_kwargs = self.create_listener_kwargs
         create_new_listener_kwargs['protocol_port'] = 8082
         create_new_listener_kwargs['tenant_id'] = "&^%123"

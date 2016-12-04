@@ -29,7 +29,7 @@ LOG = logging.getLogger(__name__)
 
 
 class NSXV3Client(object):
-    """Base NSXv3 REST client"""
+    """Base NSXv3 REST client."""
     API_VERSION = "v1"
 
     def __init__(self, host, username, password, *args, **kwargs):
@@ -377,7 +377,7 @@ class NSXV3Client(object):
         return self.get_logical_resources(endpoint)
 
     def get_logical_router_advertisement(self, lrouter):
-        """Get logical router advertisement"""
+        """Get logical router advertisement."""
         if not lrouter:
             LOG.error(_LE("Logical router needs to be present in order "
                           "to get router advertisement!"))

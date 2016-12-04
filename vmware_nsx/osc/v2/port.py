@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Port action implementations with nsx extensions"""
+"""Port action implementations with nsx extensions."""
 
 from openstackclient.network.v2 import port
 from osc_lib import utils as osc_utils
@@ -99,7 +99,7 @@ port._formatters['provider_security_groups'] = osc_utils.format_list
 
 
 class NsxCreatePort(port.CreatePort):
-    """Create a new port with vmware nsx extensions """
+    """Create a new port with vmware nsx extensions."""
 
     def get_parser(self, prog_name):
         # Add the nsx attributes to the neutron port attributes
@@ -110,7 +110,7 @@ class NsxCreatePort(port.CreatePort):
 
 
 class NsxSetPort(port.SetPort):
-    """Set port properties with vmware nsx extensions """
+    """Set port properties with vmware nsx extensions."""
 
     def get_parser(self, prog_name):
         # Add the nsx attributes to the neutron port attributes

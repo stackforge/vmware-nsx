@@ -232,7 +232,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('a00cb8e0-cd0b-44d0-85b0-5935a0297e37')
     def test_create_health_monitor_invalid_tenant_id(self):
-        """Test create health monitor with invalid tenant_id"""
+        """Test create health monitor with invalid tenant_id."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           tenant_id='blah',
                           type='HTTP', delay=3, max_retries=10, timeout=5,
@@ -241,7 +241,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('fcd93a6d-1fec-4031-9c18-611f4f3b270e')
     def test_create_health_monitor_invalid_type(self):
-        """Test create health monitor with invalid type"""
+        """Test create health monitor with invalid type."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='blah', delay=3, max_retries=10, timeout=5,
                           pool_id=self.pool.get('id'))
@@ -249,7 +249,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('3c2829d9-5d51-4bcc-b83e-f28f6e6d0bc3')
     def test_create_health_monitor_invalid_delay(self):
-        """Test create health monitor with invalid delay"""
+        """Test create health monitor with invalid delay."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='HTTP', delay='blah', max_retries=10,
                           timeout=5, pool_id=self.pool.get('id'))
@@ -257,7 +257,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('7155e366-72a2-47a0-9fcf-25e38a3ef7f7')
     def test_create_health_monitor_invalid_max_retries(self):
-        """Test create health monitor with invalid max_retries"""
+        """Test create health monitor with invalid max_retries."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='HTTP', delay=3, max_retries='blah',
                           timeout=5, pool_id=self.pool.get('id'))
@@ -265,7 +265,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('fb5d0016-5ea6-4697-8049-e80473e67880')
     def test_create_health_monitor_invalid_timeout(self):
-        """Test create health monitor with invalid timeout"""
+        """Test create health monitor with invalid timeout."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='HTTP', delay=3, max_retries=10,
                           timeout='blah', pool_id=self.pool.get('id'))
@@ -273,7 +273,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('7f3e6e95-3eac-4a46-983a-ba1fd3b0afdf')
     def test_create_health_monitor_invalid_pool_id(self):
-        """Test create health monitor with invalid pool id"""
+        """Test create health monitor with invalid pool id."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='HTTP', delay=3, max_retries=10, timeout=5,
                           pool_id='blah')
@@ -329,7 +329,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('b655cee7-df0d-4531-bd98-a4918d2e752a')
     def test_create_health_monitor_empty_type(self):
-        """Test create health monitor with empty type"""
+        """Test create health monitor with empty type."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='', delay=3, max_retries=10, timeout=5,
                           pool_id=self.pool.get('id'))
@@ -337,7 +337,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('d843c9f4-507e-462f-8f2b-319af23029db')
     def test_create_health_monitor_empty_delay(self):
-        """Test create health monitor with empty delay"""
+        """Test create health monitor with empty delay."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='HTTP', delay='', max_retries=10, timeout=5,
                           pool_id=self.pool.get('id'))
@@ -345,7 +345,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('bb9cb2b0-2684-4f4d-b344-6e7b0c58b019')
     def test_create_health_monitor_empty_timeout(self):
-        """Test create health monitor with empty timeout"""
+        """Test create health monitor with empty timeout."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='HTTP', delay=3, max_retries=10, timeout='',
                           pool_id=self.pool.get('id'))
@@ -353,7 +353,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('3b52441d-5e8a-4d17-b772-bd261d0c2656')
     def test_create_health_monitor_empty_max_retries(self):
-        """Test create health monitor with empty max_retries"""
+        """Test create health monitor with empty max_retries."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='HTTP', delay=3, max_retries='', timeout=5,
                           pool_id=self.pool.get('id'))
@@ -362,7 +362,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.idempotent_id('397aa201-25c1-4828-8c60-9cee5c4d89ab')
     # NSX-v does reject empty pool_id
     def test_create_health_monitor_empty_max_pool_id(self):
-        """Test create health monitor with empty pool_id"""
+        """Test create health monitor with empty pool_id."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='HTTP', delay=3, max_retries=10, timeout=5,
                           pool_id='')
@@ -371,7 +371,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.idempotent_id('e806c916-877c-41dc-bacb-aabd9684a540')
     # NSX-v does reject empty admin_state_up
     def test_create_health_monitor_empty_max_admin_state_up(self):
-        """Test create health monitor with empty admin_state_up"""
+        """Test create health monitor with empty admin_state_up."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='HTTP', delay=3, max_retries=10, timeout=5,
                           pool_id=self.pool.get('id'), admin_state_up='')
@@ -402,7 +402,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.idempotent_id('5df60d27-55ec-42a9-96cd-3affa611c8b1')
     # NSX-v does reject empty expected_codes
     def test_create_health_monitor_empty_expected_codes(self):
-        """Test create health monitor with empty expected_codes"""
+        """Test create health monitor with empty expected_codes."""
         self.assertRaises(ex.BadRequest, self._create_health_monitor,
                           type='HTTP', delay=3, max_retries=10, timeout=5,
                           pool_id=self.pool.get('id'), expected_codes='')
@@ -435,7 +435,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('9496ba1f-e917-4972-883b-432e44f3cf19')
     def test_update_health_monitor_missing_admin_state_up(self):
-        """Test update health monitor with missing admin state field"""
+        """Test update health monitor with missing admin state field."""
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))
@@ -446,7 +446,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('88570f22-cb68-47b4-a020-52b75af818d3')
     def test_update_health_monitor_missing_delay(self):
-        """Test update health monitor with missing delay field"""
+        """Test update health monitor with missing delay field."""
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))
@@ -457,7 +457,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('45ace70d-28a5-405d-95cd-b2c92ccaa593')
     def test_update_health_monitor_missing_timeout(self):
-        """Test update health monitor with missing timeout field"""
+        """Test update health monitor with missing timeout field."""
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))
@@ -468,7 +468,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('269af536-2352-4772-bf35-268df9f4542c')
     def test_update_health_monitor_missing_max_retries(self):
-        """Test update health monitor with missing max retries field"""
+        """Test update health monitor with missing max retries field."""
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))
@@ -479,7 +479,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('318d972f-9cd1-42ef-9b8b-2f91ba785ac7')
     def test_update_health_monitor_missing_http_method(self):
-        """Test update health monitor with missing http_method field"""
+        """Test update health monitor with missing http_method field."""
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))
@@ -490,7 +490,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('4b97ab67-889d-480c-bedc-f06d86479bb5')
     def test_update_health_monitor_missing_url_path(self):
-        """Test update health monitor with missing url_path field"""
+        """Test update health monitor with missing url_path field."""
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))
@@ -501,7 +501,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('095cdb91-0937-4ae1-8b46-5edd10f00a1e')
     def test_update_health_monitor_missing_expected_codes(self):
-        """Test update health monitor with missing expected_codes field"""
+        """Test update health monitor with missing expected_codes field."""
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))
@@ -563,7 +563,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('1e2fb718-de77-46a3-8897-6f5aff6cab5e')
     def test_update_health_monitor_invalid_http_method(self):
-        """Kilo: @decorators.skip_because(bug="1641643")"""
+        """Kilo: @decorators.skip_because(bug="1641643")."""
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))
@@ -574,7 +574,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('07d62a55-18b3-4b74-acb2-b73a0b5e4364')
     def test_update_health_monitor_invalid_url_path(self):
-        """Kilo: @decorators.skip_because(bug="1641652")"""
+        """Kilo: @decorators.skip_because(bug="1641652")."""
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))
@@ -635,7 +635,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('0c464bb3-ff84-4816-9237-4583e4da9881')
     def test_update_health_monitor_empty_empty_http_method(self):
-        """Kilo: @decorators.skip_because(bug="1639340")"""
+        """Kilo: @decorators.skip_because(bug="1639340")."""
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))
@@ -646,7 +646,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('3e87c0a8-ef15-457c-a58f-270de8c5c76c')
     def test_update_health_monitor_empty_url_path(self):
-        """Kilo: @decorators.skip_because(bug="1639340")"""
+        """Kilo: @decorators.skip_because(bug="1639340")."""
         hm = self._create_health_monitor(type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))
@@ -677,7 +677,7 @@ class TestHealthMonitors(base.BaseTestCase):
     @test.attr(type=['smoke', 'negative'])
     @test.idempotent_id('fe44e0d9-957b-44cf-806b-af7819444864')
     def test_delete_health_monitor(self):
-        """Kilo: @decorators.skip_because(bug="1639340")"""
+        """Kilo: @decorators.skip_because(bug="1639340")."""
         hm = self._create_health_monitor(cleanup=False, type='HTTP', delay=3,
                                          max_retries=10, timeout=5,
                                          pool_id=self.pool.get('id'))

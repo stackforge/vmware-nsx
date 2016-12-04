@@ -59,7 +59,7 @@ def delete_old_edge(context, old_edge_id):
 
 @admin_utils.output_header
 def nsx_recreate_router_edge(resource, event, trigger, **kwargs):
-    """Recreate a router edge with all the data on a new NSXv edge"""
+    """Recreate a router edge with all the data on a new NSXv edge."""
     if not kwargs.get('property'):
         LOG.error(_LE("Need to specify edge-id parameter"))
         return

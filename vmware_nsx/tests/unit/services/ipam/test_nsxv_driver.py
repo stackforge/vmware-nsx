@@ -20,7 +20,7 @@ from neutron.extensions import providernet as pnet
 
 
 class TestNsxvIpamSubnets(test_plugin.TestSubnetsV2):
-    """Run the nsxv plugin subnets tests with the ipam driver"""
+    """Run the nsxv plugin subnets tests with the ipam driver."""
     def setUp(self):
         cfg.CONF.set_override(
             "ipam_driver",
@@ -106,7 +106,7 @@ class TestNsxvIpamSubnets(test_plugin.TestSubnetsV2):
 
 
 class TestNsxvIpamPorts(test_plugin.TestPortsV2):
-    """Run the nsxv plugin ports tests with the ipam driver"""
+    """Run the nsxv plugin ports tests with the ipam driver."""
     def setUp(self):
         cfg.CONF.set_override(
             "ipam_driver",

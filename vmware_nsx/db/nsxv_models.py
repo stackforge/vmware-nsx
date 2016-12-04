@@ -235,7 +235,7 @@ class NsxvEdgeFirewallRuleBinding(model_base.BASEV2, models.TimestampMixin):
 
 class NsxvSpoofGuardPolicyNetworkMapping(model_base.BASEV2,
                                          models.TimestampMixin):
-    """Mapping between SpoofGuard and neutron networks"""
+    """Mapping between SpoofGuard and neutron networks."""
 
     __tablename__ = 'nsxv_spoofguard_policy_network_mappings'
 
@@ -262,7 +262,7 @@ class NsxvVdrDhcpBinding(model_base.BASEV2, models.TimestampMixin):
 
 
 class NsxvLbaasLoadbalancerBinding(model_base.BASEV2, models.TimestampMixin):
-    """Mapping between Edge LB and LBaaSv2"""
+    """Mapping between Edge LB and LBaaSv2."""
 
     __tablename__ = 'nsxv_lbaas_loadbalancer_bindings'
 
@@ -277,7 +277,7 @@ class NsxvLbaasLoadbalancerBinding(model_base.BASEV2, models.TimestampMixin):
 
 
 class NsxvLbaasListenerBinding(model_base.BASEV2, models.TimestampMixin):
-    """Mapping between Edge VSE and LBaaSv2"""
+    """Mapping between Edge VSE and LBaaSv2."""
 
     __tablename__ = 'nsxv_lbaas_listener_bindings'
 
@@ -292,7 +292,7 @@ class NsxvLbaasListenerBinding(model_base.BASEV2, models.TimestampMixin):
 
 
 class NsxvLbaasPoolBinding(model_base.BASEV2, models.TimestampMixin):
-    """Mapping between Edge Pool and LBaaSv2"""
+    """Mapping between Edge Pool and LBaaSv2."""
 
     __tablename__ = 'nsxv_lbaas_pool_bindings'
 
@@ -306,7 +306,7 @@ class NsxvLbaasPoolBinding(model_base.BASEV2, models.TimestampMixin):
 
 
 class NsxvLbaasMonitorBinding(model_base.BASEV2, models.TimestampMixin):
-    """Mapping between Edge Monitor and LBaaSv2"""
+    """Mapping between Edge Monitor and LBaaSv2."""
 
     __tablename__ = 'nsxv_lbaas_monitor_bindings'
 
@@ -322,7 +322,7 @@ class NsxvLbaasMonitorBinding(model_base.BASEV2, models.TimestampMixin):
 
 
 class NsxvLbaasCertificateBinding(model_base.BASEV2, models.TimestampMixin):
-    """Mapping between Edge certificate and LBaaSv2 object"""
+    """Mapping between Edge certificate and LBaaSv2 object."""
 
     __tablename__ = 'nsxv_lbaas_certificate_bindings'
 

@@ -125,7 +125,7 @@ class VSMClient(object):
         return response
 
     def get_all_vdn_scopes(self):
-        """Retrieve existing network scopes"""
+        """Retrieve existing network scopes."""
         self.__set_api_version('2.0')
         self.__set_endpoint("/vdn/scopes")
         response = self.get()
@@ -140,7 +140,7 @@ class VSMClient(object):
         return CONF.nsxv.vdn_scope_id
 
     def get_vdn_scope_by_id(self, scope_id):
-        """Retrieve existing network scopes id"""
+        """Retrieve existing network scopes id."""
         self.__set_api_version('2.0')
         self.__set_endpoint("/vdn/scopes/%s" % scope_id)
         return self.get().json()

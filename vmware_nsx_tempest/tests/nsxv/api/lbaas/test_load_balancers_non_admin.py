@@ -51,7 +51,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('b7ea6c09-e077-4a67-859b-b2cd01e3b46b')
     def test_list_load_balancers(self):
-        """Test list load balancers with one load balancer"""
+        """Test list load balancers with one load balancer."""
         load_balancers = self._list_load_balancers()
         self.assertEqual(len(load_balancers), 1)
         self.assertIn(self.load_balancer, load_balancers)
@@ -59,7 +59,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('8c2302df-ca94-4950-9826-eb996630a392')
     def test_list_load_balancers_two(self):
-        """Test list load balancers with two load balancers"""
+        """Test list load balancers with two load balancers."""
         new_load_balancer = self._create_active_load_balancer(
             **self.create_lb_kwargs)
         new_load_balancer_id = new_load_balancer['id']
@@ -73,7 +73,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('56345a78-1d53-4c05-9d7b-3e5cf34c22aa')
     def test_get_load_balancer(self):
-        """Test get load balancer"""
+        """Test get load balancer."""
         load_balancer = self._show_load_balancer(
             self.load_balancer_id)
         self.assertEqual(self.load_balancer, load_balancer)
@@ -81,7 +81,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('5bf80330-d908-4025-9467-bca1727525c8')
     def test_create_load_balancer(self):
-        """Test create load balancer"""
+        """Test create load balancer."""
         new_load_balancer = self._create_active_load_balancer(
             **self.create_lb_kwargs)
         new_load_balancer_id = new_load_balancer['id']
@@ -106,7 +106,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('8e78a7e6-2da3-4f79-9f66-fd1447277883')
     def test_create_load_balancer_empty_provider_field(self):
-        """Test create load balancer with an empty provider field"""
+        """Test create load balancer with an empty provider field."""
         self.assertRaises(exceptions.BadRequest,
                           self._create_load_balancer,
                           wait=False,
@@ -115,7 +115,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('def37122-3f9a-47f5-b7b5-b5c0d5e7e5ca')
     def test_create_load_balancer_empty_description_field(self):
-        """Test create load balancer with an empty description field"""
+        """Test create load balancer with an empty description field."""
         load_balancer = self._create_active_load_balancer(
             vip_subnet_id=self.subnet['id'], description="")
         self.addCleanup(self._delete_load_balancer, load_balancer['id'])
@@ -124,7 +124,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('69944c74-3ea1-4c06-8d28-82120721a13e')
     def test_create_load_balancer_empty_vip_address_field(self):
-        """Test create load balancer with empty vip_address field"""
+        """Test create load balancer with empty vip_address field."""
         self.assertRaises(exceptions.BadRequest,
                           self._create_load_balancer,
                           wait=False,
@@ -134,7 +134,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('63bbe788-f3a6-444f-89b3-8c740425fc39')
     def test_create_load_balancer_missing_admin_state_up(self):
-        """Test create load balancer with a missing admin_state_up field"""
+        """Test create load balancer with a missing admin_state_up field."""
         load_balancer = self._create_active_load_balancer(
             vip_subnet_id=self.subnet['id'])
         self.addCleanup(self._delete_load_balancer, load_balancer['id'])
@@ -143,7 +143,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('499f164a-e926-47a6-808a-14f3c29d04c9')
     def test_create_load_balancer_empty_admin_state_up_field(self):
-        """Test create load balancer with empty admin_state_up field"""
+        """Test create load balancer with empty admin_state_up field."""
         self.assertRaises(exceptions.BadRequest,
                           self._create_load_balancer,
                           wait=False,
@@ -153,7 +153,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('e4511356-0e78-457c-a310-8515b2dedad4')
     def test_create_load_balancer_missing_name(self):
-        """Test create load balancer with a missing name field"""
+        """Test create load balancer with a missing name field."""
         load_balancer = self._create_load_balancer(
             vip_subnet_id=self.subnet['id'])
         self.addCleanup(self._delete_load_balancer, load_balancer['id'])
@@ -163,7 +163,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('6bd4a92c-7498-4b92-aeae-bce0b74608e3')
     def test_create_load_balancer_empty_name(self):
-        """Test create load balancer with an empty name field"""
+        """Test create load balancer with an empty name field."""
         load_balancer = self._create_load_balancer(
             vip_subnet_id=self.subnet['id'], name="")
         self.addCleanup(self._delete_load_balancer, load_balancer['id'])
@@ -173,7 +173,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('e605b1ea-5179-4035-8100-c24d0164a5a5')
     def test_create_load_balancer_missing_description(self):
-        """Test create load balancer with a missing description field"""
+        """Test create load balancer with a missing description field."""
         load_balancer = self._create_load_balancer(
             vip_subnet_id=self.subnet['id'])
         self.addCleanup(self._delete_load_balancer, load_balancer['id'])
@@ -202,7 +202,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('f599ccbd-73e8-4e27-96a5-d9e0e3419a9f')
     def test_create_load_balancer_missing_provider_field(self):
-        """Test create load balancer with a missing provider field"""
+        """Test create load balancer with a missing provider field."""
         load_balancer = self._create_active_load_balancer(
             vip_subnet_id=self.subnet['id'])
         self.addCleanup(self._delete_load_balancer, load_balancer['id'])
@@ -215,7 +215,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('377166eb-f581-4383-bc2e-54fdeed73e42')
     def test_create_load_balancer_invalid_vip_subnet_id(self):
-        """Test create load balancer with an invalid vip subnet id"""
+        """Test create load balancer with an invalid vip subnet id."""
         self.assertRaises(exceptions.BadRequest,
                           self._create_load_balancer,
                           wait=False,
@@ -224,7 +224,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('512bec06-5259-4e93-b482-7ec3346c794a')
     def test_create_load_balancer_empty_vip_subnet_id(self):
-        """Test create load balancer with an empty vip subnet id"""
+        """Test create load balancer with an empty vip subnet id."""
         self.assertRaises(exceptions.BadRequest,
                           self._create_load_balancer,
                           wait=False,
@@ -233,7 +233,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('02bd6d0e-820e-46fb-89cb-1d335e7aaa02')
     def test_create_load_balancer_invalid_tenant_id(self):
-        """Test create load balancer with an invalid tenant id"""
+        """Test create load balancer with an invalid tenant id."""
         self.assertRaises(exceptions.BadRequest,
                           self._create_load_balancer,
                           wait=False,
@@ -270,7 +270,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('56768aa6-b26e-48aa-8118-956c62930d79')
     def test_create_load_balancer_incorrect_attribute(self):
-        """Test create a load balancer with an extra, incorrect field"""
+        """Test create a load balancer with an extra, incorrect field."""
         self.assertRaises(exceptions.BadRequest,
                           self._create_load_balancer,
                           wait=False,
@@ -281,7 +281,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('a130e70f-9d76-4bff-89de-3e564952b244')
     def test_create_load_balancer_missing_tenant_id_field(self):
-        """Test create load balancer with a missing tenant id field"""
+        """Test create load balancer with a missing tenant id field."""
         load_balancer = self._create_load_balancer(
             vip_subnet_id=self.subnet['id'])
         self.addCleanup(self._delete_load_balancer, load_balancer['id'])
@@ -292,7 +292,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('25261cca-0c38-4dc8-bb40-f7692035740f')
     def test_create_load_balancer_empty_tenant_id_field(self):
-        """Test create load balancer with empty tenant_id field"""
+        """Test create load balancer with empty tenant_id field."""
         self.assertRaises(exceptions.BadRequest,
                           self._create_load_balancer,
                           vip_subnet_id=self.subnet['id'],
@@ -302,7 +302,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('10de328d-c754-484b-841f-313307f92935')
     def test_create_load_balancer_other_tenant_id_field(self):
-        """Test create load balancer for other tenant"""
+        """Test create load balancer for other tenant."""
         tenant = 'deffb4d7c0584e89a8ec99551565713c'
         self.assertRaises(exceptions.BadRequest,
                           self._create_load_balancer,
@@ -315,7 +315,7 @@ class LoadBalancersTest(base.BaseTestCase):
                       "skip_because bug=1703396")
     @test.idempotent_id('9963cbf5-97d0-4ab9-96e5-6cbd65c98714')
     def test_create_load_balancer_invalid_flavor_field(self):
-        """Test create load balancer with an invalid flavor field"""
+        """Test create load balancer with an invalid flavor field."""
         self.assertRaises(exceptions.NotFound,
                           self._create_load_balancer,
                           vip_subnet_id=self.subnet['id'],
@@ -326,7 +326,7 @@ class LoadBalancersTest(base.BaseTestCase):
                       "skip_because bug=1703396")
     @test.idempotent_id('f7319e32-0fad-450e-8f53-7567f56e8223')
     def test_create_load_balancer_provider_flavor_conflict(self):
-        """Test create load balancer with both a provider and a flavor"""
+        """Test create load balancer with both a provider and a flavor."""
         self.assertRaises(exceptions.Conflict,
                           self._create_load_balancer,
                           vip_subnet_id=self.subnet['id'],
@@ -336,7 +336,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('1d92d98f-550f-4f05-a246-cdf4525459a2')
     def test_update_load_balancer(self):
-        """Test update load balancer"""
+        """Test update load balancer."""
         self._update_load_balancer(self.load_balancer_id,
                                    name='new_name')
         load_balancer = self._show_load_balancer(
@@ -346,7 +346,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('474ca200-8dea-4d20-8468-abc0169a445b')
     def test_update_load_balancer_empty_name(self):
-        """Test update load balancer with empty name"""
+        """Test update load balancer with empty name."""
         self._update_load_balancer(self.load_balancer_id,
                                    name="")
         load_balancer = self._show_load_balancer(
@@ -369,7 +369,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('62eef0ba-3859-4c8f-9e6a-8d6918754597')
     def test_update_load_balancer_missing_name(self):
-        """Test update load balancer with missing name"""
+        """Test update load balancer with missing name."""
         loadbalancer = self._show_load_balancer(
             self.load_balancer_id)
         load_balancer_initial = loadbalancer['name']
@@ -395,7 +395,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('157ebdbf-4ad2-495d-b880-c1b1a8edc46d')
     def test_update_load_balancer_empty_description(self):
-        """Test update load balancer with empty description"""
+        """Test update load balancer with empty description."""
         self._update_load_balancer(self.load_balancer_id,
                                    description="")
         load_balancer = self._show_load_balancer(
@@ -405,7 +405,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('d13fa2f5-e8df-4d53-86a8-68583941200c')
     def test_update_load_balancer_missing_description(self):
-        """Test update load balancer with missing description"""
+        """Test update load balancer with missing description."""
         loadbalancer = self._show_load_balancer(
             self.load_balancer_id)
         load_balancer_initial = loadbalancer['description']
@@ -418,7 +418,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('96e46a1a-62e7-47f1-98c5-9983f89e622f')
     def test_update_load_balancer_invalid_admin_state_up_field(self):
-        """Test update load balancer with an invalid admin_state_up"""
+        """Test update load balancer with an invalid admin_state_up."""
         self.assertRaises(exceptions.BadRequest,
                           self._update_load_balancer,
                           load_balancer_id=self.load_balancer_id,
@@ -428,7 +428,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('48f1e227-8b15-4389-a050-7ce76f4b4d46')
     def test_update_load_balancer_empty_admin_state_up_field(self):
-        """Test update load balancer with an empty admin_state_up"""
+        """Test update load balancer with an empty admin_state_up."""
         self.assertRaises(exceptions.BadRequest,
                           self._update_load_balancer,
                           load_balancer_id=self.load_balancer_id,
@@ -438,7 +438,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('a9182e53-ddaa-4f41-af54-585d983279ba')
     def test_update_load_balancer_missing_admin_state_up(self):
-        """Test update load balancer with missing admin state field"""
+        """Test update load balancer with missing admin state field."""
         loadbalancer = self._show_load_balancer(
             self.load_balancer_id)
         load_balancer_initial = loadbalancer['admin_state_up']
@@ -448,7 +448,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('bfbe9339-d083-4a88-b6d6-015522809c3a')
     def test_update_load_balancer_incorrect_attribute(self):
-        """Test update a load balancer with an extra, invalid attribute"""
+        """Test update a load balancer with an extra, invalid attribute."""
         self.assertRaises(exceptions.BadRequest,
                           self._update_load_balancer,
                           load_balancer_id=self.load_balancer_id,
@@ -461,7 +461,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('d2258984-6e9a-41d6-bffa-0543c8b1f2b0')
     def test_get_load_balancer_status_tree(self):
-        """Test get load balancer status tree"""
+        """Test get load balancer status tree."""
         statuses = self._show_load_balancer_status_tree(
             self.load_balancer_id)
         load_balancer = statuses['loadbalancer']
@@ -472,7 +472,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('a23677a9-b770-4894-8be9-cd66590c228b')
     def test_get_load_balancer_stats(self):
-        """Test get load balancer stats"""
+        """Test get load balancer stats."""
         stats = self._show_load_balancer_stats(
             self.load_balancer_id)
         self.assertEqual(0, stats['bytes_in'])
@@ -483,7 +483,7 @@ class LoadBalancersTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('f289f8df-a867-45cd-bee3-7ff08f5e96e0')
     def test_delete_load_balancer(self):
-        """Test delete load balancer"""
+        """Test delete load balancer."""
         new_load_balancer = self._create_active_load_balancer(
             **self.create_lb_kwargs)
         new_load_balancer_id = new_load_balancer['id']

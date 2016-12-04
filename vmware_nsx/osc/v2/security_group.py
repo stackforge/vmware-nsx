@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-"""Security group action implementations with nsx extensions"""
+"""Security group action implementations with nsx extensions."""
 
 from osc_lib import utils as osc_utils
 
@@ -75,7 +75,7 @@ def _get_plugin_attrs(attrs, parsed_args, client_manager):
 
 
 class NsxCreateSecurityGroup(security_group.CreateSecurityGroup):
-    """Create a new security_group with vmware nsx extensions """
+    """Create a new security_group with vmware nsx extensions."""
 
     def take_action_network(self, client, parsed_args):
         #TODO(asarfaty): Better to change the neutron client code of
@@ -119,7 +119,7 @@ class NsxCreateSecurityGroup(security_group.CreateSecurityGroup):
 
 
 class NsxSetSecurityGroup(security_group.SetSecurityGroup):
-    """Set security group properties with vmware nsx extensions """
+    """Set security group properties with vmware nsx extensions."""
 
     def take_action_network(self, client, parsed_args):
         #TODO(asarfaty): Better to change the neutron client code of

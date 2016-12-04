@@ -59,7 +59,7 @@ class NsxvIpamBase(object):
         return p.nsx_v.vcns
 
     def _get_vcns_error_code(self, e):
-        """Get the error code out of VcnsApiException"""
+        """Get the error code out of VcnsApiException."""
         try:
             desc = et.fromstring(e.response)
             return int(desc.find('errorCode').text)
@@ -95,7 +95,7 @@ class NsxvIpamDriver(subnet_alloc.SubnetAllocator, NsxvIpamBase):
         return False
 
     def _is_ipv6_subnet(self, subnet_request):
-        """Return True if the network of the request is an ipv6 network"""
+        """Return True if the network of the request is an ipv6 network."""
         if isinstance(subnet_request, ipam_req.SpecificSubnetRequest):
             return subnet_request.subnet_cidr.version == 6
         else:
@@ -106,7 +106,7 @@ class NsxvIpamDriver(subnet_alloc.SubnetAllocator, NsxvIpamBase):
             return False
 
     def _is_supported_net(self, subnet_request):
-        """This driver supports only ipv4 external/provider networks"""
+        """This driver supports only ipv4 external/provider networks."""
         return (self._is_ext_or_provider_net(subnet_request) and
                 not self._is_ipv6_subnet(subnet_request))
 
@@ -125,7 +125,7 @@ class NsxvIpamDriver(subnet_alloc.SubnetAllocator, NsxvIpamBase):
         return NsxvIpamSubnet.load(subnet_id, nsx_pool_id, self._context)
 
     def allocate_backend_pool(self, subnet_request):
-        """Create a pool on the NSX backend and return its ID"""
+        """Create a pool on the NSX backend and return its ID."""
         if subnet_request.allocation_pools:
             ranges = [
                 {'ipRangeDto':
@@ -254,7 +254,7 @@ class NsxvIpamSubnet(ipam_base.Subnet, NsxvIpamBase):
         return cls(neutron_subnet_id, nsx_pool_id, ctx, tenant_id)
 
     def allocate(self, address_request):
-        """Allocate an IP from the pool"""
+        """Allocate an IP from the pool."""
         with locking.LockManager.get_lock('nsx-ipam-' + self._nsx_pool_id):
             return self._allocate(address_request)
 
@@ -289,7 +289,7 @@ class NsxvIpamSubnet(ipam_base.Subnet, NsxvIpamBase):
         return ip_address
 
     def deallocate(self, address):
-        """Return an IP to the pool"""
+        """Return an IP to the pool."""
         with locking.LockManager.get_lock('nsx-ipam-' + self._nsx_pool_id):
             self._deallocate(address)
 
@@ -320,7 +320,7 @@ class NsxvIpamSubnet(ipam_base.Subnet, NsxvIpamBase):
         return str(cidr)
 
     def get_details(self):
-        """Return subnet data as a SpecificSubnetRequest"""
+        """Return subnet data as a SpecificSubnetRequest."""
         # get the pool from the backend
         pool_details = self._vcns.get_ipam_ip_pool(self._nsx_pool_id)[1]
         gateway_ip = pool_details['gateway']
@@ -337,7 +337,7 @@ class NsxvIpamSubnet(ipam_base.Subnet, NsxvIpamBase):
 
 
 class NsxvSubnetRequestFactory(ipam_req.SubnetRequestFactory, NsxvIpamBase):
-    """Builds request using subnet info, including the network id"""
+    """Builds request using subnet info, including the network id."""
 
     @classmethod
     def get_request(cls, context, subnet, subnetpool):

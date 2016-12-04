@@ -116,7 +116,7 @@ class NSXv3NativeDHCPTest(base.BaseNetworkTest):
     @test.attr(type='nsxv3')
     @test.idempotent_id('cc970d9b-786a-49c3-8bfb-2f8bc5580ead')
     def test_overlapping_dhcp_enabled_subnet(self):
-        """Create two overlapping subnets"""
+        """Create two overlapping subnets."""
         for i in range(2):
             name = data_utils.rand_name("network-")
             network = self.create_network(network_name=name)

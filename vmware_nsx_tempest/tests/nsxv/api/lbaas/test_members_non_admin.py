@@ -68,7 +68,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('346e49ce-0665-4995-a03a-b007052d3619')
     def test_list_3_members(self):
-        """Test that we can list members. """
+        """Test that we can list members."""
         member_ips_exp = set([u"127.0.0.0", u"127.0.0.1", u"127.0.0.2"])
         for ip in member_ips_exp:
             member_opts = self.build_member_opts()
@@ -134,7 +134,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('d7ed0870-a065-4fbd-8d95-0ea4d12063c2')
     def test_create_member_missing_required_field_address(self):
-        """Test create a member with missing field address"""
+        """Test create a member with missing field address."""
         member_opts = {}
         member_opts['protocol_port'] = 80
         member_opts['subnet_id'] = self.subnet_id
@@ -144,7 +144,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('8d2b9a53-aac7-4fb9-b068-47647289aa21')
     def test_create_member_missing_required_field_protocol_port(self):
-        """Test create a member with missing field protocol_port"""
+        """Test create a member with missing field protocol_port."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         member_opts['subnet_id'] = self.subnet_id
@@ -154,7 +154,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('9710cd4c-aac0-4b71-b295-82a88c67b0b8')
     def test_create_member_missing_required_field_subnet_id(self):
-        """Test create a member with missing field subnet_id """
+        """Test create a member with missing field subnet_id."""
         member_opts = {}
         member_opts['protocol_port'] = 80
         member_opts['address'] = "127.0.0.1"
@@ -172,7 +172,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('840bfa84-1d16-4149-a863-6f7afec1682f')
     def test_create_member_invalid_tenant_id(self):
-        """Test create member with invalid tenant_id"""
+        """Test create member with invalid tenant_id."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         member_opts['protocol_port'] = 80
@@ -184,7 +184,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('a99dbd0a-5f8c-4c96-8900-1a7d297d913b')
     def test_create_member_invalid_address(self):
-        """Test create member with invalid address"""
+        """Test create member with invalid address."""
         member_opts = {}
         member_opts['address'] = "127$%<ki"
         member_opts['protocol_port'] = 80
@@ -195,7 +195,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('736b0771-b98c-4045-97e0-a44e4e18c22e')
     def test_create_member_invalid_protocol_port(self):
-        """Test create member with invalid protocol_port"""
+        """Test create member with invalid protocol_port."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         member_opts['protocol_port'] = 8090000
@@ -206,7 +206,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('2cc67f5a-3f66-427e-90b8-59a3da5c1d21')
     def test_create_member_invalid_subnet_id(self):
-        """Test create member with invalid subnet_id"""
+        """Test create member with invalid subnet_id."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         member_opts['protocol_port'] = 80
@@ -217,7 +217,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('3403c6f5-5a30-4115-ac3a-8a22855fd614')
     def test_create_member_invalid_admin_state_up(self):
-        """Test create member with invalid admin_state_up"""
+        """Test create member with invalid admin_state_up."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         member_opts['protocol_port'] = 80
@@ -229,7 +229,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('b12216ec-3442-4239-ba2c-dd17640449d1')
     def test_create_member_invalid_weight(self):
-        """Test create member with invalid weight"""
+        """Test create member with invalid weight."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         member_opts['protocol_port'] = 80
@@ -241,7 +241,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('88eb464b-4de6-4ed7-a1e8-bc61581a5c6e')
     def test_create_member_empty_tenant_id(self):
-        """Test create member with an empty tenant_id"""
+        """Test create member with an empty tenant_id."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         member_opts['protocol_port'] = 80
@@ -253,7 +253,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('238cd859-2b60-4e42-b356-c6b38768c3e4')
     def test_create_member_empty_address(self):
-        """Test create member with an empty address"""
+        """Test create member with an empty address."""
         member_opts = {}
         member_opts['address'] = ""
         member_opts['protocol_port'] = 80
@@ -264,7 +264,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('834905ac-5c95-4dfc-900c-1676b6c28247')
     def test_create_member_empty_protocol_port(self):
-        """Test create member with an empty protocol_port"""
+        """Test create member with an empty protocol_port."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         member_opts['protocol_port'] = ""
@@ -275,7 +275,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('a0f2148e-160e-4b12-8e30-567a0448d179')
     def test_create_member_empty_subnet_id(self):
-        """Test create member with empty subnet_id"""
+        """Test create member with empty subnet_id."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         member_opts['protocol_port'] = 80
@@ -286,7 +286,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('63cd5897-b82c-4508-8be7-3b7ccab21798')
     def test_create_member_empty_admin_state_up(self):
-        """Test create member with an empty admin_state_up"""
+        """Test create member with an empty admin_state_up."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         member_opts['protocol_port'] = 80
@@ -298,7 +298,7 @@ class MemberTest(base.BaseTestCase):
     @test.attr(type='negative')
     @test.idempotent_id('55f16682-74a2-4df7-a6b3-2da3623f4a41')
     def test_create_member_empty_weight(self):
-        """Test create member with an empty weight"""
+        """Test create member with an empty weight."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         member_opts['protocol_port'] = 80
@@ -471,7 +471,7 @@ class MemberTest(base.BaseTestCase):
 
     @classmethod
     def build_member_opts(cls, **kw):
-        """Build out default member dictionary """
+        """Build out default member dictionary."""
         opts = {"address": kw.get("address", "127.0.0.1"),
                 "tenant_id": kw.get("tenant_id", cls.tenant_id),
                 "protocol_port": kw.get("protocol_port", 80),

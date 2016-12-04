@@ -482,7 +482,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
     def update_router_interface_ip(self, context, router_id,
                                    port_id, int_net_id,
                                    old_ip, new_ip, subnet_mask):
-        """Update the fixed ip of a distributed router interface. """
+        """Update the fixed ip of a distributed router interface."""
         router = self.plugin._get_router(context, router_id)
         if port_id == router.gw_port_id:
             # external port / Uplink

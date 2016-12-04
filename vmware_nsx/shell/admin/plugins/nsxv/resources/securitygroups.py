@@ -252,7 +252,7 @@ def fix_security_groups(resource, event, trigger, **kwargs):
 
 @admin_utils.output_header
 def migrate_sg_to_policy(resource, event, trigger, **kwargs):
-    """Change the mode of a security group from rules to NSX policy"""
+    """Change the mode of a security group from rules to NSX policy."""
     if not kwargs.get('property'):
         LOG.error(_LE("Need to specify security-group-id and policy-id "
                     "parameters"))

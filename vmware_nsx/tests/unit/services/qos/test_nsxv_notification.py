@@ -133,7 +133,7 @@ class TestQosNsxVNotification(test_plugin.NsxVPluginV2TestCase,
     def test_create_network_with_policy_rule(self,
                                              dvs_update_mock,
                                              update_bindings_mock):
-        """Test the DVS update when a QoS rule is attached to a network"""
+        """Test the DVS update when a QoS rule is attached to a network."""
         # Create a policy with a rule
         _policy = policy_object.QosPolicy(
             self.ctxt, **self.policy_data['policy'])

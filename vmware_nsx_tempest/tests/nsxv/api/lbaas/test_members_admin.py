@@ -56,7 +56,7 @@ class MemberTest(base.BaseAdminTestCase):
     @test.attr(type='smoke')
     @test.idempotent_id('03eeec24-78d8-4c2f-8d6c-4a78817f352e')
     def test_create_member_invalid_tenant_id(self):
-        """Test create member with invalid tenant_id"""
+        """Test create member with invalid tenant_id."""
         member_opts = {}
         member_opts['address'] = "127.0.0.1"
         # avoid port=80 to avoid duplicate port during failed testings
