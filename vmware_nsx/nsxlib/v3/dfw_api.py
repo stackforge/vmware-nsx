@@ -71,6 +71,7 @@ IPV6 = 'IPV6'
 IPV4_IPV6 = 'IPV4_IPV6'
 
 
+<<<<<<< HEAD
 class NSGroupMemberNotFound(nsx_exc.NsxPluginException):
     message = _("Could not find NSGroup %(nsgroup_id)s member %(member_id)s "
                 "for removal.")
@@ -105,7 +106,7 @@ def create_nsgroup(display_name, description, tags, membership_criteria=None):
 
 
 def list_nsgroups():
-    return nsxclient.get_resource(
+    return nsxclient.list_resource(
         'ns-groups?populate_references=false').get('results', [])
 
 
@@ -215,7 +216,7 @@ def read_section(section_id):
 
 def list_sections():
     resource = 'firewall/sections'
-    return nsxclient.get_resource(resource).get('results', [])
+    return nsxclient.list_resource(resource).get('results', [])
 
 
 def delete_section(section_id):
