@@ -1501,12 +1501,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
               port_data.get(mac_ext.MAC_LEARNING) is True))):
             profiles.append(self._mac_learning_profile)
 
-        name = self._get_port_name(context, port_data)
+        # If port security is disabled then add the port to the exclude list
+        if (not psec_is_on or
+            (not cfg.CONF.nsx_v3.native_dhcp_metadata and
+             device_owner == const.DEVICE_OWNER_DHCP)):
+            tags.append({'scope': security.PORT_SG_SCOPE,
+                         'tag': firewall.EXCLUDE_PORT})
 
-        if not cfg.CONF.nsx_v3.native_dhcp_metadata:
-            if device_owner == const.DEVICE_OWNER_DHCP:
-                tags.append({'scope': security.PORT_SG_SCOPE,
-                             'tag': firewall.EXCLUDE_PORT})
+        name = self._get_port_name(context, port_data)
 
         nsx_net_id = port_data[pbin.VIF_DETAILS]['nsx-logical-switch-id']
 
@@ -2104,15 +2106,22 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if qos_profile_id is not None:
             switch_profile_ids.append(qos_profile_id)
 
+        psec_is_on = self._get_port_security_profile_id() in switch_profile_ids
+
         address_pairs = updated_port.get(addr_pair.ADDRESS_PAIRS)
         mac_learning_profile_set = (
             validators.is_attr_set(address_pairs) and address_pairs and
-            self._get_port_security_profile_id() in switch_profile_ids)
+            psec_is_on)
         # Add mac_learning profile if it exists and is configured
         if (self._mac_learning_profile and
             (mac_learning_profile_set or
              updated_port.get(mac_ext.MAC_LEARNING) is True)):
             switch_profile_ids.append(self._mac_learning_profile)
+
+        # add the port to exclude list if necessary
+        if not psec_is_on:
+            tags_update.append({'scope': security.PORT_SG_SCOPE,
+                                'tag': firewall.EXCLUDE_PORT})
 
         try:
             self._port_client.update(
