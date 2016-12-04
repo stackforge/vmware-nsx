@@ -27,6 +27,8 @@ LOG = log.getLogger(__name__)
 ERRORS = {requests.codes.NOT_FOUND: exceptions.ResourceNotFound,
           requests.codes.PRECONDITION_FAILED: exceptions.StaleRevision}
 
+NULL_CURSOR_PREFIX = '0000'
+
 
 class RESTClient(object):
 
@@ -51,7 +53,7 @@ class RESTClient(object):
             url_prefix=uri,
             default_headers=self._default_headers)
 
-    def list(self, headers=None):
+    def list(self, resource='', headers=None):
         return self.url_list('')
 
     def get(self, uuid, headers=None):
@@ -67,6 +69,15 @@ class RESTClient(object):
         return self.url_post(resource, body, headers=headers)
 
     def url_list(self, url, headers=None):
+        concatenate_response = self.url_get(url, headers=headers)
+        cursor = concatenate_response.get('cursor', NULL_CURSOR_PREFIX)
+        op = '&' if urlparse.urlparse(url).query else '?'
+        url += op + 'cursor='
+        while cursor and not cursor.startswith(NULL_CURSOR_PREFIX):
+            page = self.url_get(url + cursor, headers=headers)
+            concatenate_response['results'].extend(page.get('results', []))
+            cursor = page.get('cursor', NULL_CURSOR_PREFIX)
+            return concatenate_response
         return self.url_get(url, headers=headers)
 
     def url_get(self, url, headers=None):
