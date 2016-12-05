@@ -186,7 +186,8 @@ def update_v3_tags(current_tags, tags_update):
 
     tags = [{'scope': tag['scope'], 'tag': tag['tag']}
             for tag in (current_tags + tags_update)
-            if tag['scope'] in (current_scopes ^ updated_scopes)]
+            if tag['tag'] and
+            tag['scope'] in (current_scopes ^ updated_scopes)]
 
     modified_scopes = current_scopes & updated_scopes
     for tag in tags_update:
