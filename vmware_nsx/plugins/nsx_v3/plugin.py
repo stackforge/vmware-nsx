@@ -86,6 +86,7 @@ from vmware_nsx.extensions import advancedserviceproviders as as_providers
 from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
+from vmware_nsx.extensions import vrf
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import utils as qos_utils
@@ -149,7 +150,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                    "network_availability_zone",
                                    "subnet_allocation",
                                    "security-group-logging",
-                                   "provider-security-group"]
+                                   "provider-security-group",
+                                   "vrf"]
 
     supported_qos_rule_types = [qos_consts.RULE_TYPE_BANDWIDTH_LIMIT,
                                 qos_consts.RULE_TYPE_DSCP_MARKING]
@@ -2548,6 +2550,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     LOG.error(error_message)
                     raise n_exc.InvalidInput(error_message=error_message)
 
+    def _extend_router_dict_vrf(self, context, router):
+        vrf_id = nsx_db.get_neutron_vrf_id(context.session, router['id'])
+        if vrf_id:
+            router[vrf.VRF_ID] = vrf_id
+
     def _update_router_wrapper(self, context, router_id, router):
         if cfg.CONF.api_replay_mode:
             # Only import mock if the reply mode is used
@@ -2611,7 +2618,33 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                           "Reason: %(e)s"),
                                       {'port_id': nsx_port_id,
                                        'e': e})
-            return self._update_router_wrapper(context, router_id, router)
+            if vrf.NO_VRF in router_data:
+                if self._routerlib.update_vrf(router_id, None):
+                    # Delete the current vrf_id in DB.
+                    nsx_db.delete_neutron_vrf_binding(
+                        context.session, router_id)
+            elif vrf.VRF_ID in router_data:
+                result = self._routerlib.update_vrf(router_id,
+                                                    router_data[vrf.VRF_ID])
+                if result:
+                    # Updated vrf_id successfully.
+                    if nsx_db.get_neutron_vrf_id(context.session, router_id):
+                        # Delete the old vrf_id in DB.
+                        nsx_db.delete_neutron_vrf_binding(
+                            context.session, router_id)
+                    if router_data[vrf.VRF_ID]:
+                        # Add the new vrf_id in DB.
+                        nsx_db.add_neutron_vrf_binding(
+                            context.session, router_id,
+                            router_data[vrf.VRF_ID])
+                elif result is False:
+                    msg = _("Logical router link port not found on router %s, "
+                            "can not update VRF"), router_id
+                    raise n_exc.InvalidInput(error_message=msg)
+            updated_router = self._update_router_wrapper(context, router_id,
+                                                         router)
+            self._extend_router_dict_vrf(context, updated_router)
+            return updated_router
         except nsx_lib_exc.ResourceNotFound:
             with context.session.begin(subtransactions=True):
                 router_db = self._get_router(context, router_id)
@@ -2631,6 +2664,22 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     for route in routes_removed:
                         self._routerlib.add_static_routes(nsx_router_id, route)
                 router_db['status'] = curr_status
+
+    def get_router(self, context, id, fields=None):
+        router = super(NsxV3Plugin, self).get_router(context, id, fields)
+        self._extend_router_dict_vrf(context, router)
+        return self._fields(router, fields)
+
+    def get_routers(self, context, filters=None, fields=None,
+                    sorts=None, limit=None, marker=None,
+                    page_reverse=False):
+        with context.session.begin(subtransactions=True):
+            routers = super(NsxV3Plugin, self).get_routers(
+                context, filters, fields, sorts, limit, marker, page_reverse)
+            for r in routers:
+                self._extend_router_dict_vrf(context, r)
+        return (routers if not fields else
+                [self._fields(r, fields) for r in routers])
 
     def _get_router_interface_ports_by_network(
         self, context, router_id, network_id):
