@@ -66,6 +66,12 @@ class ProviderSecurityGroupDeleteNotAdmin(nexception.NotAuthorized):
                 "requires an admin to delete it.")
 
 
+class TenantProviderSecurityExists(nexception.BadRequest):
+    message = _("Provider security-group already exists (%(id)s) for tenant "
+                "%(tenant_id)s. A tenant may have only one provider "
+                "security-group")
+
+
 class Providersecuritygroup(extensions.ExtensionDescriptor):
     """Provider security-group extension."""
 
