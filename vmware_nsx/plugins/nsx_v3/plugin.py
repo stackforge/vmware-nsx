@@ -86,6 +86,7 @@ from vmware_nsx.extensions import advancedserviceproviders as as_providers
 from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
+from vmware_nsx.extensions import vrf
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import utils as qos_utils
@@ -149,7 +150,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                    "network_availability_zone",
                                    "subnet_allocation",
                                    "security-group-logging",
-                                   "provider-security-group"]
+                                   "provider-security-group",
+                                   "vrf"]
 
     supported_qos_rule_types = [qos_consts.RULE_TYPE_BANDWIDTH_LIMIT,
                                 qos_consts.RULE_TYPE_DSCP_MARKING]
@@ -2548,6 +2550,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     LOG.error(error_message)
                     raise n_exc.InvalidInput(error_message=error_message)
 
+    def _extend_router_dict_vrf(self, router_res, router_db):
+        vrf_data = router_db.get('vrf')
+        if vrf_data:
+            router_res[vrf.VRF_ID] = vrf_data['vrf_id']
+
+    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
+        l3.ROUTERS, [_extend_router_dict_vrf])
+
     def _update_router_wrapper(self, context, router_id, router):
         if cfg.CONF.api_replay_mode:
             # Only import mock if the reply mode is used
@@ -2611,6 +2621,35 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                           "Reason: %(e)s"),
                                       {'port_id': nsx_port_id,
                                        'e': e})
+            if vrf.DISABLE_VRF in router_data:
+                try:
+                    if self._routerlib.update_vrf(router_id, None):
+                        # Delete the current vrf_id in DB.
+                        nsx_db.delete_neutron_vrf_binding(
+                            context.session, router_id)
+                except nsx_lib_exc.ResourceNotFound:
+                    msg = _("Logical router link port not found on router %s, "
+                            "can not disable VRF"), router_id
+                    raise n_exc.InvalidInput(error_message=msg)
+            elif vrf.VRF_ID in router_data:
+                try:
+                    if self._routerlib.update_vrf(
+                        router_id, router_data[vrf.VRF_ID]):
+                        try:
+                            # Delete the old vrf_id in DB.
+                            nsx_db.delete_neutron_vrf_binding(
+                                context.session, router_id)
+                        except db_exc.DBError:
+                            pass
+                        if router_data[vrf.VRF_ID]:
+                            # Add the new vrf_id in DB.
+                            nsx_db.add_neutron_vrf_binding(
+                                context.session, router_id,
+                                router_data[vrf.VRF_ID])
+                except nsx_lib_exc.ResourceNotFound:
+                    msg = _("Logical router link port not found on router %s, "
+                            "can not update VRF"), router_id
+                    raise n_exc.InvalidInput(error_message=msg)
             return self._update_router_wrapper(context, router_id, router)
         except nsx_lib_exc.ResourceNotFound:
             with context.session.begin(subtransactions=True):

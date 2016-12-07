@@ -418,3 +418,27 @@ def save_sg_rule_mappings(session, rules):
             mapping = nsx_models.NeutronNsxRuleMapping(
                 neutron_id=neutron_id, nsx_id=nsx_id)
             session.add(mapping)
+
+
+def add_neutron_vrf_binding(session, router_id, vrf_id):
+    with session.begin(subtransactions=True):
+        binding = nsx_models.NeutronNsxRouterVrfBinding(
+            router_id=router_id, vrf_id=vrf_id)
+        session.add(binding)
+        return binding
+
+
+def get_neutron_vrf_id(session, router_id):
+    try:
+        binding = session.query(
+            nsx_models.NeutronNsxRouterVrfBinding).filter_by(
+            router_id=router_id).one()
+        return binding['vrf_id']
+    except exc.NoResultFound:
+        LOG.debug("VRF entry for neutron router %s not yet stored in "
+                  "Neutron DB", router_id)
+
+
+def delete_neutron_vrf_binding(session, router_id):
+    return session.query(nsx_models.NeutronNsxRouterVrfBinding).filter_by(
+        router_id=router_id).delete()

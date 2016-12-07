@@ -24,6 +24,7 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy import sql
 
+from neutron.db.models import l3 as l3_db_models
 from neutron.db import models_v2
 from oslo_db.sqlalchemy import models
 
@@ -151,6 +152,22 @@ class NeutronNsxRouterMapping(model_base.BASEV2, models.TimestampMixin):
                            sa.ForeignKey('routers.id', ondelete='CASCADE'),
                            primary_key=True)
     nsx_id = sa.Column(sa.String(36))
+
+
+class NeutronNsxRouterVrfBinding(model_base.BASEV2, models.TimestampMixin):
+    """Represents a binding of a Neutron router with VRF info."""
+    __tablename__ = 'neutron_nsx_router_vrf_bindings'
+    router_id = sa.Column(sa.String(36),
+                          sa.ForeignKey('routers.id', ondelete='CASCADE'),
+                          nullable=False, primary_key=True)
+    vrf_id = sa.Column(sa.String(36), nullable=False)
+
+    # Add a relationship to the Router model using the backref attribute.
+    # This will instruct SQLAlchemy to eagerly load this association.
+    router = orm.relationship(
+        l3_db_models.Router,
+        backref=orm.backref("vrf", lazy='joined',
+                            uselist=False, cascade='delete'))
 
 
 class NeutronNsxServiceBinding(model_base.BASEV2, models.TimestampMixin):
