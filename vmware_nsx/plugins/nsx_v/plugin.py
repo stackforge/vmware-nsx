@@ -1822,6 +1822,22 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         self._delete_dhcp_static_binding(context, neutron_db_port)
 
+    def _delete_subnet_edge(self, context, network_id):
+        filters = {'network_id': [network_id]}
+        remaining_subnets = self.get_subnets(context,
+                                             filters=filters)
+        if len(remaining_subnets) == 0:
+            self._cleanup_dhcp_edge_before_deletion(context, network_id)
+            LOG.debug("Delete the DHCP service for network %s",
+                      network_id)
+            self._delete_dhcp_edge_service(context, network_id)
+        else:
+            # Update address group and delete the DHCP port only
+            address_groups = self._create_network_dhcp_address_group(
+                context, network_id)
+            self._update_dhcp_edge_service(context, network_id,
+                                           address_groups)
+
     def delete_subnet(self, context, id):
         subnet = self._get_subnet(context, id)
         filters = {'fixed_ips': {'subnet_id': [id]}}
@@ -1843,23 +1859,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                         self.ipam.delete_port(context, port['id'])
 
             if subnet['enable_dhcp']:
-                # Delete the DHCP edge service
                 network_id = subnet['network_id']
-                filters = {'network_id': [network_id]}
-                remaining_subnets = self.get_subnets(context,
-                                                     filters=filters)
-                if len(remaining_subnets) == 0:
-                    self._cleanup_dhcp_edge_before_deletion(
-                        context, network_id)
-                    LOG.debug("Delete the DHCP service for network %s",
-                              network_id)
-                    self._delete_dhcp_edge_service(context, network_id)
-                else:
-                    # Update address group and delete the DHCP port only
-                    address_groups = self._create_network_dhcp_address_group(
-                        context, network_id)
-                    self._update_dhcp_edge_service(context, network_id,
-                                                   address_groups)
+                self._delete_subnet_edge(context, network_id)
 
     def _is_overlapping_reserved_subnets(self, subnet):
         """Return True if the subnet overlaps with reserved subnets.
@@ -1920,6 +1921,71 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 err_msg = _("Host routes can only be supported at NSX version "
                             "6.2.3 or higher")
                 raise n_exc.InvalidInput(error_message=err_msg)
+
+    def _create_bulk_with_callback(self, resource, context, request_items,
+                                   post_create_func=None, rollback_func=None):
+        # This is a copy of the _create_bulk() in db_base_plugin_v2.py,
+        # but extended with user-provided callback functions.
+        objects = []
+        collection = "%ss" % resource
+        items = request_items[collection]
+        context.session.begin(subtransactions=True)
+        try:
+            LOG.error("=====> GK configuring %s items", len(items))
+            for item in items:
+                LOG.error("====> CONFIGURE %s", item)
+                obj_creator = getattr(self, 'create_%s' % resource)
+                obj = obj_creator(context, item)
+                objects.append(obj)
+                if post_create_func:
+                    # The user-provided post_create function is called
+                    # after a new object is created.
+                    post_create_func(obj)
+            context.session.commit()
+        except Exception as e:
+            LOG.error("====> GK DEBUG Exception - %s", e)
+            if rollback_func:
+                # The user-provided rollback function is called when an
+                # exception occurred.
+                for obj in objects:
+                    rollback_func(obj)
+
+            # Note that the session.rollback() function is called here.
+            # session.rollback() will invoke transaction.rollback() on
+            # the transaction this session maintains. The latter will
+            # deactive the transaction and clear the session's cache.
+            #
+            # But depending on where the exception occurred,
+            # transaction.rollback() may have already been called
+            # internally before reaching here.
+            #
+            # For example, if the exception happened under a
+            # "with session.begin(subtransactions=True):" statement
+            # anywhere in the middle of processing obj_creator(),
+            # transaction.__exit__() will invoke transaction.rollback().
+            # Thus when the exception reaches here, the session's cache
+            # is already empty.
+            context.session.rollback()
+            with excutils.save_and_reraise_exception():
+                LOG.error(_LE("An exception occurred while creating "
+                              "the %(resource)s:%(item)s"),
+                          {'resource': resource, 'item': item})
+        return objects
+
+    def create_subnet_bulk(self, context, subnets):
+
+        def _post_create(subnet):
+            LOG.debug('Subnet %s created', subnet['id'])
+
+        def _rollback(subnet):
+            if subnet['enable_dhcp']:
+                try:
+                    self._delete_subnet_edge(context, subnet['network_id'])
+                except Exception as e:
+                    LOG.error("Unable to rollback %s", subnet)
+
+        return self._create_bulk_with_callback('subnet', context, subnets,
+                                               _post_create, _rollback)
 
     def create_subnet(self, context, subnet):
         """Create subnet on nsx_v provider network.
