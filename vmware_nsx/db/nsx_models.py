@@ -368,3 +368,13 @@ class NsxPortMirrorSessionMapping(model_base.BASEV2):
                             nullable=False,
                             primary_key=True)
     port_mirror_session_id = sa.Column(sa.String(36), nullable=False)
+
+
+#TODO(asarfaty): This table is used for nsxv and nsxv3 - we should rename it.
+class NsxSubnetIpam(model_base.BASEV2, models.TimestampMixin):
+    """Map Subnets with their backend pool id."""
+    __tablename__ = 'nsxv_subnet_ipam'
+    # the Subnet id is not a foreign key because the subnet is deleted
+    # before the pool does
+    subnet_id = sa.Column(sa.String(36), primary_key=True)
+    nsx_pool_id = sa.Column(sa.String(36), primary_key=True)
