@@ -146,6 +146,10 @@ def _mock_nsx_backend_calls():
         "vmware_nsxlib.v3.resources.LogicalDhcpServer.create_binding",
         side_effect=_return_id_key).start()
 
+    mock.patch(
+        "vmware_nsxlib.v3.resources.IpPool.create",
+        side_effect=_return_id_key).start()
+
 
 class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
                                nsxlib_testcase.NsxClientTestCase):
