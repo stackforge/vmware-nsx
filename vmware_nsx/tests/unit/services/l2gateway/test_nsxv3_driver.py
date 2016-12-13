@@ -125,7 +125,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
     def test_create_l2_gateway_multiple_devices_fail(self):
         invalid_l2gw_dict = {
             "l2_gateway": {
-                "tenant_id": "fake_tenant_id",
+                "tenant_id": uuidutils.generate_uuid(),
                 "name": "invalid_l2gw",
                 "devices": [{"interfaces":
                             [{"name": "interface1"}],
@@ -140,7 +140,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
     def test_create_l2_gateway_multiple_interfaces_fail(self):
         invalid_l2gw_dict = {
             "l2_gateway": {
-                "tenant_id": "fake_tenant_id",
+                "tenant_id": uuidutils.generate_uuid(),
                 "name": "invalid_l2gw",
                 "devices": [{"interfaces":
                             [{"name": "interface1"},
@@ -153,7 +153,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
     def test_create_l2_gateway_invalid_device_name_fail(self):
         invalid_l2gw_dict = {
             "l2_gateway": {
-                "tenant_id": "fake_tenant_id",
+                "tenant_id": uuidutils.generate_uuid() ,
                 "name": "invalid_l2gw",
                 "devices": [{"interfaces":
                             [{"name": "interface_1"}],
@@ -183,7 +183,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         net = self.core_plugin.create_network(self.context, net_data)
         l2gw_conn_data = {constants.CONNECTION_RESOURCE_NAME: {
             'l2_gateway_id': l2gw['id'],
-            'tenant_id': 'fake_tenant_id',
+            'tenant_id': uuidutils.generate_uuid(),
             'network_id': net['id']}}
         l2gw_conn = self.l2gw_plugin.create_l2_gateway_connection(
             self.context, l2gw_conn_data)
@@ -201,7 +201,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         net = self.core_plugin.create_network(self.context, net_data)
         l2gw_conn_data = {constants.CONNECTION_RESOURCE_NAME: {
             'l2_gateway_id': l2gw['id'],
-            'tenant_id': 'fake_tenant_id',
+            'tenant_id': uuidutils.generate_uuid(),
             'network_id': net['id']}}
         l2gw_conn = self.l2gw_plugin.create_l2_gateway_connection(
             self.context,
@@ -227,7 +227,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         l2gw_conn_data = {
             'id': uuidutils.generate_uuid(),
             'l2_gateway_id': l2gw['id'],
-            'tenant_id': 'fake_tenant_id',
+            'tenant_id': uuidutils.generate_uuid(),
             'network_id': net['id']}
         self.driver.create_l2_gateway_connection_postcommit(self.context,
                                                             l2gw_conn_data)
@@ -252,7 +252,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         l2gw_conn_data = {
             'id': uuidutils.generate_uuid(),
             'l2_gateway_id': l2gw['id'],
-            'tenant_id': 'fake_tenant_id',
+            'tenant_id': uuidutils.generate_uuid(),
             'network_id': net['id']}
         self.driver.create_l2_gateway_connection_postcommit(self.context,
                                                             l2gw_conn_data)
