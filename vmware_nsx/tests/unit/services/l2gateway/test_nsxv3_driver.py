@@ -125,7 +125,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
     def test_create_l2_gateway_multiple_devices_fail(self):
         invalid_l2gw_dict = {
             "l2_gateway": {
-                "tenant_id": "fake_tenant_id",
+                "tenant_id": uuidutils.generate_uuid(),
                 "name": "invalid_l2gw",
                 "devices": [{"interfaces":
                             [{"name": "interface1"}],
@@ -140,7 +140,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
     def test_create_l2_gateway_multiple_interfaces_fail(self):
         invalid_l2gw_dict = {
             "l2_gateway": {
-                "tenant_id": "fake_tenant_id",
+                "tenant_id": uuidutils.generate_uuid(),
                 "name": "invalid_l2gw",
                 "devices": [{"interfaces":
                             [{"name": "interface1"},
@@ -153,7 +153,7 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
     def test_create_l2_gateway_invalid_device_name_fail(self):
         invalid_l2gw_dict = {
             "l2_gateway": {
-                "tenant_id": "fake_tenant_id",
+                "tenant_id": uuidutils.generate_uuid() ,
                 "name": "invalid_l2gw",
                 "devices": [{"interfaces":
                             [{"name": "interface_1"}],
