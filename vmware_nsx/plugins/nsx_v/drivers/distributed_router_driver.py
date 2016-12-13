@@ -276,7 +276,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                     if fixed_ip['ip_address'] == subnet['gateway_ip']:
                         do_metadata = True
 
-                if do_metadata:
+                if do_metadata and subnet['enable_dhcp']:
                     self.edge_manager.configure_dhcp_for_vdr_network(
                         context, network_id, router_id)
 
