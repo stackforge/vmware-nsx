@@ -1315,6 +1315,15 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                     "%(server)s for network %(network)s"),
                                 {'server': dhcp_service['nsx_service_id'],
                                  'network': orig_subnet['network_id']})
+                    if 'gateway_ip' in kwargs:
+                        # Need to update the static binding of every VM in
+                        # this logical DHCP sercver.
+                        bindings = nsx_db.get_nsx_dhcp_bindings_by_service(
+                            context.session, dhcp_service['nsx_service_id'])
+                        for binding in bindings:
+                            self._update_dhcp_binding_on_server(
+                                context, binding, None, None,
+                                kwargs['gateway_ip'])
 
         if (cfg.CONF.nsx_v3.metadata_on_demand and
             not cfg.CONF.nsx_v3.native_dhcp_metadata):
@@ -1667,16 +1676,20 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                     ip, port):
         try:
             hostname = 'host-%s' % ip.replace('.', '-')
+            gateway_ip = self.get_subnet(
+                context, subnet_id).get('gateway_ip')
             options = {'option121': {'static_routes': [
                 {'network': '%s' % cfg.CONF.nsx_v3.native_metadata_route,
                  'next_hop': ip}]}}
             binding = self._dhcp_server.create_binding(
                 dhcp_service_id, port['mac_address'], ip, hostname,
-                cfg.CONF.nsx_v3.dhcp_lease_time, options)
-            LOG.debug("Created static binding (mac: %(mac)s, ip: %(ip)s) "
-                      "for port %(port)s on logical DHCP server %(server)s",
+                cfg.CONF.nsx_v3.dhcp_lease_time, options, gateway_ip)
+            LOG.debug("Created static binding (mac: %(mac)s, ip: %(ip)s, "
+                      "gateway: %(gateway)s) for port %(port)s on "
+                      "logical DHCP server %(server)s",
                       {'mac': port['mac_address'], 'ip': ip,
-                       'port': port['id'], 'server': dhcp_service_id})
+                       'gateway': gateway_ip, 'port': port['id'],
+                       'server': dhcp_service_id})
             return binding
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
@@ -1821,19 +1834,29 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         context, binding, new_port['mac_address'],
                         binding['ip_address'])
 
-    def _update_dhcp_binding_on_server(self, context, binding, mac, ip):
+    def _update_dhcp_binding_on_server(self, context, binding, mac, ip,
+                                       gateway_ip=None):
         try:
-            data = {'mac_address': mac, 'ip_address': ip}
-            if ip != binding['ip_address']:
-                data['host_name'] = 'host-%s' % ip.replace('.', '-')
-                data['options'] = {'option121': {'static_routes': [
-                    {'network': '%s' % cfg.CONF.nsx_v3.native_metadata_route,
-                     'next_hop': ip}]}}
+            data = {}
+            if mac:
+                data['mac_address'] = mac
+            if ip:
+                data['ip_address'] = ip
+                if ip != binding['ip_address']:
+                    data['host_name'] = 'host-%s' % ip.replace('.', '-')
+                    data['options'] = {'option121': {'static_routes': [
+                        {'network':
+                         '%s' % cfg.CONF.nsx_v3.native_metadata_route,
+                         'next_hop': ip}]}}
+            if gateway_ip:
+                data['gateway_ip'] = gateway_ip
             self._dhcp_server.update_binding(
                 binding['nsx_service_id'], binding['nsx_binding_id'], **data)
-            LOG.debug("Updated static binding (mac: %(mac)s, ip: %(ip)s) "
-                      "for port %(port)s on logical DHCP server %(server)s",
-                      {'mac': mac, 'ip': ip, 'port': binding['port_id'],
+            LOG.debug("Updated static binding (mac: %(mac)s, ip: %(ip)s, "
+                      "gateway: %(gateway)s) for port %(port)s on "
+                      "logical DHCP server %(server)s",
+                      {'mac': mac, 'ip': ip, 'gateway': gateway_ip,
+                       'port': binding['port_id'],
                        'server': binding['nsx_service_id']})
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
