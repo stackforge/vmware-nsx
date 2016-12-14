@@ -24,7 +24,6 @@ from vmware_nsx.db import nsxv_db
 from vmware_nsx.plugins.nsx_v.vshield import vcns as nsxv_api
 
 MEMBER_ID_PFX = 'member-'
-LBAAS_FW_SECTION_NAME = 'LBaaS FW Rules'
 
 
 def get_member_id(member_id):
@@ -235,20 +234,6 @@ def update_pool_fw_rule(vcns, pool_id, edge_id, section_id, member_ips):
         vcns.update_section(section_uri,
                             et.tostring(section, encoding="us-ascii"),
                             None)
-
-
-def get_lbaas_fw_section_id(vcns):
-    # Avoid concurrent creation of section by multiple neutron
-    # instances
-    with locking.LockManager.get_lock('lbaas-fw-section'):
-        fw_section_id = vcns.get_section_id(LBAAS_FW_SECTION_NAME)
-        if not fw_section_id:
-            section = et.Element('section')
-            section.attrib['name'] = LBAAS_FW_SECTION_NAME
-            sect = vcns.create_section('ip', et.tostring(section))[1]
-            fw_section_id = et.fromstring(sect).attrib['id']
-
-        return fw_section_id
 
 
 def enable_edge_acceleration(vcns, edge_id):
