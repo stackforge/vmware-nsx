@@ -424,9 +424,7 @@ class TestEdgeLbaasV2Member(BaseTestEdgeLbaasV2):
                               ) as mock_update_pool, \
             mock.patch.object(self.edge_driver.member,
                               '_get_lbaas_fw_section_id'
-                              ) as mock_get_sect, \
-            mock.patch.object(lb_common, 'update_pool_fw_rule'
-                              ) as mock_upd_fw:
+                              ) as mock_get_sect:
             mock_get_lb_binding.return_value = LB_BINDING
             mock_get_pool_binding.return_value = POOL_BINDING
             mock_get_pool.return_value = (None, EDGE_POOL_DEF.copy())
@@ -438,9 +436,6 @@ class TestEdgeLbaasV2Member(BaseTestEdgeLbaasV2):
             edge_pool_def['member'] = [EDGE_MEMBER_DEF]
             mock_update_pool.assert_called_with(
                 LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def)
-            mock_upd_fw.assert_called_with(self.edge_driver.vcns, POOL_ID,
-                                           LB_EDGE_ID, POOL_FW_SECT,
-                                           [MEMBER_ADDRESS])
             mock_successful_completion = (
                 self.lbv2_driver.member.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
