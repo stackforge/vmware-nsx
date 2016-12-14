@@ -78,11 +78,6 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
 
                 member_ips = self._get_pool_member_ips(member.pool, 'add',
                                                        member.address)
-                lb_common.update_pool_fw_rule(self.vcns, member.pool_id,
-                                              edge_id,
-                                              self._get_lbaas_fw_section_id(),
-                                              member_ips)
-
                 self.lbv2_driver.member.successful_completion(context, member)
 
             except nsxv_exc.VcnsApiException:
