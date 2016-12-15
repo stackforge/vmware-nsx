@@ -1,0 +1,10 @@
+Code-Review+1: Adit Sarfaty <asarfaty@vmware.com>
+Verified-1: VMware NSX CI
+Code-Review+2: garyk <gkotton@vmware.com>
+Workflow+1: garyk <gkotton@vmware.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 15 Dec 2016 08:09:20 +0000
+Reviewed-on: https://review.openstack.org/410766
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/newton
