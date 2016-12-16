@@ -53,8 +53,8 @@ class BaseTestCase(base.BaseNetworkTest):
     @classmethod
     def skip_checks(cls):
         super(BaseTestCase, cls).skip_checks()
-        if not test.is_extension_enabled('lbaasv2', 'network'):
-            msg = "lbaasv2 extension not enabled."
+        if not test.is_extension_enabled('v2', 'network'):
+            msg = "v2 extension not enabled."
             raise cls.skipException(msg)
 
     @classmethod
