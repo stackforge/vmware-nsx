@@ -13,17 +13,17 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron import context
-
 import mock
+from neutron import context
 from neutron.tests import base
 from neutron_lbaas.services.loadbalancer import data_models as lb_models
 
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
-from vmware_nsx.services.lbaas.nsx_v import lbaas_common as lb_common
-from vmware_nsx.services.lbaas.nsx_v.v2 import base_mgr
-
+from vmware_nsx.services.lbaas.nsx_v.common import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_common as lb_common
+from vmware_nsx.services.lbaas.nsx_v.v2 import (
+    edge_loadbalancer_driver_v2 as lb_driver)
 
 LB_VIP = '10.0.0.10'
 LB_EDGE_ID = 'edge-x'
@@ -98,8 +98,8 @@ class BaseTestEdgeLbaasV2(base.BaseTestCase):
 
         self.lbv2_driver = mock.Mock()
         self.core_plugin = mock.Mock()
-        base_mgr.EdgeLoadbalancerBaseManager._lbv2_driver = self.lbv2_driver
         base_mgr.EdgeLoadbalancerBaseManager._core_plugin = self.core_plugin
+        lb_driver.EdgeLBaaSv2BaseManager._lbv2_driver = self.lbv2_driver
         self._patch_lb_plugin(self.lbv2_driver, self._tested_entity)
 
         self.lb = lb_models.LoadBalancer(LB_ID, LB_TENANT_ID, 'lb-name', '',
