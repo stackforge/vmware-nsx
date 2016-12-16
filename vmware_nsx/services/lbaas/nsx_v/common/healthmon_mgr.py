@@ -13,6 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import abc
+import six
+
 from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
 from oslo_utils import excutils
@@ -21,15 +24,15 @@ from vmware_nsx._i18n import _LE
 from vmware_nsx.common import locking
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.plugins.nsx_v.vshield.common import exceptions as nsxv_exc
-from vmware_nsx.services.lbaas.nsx_v import lbaas_common as lb_common
-from vmware_nsx.services.lbaas.nsx_v import lbaas_const as lb_const
-from vmware_nsx.services.lbaas.nsx_v.v2 import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_common as lb_common
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_const as lb_const
 
 LOG = logging.getLogger(__name__)
 
 
+@six.add_metaclass(abc.ABCMeta)
 class EdgeHealthMonitorManager(base_mgr.EdgeLoadbalancerBaseManager):
-
     @log_helpers.log_method_call
     def _convert_lbaas_monitor(self, hm):
         """
@@ -84,8 +87,7 @@ class EdgeHealthMonitorManager(base_mgr.EdgeLoadbalancerBaseManager):
 
             except nsxv_exc.VcnsApiException:
                 with excutils.save_and_reraise_exception():
-                    self.lbv2_driver.health_monitor.failed_completion(
-                        context, hm)
+                    self.complete_success(context, hm)
                     LOG.error(_LE('Failed to create health monitor on edge: %s'
                                   ), edge_id)
 
@@ -102,12 +104,12 @@ class EdgeHealthMonitorManager(base_mgr.EdgeLoadbalancerBaseManager):
 
         except nsxv_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
-                self.lbv2_driver.health_monitor.failed_completion(context, hm)
+                self.complete_failed(context, hm)
                 LOG.error(
                     _LE('Failed to create health monitor on edge: %s'),
                     edge_id)
 
-        self.lbv2_driver.health_monitor.successful_completion(context, hm)
+        self.complete_success(context, hm)
 
     @log_helpers.log_method_call
     def update(self, context, old_hm, new_hm):
@@ -130,12 +132,11 @@ class EdgeHealthMonitorManager(base_mgr.EdgeLoadbalancerBaseManager):
 
         except nsxv_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
-                self.lbv2_driver.health_monitor.failed_completion(context,
-                                                                new_hm)
+                self.complete_failed(context, new_hm)
                 LOG.error(
                     _LE('Failed to update monitor on edge: %s'), edge_id)
 
-        self.lbv2_driver.health_monitor.successful_completion(context, new_hm)
+        self.complete_success(context, new_hm)
 
     @log_helpers.log_method_call
     def delete(self, context, hm):
@@ -159,7 +160,7 @@ class EdgeHealthMonitorManager(base_mgr.EdgeLoadbalancerBaseManager):
                 self.vcns.update_pool(edge_id, edge_pool_id, edge_pool)
         except nsxv_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
-                self.lbv2_driver.health_monitor.failed_completion(context, hm)
+                self.complete_failed(context, hm)
                 LOG.error(
                     _LE('Failed to delete monitor mapping on edge: %s'),
                     edge_id)
@@ -172,12 +173,10 @@ class EdgeHealthMonitorManager(base_mgr.EdgeLoadbalancerBaseManager):
                                                     hm_binding['edge_mon_id'])
             except nsxv_exc.VcnsApiException:
                 with excutils.save_and_reraise_exception():
-                    self.lbv2_driver.health_monitor.failed_completion(context,
-                                                                    hm)
+                    self.complete_failed(context, hm)
                     LOG.error(
                         _LE('Failed to delete monitor on edge: %s'), edge_id)
 
         nsxv_db.del_nsxv_lbaas_monitor_binding(
             context.session, lb_id, hm.pool.id, hm.id, edge_id)
-        self.lbv2_driver.health_monitor.successful_completion(
-            context, hm, delete=True)
+        self.complete_success(context, hm, delete=True)

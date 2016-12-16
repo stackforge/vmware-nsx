@@ -13,6 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import abc
+import six
+
 from neutron.callbacks import events
 from neutron.callbacks import registry
 from neutron.callbacks import resources
@@ -23,14 +26,46 @@ from oslo_log import log as logging
 from oslo_utils import excutils
 
 from vmware_nsx._i18n import _, _LE
+from vmware_nsx.common import locking
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.plugins.nsx_v.vshield.common import exceptions as nsxv_exc
-from vmware_nsx.services.lbaas.nsx_v import lbaas_common as lb_common
-from vmware_nsx.services.lbaas.nsx_v.v2 import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_common as lb_common
 
 LOG = logging.getLogger(__name__)
 
 
+def enable_edge_acceleration(vcns, edge_id):
+    with locking.LockManager.get_lock(edge_id):
+        # Query the existing load balancer config in case metadata lb is set
+        _, config = vcns.get_loadbalancer_config(edge_id)
+        config['accelerationEnabled'] = True
+        config['enabled'] = True
+        config['featureType'] = 'loadbalancer_4.0'
+        vcns.enable_service_loadbalancer(edge_id, config)
+
+
+def get_lbaas_edge_id(context, plugin, lb_id, vip_addr, subnet_id, tenant_id):
+    subnet = plugin.get_subnet(context, subnet_id)
+    network_id = subnet.get('network_id')
+    availability_zone = plugin.get_network_az(context, network_id)
+
+    resource_id = lb_common.get_lb_resource_id(lb_id)
+
+    edge_id = plugin.edge_manager.allocate_lb_edge_appliance(
+        context, resource_id, availability_zone=availability_zone)
+
+    lb_common.create_lb_interface(context, plugin, lb_id, subnet_id, tenant_id,
+                                  vip_addr=vip_addr, subnet=subnet)
+
+    gw_ip = subnet.get('gateway_ip')
+    if gw_ip:
+        plugin.nsx_v.update_routes(edge_id, gw_ip, [])
+
+    return edge_id
+
+
+@six.add_metaclass(abc.ABCMeta)
 class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
     @log_helpers.log_method_call
     def __init__(self, vcns_driver):
@@ -41,7 +76,7 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
 
     @log_helpers.log_method_call
     def create(self, context, lb):
-        edge_id = lb_common.get_lbaas_edge_id(
+        edge_id = get_lbaas_edge_id(
             context, self.core_plugin, lb.id, lb.vip_address, lb.vip_subnet_id,
             lb.tenant_id)
 
@@ -52,7 +87,7 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
             raise n_exc.BadRequest(resource='edge-lbaas', msg=msg)
 
         try:
-            lb_common.enable_edge_acceleration(self.vcns, edge_id)
+            enable_edge_acceleration(self.vcns, edge_id)
 
             edge_fw_rule_id = lb_common.add_vip_fw_rule(
                 self.vcns, edge_id, lb.id, lb.vip_address)
@@ -64,16 +99,16 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
             nsxv_db.add_nsxv_lbaas_loadbalancer_binding(
                 context.session, lb.id, edge_id, edge_fw_rule_id,
                 lb.vip_address)
-            self.lbv2_driver.load_balancer.successful_completion(context, lb)
+            self.complete_success(context, lb)
 
         except nsxv_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
-                self.lbv2_driver.load_balancer.failed_completion(context, lb)
+                self.complete_failed(context, lb)
                 LOG.error(_LE('Failed to create pool %s'), lb.id)
 
     @log_helpers.log_method_call
     def update(self, context, old_lb, new_lb):
-        self.lbv2_driver.load_balancer.successful_completion(context, new_lb)
+        self.complete_success(context, new_lb)
 
     @log_helpers.log_method_call
     def delete(self, context, lb):
@@ -120,8 +155,7 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
                                   {'lb': lb.id, 'exc': e})
 
             nsxv_db.del_nsxv_lbaas_loadbalancer_binding(context.session, lb.id)
-        self.lbv2_driver.load_balancer.successful_completion(context, lb,
-                                                             delete=True)
+            self.complete_success(context, lb, delete=True)
 
     @log_helpers.log_method_call
     def refresh(self, context, lb):

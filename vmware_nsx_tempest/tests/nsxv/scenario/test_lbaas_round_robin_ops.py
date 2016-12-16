@@ -47,8 +47,8 @@ class LBaasRoundRobinBaseTest(dmgr.TopoDeployScenarioManager):
     def skip_checks(cls):
         super(LBaasRoundRobinBaseTest, cls).skip_checks()
         cfg = CONF.network
-        if not test.is_extension_enabled('lbaasv2', 'network'):
-            msg = 'lbaasv2 extension is not enabled.'
+        if not test.is_extension_enabled('v2', 'network'):
+            msg = 'v2 extension is not enabled.'
             raise cls.skipException(msg)
         if not (cfg.project_networks_reachable or cfg.public_network_id):
             msg = ('Either project_networks_reachable must be "true", or '
@@ -166,7 +166,7 @@ class LBaasRoundRobinBaseTest(dmgr.TopoDeployScenarioManager):
         self.load_balancers_client.wait_for_load_balancer_status(lb_id)
 
     def create_lbaas_networks(self):
-        """Create network, subnet and router for lbaasv2 environment."""
+        """Create network, subnet and router for v2 environment."""
         self.network, self.subnet, self.router = self.setup_project_network(
             self.public_network_id, client_mgr=self.manager,
             namestart=self.namestart)
@@ -318,7 +318,7 @@ class LBaasRoundRobinBaseTest(dmgr.TopoDeployScenarioManager):
         # vip port - see https://bugs.launchpad.net/neutron/+bug/1163569
         # However the linuxbridge-agent does, and it is necessary to add a
         # security group with a rule that allows tcp port 80 to the vip port.
-        # NSX-v lbaasv2 OK, but for upstream neutron-lbaas needs this.
+        # NSX-v v2 OK, but for upstream neutron-lbaas needs this.
         self.ports_client.update_port(
             self.loadbalancer['vip_port_id'],
             security_groups=[self.security_group['id']])

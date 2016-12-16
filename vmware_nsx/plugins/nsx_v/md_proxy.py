@@ -13,10 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import eventlet
 import hashlib
 import hmac
 
+import eventlet
 import netaddr
 from neutron import context as neutron_context
 from neutron_lib import constants
@@ -29,13 +29,11 @@ from vmware_nsx.common import locking
 from vmware_nsx.common import nsxv_constants
 from vmware_nsx.common import utils
 from vmware_nsx.db import nsxv_db
-from vmware_nsx.plugins.nsx_v.vshield import (
-    nsxv_loadbalancer as nsxv_lb)
-from vmware_nsx.plugins.nsx_v.vshield.common import (
-    constants as vcns_const)
+from vmware_nsx.plugins.nsx_v.vshield.common import constants as vcns_const
 from vmware_nsx.plugins.nsx_v.vshield.common import exceptions
 from vmware_nsx.plugins.nsx_v.vshield import edge_utils
-from vmware_nsx.services.lbaas.nsx_v import lbaas_common
+from vmware_nsx.plugins.nsx_v.vshield import nsxv_loadbalancer as nsxv_lb
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_common
 
 METADATA_POOL_NAME = 'MDSrvPool'
 METADATA_VSE_NAME = 'MdSrv'
