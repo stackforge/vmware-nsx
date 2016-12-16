@@ -13,6 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import abc
+import six
+
 from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
 from oslo_utils import excutils
@@ -22,9 +25,9 @@ from vmware_nsx.common import exceptions as nsxv_exc
 from vmware_nsx.common import locking
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.plugins.nsx_v.vshield.common import exceptions as vcns_exc
-from vmware_nsx.services.lbaas.nsx_v import lbaas_common as lb_common
-from vmware_nsx.services.lbaas.nsx_v import lbaas_const as lb_const
-from vmware_nsx.services.lbaas.nsx_v.v2 import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_common as lb_common
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_const as lb_const
 
 LOG = logging.getLogger(__name__)
 
@@ -103,6 +106,7 @@ def listener_to_edge_vse(context, listener, vip_address, default_pool,
     return vse
 
 
+@six.add_metaclass(abc.ABCMeta)
 class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
     @log_helpers.log_method_call
     def __init__(self, vcns_driver):
@@ -131,8 +135,12 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
             context.session, cert_id, edge_id, edge_cert_id)
         return edge_cert_id
 
-    @log_helpers.log_method_call
+    @abc.abstractmethod
     def create(self, context, listener, certificate=None):
+        pass
+
+    @log_helpers.log_method_call
+    def base_create(self, context, listener, certificate=None):
         default_pool = None
 
         lb_id = listener.loadbalancer_id
@@ -154,8 +162,7 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
                     certificate)
             except Exception:
                 with excutils.save_and_reraise_exception():
-                    self.lbv2_driver.listener.failed_completion(context,
-                                                                listener)
+                    self.complete_failed(context, listener)
 
         app_profile = listener_to_edge_app_profile(listener, edge_cert_id)
         app_profile_id = None
@@ -166,7 +173,7 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
                 app_profile_id = lb_common.extract_resource_id(h['location'])
         except vcns_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
-                self.lbv2_driver.listener.failed_completion(context, listener)
+                self.complete_failed(context, listener)
                 LOG.error(_LE('Failed to create app profile on edge: %s'),
                           lb_binding['edge_id'])
 
@@ -185,16 +192,20 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
                                                     listener.id,
                                                     app_profile_id,
                                                     edge_vse_id)
-            self.lbv2_driver.listener.successful_completion(context, listener)
+            self.complete_success(context, listener)
 
         except vcns_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
-                self.lbv2_driver.listener.failed_completion(context, listener)
+                self.complete_failed(context, listener)
                 LOG.error(_LE('Failed to create vip on Edge: %s'), edge_id)
                 self.vcns.delete_app_profile(edge_id, app_profile_id)
 
-    @log_helpers.log_method_call
+    @abc.abstractmethod
     def update(self, context, old_listener, new_listener, certificate=None):
+        pass
+
+    @log_helpers.log_method_call
+    def base_update(self, context, old_listener, new_listener, certificate=None):
 
         default_pool = None
         if new_listener.default_pool and new_listener.default_pool.id:
@@ -225,8 +236,7 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
                         certificate)
                 except Exception:
                     with excutils.save_and_reraise_exception():
-                        self.lbv2_driver.listener.failed_completion(
-                            context, new_listener)
+                        self.complete_failed(context, new_listener)
             else:
                 cert_binding = nsxv_db.get_nsxv_lbaas_certificate_binding(
                     context.session, new_listener.default_tls_container_id,
@@ -249,17 +259,19 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
             with locking.LockManager.get_lock(edge_id):
                 self.vcns.update_vip(edge_id, listener_binding['vse_id'], vse)
 
-            self.lbv2_driver.listener.successful_completion(context,
-                                                            new_listener)
+            self.complete_success(context, new_listener)
         except vcns_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
-                self.lbv2_driver.listener.failed_completion(context,
-                                                          new_listener)
+                self.complete_failed(context, new_listener)
                 LOG.error(_LE('Failed to update app profile on edge: %s'),
                           edge_id)
 
-    @log_helpers.log_method_call
+    @abc.abstractmethod
     def delete(self, context, listener):
+        pass
+
+    @log_helpers.log_method_call
+    def base_delete(self, context, listener):
         lb_id = listener.loadbalancer_id
         listener_binding = nsxv_db.get_nsxv_lbaas_listener_binding(
             context.session, lb_id, listener.id)
@@ -279,8 +291,7 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
                 LOG.error(_LE('vip not found on edge: %s'), edge_id)
             except vcns_exc.VcnsApiException:
                 with excutils.save_and_reraise_exception():
-                    self.lbv2_driver.listener.failed_completion(context,
-                                                                listener)
+                    self.complete_failed(context, listener)
                     LOG.error(
                         _LE('Failed to delete vip on edge: %s'), edge_id)
 
@@ -291,8 +302,7 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
                 LOG.error(_LE('app profile not found on edge: %s'), edge_id)
             except vcns_exc.VcnsApiException:
                 with excutils.save_and_reraise_exception():
-                    self.lbv2_driver.listener.failed_completion(context,
-                                                                listener)
+                    self.complete_failed(context, listener)
                     LOG.error(
                         _LE('Failed to delete app profile on Edge: %s'),
                         edge_id)
@@ -300,5 +310,4 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
             nsxv_db.del_nsxv_lbaas_listener_binding(context.session, lb_id,
                                                     listener.id)
 
-        self.lbv2_driver.listener.successful_completion(
-            context, listener, delete=True)
+        self.complete_success(context, listener, delete=True)

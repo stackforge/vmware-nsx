@@ -127,6 +127,9 @@ from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 from vmware_nsx.plugins.nsx_v.vshield import securitygroup_utils
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
 from vmware_nsx.services.flowclassifier.nsx_v import utils as fc_utils
+from vmware_nsx.services.lbaas.nsx_v.msg_queue import (
+    edge_loadbalancer_mq_driver as mq_driver)
+
 
 LOG = logging.getLogger(__name__)
 PORTGROUP_PREFIX = 'dvportgroup'
@@ -197,6 +200,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def __init__(self):
         self._extension_manager = nsx_managers.ExtensionManager()
         super(NsxVPluginV2, self).__init__()
+        self.lb_driver = None
         # Bind the dummy L3 notifications
         self.l3_rpc_notifier = l3_rpc_agent_api.L3NotifyAPI()
         self.init_is_complete = False
@@ -306,6 +310,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 if az.supports_metadata():
                     self.metadata_proxy_handler[az.name] = (
                         nsx_v_md_proxy.NsxVMetadataProxyHandler(self, az))
+
+        LOG.info(_LI('Initializing loadbalancer MQ driver'))
+        self.lb_driver = mq_driver.EdgeMQLoadbalancerDriver()
 
         self.init_is_complete = True
 
