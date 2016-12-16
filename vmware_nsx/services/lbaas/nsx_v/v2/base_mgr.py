@@ -1,4 +1,4 @@
-# Copyright 2015 VMware, Inc.
+# Copyright 2017 VMware, Inc.
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -14,39 +14,28 @@
 #    under the License.
 
 from neutron.plugins.common import constants
-from neutron_lib import constants as lib_const
-from neutron_lib.plugins import directory
+
+from vmware_nsx.services.lbaas.nsx_v.common import base_mgr
 
 
-class EdgeLoadbalancerBaseManager(object):
+class EdgeLBaaSv2BaseManager(base_mgr.EdgeLoadbalancerBaseManager):
     _lbv2_driver = None
-    _core_plugin = None
 
     def __init__(self, vcns_driver):
-        super(EdgeLoadbalancerBaseManager, self).__init__()
-        self.vcns_driver = vcns_driver
-
-    def _get_plugin(self, plugin_type):
-        return directory.get_plugin(plugin_type)
+        super(EdgeLBaaSv2BaseManager, self).__init__(vcns_driver)
 
     @property
     def lbv2_driver(self):
-        if not EdgeLoadbalancerBaseManager._lbv2_driver:
+        if not EdgeLBaaSv2BaseManager._lbv2_driver:
             plugin = self._get_plugin(
                 constants.LOADBALANCERV2)
-            EdgeLoadbalancerBaseManager._lbv2_driver = (
+            EdgeLBaaSv2BaseManager._lbv2_driver = (
                 plugin.drivers['vmwareedge'])
 
-        return EdgeLoadbalancerBaseManager._lbv2_driver
+        return EdgeLBaaSv2BaseManager._lbv2_driver
 
-    @property
-    def core_plugin(self):
-        if not EdgeLoadbalancerBaseManager._core_plugin:
-            EdgeLoadbalancerBaseManager._core_plugin = (
-                self._get_plugin(lib_const.CORE))
+    def complete_success(self, context, obj, *args, **kwargs):
+        self.lbv2_mgr.successful_completion(context, obj, *args, **kwargs)
 
-        return EdgeLoadbalancerBaseManager._core_plugin
-
-    @property
-    def vcns(self):
-        return self.vcns_driver.vcns
+    def complete_failed(self, context, obj):
+        self.lbv2_mgr.failed_completion(context, obj)

@@ -17,8 +17,7 @@ import mock
 from neutron.tests import base
 
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
-from vmware_nsx.services.lbaas.nsx_v import lbaas_common as lb_common
-
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_common as lb_common
 
 EDGE_ID = 'edge-x'
 POOL_ID = 'b3dfb476-6fdf-4ddd-b6bd-e86ae78dc30b'
