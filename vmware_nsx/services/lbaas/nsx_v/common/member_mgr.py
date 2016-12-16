@@ -13,6 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import abc
+import six
+
 from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
 from oslo_utils import excutils
@@ -20,12 +23,18 @@ from oslo_utils import excutils
 from vmware_nsx.common import locking
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.plugins.nsx_v.vshield.common import exceptions as nsxv_exc
-from vmware_nsx.services.lbaas.nsx_v import lbaas_common as lb_common
-from vmware_nsx.services.lbaas.nsx_v.v2 import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_common as lb_common
+from vmware_nsx.services.lbaas.nsx_v.common.lbaas_common import MEMBER_ID_PFX
 
 LOG = logging.getLogger(__name__)
 
 
+def get_member_id(member_id):
+    return MEMBER_ID_PFX + member_id
+
+
+@six.add_metaclass(abc.ABCMeta)
 class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
     @log_helpers.log_method_call
     def __init__(self, vcns_driver):
@@ -64,7 +73,7 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
                 'weight': member.weight,
                 'port': member.protocol_port,
                 'monitorPort': member.protocol_port,
-                'name': lb_common.get_member_id(member.id),
+                'name': get_member_id(member.id),
                 'condition':
                     'enabled' if member.admin_state_up else 'disabled'}
 
@@ -75,13 +84,12 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
 
             try:
                 self.vcns.update_pool(edge_id, edge_pool_id, edge_pool)
-                self.lbv2_driver.member.successful_completion(context, member)
+                self.complete_success(context, member)
 
             except nsxv_exc.VcnsApiException:
                 with excutils.save_and_reraise_exception():
-                    self.lbv2_driver.member.failed_completion(context, member)
-                    LOG.error('Failed to create member on edge: %s',
-                              edge_id)
+                    self.complete_failed(context, member)
+                    LOG.error('Failed to create member on edge: %s', edge_id)
 
     @log_helpers.log_method_call
     def update(self, context, old_member, new_member):
@@ -100,7 +108,7 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
             'weight': new_member.weight,
             'port': new_member.protocol_port,
             'monitorPort': new_member.protocol_port,
-            'name': lb_common.get_member_id(new_member.id),
+            'name': get_member_id(new_member.id),
             'condition':
                 'enabled' if new_member.admin_state_up else 'disabled'}
 
@@ -109,20 +117,18 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
 
             if edge_pool.get('member'):
                 for i, m in enumerate(edge_pool['member']):
-                    if m['name'] == lb_common.get_member_id(new_member.id):
+                    if m['name'] == get_member_id(new_member.id):
                         edge_pool['member'][i] = edge_member
                         break
 
                 try:
                     self.vcns.update_pool(edge_id, edge_pool_id, edge_pool)
 
-                    self.lbv2_driver.member.successful_completion(
-                        context, new_member)
+                    self.complete_success(context, new_member)
 
                 except nsxv_exc.VcnsApiException:
                     with excutils.save_and_reraise_exception():
-                        self.lbv2_driver.member.failed_completion(
-                            context, new_member)
+                        self.complete_failed(context, new_member)
                         LOG.error('Failed to update member on edge: %s',
                                   edge_id)
             else:
@@ -159,18 +165,16 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
             edge_pool = self.vcns.get_pool(edge_id, edge_pool_id)[1]
 
             for i, m in enumerate(edge_pool['member']):
-                if m['name'] == lb_common.get_member_id(member.id):
+                if m['name'] == get_member_id(member.id):
                     edge_pool['member'].pop(i)
                     break
 
             try:
                 self.vcns.update_pool(edge_id, edge_pool_id, edge_pool)
 
-                self.lbv2_driver.member.successful_completion(
-                    context, member, delete=True)
+                self.complete_success(context, member, delete=True)
 
             except nsxv_exc.VcnsApiException:
                 with excutils.save_and_reraise_exception():
-                    self.lbv2_driver.member.failed_completion(context, member)
-                    LOG.error('Failed to delete member on edge: %s',
-                              edge_id)
+                    self.complete_failed(context, member)
+                    LOG.error('Failed to delete member on edge: %s', edge_id)
