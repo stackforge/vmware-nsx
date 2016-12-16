@@ -13,17 +13,21 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import abc
+import six
+
 from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
 from oslo_utils import excutils
 
 from vmware_nsx.common import locking
-from vmware_nsx.services.lbaas.nsx_v.v2 import base_mgr
-from vmware_nsx.services.lbaas.nsx_v.v2 import l7policy_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import l7policy_mgr
 
 LOG = logging.getLogger(__name__)
 
 
+@six.add_metaclass(abc.ABCMeta)
 class EdgeL7RuleManager(base_mgr.EdgeLoadbalancerBaseManager):
     @log_helpers.log_method_call
     def __init__(self, vcns_driver):
@@ -44,14 +48,12 @@ class EdgeL7RuleManager(base_mgr.EdgeLoadbalancerBaseManager):
                 self.vcns.update_app_rule(edge_id, app_rule_id, app_rule)
         except Exception as e:
             with excutils.save_and_reraise_exception():
-                self.lbv2_driver.l7rule.failed_completion(context, rule)
-                LOG.error('Failed to update L7rules on edge %(edge)s: '
-                          '%(err)s',
+                self.complete_failed(context, rule)
+                LOG.error('Failed to update L7rules on edge %(edge)s: %(err)s',
                           {'edge': edge_id, 'err': e})
 
         # complete the transaction
-        self.lbv2_driver.l7rule.successful_completion(context, rule,
-                                                      delete=delete)
+        self.complete_success(context, rule, delete=delete)
 
     @log_helpers.log_method_call
     def create(self, context, rule):

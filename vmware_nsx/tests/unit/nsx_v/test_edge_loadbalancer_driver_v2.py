@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 import mock
 from neutron.tests import base
 from neutron_lbaas.services.loadbalancer import data_models as lb_models
@@ -21,9 +20,11 @@ from neutron_lib import context
 
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
-from vmware_nsx.services.lbaas.nsx_v import lbaas_common as lb_common
-from vmware_nsx.services.lbaas.nsx_v.v2 import base_mgr
-
+from vmware_nsx.services.lbaas.nsx_v.common import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_common as lb_common
+from vmware_nsx.services.lbaas.nsx_v.common import loadbalancer_mgr as lb_mgr
+from vmware_nsx.services.lbaas.nsx_v.v2 import (
+    edge_loadbalancer_driver_v2 as lb_driver)
 
 LB_VIP = '10.0.0.10'
 LB_EDGE_ID = 'edge-x'
@@ -98,8 +99,8 @@ class BaseTestEdgeLbaasV2(base.BaseTestCase):
 
         self.lbv2_driver = mock.Mock()
         self.core_plugin = mock.Mock()
-        base_mgr.EdgeLoadbalancerBaseManager._lbv2_driver = self.lbv2_driver
         base_mgr.EdgeLoadbalancerBaseManager._core_plugin = self.core_plugin
+        lb_driver.EdgeLBaaSv2BaseManager._lbv2_driver = self.lbv2_driver
         self._patch_lb_plugin(self.lbv2_driver, self._tested_entity)
 
         self.lb = lb_models.LoadBalancer(LB_ID, LB_TENANT_ID, 'lb-name', '',
@@ -166,14 +167,14 @@ class TestEdgeLbaasV2Loadbalancer(BaseTestEdgeLbaasV2):
         return 'load_balancer'
 
     def test_create(self):
-        with mock.patch.object(lb_common, 'get_lbaas_edge_id'
+        with mock.patch.object(lb_mgr, 'get_lbaas_edge_id'
                                ) as mock_get_edge, \
+            mock.patch.object(lb_mgr, 'enable_edge_acceleration'
+                              ) as mock_enable_edge_acceleration, \
             mock.patch.object(lb_common, 'add_vip_fw_rule'
                               ) as mock_add_vip_fwr, \
             mock.patch.object(lb_common, 'set_lb_firewall_default_rule'
                               ) as mock_set_fw_rule, \
-            mock.patch.object(lb_common, 'enable_edge_acceleration'
-                              ) as mock_enable_edge_acceleration, \
             mock.patch.object(nsxv_db,
                               'get_nsxv_lbaas_loadbalancer_binding_by_edge'
                               ) as mock_get_lb_binding_by_edge, \
@@ -217,8 +218,6 @@ class TestEdgeLbaasV2Loadbalancer(BaseTestEdgeLbaasV2):
         with mock.patch.object(nsxv_db, 'get_nsxv_lbaas_loadbalancer_binding'
                                ) as mock_get_binding, \
             mock.patch.object(lb_common, 'del_vip_fw_rule') as mock_del_fwr, \
-            mock.patch.object(lb_common, 'del_vip_as_secondary_ip'
-                              ) as mock_vip_sec_ip, \
             mock.patch.object(lb_common, 'set_lb_firewall_default_rule'
                               ) as mock_set_fw_rule, \
             mock.patch.object(nsxv_db, 'del_nsxv_lbaas_loadbalancer_binding',
@@ -235,9 +234,6 @@ class TestEdgeLbaasV2Loadbalancer(BaseTestEdgeLbaasV2):
             mock_del_fwr.assert_called_with(self.edge_driver.vcns,
                                             LB_EDGE_ID,
                                             LB_VIP_FWR_ID)
-            mock_vip_sec_ip.assert_called_with(self.edge_driver.vcns,
-                                               LB_EDGE_ID,
-                                               LB_VIP)
             mock_del_binding.assert_called_with(self.context.session,
                                                 LB_ID)
             mock_set_fw_rule.assert_called_with(
