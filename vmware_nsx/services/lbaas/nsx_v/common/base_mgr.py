@@ -13,13 +13,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from neutron.plugins.common import constants
+import abc
+import six
+
 from neutron_lib import constants as lib_const
 from neutron_lib.plugins import directory
 
 
+@six.add_metaclass(abc.ABCMeta)
 class EdgeLoadbalancerBaseManager(object):
-    _lbv2_driver = None
     _core_plugin = None
 
     def __init__(self, vcns_driver):
@@ -30,22 +32,20 @@ class EdgeLoadbalancerBaseManager(object):
         return directory.get_plugin(plugin_type)
 
     @property
-    def lbv2_driver(self):
-        if not EdgeLoadbalancerBaseManager._lbv2_driver:
-            plugin = self._get_plugin(
-                constants.LOADBALANCERV2)
-            EdgeLoadbalancerBaseManager._lbv2_driver = (
-                plugin.drivers['vmwareedge'])
-
-        return EdgeLoadbalancerBaseManager._lbv2_driver
-
-    @property
     def core_plugin(self):
         if not EdgeLoadbalancerBaseManager._core_plugin:
             EdgeLoadbalancerBaseManager._core_plugin = (
                 self._get_plugin(lib_const.CORE))
 
         return EdgeLoadbalancerBaseManager._core_plugin
+
+    @abc.abstractmethod
+    def complete_success(self, context, obj, *args, **kwargs):
+        pass
+
+    @abc.abstractmethod
+    def complete_failed(self, context, obj):
+        pass
 
     @property
     def vcns(self):

@@ -13,19 +13,21 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import abc
+import six
+
+from neutron_lib import constants
+from neutron_lib import exceptions as n_exc
 from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
 from oslo_utils import excutils
 
-from neutron_lib import constants
-from neutron_lib import exceptions as n_exc
-
 from vmware_nsx._i18n import _
 from vmware_nsx.common import locking
 from vmware_nsx.db import nsxv_db
-from vmware_nsx.services.lbaas.nsx_v import lbaas_common as lb_common
-from vmware_nsx.services.lbaas.nsx_v import lbaas_const as lb_const
-from vmware_nsx.services.lbaas.nsx_v.v2 import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import base_mgr
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_common as lb_common
+from vmware_nsx.services.lbaas.nsx_v.common import lbaas_const as lb_const
 
 LOG = logging.getLogger(__name__)
 
@@ -141,6 +143,7 @@ def policy_to_edge_and_rule_id(context, policy_id):
     return binding['edge_id'], binding['edge_app_rule_id']
 
 
+@six.add_metaclass(abc.ABCMeta)
 class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
     @log_helpers.log_method_call
     def __init__(self, vcns_driver):
@@ -234,9 +237,8 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
                         edge_id, vse_id, app_rule_id, pol.position)
         except Exception as e:
             with excutils.save_and_reraise_exception():
-                self.lbv2_driver.l7policy.failed_completion(context, pol)
-                LOG.error('Failed to create L7policy on edge %(edge)s: '
-                          '%(err)s',
+                self.complete_failed(context, pol)
+                LOG.error('Failed to create L7policy on edge %(edge)s: err)s',
                           {'edge': edge_id, 'err': e})
                 if app_rule_id:
                     # Failed to add the rule to the vip: delete the rule
@@ -250,7 +252,7 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
         nsxv_db.add_nsxv_lbaas_l7policy_binding(context.session, pol.id,
                                                 edge_id, app_rule_id)
         # complete the transaction
-        self.lbv2_driver.l7policy.successful_completion(context, pol)
+        self.complete_success(context, pol)
 
     @log_helpers.log_method_call
     def update(self, context, old_pol, new_pol):
@@ -272,13 +274,12 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
 
         except Exception as e:
             with excutils.save_and_reraise_exception():
-                self.lbv2_driver.l7policy.failed_completion(context, new_pol)
+                self.complete_failed(context, new_pol)
                 LOG.error('Failed to update L7policy on edge %(edge)s: '
-                          '%(err)s',
-                          {'edge': edge_id, 'err': e})
+                          '%(err)s', {'edge': edge_id, 'err': e})
 
         # complete the transaction
-        self.lbv2_driver.l7policy.successful_completion(context, new_pol)
+        self.complete_success(context, new_pol)
 
     @log_helpers.log_method_call
     def delete(self, context, pol):
@@ -288,8 +289,7 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
         except n_exc.BadRequest:
             # This is probably a policy that we failed to create properly.
             # We should allow deleting it
-            self.lbv2_driver.l7policy.successful_completion(context, pol,
-                                                            delete=True)
+            self.complete_success(context, pol, delete=True)
             return
 
         with locking.LockManager.get_lock(edge_id):
@@ -304,14 +304,12 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
                 self.vcns.delete_app_rule(edge_id, app_rule_id)
             except Exception as e:
                 with excutils.save_and_reraise_exception():
-                    self.lbv2_driver.l7policy.failed_completion(context, pol)
-                    LOG.error('Failed to delete L7policy on edge '
-                              '%(edge)s: %(err)s',
-                              {'edge': edge_id, 'err': e})
+                    self.complete_failed(context, pol)
+                    LOG.error('Failed to delete L7policy on edge %(edge)s: '
+                              '%(err)s', {'edge': edge_id, 'err': e})
 
         # delete the nsxv db entry
         nsxv_db.del_nsxv_lbaas_l7policy_binding(context.session, pol.id)
 
         # complete the transaction
-        self.lbv2_driver.l7policy.successful_completion(context, pol,
-                                                        delete=True)
+        self.complete_success(context, pol, delete=True)
