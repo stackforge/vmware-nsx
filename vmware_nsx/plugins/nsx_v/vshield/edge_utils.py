@@ -2379,6 +2379,18 @@ def clear_nat_rules(nsxv_manager, context, router_id):
     update_nat_rules(nsxv_manager, context, router_id, [], [])
 
 
+def get_application_ids(vcns, application_names):
+    results = vcns.list_applications()
+
+    application_ids = []
+    for result in results:
+        for name in application_names:
+            if result['name'] == name:
+                application_ids.append(result['objectId'])
+
+    return application_ids
+
+
 def update_firewall(nsxv_manager, context, router_id, firewall,
                     allow_external=True):
     binding = nsxv_db.get_nsxv_router_binding(
