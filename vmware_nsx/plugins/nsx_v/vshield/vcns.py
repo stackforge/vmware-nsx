@@ -536,9 +536,11 @@ class Vcns(object):
         return self.do_request(HTTP_POST, uri, request, format='xml',
                                decode=False)
 
-    def delete_security_group(self, securitygroup_id):
+    def delete_security_group(self, securitygroup_id, force=True):
         """Deletes a security group container."""
-        uri = '%s/%s?force=true' % (SECURITYGROUP_PREFIX, securitygroup_id)
+        uri = '%s/%s' % (SECURITYGROUP_PREFIX, securitygroup_id)
+        if force:
+            uri += '?force=true'
         return self.do_request(HTTP_DELETE, uri, format='xml', decode=False)
 
     def update_security_group(self, sg_id, sg_name, description):

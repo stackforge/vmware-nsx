@@ -3264,7 +3264,7 @@ class NsxVTestSecurityGroup(ext_sg.TestSecurityGroups,
                 self.assertRaises(webob.exc.HTTPInternalServerError,
                                   self.plugin.create_security_group,
                                   _context.elevated(), sg, default_sg=True)
-                delete_sg.assert_called_once_with(expected_id)
+                delete_sg.assert_called_once_with(expected_id, force=True)
 
     def test_create_security_group_rule_duplicate_rules(self):
         name = 'webservers'

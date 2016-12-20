@@ -870,7 +870,7 @@ class FakeVcns(object):
         self._securitygroups['names'].add(sg_name)
         return {'status': 200}, ''
 
-    def delete_security_group(self, securitygroup_id):
+    def delete_security_group(self, securitygroup_id, force=True):
         try:
             del self._securitygroups[securitygroup_id]
         except KeyError:

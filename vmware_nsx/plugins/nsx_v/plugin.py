@@ -3077,10 +3077,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                       router_id)
 
     # Security group handling section #
-    def _delete_nsx_security_group(self, nsx_sg_id):
+    def _delete_nsx_security_group(self, nsx_sg_id, force=True):
         """Helper method to delete nsx security group."""
         if nsx_sg_id is not None:
-            self.nsx_v.vcns.delete_security_group(nsx_sg_id)
+            self.nsx_v.vcns.delete_security_group(nsx_sg_id, force=force)
 
     def _delete_section(self, section_uri):
         """Helper method to delete nsx rule section."""
@@ -3360,7 +3360,11 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def delete_security_group(self, context, id):
         """Delete a security group."""
         self._prevent_non_admin_delete_provider_sg(context, id)
-        self._prevent_non_admin_delete_policy_sg(context, id)
+        force_backend_delete = True
+        if self._is_policy_security_group(context, id):
+            self._prevent_non_admin_delete_policy_sg(context, id)
+            # We should not use force when deleting backend policy SGs
+            force_backend_delete = False
         try:
             # Find nsx rule sections
             section_uri = self._get_section_uri(context.session, id)
@@ -3375,7 +3379,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self._delete_section(section_uri)
 
             # Delete nsx security group
-            self._delete_nsx_security_group(nsx_sg_id)
+            self._delete_nsx_security_group(nsx_sg_id,
+                                            force=force_backend_delete)
 
         except Exception:
             with excutils.save_and_reraise_exception():
