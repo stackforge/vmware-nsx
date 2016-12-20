@@ -26,7 +26,6 @@ from tempest.lib import exceptions
 
 CONF = config.CONF
 LOG = log.getLogger(__name__)
-NO_ROUTER_TYPE = CONF.nsxv.no_router_type
 
 
 # following router methods are not support by upstream tempest,
@@ -47,7 +46,7 @@ def router_create(SELF, client=None, tenant_id=None,
     name = kwargs.pop('name', None) or data_utils.rand_name(namestart)
     kwargs['name'] = name
     kwargs['admin_state_up'] = admin_state_up
-    if NO_ROUTER_TYPE or no_router_type:
+    if CONF.nsxv.no_router_type or no_router_type:
         # router_type is NSX-v extension.
         # caller can set no_router_type=True to remove it
         kwargs.pop('router_type', None)
