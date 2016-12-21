@@ -16,8 +16,10 @@
 
 import re
 
+from tempest.common.utils.linux import remote_client
 from tempest import config
 from tempest.lib.common.utils import data_utils
+from tempest.lib.common.utils import test_utils
 from tempest import test
 
 from vmware_nsx_tempest._i18n import _LI
@@ -127,6 +129,26 @@ class TestSpoofGuardBasicOps(dmgr.TopoDeployScenarioManager):
                               serv1=t_serv1, fip1=t_floatingip)
         return vm_enviornment
 
+    def _check_network_reachable(self, ip_address, ssh_client):
+        cmd = "ping -c3 -W 4 %s " % ip_address
+        result = ssh_client.exec_command(cmd)
+        if "64 bytes from" in result:
+            LOG.debug(_LI("Network pingable"))
+
+    def _check_network_not_reachable(self, ip_address, ssh_client):
+        cmd = "ping -c3 -W 4 %s " % ip_address
+        try:
+            result = ssh_client.exec_command(cmd)
+            if "64 bytes from" in result:
+                LOG.debug(_LI("Network pingable"))
+        except Exception:
+            LOG.debug(_LI("Unable to access %{dest}s via ping to "
+                          "floating-ip %{src}s"))
+            LOG.debug(_LI("Provider sec group rules are applied "
+                          " so vm's are not accessible from vm "
+                          " launched using default sec group"))
+            pass
+
     def get_port_id(self, port_client, vm_info):
         tenant_name = vm_info['name']
         fixed_ip = vm_info['addresses'][tenant_name][0]['addr']
@@ -172,6 +194,209 @@ class TestSpoofGuardFeature(TestSpoofGuardBasicOps):
                 LOG.info(_LI("Vm not in exclude list"))
         # Detach interface from vm
         self.interface_client.delete_interface(vm_id, port_id)
+
+    @test.attr(type='nsxv')
+    @test.idempotent_id('a5420350-2658-47e4-9e2b-490b200e9f41')
+    def test_spoofguard_with_ping_between_servers_on_same_network(self):
+        username, password = self.get_image_userpass()
+        image = self.get_server_image()
+        flavor = self.get_server_flavor()
+        port_client = self.manager.ports_client
+        self.green = self.setup_vm_enviornment(self.manager, 'green', True)
+        security_groups = [{'name': self.green['security_group']['id']}]
+        # Boot instance vm2
+        t_serv2 = self.create_server_on_network(
+            self.green['network'], security_groups,
+            image=image,
+            flavor=flavor,
+            name=self.green['network']['name'])
+        self.check_server_connected(t_serv2)
+        t_floatingip2 = self.create_floatingip_for_server(
+            t_serv2, client_mgr=self.admin_manager)
+        msg = ("Associate t_floatingip[%s] to server[%s]"
+               % (t_floatingip2, t_serv2['name']))
+        self._check_floatingip_connectivity(
+            t_floatingip2, t_serv2, should_connect=True, msg=msg)
+        public_ip_vm_1 = self.green['fip1']['floating_ip_address']
+        public_ip_vm_2 = t_floatingip2['floating_ip_address']
+        private_ip_vm_1 = \
+            self.green['fip1']['fixed_ip_address']
+        private_ip_vm_2 = \
+            t_floatingip2['fixed_ip_address']
+        client = remote_client.RemoteClient(public_ip_vm_1, username=username,
+                                            password=password)
+        self._check_network_reachable(private_ip_vm_2, client)
+        port1_id = self.green['fip1']['port_id']
+        # Update vm1 port to disbale port security
+        port_client.update_port(
+            port_id=port1_id,
+            port_security_enabled='false')
+        self._check_network_reachable(private_ip_vm_2, client)
+        client = remote_client.RemoteClient(public_ip_vm_2, username=username,
+                                            password=password)
+        self._check_network_not_reachable(private_ip_vm_1, client)
+
+    @test.attr(type='nsxv')
+    @test.idempotent_id('c4dddc0e-811e-4acf-86f3-5490bc3e1613')
+    def test_spoofguard_with_ping_between_servers_on_different_network(self):
+        username, password = self.get_image_userpass()
+        image = self.get_server_image()
+        flavor = self.get_server_flavor()
+        port_client = self.manager.ports_client
+        self.green = self.setup_vm_enviornment(self.manager, 'green', True)
+        security_groups = [{'name': self.green['security_group']['id']}]
+        # Boot instance vm2
+        t_serv2 = self.create_server_on_network(
+            self.green['network'], security_groups,
+            image=image,
+            flavor=flavor,
+            name=self.green['network']['name'])
+        self.check_server_connected(t_serv2)
+        t_floatingip2 = self.create_floatingip_for_server(
+            t_serv2, client_mgr=self.admin_manager)
+        msg = ("Associate t_floatingip[%s] to server[%s]"
+               % (t_floatingip2, t_serv2['name']))
+        self._check_floatingip_connectivity(
+            t_floatingip2, t_serv2, should_connect=True, msg=msg)
+        network, subnet =\
+            self.create_project_network_subnet_with_cidr('dhcp121-tenant')
+        # add router interface
+        routers_client = self.manager.routers_client
+        HELO.router_add_interface(self, self.green['router'], subnet,
+                                  self.manager)
+        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+                        routers_client.remove_router_interface,
+                        self.green['router']['id'],
+                        subnet_id=subnet['id'])
+        security_groups = [{'name': self.green['security_group']['id']}]
+        # launched vm3
+        t_serv3 = self.create_server_on_network(
+            network, security_groups,
+            image=self.get_server_image(),
+            flavor=self.get_server_flavor(),
+            name=network['name'])
+        self.check_server_connected(t_serv3)
+        # launched vm4
+        t_serv4 = self.create_server_on_network(
+            network, security_groups,
+            image=self.get_server_image(),
+            flavor=self.get_server_flavor(),
+            name=network['name'])
+        self.check_server_connected(t_serv4)
+        # assign floating ip to vm3
+        t_floatingip3 = self.create_floatingip_for_server(
+            t_serv3, client_mgr=self.admin_manager)
+        # assign floating ip to vm4
+        t_floatingip4 = self.create_floatingip_for_server(
+            t_serv4, client_mgr=self.admin_manager)
+        msg = ("Associate t_floatingip[%s] to server[%s]"
+               % (t_floatingip3, t_serv3['name']))
+        self._check_floatingip_connectivity(
+            t_floatingip3, t_serv3, should_connect=True, msg=msg)
+        msg = ("Associate t_floatingip[%s] to server[%s]"
+               % (t_floatingip4, t_serv4['name']))
+        self._check_floatingip_connectivity(
+            t_floatingip4, t_serv4, should_connect=True, msg=msg)
+        # fecth floatingip of vm's
+        public_ip_vm_1 = self.green['fip1']['floating_ip_address']
+        public_ip_vm_2 = t_floatingip2['floating_ip_address']
+        public_ip_vm_3 = t_floatingip3['floating_ip_address']
+        public_ip_vm_4 = t_floatingip4['floating_ip_address']
+        # fetch private ip of vm's
+        private_ip_vm_1 = \
+            self.green['fip1']['fixed_ip_address']
+        private_ip_vm_2 = \
+            t_floatingip2['fixed_ip_address']
+        private_ip_vm_3 = \
+            t_floatingip3['fixed_ip_address']
+        private_ip_vm_4 = \
+            t_floatingip4['fixed_ip_address']
+        # check vm1,vm2,vm3 and vm4 can ping each other before port-security
+        # disable
+        client = remote_client.RemoteClient(public_ip_vm_1, username=username,
+                                            password=password)
+        self._check_network_reachable(private_ip_vm_2, client)
+        self._check_network_reachable(private_ip_vm_3, client)
+        self._check_network_reachable(private_ip_vm_4, client)
+        client = remote_client.RemoteClient(public_ip_vm_2, username=username,
+                                            password=password)
+        self._check_network_reachable(private_ip_vm_1, client)
+        self._check_network_reachable(private_ip_vm_3, client)
+        self._check_network_reachable(private_ip_vm_4, client)
+        client = remote_client.RemoteClient(public_ip_vm_3, username=username,
+                                            password=password)
+        self._check_network_reachable(private_ip_vm_1, client)
+        self._check_network_reachable(private_ip_vm_2, client)
+        self._check_network_reachable(private_ip_vm_4, client)
+        client = remote_client.RemoteClient(public_ip_vm_4, username=username,
+                                            password=password)
+        self._check_network_reachable(private_ip_vm_1, client)
+        self._check_network_reachable(private_ip_vm_2, client)
+        self._check_network_reachable(private_ip_vm_3, client)
+        # fetch compute port-id of vm's
+        port1_id = self.green['fip1']['port_id']
+        port3_id = self.get_port_id(port_client=port_client, vm_info=t_serv3)
+        port4_id = self.get_port_id(port_client=port_client, vm_info=t_serv4)
+        # Update vm1, vm3 and vm4 port to disbale port security
+        port_client.update_port(
+            port_id=port1_id,
+            port_security_enabled='false')
+        port_client.update_port(
+            port_id=port3_id,
+            port_security_enabled='false')
+        port_client.update_port(
+            port_id=port4_id,
+            port_security_enabled='false')
+        # check vm1,vm3 and vm4 belongs disable spoofgurad policy anc can ping
+        # any vm but vm2 can't ping vm1,vm3 and vm4
+        client = remote_client.RemoteClient(public_ip_vm_1, username=username,
+                                            password=password)
+        self._check_network_reachable(private_ip_vm_2, client)
+        self._check_network_reachable(private_ip_vm_3, client)
+        self._check_network_reachable(private_ip_vm_4, client)
+        client = remote_client.RemoteClient(public_ip_vm_2, username=username,
+                                            password=password)
+        self._check_network_not_reachable(private_ip_vm_1, client)
+        self._check_network_not_reachable(private_ip_vm_3, client)
+        self._check_network_not_reachable(private_ip_vm_4, client)
+        client = remote_client.RemoteClient(public_ip_vm_3, username=username,
+                                            password=password)
+        self._check_network_reachable(private_ip_vm_1, client)
+        self._check_network_reachable(private_ip_vm_2, client)
+        self._check_network_reachable(private_ip_vm_4, client)
+        client = remote_client.RemoteClient(public_ip_vm_4, username=username,
+                                            password=password)
+        self._check_network_reachable(private_ip_vm_1, client)
+        self._check_network_reachable(private_ip_vm_2, client)
+        self._check_network_reachable(private_ip_vm_3, client)
+
+    def create_project_network_subnet_with_cidr(self,
+                                                name_prefix='dhcp-project',
+                                                cidr=None):
+        network_name = data_utils.rand_name(name_prefix)
+        network, subnet = self.create_network_subnet_with_cidr(
+            name=network_name, cidr=cidr)
+        return (network, subnet)
+
+    def create_port(self, network_id):
+        port_client = self.manager.ports_client
+        return HELO.create_port(self, network_id=network_id,
+                                client=port_client)
+
+    def create_network_subnet_with_cidr(self, client_mgr=None,
+                                        tenant_id=None, name=None, cidr=None):
+        client_mgr = client_mgr or self.manager
+        tenant_id = tenant_id
+        name = name or data_utils.rand_name('topo-deploy-network')
+        net_network = self.create_network(
+            client=client_mgr.networks_client,
+            tenant_id=tenant_id, name=name)
+        cidr_offset = 16
+        net_subnet = self.create_subnet(
+            client=client_mgr.subnets_client,
+            network=net_network,
+            cidr=cidr, cidr_offset=cidr_offset, name=net_network['name'])
+        return net_network, net_subnet
 
     @test.attr(type='nsxv')
     @test.idempotent_id('38c213df-bfc2-4681-9c9c-3a31c05b0e6f')
