@@ -2969,6 +2969,18 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                              'int_ip': fip['fixed_ip_address']})
         super(NsxV3Plugin, self).delete_floatingip(context, fip_id)
 
+    def get_router_for_floatingip(self, context, internal_port,
+                                  internal_subnet, external_network_id):
+        router_id = super(NsxV3Plugin, self).get_router_for_floatingip(
+            context, internal_port, internal_subnet, external_network_id)
+        if router_id:
+            router = self._get_router(context, router_id)
+            if not router.enable_snat:
+                msg = _("Unable to assign a floating IP to a router that "
+                        "has SNAT disabled")
+                raise n_exc.InvalidInput(error_message=msg)
+        return router_id
+
     def update_floatingip(self, context, fip_id, floatingip):
         old_fip = self.get_floatingip(context, fip_id)
         old_port_id = old_fip['port_id']
