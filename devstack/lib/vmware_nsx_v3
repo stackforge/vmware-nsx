@@ -70,8 +70,8 @@ function setup_integration_bridge {
 }
 
 function is_neutron_ovs_base_plugin {
-    # NSX uses OVS, but not the l3-agent
-    return 0
+    # OVS is not madnatory on devstack host
+    return ${OVS_BASE:-0}
 }
 
 function neutron_plugin_create_nova_conf {
