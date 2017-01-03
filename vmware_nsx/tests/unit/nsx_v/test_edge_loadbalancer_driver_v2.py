@@ -72,6 +72,14 @@ HM_BINDING = {'loadbalancer_id': LB_ID,
               'edge_id': LB_EDGE_ID,
               'edge_mon_id': EDGE_HM_ID}
 
+L7POL_ID = 'l7pol-l7pol'
+EDGE_RULE_ID = 'app-rule-xx'
+L7POL_BINDING = {'policy_id': L7POL_ID,
+                 'edge_id': LB_EDGE_ID,
+                 'edge_app_rule_id': EDGE_RULE_ID}
+EDGE_L7POL_DEF = {'script': 'tcp-request content reject if TRUE',
+                  'name': 'pol_' + L7POL_ID}
+
 
 class BaseTestEdgeLbaasV2(base.BaseTestCase):
     def _tested_entity(self):
@@ -106,6 +114,13 @@ class BaseTestEdgeLbaasV2(base.BaseTestCase):
                                        MEMBER_ADDRESS, 80, 1, pool=self.pool)
         self.hm = lb_models.HealthMonitor(HM_ID, LB_TENANT_ID, 'PING', 3, 3,
                                           1, pool=self.pool)
+        self.l7policy = lb_models.L7Policy(L7POL_ID, LB_TENANT_ID,
+                                           name='policy-test',
+                                           description='policy-desc',
+                                           listener_id=LISTENER_ID,
+                                           action='REJECT',
+                                           listener=self.listener,
+                                           position=1)
 
     def tearDown(self):
         self._unpatch_lb_plugin(self.lbv2_driver, self._tested_entity)
@@ -605,4 +620,123 @@ class TestEdgeLbaasV2HealthMonitor(BaseTestEdgeLbaasV2):
                 self.lbv2_driver.health_monitor.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
                                                           self.hm,
+                                                          delete=True)
+
+
+class TestEdgeLbaasV2L7Policy(BaseTestEdgeLbaasV2):
+    def setUp(self):
+        super(TestEdgeLbaasV2L7Policy, self).setUp()
+
+    @property
+    def _tested_entity(self):
+        return 'l7policy'
+
+    def test_create(self):
+        with mock.patch.object(nsxv_db, 'get_nsxv_lbaas_l7policy_binding'
+                               ) as mock_get_l7policy_binding, \
+            mock.patch.object(nsxv_db, 'get_nsxv_lbaas_loadbalancer_binding'
+                              ) as mock_get_lb_binding, \
+            mock.patch.object(nsxv_db, 'get_nsxv_lbaas_listener_binding'
+                              ) as mock_get_listener_binding, \
+            mock.patch.object(nsxv_db, 'add_nsxv_lbaas_l7policy_binding'
+                              ) as mock_add_l7policy_binding,\
+            mock.patch.object(self.edge_driver.vcns, 'create_app_rule'
+                              ) as mock_create_rule, \
+            mock.patch.object(self.edge_driver.vcns, 'get_vip'
+                              ) as mock_get_vip, \
+            mock.patch.object(self.edge_driver.vcns, 'update_vip'
+                              ) as mock_upd_vip:
+            mock_get_lb_binding.return_value = LB_BINDING
+            mock_get_l7policy_binding.return_value = L7POL_BINDING
+            mock_get_listener_binding.return_value = LISTENER_BINDING
+            mock_create_rule.return_value = (
+                {'location': 'x/' + EDGE_RULE_ID}, None)
+            mock_get_vip.return_value = (None, EDGE_VIP_DEF.copy())
+
+            self.edge_driver.l7policy.create(self.context, self.l7policy)
+
+            mock_create_rule.assert_called_with(LB_EDGE_ID,
+                                                EDGE_L7POL_DEF.copy())
+            mock_add_l7policy_binding.assert_called_with(
+                self.context.session, L7POL_ID, LB_EDGE_ID, EDGE_RULE_ID)
+
+            edge_vip_def = EDGE_VIP_DEF.copy()
+            edge_vip_def['applicationRuleId'] = [EDGE_RULE_ID]
+            mock_upd_vip.assert_called_with(LB_EDGE_ID, EDGE_VIP_ID,
+                                            edge_vip_def)
+            mock_successful_completion = (
+                self.lbv2_driver.l7policy.successful_completion)
+            mock_successful_completion.assert_called_with(self.context,
+                                                          self.l7policy)
+
+    def test_update(self):
+        url = 'http://www.test.com'
+        new_pol = lb_models.L7Policy(L7POL_ID, LB_TENANT_ID,
+                                     name='policy-test',
+                                     description='policy-desc',
+                                     listener_id=LISTENER_ID,
+                                     action='REDIRECT_TO_URL',
+                                     redirect_url=url,
+                                     listener=self.listener,
+                                     position=1)
+
+        with mock.patch.object(nsxv_db, 'get_nsxv_lbaas_l7policy_binding'
+                               ) as mock_get_l7policy_binding, \
+            mock.patch.object(nsxv_db, 'get_nsxv_lbaas_loadbalancer_binding'
+                              ) as mock_get_lb_binding, \
+            mock.patch.object(self.edge_driver.vcns, 'update_app_rule'
+                              ) as mock_update_rule:
+            mock_get_lb_binding.return_value = LB_BINDING
+            mock_get_l7policy_binding.return_value = L7POL_BINDING
+
+            self.edge_driver.l7policy.update(self.context, self.l7policy,
+                                             new_pol)
+
+            edge_rule_def = EDGE_L7POL_DEF.copy()
+            edge_rule_def['script'] = "redirect location %s if TRUE" % url
+            mock_update_rule.assert_called_with(
+                LB_EDGE_ID, EDGE_RULE_ID, edge_rule_def)
+            mock_successful_completion = (
+                self.lbv2_driver.l7policy.successful_completion)
+            mock_successful_completion.assert_called_with(self.context,
+                                                          new_pol)
+
+    def test_delete(self):
+        with mock.patch.object(nsxv_db, 'get_nsxv_lbaas_l7policy_binding'
+                               ) as mock_get_l7policy_binding, \
+            mock.patch.object(nsxv_db, 'del_nsxv_lbaas_l7policy_binding'
+                              ) as mock_del_l7policy_binding, \
+            mock.patch.object(nsxv_db, 'get_nsxv_lbaas_loadbalancer_binding'
+                              ) as mock_get_lb_binding, \
+            mock.patch.object(nsxv_db, 'get_nsxv_lbaas_pool_binding'
+                              ) as mock_get_pool_binding,\
+            mock.patch.object(nsxv_db, 'get_nsxv_lbaas_listener_binding'
+                              ) as mock_get_listener_binding, \
+            mock.patch.object(self.edge_driver.vcns, 'delete_app_rule'
+                              ) as mock_del_app_rule, \
+            mock.patch.object(self.edge_driver.vcns, 'get_vip'
+                              ) as mock_get_vip, \
+            mock.patch.object(self.edge_driver.vcns, 'update_vip'
+                              ) as mock_upd_vip:
+            mock_get_lb_binding.return_value = LB_BINDING
+            mock_get_pool_binding.return_value = POOL_BINDING
+            mock_get_listener_binding.return_value = LISTENER_BINDING
+            mock_get_l7policy_binding.return_value = L7POL_BINDING
+            edge_vip_def = EDGE_VIP_DEF.copy()
+            edge_vip_def['applicationRuleId'] = [EDGE_RULE_ID]
+            mock_get_vip.return_value = (None, edge_vip_def)
+
+            self.edge_driver.l7policy.delete(self.context, self.l7policy)
+
+            edge_vip_def2 = EDGE_VIP_DEF.copy()
+            edge_vip_def2['applicationRuleId'] = []
+            mock_upd_vip.assert_called_with(LB_EDGE_ID, EDGE_VIP_ID,
+                                            edge_vip_def2)
+            mock_del_app_rule.assert_called_with(LB_EDGE_ID, EDGE_RULE_ID)
+            mock_del_l7policy_binding.assert_called_with(
+                self.context.session, L7POL_ID)
+            mock_successful_completion = (
+                self.lbv2_driver.l7policy.successful_completion)
+            mock_successful_completion.assert_called_with(self.context,
+                                                          self.l7policy,
                                                           delete=True)
