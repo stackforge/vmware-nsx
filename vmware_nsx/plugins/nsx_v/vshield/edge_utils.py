@@ -1136,13 +1136,14 @@ class EdgeManager(object):
         # and the underlying db session may hit a timeout. So this creates
         # a new session
         context = q_context.get_admin_context()
-        nsxv_db.add_nsxv_router_binding(
-            context.session, resource_id,
-            edge_id, None, plugin_const.ACTIVE,
-            appliance_size=app_size,
-            availability_zone=availability_zone.name)
-        nsxv_db.allocate_edge_vnic_with_tunnel_index(
-            context.session, edge_id, network_id)
+        with locking.LockManager.get_lock('nsx-edge-pool'):
+            nsxv_db.add_nsxv_router_binding(
+                context.session, resource_id,
+                edge_id, None, plugin_const.ACTIVE,
+                appliance_size=app_size,
+                availability_zone=availability_zone.name)
+            nsxv_db.allocate_edge_vnic_with_tunnel_index(
+                context.session, edge_id, network_id)
 
     def reconfigure_shared_edge_metadata_port(self, context, org_router_id):
         if not self.plugin.metadata_proxy_handler:
