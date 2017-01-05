@@ -69,7 +69,7 @@ class DvsTestCase(base.BaseTestCase):
                        return_value='fake-spec')
     def test_add_port_group(self, fake_get_spec):
         self._dvs.add_port_group('fake-uuid', 7)
-        fake_get_spec.assert_called_once_with('fake-uuid', 7)
+        fake_get_spec.assert_called_once_with('fake-uuid', 7, trunk_mode=False)
 
     @mock.patch.object(dvs.DvsManager, '_get_port_group_spec',
                        return_value='fake-spec')
@@ -80,8 +80,10 @@ class DvsTestCase(base.BaseTestCase):
         ):
             self.assertRaises(exp.NeutronException,
                               self._dvs.add_port_group,
-                              'fake-uuid', 7)
-            fake_get_spec.assert_called_once_with('fake-uuid', 7)
+                              'fake-uuid', 7,
+                              trunk_mode=False)
+            fake_get_spec.assert_called_once_with('fake-uuid', 7,
+                                                  trunk_mode=False)
 
     @mock.patch.object(dvs.DvsManager, '_net_id_to_moref',
                        return_value='fake-moref')
@@ -113,7 +115,7 @@ class DvsTestCase(base.BaseTestCase):
         self._dvs.add_port_group(net_id, vlan)
         moref = self._dvs._net_id_to_moref(net_id)
         fake_get_moref.assert_called_once_with(net_id)
-        fake_get_spec.assert_called_once_with(net_id, vlan)
+        fake_get_spec.assert_called_once_with(net_id, vlan, trunk_mode=False)
 
         self._dvs.update_port_groups_config(net_id, moref, None, None)
         fake_update_vxlan.assert_called_once_with(net_id, moref, None, None)
@@ -130,7 +132,7 @@ class DvsTestCase(base.BaseTestCase):
         self._dvs.add_port_group(net_id, vlan)
         moref = self._dvs._net_id_to_moref(net_id)
         fake_get_moref.assert_called_once_with(net_id)
-        fake_get_spec.assert_called_once_with(net_id, vlan)
+        fake_get_spec.assert_called_once_with(net_id, vlan, trunk_mode=False)
 
         self._dvs.update_port_groups_config(net_id, moref, None, None)
         fake_update_net.assert_called_once_with(moref, None, None)
@@ -154,12 +156,15 @@ class NeutronSimpleDvsTest(test_plugin.NeutronDbPluginV2TestCase):
         super(NeutronSimpleDvsTest, self).setUp(plugin=PLUGIN_NAME)
         self._plugin = directory.get_plugin()
 
-    def _create_and_delete_dvs_network(self, network_type='flat', vlan_tag=0):
+    def _create_and_delete_dvs_network(self, network_type='flat', vlan_tag=0,
+                                       trunk_mode=False):
         params = {'provider:network_type': network_type,
                   'provider:physical_network': 'fake-moid',
                   'name': 'fake-name'}
         if network_type == 'vlan':
             params['provider:segmentation_id'] = vlan_tag
+        if trunk_mode:
+            params['vlan_transparent'] = True
         params['arg_list'] = tuple(params.keys())
         with mock.patch.object(self._plugin._dvs,
                                'add_port_group') as mock_add,\
@@ -175,6 +180,7 @@ class NeutronSimpleDvsTest(test_plugin.NeutronDbPluginV2TestCase):
                     self.assertEqual('flat', binding[0].binding_type)
                     self.assertEqual(0, binding[0].vlan_id)
                     self.assertEqual('dvs', binding[0].phy_uuid)
+                    self.assertFalse(binding[0].vlan_transparent)
                 elif network_type == 'vlan':
                     self.assertEqual('vlan', binding[0].binding_type)
                     self.assertEqual(vlan_tag, binding[0].vlan_id)
@@ -185,8 +191,11 @@ class NeutronSimpleDvsTest(test_plugin.NeutronDbPluginV2TestCase):
                     self.assertEqual('fake-moid', binding[0].phy_uuid)
                 else:
                     self.fail()
+                if trunk_mode:
+                    self.assertTrue(binding[0].vlan_transparent)
             if network_type != 'portgroup':
-                mock_add.assert_called_once_with(dvs_id, vlan_tag)
+                mock_add.assert_called_once_with(dvs_id, vlan_tag,
+                                                 trunk_mode=trunk_mode)
             else:
                 mock_add.call_count = 0
                 mock_delete.call_count = 0
@@ -196,6 +205,9 @@ class NeutronSimpleDvsTest(test_plugin.NeutronDbPluginV2TestCase):
 
     def test_create_and_delete_dvs_network_flat(self):
         self._create_and_delete_dvs_network()
+
+    def test_create_and_delete_dvs_network_flat_vlan_transparent(self):
+        self._create_and_delete_dvs_network(trunk_mode=True)
 
     @mock.patch.object(dvs.DvsManager, 'get_portgroup_info')
     @mock.patch.object(dvs.DvsManager, '_net_id_to_moref')
