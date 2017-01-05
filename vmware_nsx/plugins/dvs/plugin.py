@@ -36,6 +36,7 @@ from neutron.extensions import portbindings as pbin
 from neutron.extensions import portsecurity as psec
 from neutron.extensions import providernet as pnet
 from neutron.extensions import securitygroup as ext_sg
+from neutron.extensions import vlantransparent as vlan_ext
 from neutron.plugins.common import constants
 from neutron.plugins.common import utils
 from neutron.quota import resource_registry
@@ -73,7 +74,8 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
                                    "provider",
                                    "quotas",
                                    "router",
-                                   "security-group"]
+                                   "security-group",
+                                   "vlan-transparent"]
 
     __native_bulk_support = True
     __native_pagination_support = True
@@ -148,6 +150,11 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         if net_data.get(pnet.NETWORK_TYPE) == c_utils.NetworkTypes.VLAN:
             vlan_tag = net_data.get(pnet.SEGMENTATION_ID, 0)
 
+        trunk_mode = False
+        # vlan transparent can be an object if not set.
+        if net_data.get(vlan_ext.VLANTRANSPARENT) is True:
+            trunk_mode = True
+
         net_id = None
         if net_data.get(pnet.NETWORK_TYPE) == c_utils.NetworkTypes.PORTGROUP:
             net_id = net_data.get(pnet.PHYSICAL_NETWORK)
@@ -161,7 +168,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
             dvs_id = dvpg_moref.value
         else:
             dvs_id = self._dvs_get_id(net_data)
-            self._dvs.add_port_group(dvs_id, vlan_tag)
+            self._dvs.add_port_group(dvs_id, vlan_tag, trunk_mode=trunk_mode)
 
         try:
             with context.session.begin(subtransactions=True):

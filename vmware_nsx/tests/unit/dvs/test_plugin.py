@@ -69,7 +69,7 @@ class DvsTestCase(base.BaseTestCase):
                        return_value='fake-spec')
     def test_add_port_group(self, fake_get_spec):
         self._dvs.add_port_group('fake-uuid', 7)
-        fake_get_spec.assert_called_once_with('fake-uuid', 7)
+        fake_get_spec.assert_called_once_with('fake-uuid', 7, trunk_mode=False)
 
     @mock.patch.object(dvs.DvsManager, '_get_port_group_spec',
                        return_value='fake-spec')
@@ -80,8 +80,10 @@ class DvsTestCase(base.BaseTestCase):
         ):
             self.assertRaises(exp.NeutronException,
                               self._dvs.add_port_group,
-                              'fake-uuid', 7)
-            fake_get_spec.assert_called_once_with('fake-uuid', 7)
+                              'fake-uuid', 7,
+                              trunk_mode=False)
+            fake_get_spec.assert_called_once_with('fake-uuid', 7,
+                                                  trunk_mode=False)
 
     @mock.patch.object(dvs.DvsManager, '_net_id_to_moref',
                        return_value='fake-moref')
@@ -113,7 +115,7 @@ class DvsTestCase(base.BaseTestCase):
         self._dvs.add_port_group(net_id, vlan)
         moref = self._dvs._net_id_to_moref(net_id)
         fake_get_moref.assert_called_once_with(net_id)
-        fake_get_spec.assert_called_once_with(net_id, vlan)
+        fake_get_spec.assert_called_once_with(net_id, vlan, trunk_mode=False)
 
         self._dvs.update_port_groups_config(net_id, moref, None, None)
         fake_update_vxlan.assert_called_once_with(net_id, moref, None, None)
@@ -130,7 +132,7 @@ class DvsTestCase(base.BaseTestCase):
         self._dvs.add_port_group(net_id, vlan)
         moref = self._dvs._net_id_to_moref(net_id)
         fake_get_moref.assert_called_once_with(net_id)
-        fake_get_spec.assert_called_once_with(net_id, vlan)
+        fake_get_spec.assert_called_once_with(net_id, vlan, trunk_mode=False)
 
         self._dvs.update_port_groups_config(net_id, moref, None, None)
         fake_update_net.assert_called_once_with(moref, None, None)
