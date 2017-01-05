@@ -412,8 +412,9 @@ class EdgeApplianceDriver(object):
                     context.session, router_id, edge_id=edge_id)
                 if not dist:
                     # Init Edge vnic binding
-                    nsxv_db.init_edge_vnic_binding(
-                        context.session, edge_id)
+                    with edge_utils.lock_edge_vnics(edge_id):
+                        nsxv_db.init_edge_vnic_binding(
+                            context.session, edge_id)
             else:
                 if router_id:
                     nsxv_db.update_nsxv_router_binding(

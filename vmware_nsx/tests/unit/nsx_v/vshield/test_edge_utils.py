@@ -74,14 +74,15 @@ class EdgeUtilsTestCaseMixin(testlib_api.SqlTestCase):
 
     def _populate_vcns_router_binding(self, bindings):
         for binding in bindings:
-            nsxv_db.init_edge_vnic_binding(self.ctx.session,
-                                           binding['edge_id'])
-            nsxv_db.add_nsxv_router_binding(
-                self.ctx.session, binding['router_id'],
-                binding['edge_id'], None, binding['status'],
-                appliance_size=binding['appliance_size'],
-                edge_type=binding['edge_type'],
-                availability_zone=binding['availability_zone'])
+            with edge_utils.lock_edge_vnics(binding['edge_id']):
+                nsxv_db.init_edge_vnic_binding(self.ctx.session,
+                                               binding['edge_id'])
+                nsxv_db.add_nsxv_router_binding(
+                    self.ctx.session, binding['router_id'],
+                    binding['edge_id'], None, binding['status'],
+                    appliance_size=binding['appliance_size'],
+                    edge_type=binding['edge_type'],
+                    availability_zone=binding['availability_zone'])
 
 
 class DummyPlugin(object):

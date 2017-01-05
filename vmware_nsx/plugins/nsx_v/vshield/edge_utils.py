@@ -161,6 +161,10 @@ def parse_backup_edge_pool_opt():
     return edge_pool_dicts
 
 
+def lock_edge_vnics(edge_id):
+    return locking.LockManager.get_lock(edge_id + '__vnics')
+
+
 class EdgeManager(object):
     """Edge Appliance Management.
     EdgeManager provides a pool of edge appliances which we can use
@@ -759,7 +763,8 @@ class EdgeManager(object):
             nsxv_db.clean_edge_vnic_binding(context.session, edge_id)
             # Refresh edge_vnic_bindings for centralized router
             if not dist and edge_id:
-                nsxv_db.init_edge_vnic_binding(context.session, edge_id)
+                with lock_edge_vnics(edge_id):
+                    nsxv_db.init_edge_vnic_binding(context.session, edge_id)
 
             if update_result:
                 nsxv_db.update_nsxv_router_binding(
@@ -1141,8 +1146,9 @@ class EdgeManager(object):
             edge_id, None, plugin_const.ACTIVE,
             appliance_size=app_size,
             availability_zone=availability_zone.name)
-        nsxv_db.allocate_edge_vnic_with_tunnel_index(
-            context.session, edge_id, network_id)
+        with lock_edge_vnics(edge_id):
+            nsxv_db.allocate_edge_vnic_with_tunnel_index(
+                context.session, edge_id, network_id)
 
     def reconfigure_shared_edge_metadata_port(self, context, org_router_id):
         if not self.plugin.metadata_proxy_handler:
@@ -1189,8 +1195,9 @@ class EdgeManager(object):
         with locking.LockManager.get_lock('nsx-edge-pool'):
             new_edge = nsxv_db.get_nsxv_router_binding(context.session,
                                                        resource_id)
-            nsxv_db.allocate_edge_vnic_with_tunnel_index(
-                context.session, new_edge['edge_id'], network_id)
+            with lock_edge_vnics(new_edge['edge_id']):
+                nsxv_db.allocate_edge_vnic_with_tunnel_index(
+                    context.session, new_edge['edge_id'], network_id)
             return new_edge['edge_id']
 
     def create_dhcp_edge_service(self, context, network_id,
@@ -1600,13 +1607,14 @@ class EdgeManager(object):
             vdn_scope_id, config_spec)
 
         # add vdr's external interface to the lswitch
-        tlr_vnic_index = self.nsxv_manager.add_vdr_internal_interface(
-            tlr_edge_id, lswitch_id,
-            address=get_vdr_transit_network_tlr_address(),
-            netmask=get_vdr_transit_network_netmask(),
-            type="uplink")
-        nsxv_db.create_edge_vnic_binding(
-            context.session, tlr_edge_id, tlr_vnic_index, lswitch_id)
+        with lock_edge_vnics(tlr_edge_id):
+            tlr_vnic_index = self.nsxv_manager.add_vdr_internal_interface(
+                tlr_edge_id, lswitch_id,
+                address=get_vdr_transit_network_tlr_address(),
+                netmask=get_vdr_transit_network_netmask(),
+                type="uplink")
+            nsxv_db.create_edge_vnic_binding(
+                context.session, tlr_edge_id, tlr_vnic_index, lswitch_id)
         # store the lswitch_id into nsxv_router_binding
         nsxv_db.update_nsxv_router_binding(
             context.session, router_id,
@@ -1622,8 +1630,9 @@ class EdgeManager(object):
         binding = nsxv_db.get_nsxv_router_binding(
             context.session, plr_router['id'])
         plr_edge_id = binding['edge_id']
-        plr_vnic_index = nsxv_db.allocate_edge_vnic(
-            context.session, plr_edge_id, lswitch_id).vnic_index
+        with lock_edge_vnics(plr_edge_id):
+            plr_vnic_index = nsxv_db.allocate_edge_vnic(
+                context.session, plr_edge_id, lswitch_id).vnic_index
         #TODO(berlin): the internal ip should change based on vnic_index
         self.nsxv_manager.update_interface(
             plr_router['id'], plr_edge_id, plr_vnic_index, lswitch_id,
@@ -2229,19 +2238,20 @@ def _update_internal_interface(nsxv_manager, context, router_id, int_net_id,
     # Get edge id
     binding = nsxv_db.get_nsxv_router_binding(context.session, router_id)
     edge_id = binding['edge_id']
-    edge_vnic_binding = nsxv_db.get_edge_vnic_binding(
-        context.session, edge_id, int_net_id)
-    # if edge_vnic_binding is None, then first select one available
-    # internal vnic for connection.
-    if not edge_vnic_binding:
-        edge_vnic_binding = nsxv_db.allocate_edge_vnic(
+    with lock_edge_vnics(edge_id):
+        edge_vnic_binding = nsxv_db.get_edge_vnic_binding(
             context.session, edge_id, int_net_id)
+        # if edge_vnic_binding is None, then first select one available
+        # internal vnic for connection.
+        if not edge_vnic_binding:
+            edge_vnic_binding = nsxv_db.allocate_edge_vnic(
+                context.session, edge_id, int_net_id)
 
-    nsxv_manager.update_interface(router_id, edge_id,
-                                  edge_vnic_binding.vnic_index,
-                                  vcns_network_id,
-                                  is_connected=is_connected,
-                                  address_groups=address_groups)
+        nsxv_manager.update_interface(router_id, edge_id,
+                                      edge_vnic_binding.vnic_index,
+                                      vcns_network_id,
+                                      is_connected=is_connected,
+                                      address_groups=address_groups)
 
 
 def add_vdr_internal_interface(nsxv_manager, context, router_id,
@@ -2262,18 +2272,19 @@ def _add_vdr_internal_interface(nsxv_manager, context, router_id,
     # Get edge id
     binding = nsxv_db.get_nsxv_router_binding(context.session, router_id)
     edge_id = binding['edge_id']
-    edge_vnic_binding = nsxv_db.get_edge_vnic_binding(
-        context.session, edge_id, int_net_id)
-    if not edge_vnic_binding:
-        vnic_index = nsxv_manager.add_vdr_internal_interface(
-            edge_id, vcns_network_id, address_groups=address_groups,
-            is_connected=is_connected)
-        nsxv_db.create_edge_vnic_binding(
-            context.session, edge_id, vnic_index, int_net_id)
-    else:
-        msg = (_("Distributed Router doesn't support multiple subnets "
-                 "with same network attached to it."))
-        raise n_exc.BadRequest(resource='vdr', msg=msg)
+    with lock_edge_vnics(edge_id):
+        edge_vnic_binding = nsxv_db.get_edge_vnic_binding(
+            context.session, edge_id, int_net_id)
+        if not edge_vnic_binding:
+            vnic_index = nsxv_manager.add_vdr_internal_interface(
+                edge_id, vcns_network_id, address_groups=address_groups,
+                is_connected=is_connected)
+            nsxv_db.create_edge_vnic_binding(
+                context.session, edge_id, vnic_index, int_net_id)
+        else:
+            msg = (_("Distributed Router doesn't support multiple subnets "
+                     "with same network attached to it."))
+            raise n_exc.BadRequest(resource='vdr', msg=msg)
 
 
 def update_vdr_internal_interface(nsxv_manager, context, router_id, int_net_id,
