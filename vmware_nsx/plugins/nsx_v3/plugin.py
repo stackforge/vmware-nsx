@@ -22,6 +22,7 @@ from neutron.api.rpc.callbacks import resources as callbacks_resources
 from neutron.api.rpc.handlers import dhcp_rpc
 from neutron.api.rpc.handlers import metadata_rpc
 from neutron.api.rpc.handlers import resources_rpc
+from neutron.api.v2 import attributes
 from neutron.callbacks import events
 from neutron.callbacks import exceptions as callback_exc
 from neutron.callbacks import registry
@@ -86,6 +87,7 @@ from vmware_nsx.extensions import advancedserviceproviders as as_providers
 from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
+from vmware_nsx.plugins.nsx_v3.drivers import dns_driver
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import utils as qos_utils
@@ -150,7 +152,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                    "network_availability_zone",
                                    "subnet_allocation",
                                    "security-group-logging",
-                                   "provider-security-group"]
+                                   "provider-security-group",
+                                   "dns-integration"]
 
     supported_qos_rule_types = [qos_consts.RULE_TYPE_BANDWIDTH_LIMIT,
                                 qos_consts.RULE_TYPE_DSCP_MARKING]
@@ -185,6 +188,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # metadata proxy names to uuid.
         self._translate_configured_names_to_uuids()
         self._init_dhcp_metadata()
+        self._init_dns_driver()
 
         self._port_client = nsx_resources.LogicalPort(self._nsx_client)
         self.default_section = self._init_default_section_rules()
@@ -498,6 +502,20 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                               "native metadata service is not supported"),
                           self._native_md_proxy_uuid)
 
+    def _init_dns_driver(self):
+        # Register NSXv3 DNS driver to support dns-integration extension.
+        self._dns_driver = dns_driver.DNSExtensionDriverNSXv3()
+        db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
+            attributes.NETWORKS, ['_extend_network_dict_dns'])
+        db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
+            attributes.PORTS, ['_extend_port_dict_dns'])
+
+    def _extend_network_dict_dns(self, result, netdb):
+        self._dns_driver.extend_network_dict(None, netdb, result)
+
+    def _extend_port_dict_dns(self, result, portdb):
+        self._dns_driver.extend_port_dict(None, portdb, result)
+
     def _setup_rpc(self):
         self.endpoints = [dhcp_rpc.DhcpRpcCallback(),
                           agents_db.AgentExtRpcCallback(),
@@ -726,6 +744,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 created_net = super(NsxV3Plugin, self).create_network(context,
                                                                       network)
 
+                self._dns_driver.process_create_network(context, net_data,
+                                                        created_net)
                 if psec.PORTSECURITY not in net_data:
                     net_data[psec.PORTSECURITY] = True
                 self._process_network_port_security_create(
@@ -891,6 +911,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         updated_net = super(NsxV3Plugin, self).update_network(context, id,
                                                               network)
 
+        self._dns_driver.process_update_network(context, net_data, updated_net)
         if psec.PORTSECURITY in network['network']:
             self._process_network_port_security_update(
                 context, network['network'], updated_net)
@@ -1880,6 +1901,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self._assert_on_external_net_port_with_qos(port_data)
 
             neutron_db = super(NsxV3Plugin, self).create_port(context, port)
+            self._dns_driver.process_create_port(context, port_data,
+                                                 neutron_db)
             port["port"].update(neutron_db)
 
             (is_psec_on, has_ip) = self._create_port_preprocess_security(
@@ -2241,6 +2264,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             old_mac_learning_state = original_port.get(mac_ext.MAC_LEARNING)
             updated_port = super(NsxV3Plugin, self).update_port(context,
                                                                 id, port)
+
+            self._dns_driver.process_update_port(context, port['port'],
+                                                 updated_port)
 
             # copy values over - except fixed_ips as
             # they've already been processed
