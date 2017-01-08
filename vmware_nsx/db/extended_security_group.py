@@ -24,7 +24,7 @@ from neutron.api.v2 import attributes
 from neutron.common import utils as n_utils
 from neutron.db import api as db_api
 from neutron.db import db_base_plugin_v2
-from neutron.db.models import securitygroup as securitygroups_db  # noqa
+from neutron.db.models import securitygroup as securitygroups_db
 from neutron.extensions import securitygroup as ext_sg
 from neutron_lib.api import validators
 from neutron_lib import constants as n_constants
@@ -86,6 +86,26 @@ class ExtendedSecurityGroupPropertiesMixin(object):
             context.session.add(security_group_db)
         secgroup_dict = self._make_security_group_dict(security_group_db)
         secgroup_dict[provider_sg.PROVIDER] = True
+        return secgroup_dict
+
+    def create_default_security_group_with_policy(self, context,
+                                                  security_group):
+        """Create a default security group, without any rules."""
+        s = security_group['security_group']
+        tenant_id = s['tenant_id']
+
+        with db_api.autonested_transaction(context.session):
+            security_group_db = securitygroups_db.SecurityGroup(
+                id=s.get('id') or (uuidutils.generate_uuid()),
+                description=s.get('description', ''),
+                tenant_id=tenant_id,
+                name=s.get('name', ''))
+            context.session.add(security_group_db)
+        context.session.add(securitygroups_db.DefaultSecurityGroup(
+            security_group=security_group_db,
+            tenant_id=security_group_db['tenant_id']))
+        secgroup_dict = self._make_security_group_dict(security_group_db)
+        secgroup_dict[sg_policy.POLICY] = s.get(sg_policy.POLICY)
         return secgroup_dict
 
     def _process_security_group_properties_create(self, context,
