@@ -52,11 +52,43 @@ Tong Liu <tongl@vmware.com>
 import base64
 import optparse
 import requests
-import sys
 
+from neutron import context as neutron_context
+from neutron.db import common_db_mixin as common_db
+from vmware_nsx.db import nsx_models
+from vmware_nsx.db import nsxv_models
 from oslo_serialization import jsonutils
 
 requests.packages.urllib3.disable_warnings()
+
+
+class NeutronNsxDB(common_db.CommonDbMixin):
+    def __init__(self):
+        super(NeutronNsxDB, self).__init__()
+        self.context = neutron_context.get_admin_context()
+
+    def query_all(self, column, model):
+        return [r[column] for r in self.context.session.query(model).all()]
+
+    def query_all_fw_sections(self):
+        return self.query_all('ip_section_id',
+                              nsxv_models.NsxvSecurityGroupSectionMapping)
+
+    def query_all_security_groups(self):
+        return self.query_all('nsx_id',
+                              nsx_models.NeutronNsxSecurityGroupMapping)
+
+    def query_all_logical_switches(self):
+        return self.query_all('nsx_id',
+                              nsx_models.NeutronNsxNetworkMapping)
+
+    def query_all_spoofguard_policies(self):
+        return self.query_all('policy_id',
+                              nsxv_models.NsxvSpoofGuardPolicyNetworkMapping)
+
+    def query_all_edges(self):
+        return self.query_all('edge_id',
+                              nsxv_models.NsxvRouterBinding)
 
 
 class VSMClient(object):
@@ -78,6 +110,7 @@ class VSMClient(object):
         self.url = None
         self.headers = None
         self.api_version = VSMClient.API_VERSION
+        self.neutron_db = NeutronNsxDB()
 
         self.__set_headers()
 
@@ -168,35 +201,9 @@ class VSMClient(object):
         else:
             return response.json()['allScopes'][0]['objectId']
 
-    def query_all_logical_switches(self):
-        lswitches = []
-        self.__set_api_version('2.0')
-        vdn_scope_id = self.get_vdn_scope_id()
-        if not vdn_scope_id:
-            return lswitches
-        endpoint = "/vdn/scopes/%s/virtualwires" % (vdn_scope_id)
-        self.__set_endpoint(endpoint)
-        # Query all logical switches
-        response = self.get()
-        paging_info = response.json()['dataPage']['pagingInfo']
-        page_size = int(paging_info['pageSize'])
-        total_count = int(paging_info['totalCount'])
-        print("There are total %s logical switches and page size is %s" % (
-            total_count, page_size))
-        pages = ceil(total_count, page_size)
-        print("Total pages: %s" % pages)
-        for i in range(0, pages):
-            start_index = page_size * i
-            params = {'startindex': start_index}
-            response = self.get(params=params)
-            temp_lswitches = response.json()['dataPage']['data']
-            lswitches += temp_lswitches
-
-        return lswitches
-
     def cleanup_logical_switch(self):
         print("Cleaning up logical switches on NSX manager")
-        lswitches = self.query_all_logical_switches()
+        lswitches = self.neutron_db.query_all_logical_switches()
         print("There are total %s logical switches" % len(lswitches))
         for ls in lswitches:
             print("\nDeleting logical switch %s (%s) ..." % (ls['name'],
@@ -206,29 +213,9 @@ class VSMClient(object):
             if response.status_code != 200:
                 print("ERROR: response status code %s" % response.status_code)
 
-    def query_all_firewall_sections(self):
-        firewall_sections = []
-        self.__set_api_version('4.0')
-        self.__set_endpoint('/firewall/globalroot-0/config')
-        # Query all firewall sections
-        response = self.get()
-        # Get layer3 sections related to security group
-        if response.status_code is 200:
-            l3_sections = response.json()['layer3Sections']['layer3Sections']
-            # do not delete the default section, or sections created by the
-            # service composer
-            firewall_sections = [s for s in l3_sections if (s['name'] !=
-                                 "Default Section Layer3" and
-                                 "NSX Service Composer" not in s['name'])]
-        else:
-            print("ERROR: wrong response status code! Exiting...")
-            sys.exit()
-
-        return firewall_sections
-
     def cleanup_firewall_section(self):
         print("\n\nCleaning up firewall sections on NSX manager")
-        l3_sections = self.query_all_firewall_sections()
+        l3_sections = self.neutron_db.query_all_fw_sections()
         print("There are total %s firewall sections" % len(l3_sections))
         for l3sec in l3_sections:
             print("\nDeleting firewall section %s (%s) ..." % (l3sec['name'],
@@ -239,26 +226,9 @@ class VSMClient(object):
             if response.status_code != 204:
                 print("ERROR: response status code %s" % response.status_code)
 
-    def query_all_security_groups(self):
-        security_groups = []
-        self.__set_api_version('2.0')
-        self.__set_endpoint("/services/securitygroup/scope/globalroot-0")
-        # Query all security groups
-        response = self.get()
-        if response.status_code is 200:
-            sg_all = response.json()
-        else:
-            print("ERROR: wrong response status code! Exiting...")
-            sys.exit()
-        # Remove Activity Monitoring Data Collection, which is not
-        # related to any security group created by OpenStack
-        security_groups = [sg for sg in sg_all if
-                           sg['name'] != "Activity Monitoring Data Collection"]
-        return security_groups
-
     def cleanup_security_group(self):
         print("\n\nCleaning up security groups on NSX manager")
-        security_groups = self.query_all_security_groups()
+        security_groups = self.neutron_db.query_all_security_groups()
         print("There are total %s security groups" % len(security_groups))
         for sg in security_groups:
             print("\nDeleting security group %s (%s) ..." % (sg['name'],
@@ -269,22 +239,9 @@ class VSMClient(object):
             if response.status_code != 200:
                 print("ERROR: response status code %s" % response.status_code)
 
-    def query_all_spoofguard_policies(self):
-        self.__set_api_version('4.0')
-        self.__set_endpoint("/services/spoofguard/policies/")
-        # Query all spoofguard policies
-        response = self.get()
-        if response.status_code is not 200:
-            print("ERROR: Faield to get spoofguard policies")
-            return
-        sgp_all = response.json()
-        policies = [sgp for sgp in sgp_all['policies'] if
-                    sgp['name'] != 'Default Policy']
-        return policies
-
     def cleanup_spoofguard_policies(self):
         print("\n\nCleaning up spoofguard policies")
-        policies = self.query_all_spoofguard_policies()
+        policies = self.neutron_db.query_all_spoofguard_policies()
         print("There are total %s policies" % len(policies))
         for spg in policies:
             print("\nDeleting spoofguard policy %s (%s) ..." %
@@ -293,31 +250,9 @@ class VSMClient(object):
             response = self.delete(endpoint=endpoint)
             print("Response code: %s" % response.status_code)
 
-    def query_all_edges(self):
-        edges = []
-        self.__set_api_version('4.0')
-        self.__set_endpoint("/edges")
-        # Query all edges
-        response = self.get()
-        paging_info = response.json()['edgePage']['pagingInfo']
-        page_size = int(paging_info['pageSize'])
-        total_count = int(paging_info['totalCount'])
-        print("There are total %s edges and page size is %s" % (
-            total_count, page_size))
-        pages = ceil(total_count, page_size)
-        print("Total pages: %s" % pages)
-        for i in range(0, pages):
-            start_index = page_size * i
-            params = {'startindex': start_index}
-            response = self.get(params=params)
-            temp_edges = response.json()['edgePage']['data']
-            edges += temp_edges
-
-        return edges
-
     def cleanup_edge(self):
         print("\n\nCleaning up edges on NSX manager")
-        edges = self.query_all_edges()
+        edges = self.neutron_db.query_all_edges()
         for edge in edges:
             print("\nDeleting edge %s (%s) ..." % (edge['name'], edge['id']))
             endpoint = '/edges/%s' % edge['id']
