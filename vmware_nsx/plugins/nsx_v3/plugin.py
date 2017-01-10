@@ -231,11 +231,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     # Each extension driver that supports extend attribute for the resources
     # can add those attribute to the result.
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-               attributes.NETWORKS, ['_ext_extend_network_dict'])
+        attributes.NETWORKS, ['_ext_extend_network_dict'])
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-               attributes.PORTS, ['_ext_extend_port_dict'])
+        attributes.PORTS, ['_ext_extend_port_dict'])
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-               attributes.SUBNETS, ['_ext_extend_subnet_dict'])
+        attributes.SUBNETS, ['_ext_extend_subnet_dict'])
+    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
+        l3.FLOATINGIPS, ['_extend_floatingip_dict_dns'])
 
     def _init_nsx_profiles(self):
         LOG.debug("Initializing NSX v3 port spoofguard switching profile")
