@@ -32,7 +32,7 @@ class ExtensionManager(stevedore.named.NamedExtensionManager):
         self.ordered_ext_drivers = []
 
         LOG.info(_LI("Configured extension driver names: %s"),
-                 cfg.CONF.extension_drivers)
+                 cfg.CONF.nsx_extension_drivers)
         super(ExtensionManager, self).__init__('vmware_nsx.extension_drivers',
                                                cfg.CONF.nsx_extension_drivers,
                                                invoke_on_load=True,
