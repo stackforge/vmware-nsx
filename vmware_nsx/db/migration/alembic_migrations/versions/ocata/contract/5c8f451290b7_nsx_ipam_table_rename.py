@@ -27,6 +27,12 @@ depends_on = ('6e6da8296c0e',)
 
 from alembic import op
 
+from neutron.db import migration
+
+
+# milestone identifier, used by neutron-db-manage
+neutron_milestone = [migration.OCATA]
+
 
 def upgrade():
     op.rename_table('nsxv_subnet_ipam',
