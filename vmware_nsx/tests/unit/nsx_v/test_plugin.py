@@ -693,6 +693,17 @@ class TestPortsV2(NsxVPluginV2TestCase,
     VIF_TYPE = nsx_constants.VIF_TYPE_DVS
     HAS_PORT_FILTER = True
 
+    def test_is_mac_in_use(self):
+        ctx = context.get_admin_context()
+        with self.port() as port:
+            net_id = port['port']['network_id']
+            mac = port['port']['mac_address']
+            self.assertTrue(self.plugin._is_mac_in_use(ctx, net_id, mac))
+            mac2 = '00:22:00:44:00:66'  # other mac, same network
+            self.assertFalse(self.plugin._is_mac_in_use(ctx, net_id, mac2))
+            net_id2 = port['port']['id']  # other net uuid, same mac
+            self.assertTrue(self.plugin._is_mac_in_use(ctx, net_id2, mac))
+
     def test_duplicate_mac_generation(self):
         # simulate duplicate mac generation to make sure DBDuplicate is retried
         responses = ['12:34:56:78:00:00', '12:34:56:78:00:00',
