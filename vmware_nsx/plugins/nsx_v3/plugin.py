@@ -108,7 +108,7 @@ NSX_V3_EXCLUDED_PORT_NSGROUP_NAME = 'neutron_excluded_port_nsgroup'
 
 
 # NOTE(asarfaty): the order of inheritance here is important. in order for the
-# QoS notification to work, the AgentScheduler init must be called first
+# QoS notification to work, the AgentScheduler init must be called first.
 # NOTE(arosen): same is true with the ExtendedSecurityGroupPropertiesMixin
 # this needs to be above securitygroups_db.SecurityGroupDbMixin.
 # FIXME(arosen): we can solve this inheritance order issue by just mixining in
