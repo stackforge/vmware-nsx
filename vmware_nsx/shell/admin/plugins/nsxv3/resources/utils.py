@@ -21,18 +21,27 @@ from vmware_nsx.plugins.nsx_v3 import plugin
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsxlib.v3 import nsx_constants
 
-_NSXLIB = None
+# Same nsxlib is used throughout admin operations,
+# but we'll store dictionary based on username to avoid
+# future problems
+_NSXLIBS = {}
 
 
-def get_nsxv3_client():
-    return get_connected_nsxlib().client
+def get_nsxv3_client(nsx_username=None, nsx_password=None,
+                     use_basic_auth=False):
+
+    return get_connected_nsxlib(nsx_username,
+                                nsx_password,
+                                use_basic_auth).client
 
 
-def get_connected_nsxlib():
-    global _NSXLIB
-    if _NSXLIB is None:
-        _NSXLIB = v3_utils.get_nsxlib_wrapper()
-    return _NSXLIB
+def get_connected_nsxlib(nsx_username=None, nsx_password=None,
+                         use_basic_auth=False):
+    if nsx_username not in _NSXLIBS:
+        _NSXLIBS[nsx_username] = v3_utils.get_nsxlib_wrapper(nsx_username,
+                                                             nsx_password,
+                                                             use_basic_auth)
+    return _NSXLIBS[nsx_username]
 
 
 class NeutronDbClient(db_base_plugin_v2.NeutronDbPluginV2):

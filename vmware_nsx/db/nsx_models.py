@@ -368,3 +368,16 @@ class NsxPortMirrorSessionMapping(model_base.BASEV2):
                             nullable=False,
                             primary_key=True)
     port_mirror_session_id = sa.Column(sa.String(36), nullable=False)
+
+
+class NsxCertificateRepository(model_base.BASEV2, models.TimestampMixin):
+    """Stores certificate and private key per logical purpose.
+
+    For now, will have zero or one rows with nsxv3 client certificate
+    """
+    __tablename__ = 'nsx_certificates'
+    purpose = sa.Column(sa.String(32),
+                        nullable=False,
+                        primary_key=True)
+    certificate = sa.Column(sa.String(9216), nullable=False)
+    private_key = sa.Column(sa.String(5120), nullable=False)
