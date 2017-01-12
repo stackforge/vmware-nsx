@@ -19,15 +19,23 @@ from neutron import version as n_version
 from vmware_nsxlib import v3
 from vmware_nsxlib.v3 import config
 
+from vmware_nsx.db import db as nsx_db
 
 NSX_NEUTRON_PLUGIN = 'NSX Neutron plugin'
 OS_NEUTRON_ID_SCOPE = 'os-neutron-id'
+NSX_OPENSTACK_IDENTITY = "com.vmware.nsx.openstack"
 
 
-def get_nsxlib_wrapper():
+def get_nsxlib_wrapper(nsx_username=None, nsx_password=None, basic_auth=False):
+    client_cert_file = cfg.CONF.nsx_v3.nsx_client_cert_file
+    if basic_auth:
+        # if basic auth requested, dont use cert file even if provided in auth
+        client_cert_file = None
+
     nsxlib_config = config.NsxLibConfig(
-        username=cfg.CONF.nsx_v3.nsx_api_user,
-        password=cfg.CONF.nsx_v3.nsx_api_password,
+        username=nsx_username or cfg.CONF.nsx_v3.nsx_api_user,
+        password=nsx_password or cfg.CONF.nsx_v3.nsx_api_password,
+        client_cert_file=client_cert_file,
         retries=cfg.CONF.nsx_v3.http_retries,
         insecure=cfg.CONF.nsx_v3.insecure,
         ca_file=cfg.CONF.nsx_v3.ca_file,
@@ -45,3 +53,37 @@ def get_nsxlib_wrapper():
         dns_domain=cfg.CONF.nsx_v3.dns_domain,
         dhcp_profile_uuid=cfg.CONF.nsx_v3.dhcp_profile)
     return v3.NsxLib(nsxlib_config)
+
+
+class DbCertificateStorageDriver(object):
+    """Storage for certificate and private key in neutron DB"""
+    # TODO(annak): Add private key encryption
+    def __init__(self, context):
+        self._context = context
+
+    def store_cert(self, purpose, certificate, private_key):
+        nsx_db.save_certificate(self._context.session, purpose,
+                                certificate, private_key)
+
+    def get_cert(self, purpose):
+        return nsx_db.get_certificate(self._context.session, purpose)
+
+    def delete_cert(self, purpose):
+        return nsx_db.delete_certificate(self._context.session, purpose)
+
+
+class DummyCertificateStorageDriver(object):
+    """Dummy driver API implementation
+
+    Used for external certificate import scenario
+    (nsx_client_cert_storage == None)
+    """
+
+    def store_cert(self, purpose, certificate, private_key):
+        pass
+
+    def get_cert(self, purpose):
+        pass
+
+    def delete_cert(self, purpose):
+        pass
