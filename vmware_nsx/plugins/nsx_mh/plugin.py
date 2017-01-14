@@ -40,6 +40,7 @@ from neutron.db import dns_db
 from neutron.db import external_net_db
 from neutron.db import extradhcpopt_db
 from neutron.db import extraroute_db
+from neutron.db import l3_attrs_db
 from neutron.db import l3_db
 from neutron.db import l3_dvr_db
 from neutron.db import l3_gwmode_db
@@ -1433,6 +1434,12 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         lrouter['status'] = plugin_const.ACTIVE
         return lrouter
 
+    def _process_extra_attr_router_create(self, context, router_db, r):
+        for extra_attr in l3_attrs_db.get_attr_info().keys():
+            if extra_attr in r:
+                self.set_extra_attr_value(context, router_db,
+                                          extra_attr, r[extra_attr])
+
     def create_router(self, context, router):
         # NOTE(salvatore-orlando): We completely override this method in
         # order to be able to use the NSX ID as Neutron ID
@@ -1486,6 +1493,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     status=lrouter['status'])
                 context.session.add(router_db)
                 self._process_extra_attr_router_create(context, router_db, r)
+
                 # Ensure neutron router is moved into the transaction's buffer
                 context.session.flush()
                 # Add mapping between neutron and nsx identifiers
