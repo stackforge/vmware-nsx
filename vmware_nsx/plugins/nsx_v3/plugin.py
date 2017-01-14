@@ -38,6 +38,7 @@ from neutron.db import dns_db
 from neutron.db import external_net_db
 from neutron.db import extradhcpopt_db
 from neutron.db import extraroute_db
+from neutron.db import l3_attrs_db
 from neutron.db import l3_db
 from neutron.db import l3_gwmode_db
 from neutron.db.models import l3 as l3_db_models
@@ -2518,6 +2519,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                              advertise_route_nat_flag,
                                              advertise_route_connected_flag)
 
+    def _process_extra_attr_router_create(self, context, router_db, r):
+        for extra_attr in l3_attrs_db.get_attr_info().keys():
+            if extra_attr in r:
+                self.set_extra_attr_value(context, router_db,
+                                          extra_attr, r[extra_attr])
+
     def create_router(self, context, router):
         # TODO(berlin): admin_state_up support
         gw_info = self._extract_external_gw(context, router, is_extract=True)
@@ -2526,11 +2533,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         tags = self.nsxlib.build_v3_tags_payload(
             router['router'], resource_type='os-neutron-router-id',
             project_name=context.tenant_name)
-
         with context.session.begin():
             router = super(NsxV3Plugin, self).create_router(
                 context, router)
-
+            router_db = self._get_router(context, router['id'])
+            self._process_extra_attr_router_create(context, router_db,
+                                                   router)
         # Create backend entries here in case neutron DB exception
         # occurred during super.create_router(), which will cause
         # API retry and leaves dangling backend entries.
