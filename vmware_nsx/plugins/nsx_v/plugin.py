@@ -3500,8 +3500,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         sg_id = sg_rules[0]['security_group_rule']['security_group_id']
 
         if (self._use_nsx_policies and
-            self._is_policy_security_group(context, sg_id)):
-            # If policies are enabled - creating rules is forbidden
+            # If policies are/were enabled - creating rules is forbidden
             msg = (_('Cannot create rules for security group %s with'
                      ' a policy') % sg_id)
             raise n_exc.InvalidInput(error_message=msg)
