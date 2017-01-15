@@ -34,16 +34,17 @@ MAX_KBPS_MIN_VALUE = 1024
 def handle_qos_notification(context, resource_type, policies_list,
                             event_type):
     for policy_obj in policies_list:
-        handle_qos_policy_notification(policy_obj, event_type)
+        handle_qos_policy_notification(context, policy_obj, event_type)
 
 
-def handle_qos_policy_notification(policy_obj, event_type):
+def handle_qos_policy_notification(context, policy_obj, event_type):
     handler = QosNotificationsHandler()
-    context = n_context.get_admin_context()
 
     # Reload the policy as admin so we will have a context
     if (event_type != callbacks_events.DELETED):
-        policy = qos_policy.QosPolicy.get_object(context, id=policy_obj.id)
+        admin_context = n_context.get_admin_context()
+        policy = qos_policy.QosPolicy.get_object(admin_context,
+                                                 id=policy_obj.id)
 
     # Check if QoS policy rule was created/deleted/updated
     if (event_type == callbacks_events.CREATED):
