@@ -104,7 +104,10 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             router_db = self.plugin._get_router(context, router_id)
             nexthop = self.plugin._get_external_attachment_info(
                 context, router_db)[2]
-            self.plugin._update_subnets_and_dnat_firewall(context, router_db)
+            with locking.LockManager.get_lock(self._get_edge_id(context,
+                                                                router_id)):
+                self.plugin._update_subnets_and_dnat_firewall(context,
+                                                              router_db)
             md_gw_data = self._get_metadata_gw_data(context, router_id)
             self._update_routes(context, router_id, nexthop, md_gw_data)
         if 'admin_state_up' in r:
@@ -208,9 +211,11 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             if (new_ext_net_id != org_ext_net_id or
                 new_enable_snat != org_enable_snat or
                 is_routes_update):
-                # Open firewall flows on plr
-                self.plugin._update_subnets_and_dnat_firewall(
-                    context, router, router_id=plr_id)
+                with locking.LockManager.get_lock(self._get_edge_id(
+                    context, plr_id)):
+                    # Open firewall flows on plr
+                    self.plugin._update_subnets_and_dnat_firewall(
+                        context, router, router_id=plr_id)
 
         # update static routes in all
         md_gw_data = self._get_metadata_gw_data(context, router_id)
@@ -492,8 +497,10 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
         self.plugin._update_external_interface(
             context, router, router_id=plr_id)
         self.plugin._update_nat_rules(context, router, router_id=plr_id)
-        self.plugin._update_subnets_and_dnat_firewall(context, router,
-                                                      router_id=plr_id)
+        with locking.LockManager.get_lock(self._get_edge_id(context,
+                                                            plr_id)):
+            self.plugin._update_subnets_and_dnat_firewall(context, router,
+                                                          router_id=plr_id)
 
     def update_router_interface_ip(self, context, router_id,
                                    port_id, int_net_id,
