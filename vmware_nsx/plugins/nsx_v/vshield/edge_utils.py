@@ -80,7 +80,13 @@ def get_vdr_transit_network_tlr_address():
 
 def get_vdr_transit_network_plr_address():
     ip = _get_vdr_transit_network_ipobj()
-    return str(ip[2])
+    dvtn = vcns_const.DEFAULT_VDR_TRANSIT_NETWORK
+    # We need to ensure backwards compatibility. The original edge address
+    # was "169.254.2.3"
+    if dvtn == cfg.CONF.nsxv.vdr_transit_network:
+        return vcns_const.DEFAULT_PLR_ADDRESS
+    else:
+        return str(ip[2])
 
 
 def validate_vdr_transit_network():

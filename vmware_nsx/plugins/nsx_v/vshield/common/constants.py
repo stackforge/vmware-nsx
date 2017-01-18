@@ -17,7 +17,8 @@ from oslo_config import cfg
 
 from vmware_nsx.common import nsxv_constants
 
-
+DEFAULT_VDR_TRANSIT_NETWORK = "169.254.2.0/28"
+DEFAULT_PLR_ADDRESS = "169.254.2.3"
 EDGE_ID = 'edge_id'
 ROUTER_ID = 'router_id'
 DHCP_EDGE_PREFIX = 'dhcp-'
