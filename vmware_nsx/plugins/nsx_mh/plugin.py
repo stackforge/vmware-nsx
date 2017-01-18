@@ -57,13 +57,13 @@ from neutron.extensions import extra_dhcp_opt as edo_ext
 from neutron.extensions import extraroute
 from neutron.extensions import l3
 from neutron.extensions import multiprovidernet as mpnet
-from neutron.extensions import portbindings as pbin
 from neutron.extensions import portsecurity as psec
 from neutron.extensions import providernet as pnet
 from neutron.extensions import securitygroup as ext_sg
 from neutron.plugins.common import constants as plugin_const
 from neutron.plugins.common import utils
 from neutron.quota import resource_registry
+from neutron_lib.api.definitions import portbindings as pbin
 
 import vmware_nsx
 from vmware_nsx._i18n import _, _LE, _LI, _LW

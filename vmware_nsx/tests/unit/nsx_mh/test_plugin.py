@@ -22,7 +22,6 @@ from neutron.extensions import dvr
 from neutron.extensions import external_net
 from neutron.extensions import l3
 from neutron.extensions import l3_ext_gw_mode
-from neutron.extensions import portbindings
 from neutron.extensions import providernet as pnet
 from neutron.extensions import securitygroup as secgrp
 from neutron.tests.unit import _test_extension_portbindings as test_bindings
@@ -32,6 +31,7 @@ import neutron.tests.unit.extensions.test_l3 as test_l3_plugin
 import neutron.tests.unit.extensions.test_l3_ext_gw_mode as test_ext_gw_mode
 import neutron.tests.unit.extensions.test_securitygroup as ext_sg
 from neutron.tests.unit import testlib_api
+from neutron_lib.api.definitions import portbindings
 from neutron_lib import constants
 from neutron_lib import exceptions as ntn_exc
 from neutron_lib.plugins import directory
