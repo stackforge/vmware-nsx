@@ -195,11 +195,14 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                 # and all static routes before vnic can be configured
                 edge_utils.clear_gateway(self.nsx_v, context, plr_id)
 
+            #TODO(kobis): verify that locking is not required here
             # Update external vnic if addr or mask is changed
             if orgaddr != newaddr or orgmask != newmask:
-                edge_utils.update_external_interface(
-                    self.nsx_v, context, plr_id,
-                    new_ext_net_id, newaddr, newmask)
+                with locking.LockManager.get_lock(
+                        self._get_edge_id(context, router_id)):
+                    edge_utils.update_external_interface(
+                        self.nsx_v, context, plr_id,
+                        new_ext_net_id, newaddr, newmask)
 
             # Update SNAT rules if ext net changed
             # or ext net not changed but snat is changed.
