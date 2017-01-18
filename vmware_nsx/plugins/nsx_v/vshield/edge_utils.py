@@ -614,7 +614,8 @@ class EdgeManager(object):
     def _allocate_edge_appliance(self, context, resource_id, name,
                                  appliance_size=nsxv_constants.COMPACT,
                                  dist=False,
-                                 availability_zone=None):
+                                 availability_zone=None,
+                                 deploy_metadata=False):
         """Try to allocate one available edge from pool."""
         edge_type = (nsxv_constants.VDR_EDGE if dist else
                      nsxv_constants.SERVICE_EDGE)
@@ -678,7 +679,7 @@ class EdgeManager(object):
             with locking.LockManager.get_lock(str(edge_id)):
                 self.nsxv_manager.callbacks.complete_edge_creation(
                     context, edge_id, lrouter['name'], lrouter['id'], dist,
-                    True)
+                    True, deploy_metadata)
 
                 # change edge's name at backend
                 self.nsxv_manager.update_edge(
@@ -786,7 +787,8 @@ class EdgeManager(object):
         self._allocate_edge_appliance(
             context, resource_id, resource_name,
             appliance_size=vcns_const.SERVICE_SIZE_MAPPING['dhcp'],
-            availability_zone=availability_zone)
+            availability_zone=availability_zone,
+            deploy_metadata=True)
 
     def _free_dhcp_edge_appliance(self, context, network_id):
         router_id = (vcns_const.DHCP_EDGE_PREFIX + network_id)[:36]
@@ -2151,15 +2153,6 @@ def clear_gateway(nsxv_manager, context, router_id):
     return update_gateway(nsxv_manager, context, router_id, None)
 
 
-def update_external_interface(
-    nsxv_manager, context, router_id, ext_net_id,
-    ipaddr, netmask, secondary=None):
-    with locking.LockManager.get_lock(str(router_id)):
-        _update_external_interface(nsxv_manager, context, router_id,
-                                   ext_net_id, ipaddr, netmask,
-                                   secondary=secondary)
-
-
 def _check_ipnet_ip(ipnet, ip_address):
     """Check one ip is valid ip from ipnet."""
     ip = netaddr.IPAddress(ip_address)
@@ -2170,7 +2163,7 @@ def _check_ipnet_ip(ipnet, ip_address):
     return False
 
 
-def _update_external_interface(
+def update_external_interface(
     nsxv_manager, context, router_id, ext_net_id,
     ipaddr, netmask, secondary=None):
     secondary = secondary or []
@@ -2239,14 +2232,6 @@ def _update_external_interface(
 
 def update_internal_interface(nsxv_manager, context, router_id, int_net_id,
                               address_groups, is_connected=True):
-    with locking.LockManager.get_lock(str(router_id)):
-        _update_internal_interface(nsxv_manager, context, router_id,
-                                   int_net_id, address_groups,
-                                   is_connected=is_connected)
-
-
-def _update_internal_interface(nsxv_manager, context, router_id, int_net_id,
-                               address_groups, is_connected=True):
     # Get the pg/wire id of the network id
     vcns_network_id = _retrieve_nsx_switch_id(context, int_net_id)
     LOG.debug("Network id %(network_id)s corresponding ref is : "
@@ -2273,14 +2258,6 @@ def _update_internal_interface(nsxv_manager, context, router_id, int_net_id,
 
 def add_vdr_internal_interface(nsxv_manager, context, router_id,
                                int_net_id, address_groups, is_connected=True):
-    with locking.LockManager.get_lock(str(router_id)):
-        _add_vdr_internal_interface(nsxv_manager, context, router_id,
-                                   int_net_id, address_groups,
-                                   is_connected=is_connected)
-
-
-def _add_vdr_internal_interface(nsxv_manager, context, router_id,
-                                int_net_id, address_groups, is_connected=True):
     # Get the pg/wire id of the network id
     vcns_network_id = _retrieve_nsx_switch_id(context, int_net_id)
     LOG.debug("Network id %(network_id)s corresponding ref is : "
@@ -2305,15 +2282,6 @@ def _add_vdr_internal_interface(nsxv_manager, context, router_id,
 
 def update_vdr_internal_interface(nsxv_manager, context, router_id, int_net_id,
                                   address_groups, is_connected=True):
-    with locking.LockManager.get_lock(str(router_id)):
-        _update_vdr_internal_interface(nsxv_manager, context, router_id,
-                                       int_net_id, address_groups,
-                                       is_connected=is_connected)
-
-
-def _update_vdr_internal_interface(nsxv_manager, context, router_id,
-                                   int_net_id, address_groups,
-                                   is_connected=True):
     # Get the pg/wire id of the network id
     vcns_network_id = _retrieve_nsx_switch_id(context, int_net_id)
     LOG.debug("Network id %(network_id)s corresponding ref is : "
@@ -2331,13 +2299,6 @@ def _update_vdr_internal_interface(nsxv_manager, context, router_id,
 
 
 def delete_interface(nsxv_manager, context, router_id, network_id, dist=False):
-    with locking.LockManager.get_lock(str(router_id)):
-        _delete_interface(nsxv_manager, context, router_id, network_id,
-                          dist=dist)
-
-
-def _delete_interface(nsxv_manager, context, router_id, network_id,
-                      dist=False):
     # Get the pg/wire id of the network id
     vcns_network_id = _retrieve_nsx_switch_id(context, network_id)
     LOG.debug("Network id %(network_id)s corresponding ref is : "
@@ -2497,8 +2458,8 @@ class NsxVCallbacks(object):
     def __init__(self, plugin):
         self.plugin = plugin
 
-    def complete_edge_creation(
-            self, context, edge_id, name, router_id, dist, deploy_successful):
+    def complete_edge_creation(self, context, edge_id, name, router_id, dist,
+                               deploy_successful, deploy_metadata=False):
         router_db = None
         if uuidutils.is_uuid_like(router_id):
             try:
@@ -2508,6 +2469,17 @@ class NsxVCallbacks(object):
                 LOG.warning(_LW("Router %s not found"), name)
 
         if deploy_successful:
+            metadata_proxy_handler = self.plugin.metadata_proxy_handler
+            if deploy_metadata and metadata_proxy_handler:
+                with locking.LockManager.get_lock(str(edge_id)):
+                    LOG.debug('Update metadata for resource %s',
+                              router_id)
+                    metadata_proxy_handler.configure_router_edge(
+                        context, router_id)
+
+                    self.plugin.setup_dhcp_edge_fw_rules(context, self,
+                                                         router_id)
+
             LOG.debug("Successfully deployed %(edge_id)s for router %(name)s",
                       {'edge_id': edge_id,
                        'name': name})
