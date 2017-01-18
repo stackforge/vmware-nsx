@@ -465,9 +465,10 @@ class NsxVMetadataProxyHandler(object):
                 context, self.internal_net, rtr_id, is_proxy=True)
 
             edge_ip = port['fixed_ips'][0]['ip_address']
-            edge_utils.update_internal_interface(
-                self.nsxv_plugin.nsx_v, context, rtr_id,
-                self.internal_net, address_groups)
+            with locking.LockManager.get_lock(edge_id):
+                edge_utils.update_internal_interface(
+                    self.nsxv_plugin.nsx_v, context, rtr_id,
+                    self.internal_net, address_groups)
 
             self._setup_metadata_lb(rtr_id,
                                     port['fixed_ips'][0]['ip_address'],
