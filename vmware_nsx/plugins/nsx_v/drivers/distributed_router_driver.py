@@ -195,11 +195,14 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                 # and all static routes before vnic can be configured
                 edge_utils.clear_gateway(self.nsx_v, context, plr_id)
 
+            #TODO(kobis): verify that locking is not required here
             # Update external vnic if addr or mask is changed
             if orgaddr != newaddr or orgmask != newmask:
-                edge_utils.update_external_interface(
-                    self.nsx_v, context, plr_id,
-                    new_ext_net_id, newaddr, newmask)
+                with locking.LockManager.get_lock(
+                        self._get_edge_id(context, router_id)):
+                    edge_utils.update_external_interface(
+                        self.nsx_v, context, plr_id,
+                        new_ext_net_id, newaddr, newmask)
 
             # Update SNAT rules if ext net changed
             # or ext net not changed but snat is changed.
@@ -473,25 +476,26 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                       router_id)
 
         # Reattach to regular DHCP Edge
-        dhcp_id = self.edge_manager.create_dhcp_edge_service(
-            context, network_id, subnet)
+        with locking.LockManager.get_lock(network_id):
+            dhcp_id = self.edge_manager.create_dhcp_edge_service(
+                context, network_id, subnet)
 
-        address_groups = self.plugin._create_network_dhcp_address_group(
-            context, network_id)
-        self.edge_manager.update_dhcp_edge_service(
-            context, network_id, address_groups=address_groups)
-        if dhcp_id:
-            edge_id = self.plugin._get_edge_id_by_rtr_id(context,
-                                                         dhcp_id)
-            if edge_id:
-                with locking.LockManager.get_lock(str(edge_id)):
-                    md_proxy_handler = (
-                        self.plugin.metadata_proxy_handler)
-                    if md_proxy_handler:
-                        md_proxy_handler.configure_router_edge(
-                            context, dhcp_id)
-                    self.plugin.setup_dhcp_edge_fw_rules(
-                        context, self.plugin, dhcp_id)
+            address_groups = self.plugin._create_network_dhcp_address_group(
+                context, network_id)
+            self.edge_manager.update_dhcp_edge_service(
+                context, network_id, address_groups=address_groups)
+            if dhcp_id:
+                edge_id = self.plugin._get_edge_id_by_rtr_id(context,
+                                                             dhcp_id)
+                if edge_id:
+                    with locking.LockManager.get_lock(str(edge_id)):
+                        md_proxy_handler = (
+                            self.plugin.metadata_proxy_handler)
+                        if md_proxy_handler:
+                            md_proxy_handler.configure_router_edge(
+                                context, dhcp_id)
+                        self.plugin.setup_dhcp_edge_fw_rules(
+                            context, self.plugin, dhcp_id)
 
     def _update_edge_router(self, context, router_id):
         router = self.plugin._get_router(context.elevated(), router_id)
