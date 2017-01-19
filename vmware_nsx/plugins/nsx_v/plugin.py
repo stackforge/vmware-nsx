@@ -2889,6 +2889,13 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             device_id=device_id,
             device_owner=device_owner,).all()
 
+    def _get_subnet_gateway(self, context, port_id):
+        port = self.get_port(context, port_id)
+        if len(port['fixed_ips']) > 0 and 'subnet_id' in port['fixed_ips'][0]:
+            subnet_id = port['fixed_ips'][0]['subnet_id']
+            subnet = self._get_subnet(context, subnet_id)
+            return subnet.get('gateway_ip', None)
+
     def _find_router_subnets_cidrs(self, context, router_id):
         """Retrieve subnets attached to the specified router."""
         ports = self._get_port_by_device_id(context, router_id,
@@ -2997,6 +3004,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                             interface_info):
             msg = (_('cannot add an external subnet/port as a router '
                      'interface'))
+            raise n_exc.InvalidInput(error_message=msg)
+        # Do not suppor add port as router interface if subnet
+        # have a default gateway
+        is_port, is_sub = self._validate_interface_info(interface_info)
+        if is_port and self._get_port_gateway(context,
+                                              interface_info['port_id']):
+            msg = (_('cannot add a port as a router interface '
+                     'when subnet have a default gateway'))
             raise n_exc.InvalidInput(error_message=msg)
 
         router_driver = self._find_router_driver(context, router_id)
