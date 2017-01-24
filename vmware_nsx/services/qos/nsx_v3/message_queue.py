@@ -25,5 +25,7 @@ class NsxV3QosNotificationDriver(
     message in this case too.
     """
 
+    # The message queue is no longer needed in pIKE.
+    # Keeping this class for a while for existing configurations.
     def create_policy(self, context, policy):
         self.notification_api.push(context, [policy], events.CREATED)
