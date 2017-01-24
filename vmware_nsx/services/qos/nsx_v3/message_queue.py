@@ -25,5 +25,6 @@ class NsxV3QosNotificationDriver(
     message in this case too.
     """
 
+    # TODO(asarfaty) deprecated in Pike
     def create_policy(self, context, policy):
         self.notification_api.push(context, [policy], events.CREATED)
