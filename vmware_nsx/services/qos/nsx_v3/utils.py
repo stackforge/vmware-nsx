@@ -34,6 +34,8 @@ MAX_KBPS_MIN_VALUE = 1024
 MAX_BURST_MAX_VALUE = int((2 ** 31 - 1) / 128)
 
 
+#TODO(asarfaty): QoS usage of RPC will be deprecated on Pike, and the driver
+# code will be used. For now - we need to support both.
 def handle_qos_notification(context, resource_type, policies_list,
                             event_type):
     for policy_obj in policies_list:

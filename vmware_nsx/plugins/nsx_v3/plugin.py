@@ -95,6 +95,7 @@ from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.plugins.nsx_v3 import cert_utils
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.services.qos.common import utils as qos_com_utils
+from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
 from vmware_nsx.services.qos.nsx_v3 import utils as qos_utils
 from vmware_nsx.services.trunk.nsx_v3 import driver as trunk_driver
 from vmware_nsxlib.v3 import client_cert
@@ -228,9 +229,17 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     ) % NSX_V3_EXCLUDED_PORT_NSGROUP_NAME
             raise nsx_exc.NsxPluginException(err_msg=msg)
 
-        # Bind QoS notifications
-        callbacks_registry.register(qos_utils.handle_qos_notification,
-                                    callbacks_resources.QOS_POLICY)
+        # Bind QoS notifications. the RPC option will be deprecated soon,
+        # but for now we need to support both options
+        if cfg.CONF.qos.notification_drivers:
+            # TODO(asarfaty) this option should be deprecated on Pike
+            self.qos_use_rpc = True
+            callbacks_registry.register(qos_utils.handle_qos_notification,
+                                        callbacks_resources.QOS_POLICY)
+        else:
+            self.qos_use_rpc = False
+            qos_driver.register()
+
         self.start_rpc_listeners_called = False
 
         self._unsubscribe_callback_events()
@@ -578,11 +587,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self.conn.create_consumer(topics.REPORTS,
                                   [agents_db.AgentExtRpcCallback()],
                                   fanout=False)
-        qos_topic = resources_rpc.resource_type_versioned_topic(
-            callbacks_resources.QOS_POLICY)
-        self.conn.create_consumer(qos_topic,
-                                  [resources_rpc.ResourcesPushRpcCallback()],
-                                  fanout=False)
+        if self.qos_use_rpc:
+            qos_topic = resources_rpc.resource_type_versioned_topic(
+                callbacks_resources.QOS_POLICY)
+            self.conn.create_consumer(
+                qos_topic,
+                [resources_rpc.ResourcesPushRpcCallback()],
+                fanout=False)
         self.start_rpc_listeners_called = True
 
         return self.conn.consume_in_threads()
