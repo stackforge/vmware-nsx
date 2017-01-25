@@ -47,8 +47,8 @@ class DvsManager(object):
             self._dvs_moref = self._get_dvs_moref(self._session,
                                                   dvs_utils.dvs_name_get())
         else:
-            self._dvs_moref = vim_util.get_moref(dvs_id,
-                                              'VmwareDistributedVirtualSwitch')
+            self._dvs_moref = vim_util.get_moref(
+                dvs_id, 'VmwareDistributedVirtualSwitch')
 
     def _get_dvs_moref(self, session, dvs_name):
         """Get the moref of the configured DVS."""
@@ -461,6 +461,7 @@ class DvsManager(object):
         policy = port_conf.uplinkTeamingPolicy
         policy.inherited = False
         policy.policy.inherited = False
+
         policy.policy.value = mapping[teaming_data['teamingPolicy']]
         policy.uplinkPortOrder.inherited = False
         ports = teaming_data['failoverUplinkPortNames']
@@ -469,7 +470,7 @@ class DvsManager(object):
         uplinks = self._session.invoke_api(vim_util,
                                            "get_object_property",
                                            self._session.vim,
-                                           self._dvs_moref,
+                                           self._dvs_moref, # DEBUG ADIT - this should be the specific dvs, and not the default one
                                            "config.uplinkPortPolicy")
         standby = list(set(uplinks.uplinkPortName) - set(ports))
         policy.uplinkPortOrder.standbyUplinkPort = standby
