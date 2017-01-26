@@ -2330,8 +2330,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 context, port['port'], updated_port)
             self._extend_port_dict_binding(context, updated_port)
             new_mac_learning_state = updated_port.get(mac_ext.MAC_LEARNING)
-            if (new_mac_learning_state is not None and
-                old_mac_learning_state != new_mac_learning_state):
+            if new_mac_learning_state is not None:
                 if port_security and new_mac_learning_state:
                     msg = _('Mac learning requires that port security be '
                             'disabled')
