@@ -1852,8 +1852,8 @@ class EdgeManager(object):
                 with locking.LockManager.get_lock(str(edge_id)):
                     self.nsxv_manager.vcns.delete_dhcp_binding(
                         edge_id, dhcp_binding.binding_id)
-                nsxv_db.delete_edge_dhcp_static_binding(
-                    context.session, edge_id, mac_address)
+                    nsxv_db.delete_edge_dhcp_static_binding(
+                        context.session, edge_id, mac_address)
             else:
                 LOG.warning(_LW("Failed to find dhcp binding on edge "
                                 "%(edge_id)s to DELETE for port "
@@ -1866,11 +1866,15 @@ class EdgeManager(object):
                         {'port_id': port_id})
 
     @vcns.retry_upon_exception(nsxapi_exc.VcnsApiException, max_delay=10)
-    def _create_dhcp_binding(self, edge_id, binding):
+    def _create_dhcp_binding(self, context, edge_id, binding):
         try:
             with locking.LockManager.get_lock(str(edge_id)):
                 h, c = self.nsxv_manager.vcns.create_dhcp_binding(
                     edge_id, binding)
+                binding_id = h['location'].split('/')[-1]
+                nsxv_db.create_edge_dhcp_static_binding(
+                    context.session, edge_id,
+                    binding['macAddress'], binding_id)
         except nsxapi_exc.VcnsApiException as e:
             with excutils.save_and_reraise_exception():
                 binding_id = None
@@ -1900,7 +1904,9 @@ class EdgeManager(object):
                     with locking.LockManager.get_lock(str(edge_id)):
                         self.nsxv_manager.vcns.delete_dhcp_binding(
                             edge_id, binding_id)
-        return h['location'].split('/')[-1]
+                        nsxv_db.delete_edge_dhcp_static_binding_id(
+                            context.session, edge_id, binding_id)
+        return binding_id
 
     def create_dhcp_bindings(self, context, port_id, network_id, bindings):
         edge_id = get_dhcp_edge_id(context, network_id)
@@ -1921,10 +1927,8 @@ class EdgeManager(object):
             configured_bindings = []
             try:
                 for binding in bindings:
-                    binding_id = self._create_dhcp_binding(edge_id, binding)
-                    nsxv_db.create_edge_dhcp_static_binding(
-                        context.session, edge_id,
-                        binding['macAddress'], binding_id)
+                    binding_id = self._create_dhcp_binding(
+                        context, edge_id, binding)
                     configured_bindings.append((binding_id,
                                                 binding['macAddress']))
             except nsxapi_exc.VcnsApiException:
@@ -1933,8 +1937,8 @@ class EdgeManager(object):
                         with locking.LockManager.get_lock(str(edge_id)):
                             self.nsxv_manager.vcns.delete_dhcp_binding(
                                 edge_id, binding_id)
-                        nsxv_db.delete_edge_dhcp_static_binding(
-                            context.session, edge_id, mac_address)
+                            nsxv_db.delete_edge_dhcp_static_binding(
+                                context.session, edge_id, mac_address)
         else:
             LOG.warning(_LW("Failed to create dhcp bindings since dhcp edge "
                             "for net %s not found at the backend"),
