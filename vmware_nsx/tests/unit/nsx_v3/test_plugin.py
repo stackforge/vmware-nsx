@@ -751,6 +751,8 @@ class NsxV3PluginClientCertTestCase(testlib_api.WebTestCase):
         cfg.CONF.set_override('nsx_use_client_auth', True, 'nsx_v3')
         cfg.CONF.set_override('nsx_client_cert_file', self.CERTFILE, 'nsx_v3')
         cfg.CONF.set_override('nsx_client_cert_storage', 'nsx-db', 'nsx_v3')
+        cfg.CONF.set_override('nsx_client_cert_pk_password',
+                              'topsecret', 'nsx_v3')
 
     def _init_plugin(self):
         self._tenant_id = test_plugin.TEST_TENANT_ID
