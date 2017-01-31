@@ -758,11 +758,14 @@ class NsxV3PluginClientCertTestCase(testlib_api.WebTestCase):
         self.setup_coreplugin(PLUGIN_NAME, load_plugins=True)
 
     def test_init_without_cert(self):
+        """Verify init fails if no cert is provided in client cert mode"""
         # certificate not generated - exception should be raised
         self.assertRaises(nsx_exc.ClientCertificateException,
                           self._init_plugin)
 
     def test_init_with_cert(self):
+        """Verify successful certificate load from storage"""
+
         mock.patch(
             "vmware_nsx.db.db.get_certificate",
             return_value=(self.CERT, self.PKEY)).start()
@@ -779,6 +782,23 @@ class NsxV3PluginClientCertTestCase(testlib_api.WebTestCase):
 
         # delete CERTFILE
         os.remove(self.CERTFILE)
+
+    def test_init_with_cert_decrypt_fails(self):
+        """Verify loading plaintext PK from storage fails in encrypt mode"""
+
+        mock.patch(
+            "vmware_nsx.db.db.get_certificate",
+            return_value=(self.CERT, self.PKEY)).start()
+
+        _mock_nsx_backend_calls()
+        self._tenant_id = test_plugin.TEST_TENANT_ID
+        self._init_config()
+        # define PK password
+        cfg.CONF.set_override('nsx_client_cert_pk_password',
+                              'topsecret', 'nsx_v3')
+        # since PK in DB is not encrypted, we should fail to decrypt it on load
+        self.assertRaises(nsx_exc.ClientCertificateException,
+                          self._init_plugin)
 
     # TODO(annak): add test that verifies bad crypto data raises exception
     # when OPENSSL exception wrapper is available from NSXLIB
