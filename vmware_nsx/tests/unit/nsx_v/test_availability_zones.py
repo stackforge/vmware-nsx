@@ -22,6 +22,10 @@ from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.plugins.nsx_v import availability_zones as nsx_az
 
 
+DEF_AZ_POOL = ['service:compact:1:2', 'vdr:compact:1:2']
+DEF_GLOBAL_POOL = ['service:compact:4:10', 'vdr:compact:4:10']
+
+
 class NsxvAvailabilityZonesTestCase(base.BaseTestCase):
 
     def setUp(self):
@@ -31,7 +35,8 @@ class NsxvAvailabilityZonesTestCase(base.BaseTestCase):
         config.register_nsxv_azs(cfg.CONF, [self.az_name])
 
     def _config_az(self, resource_pool_id="respool", datastore_id="datastore",
-                   edge_ha=True, ha_datastore_id="hastore"):
+                   edge_ha=True, ha_datastore_id="hastore",
+                   backup_edge_pool=DEF_AZ_POOL):
         cfg.CONF.set_override("resource_pool_id", resource_pool_id,
                               group=self.group_name)
         cfg.CONF.set_override("datastore_id", datastore_id,
@@ -41,6 +46,9 @@ class NsxvAvailabilityZonesTestCase(base.BaseTestCase):
                                   group=self.group_name)
         cfg.CONF.set_override("ha_datastore_id", ha_datastore_id,
                               group=self.group_name)
+        if backup_edge_pool is not None:
+            cfg.CONF.set_override("backup_edge_pool", backup_edge_pool,
+                                  group=self.group_name)
 
     def test_simple_availability_zone(self):
         self._config_az()
@@ -50,6 +58,7 @@ class NsxvAvailabilityZonesTestCase(base.BaseTestCase):
         self.assertEqual("datastore", az.datastore_id)
         self.assertEqual(True, az.edge_ha)
         self.assertEqual("hastore", az.ha_datastore_id)
+        self.assertEqual(DEF_AZ_POOL, az.backup_edge_pool)
 
     def test_availability_zone_no_edge_ha(self):
         self._config_az(edge_ha=False)
@@ -98,6 +107,13 @@ class NsxvAvailabilityZonesTestCase(base.BaseTestCase):
         self.assertEqual(False, az.edge_ha)
         self.assertEqual(None, az.ha_datastore_id)
 
+    def test_availability_zone_missing_backup_pool(self):
+        self._config_az(backup_edge_pool=None)
+        az = nsx_az.ConfiguredAvailabilityZone(self.az_name)
+        self.assertEqual(self.az_name, az.name)
+        # Should use the global configuration instead
+        self.assertEqual(DEF_GLOBAL_POOL, az.backup_edge_pool)
+
 
 class NsxvAvailabilityZonesOldTestCase(base.BaseTestCase):
     """Test old way of configuring the availability zones
@@ -113,6 +129,7 @@ class NsxvAvailabilityZonesOldTestCase(base.BaseTestCase):
         self.assertEqual("datastore", az.datastore_id)
         self.assertEqual(True, az.edge_ha)
         self.assertEqual("hastore", az.ha_datastore_id)
+        self.assertEqual(DEF_GLOBAL_POOL, az.backup_edge_pool)
 
     def test_availability_zone_without_ha_datastore(self):
         az = nsx_az.ConfiguredAvailabilityZone(

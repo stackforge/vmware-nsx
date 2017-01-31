@@ -663,6 +663,10 @@ nsxv_az_opts = [
                help=_('Optional parameter identifying the ID of datastore to '
                       'deploy NSX Edges in addition to data_store_id in case'
                       'edge_ha is True')),
+    cfg.ListOpt('backup_edge_pool',
+                help=_("(Optional) Defines edge pool's management range for "
+                       "the availability zone. If not defined, the global one "
+                       "will be used")),
 ]
 
 # Register the configuration options

@@ -66,6 +66,10 @@ class ConfiguredAvailabilityZone(object):
                              "enabled"))
 
             self.ha_datastore_id = values[4] if len(values) == 5 else None
+
+            # Some parameters are not supported in this format.
+            # using the global ones instead.
+            self.backup_edge_pool = cfg.CONF.nsxv.backup_edge_pool
         elif config_line:
             # Newer configuration - the name of the availability zone can be
             # used to get the rest of the configuration for this AZ
@@ -89,6 +93,13 @@ class ConfiguredAvailabilityZone(object):
             # The HA datastore can be empty
             self.ha_datastore_id = (az_info.get('ha_datastore_id')
                                     if self.edge_ha else None)
+
+            # The optional parameters will get the global values if not
+            # defined for this AZ
+            self.backup_edge_pool = az_info.get('backup_edge_pool', [])
+            if not self.backup_edge_pool:
+                self.backup_edge_pool = cfg.CONF.nsxv.backup_edge_pool
+
         else:
             # use the default configuration
             self.name = DEFAULT_NAME
@@ -96,6 +107,7 @@ class ConfiguredAvailabilityZone(object):
             self.datastore_id = cfg.CONF.nsxv.datastore_id
             self.edge_ha = cfg.CONF.nsxv.edge_ha
             self.ha_datastore_id = cfg.CONF.nsxv.ha_datastore_id
+            self.backup_edge_pool = cfg.CONF.nsxv.backup_edge_pool
 
 
 class ConfiguredAvailabilityZones(object):
