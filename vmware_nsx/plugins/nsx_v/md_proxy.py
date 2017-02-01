@@ -92,6 +92,7 @@ def get_router_fw_rules():
     return fw_rules
 
 
+# DEBUG ADIT per AZ? new column in DB?
 def get_db_internal_edge_ips(context):
     ip_list = []
     edge_list = nsxv_db.get_nsxv_internal_edges_by_purpose(
@@ -103,11 +104,14 @@ def get_db_internal_edge_ips(context):
     return ip_list
 
 
+# DEBUG ADIT handler per AZ (az name, and relevant config in init)?
+# or add az name/object to most of the functions?
 class NsxVMetadataProxyHandler(object):
-
-    def __init__(self, nsxv_plugin):
+    """A metadata proxy handler for a specific availability zone"""
+    def __init__(self, nsxv_plugin, availability_zone):
         self.nsxv_plugin = nsxv_plugin
         context = neutron_context.get_admin_context()
+        self.az = availability_zone
 
         # Init cannot run concurrently on multiple nodes
         with locking.LockManager.get_lock('nsx-metadata-init'):
@@ -116,6 +120,9 @@ class NsxVMetadataProxyHandler(object):
 
             self.proxy_edge_ips = self._get_proxy_edges(context)
 
+    #DEBUG ADIT  change all the references to config params to take
+    # the az params + lock by name
+    # + different internal net for each AZ? different name?
     def _create_metadata_internal_network(self, context, cidr):
         # Neutron requires a network to have some tenant_id
         tenant_id = nsxv_constants.INTERNAL_TENANT_ID
