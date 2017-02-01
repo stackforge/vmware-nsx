@@ -269,7 +269,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                   'primaryAddress: %s, netmask: %s, nexthop: %s, secondary: '
                   '%s.', ext_net_id, gateway_primary_addr, gateway_mask,
                   gateway_nexthop, secondary)
-        edge_utils.update_external_interface(
+        self.edge_manager.update_external_interface(
             self.nsx_v, context, target_router_id, ext_net_id,
             gateway_primary_addr, gateway_mask, secondary)
 
