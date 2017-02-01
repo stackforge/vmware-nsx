@@ -71,6 +71,14 @@ class ConfiguredAvailabilityZone(object):
             # using the global ones instead.
             self.ha_placement_random = cfg.CONF.nsxv.ha_placement_random
             self.backup_edge_pool = cfg.CONF.nsxv.backup_edge_pool
+            self.mgt_net_moid = cfg.CONF.nsxv.mgt_net_moid
+            self.mgt_net_proxy_ips = cfg.CONF.nsxv.mgt_net_proxy_ips
+            self.mgt_net_proxy_netmask = cfg.CONF.nsxv.mgt_net_proxy_netmask
+            self.mgt_net_default_gateway = (
+                cfg.CONF.nsxv.mgt_net_default_gateway)
+            self.external_network = cfg.CONF.nsxv.external_network
+            self.vdn_scope_id = cfg.CONF.nsxv.vdn_scope_id
+
         elif config_line:
             # Newer configuration - the name of the availability zone can be
             # used to get the rest of the configuration for this AZ
@@ -113,6 +121,33 @@ class ConfiguredAvailabilityZone(object):
             if not self.backup_edge_pool:
                 self.backup_edge_pool = cfg.CONF.nsxv.backup_edge_pool
 
+            self.mgt_net_moid = az_info.get('mgt_net_moid')
+            if not self.mgt_net_moid:
+                self.mgt_net_moid = cfg.CONF.nsxv.mgt_net_moid
+
+            self.mgt_net_proxy_ips = az_info.get('mgt_net_proxy_ips')
+            if not self.mgt_net_proxy_ips:
+                self.mgt_net_proxy_ips = cfg.CONF.nsxv.mgt_net_proxy_ips
+
+            self.mgt_net_proxy_netmask = az_info.get('mgt_net_proxy_netmask')
+            if not self.mgt_net_proxy_netmask:
+                self.mgt_net_proxy_netmask = (
+                    cfg.CONF.nsxv.mgt_net_proxy_netmask)
+
+            self.mgt_net_default_gateway = az_info.get(
+                'mgt_net_default_gateway')
+            if not self.mgt_net_default_gateway:
+                self.mgt_net_default_gateway = (
+                    cfg.CONF.nsxv.mgt_net_default_gateway)
+
+            self.external_network = az_info.get('external_network')
+            if not self.external_network:
+                self.external_network = cfg.CONF.nsxv.external_network
+
+            self.vdn_scope_id = az_info.get('vdn_scope_id')
+            if not self.vdn_scope_id:
+                self.vdn_scope_id = cfg.CONF.nsxv.vdn_scope_id
+
         else:
             # use the default configuration
             self.name = DEFAULT_NAME
@@ -122,6 +157,13 @@ class ConfiguredAvailabilityZone(object):
             self.ha_datastore_id = cfg.CONF.nsxv.ha_datastore_id
             self.ha_placement_random = cfg.CONF.nsxv.ha_placement_random
             self.backup_edge_pool = cfg.CONF.nsxv.backup_edge_pool
+            self.mgt_net_moid = cfg.CONF.nsxv.mgt_net_moid
+            self.mgt_net_proxy_ips = cfg.CONF.nsxv.mgt_net_proxy_ips
+            self.mgt_net_proxy_netmask = cfg.CONF.nsxv.mgt_net_proxy_netmask
+            self.mgt_net_default_gateway = (
+                cfg.CONF.nsxv.mgt_net_default_gateway)
+            self.external_network = cfg.CONF.nsxv.external_network
+            self.vdn_scope_id = cfg.CONF.nsxv.vdn_scope_id
 
 
 class ConfiguredAvailabilityZones(object):
@@ -147,6 +189,12 @@ class ConfiguredAvailabilityZones(object):
             resources.append(az.datastore_id)
             if az.ha_datastore_id:
                 resources.append(az.ha_datastore_id)
+            if az.mgt_net_moid:
+                resources.append(az.mgt_net_moid)
+            if az.external_network:
+                resources.append(az.external_network)
+            if az.vdn_scope_id:
+                resources.append(az.vdn_scope_id)
         return resources
 
     def get_availability_zone(self, name):

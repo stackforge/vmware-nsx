@@ -176,6 +176,8 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
         plugin_instance.real_get_edge = plugin_instance._get_edge_id_by_rtr_id
         plugin_instance._get_edge_id_by_rtr_id = mock.Mock()
         plugin_instance._get_edge_id_by_rtr_id.return_value = False
+        plugin_instance._get_edge_id_and_az_by_rtr_id = mock.Mock()
+        plugin_instance._get_edge_id_and_az_by_rtr_id.return_value = (False, False)
         plugin_instance.edge_manager.is_dhcp_opt_enabled = True
 
     def _get_core_plugin_with_dvs(self):
@@ -3264,6 +3266,8 @@ class NsxVTestSecurityGroup(ext_sg.TestSecurityGroups,
         plugin_instance = directory.get_plugin()
         plugin_instance._get_edge_id_by_rtr_id = mock.Mock()
         plugin_instance._get_edge_id_by_rtr_id.return_value = False
+        plugin_instance._get_edge_id_and_az_by_rtr_id = mock.Mock()
+        plugin_instance._get_edge_id_and_az_by_rtr_id.return_value = (False, False)
 
     def test_list_ports_security_group(self):
         with self.network() as n:
