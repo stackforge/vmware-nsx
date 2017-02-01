@@ -92,6 +92,7 @@ def get_router_fw_rules():
     return fw_rules
 
 
+# DEBUG ADIT per AZ? new column in DB?
 def get_db_internal_edge_ips(context):
     ip_list = []
     edge_list = nsxv_db.get_nsxv_internal_edges_by_purpose(
@@ -103,11 +104,14 @@ def get_db_internal_edge_ips(context):
     return ip_list
 
 
+# DEBUG ADIT handler per AZ (az name, and relevant config in init)?
+# or add az name/object to most of the functions?
 class NsxVMetadataProxyHandler(object):
-
-    def __init__(self, nsxv_plugin):
+    """A metadata proxy handler for a specific availability zone"""
+    def __init__(self, nsxv_plugin, availability_zone):
         self.nsxv_plugin = nsxv_plugin
         context = neutron_context.get_admin_context()
+        self.az = availability_zone
 
         # Init cannot run concurrently on multiple nodes
         with locking.LockManager.get_lock('nsx-metadata-init'):
@@ -116,6 +120,9 @@ class NsxVMetadataProxyHandler(object):
 
             self.proxy_edge_ips = self._get_proxy_edges(context)
 
+    #DEBUG ADIT  change all the references to config params to take
+    # the az params + lock by name
+    # + different internal net for each AZ? different name?
     def _create_metadata_internal_network(self, context, cidr):
         # Neutron requires a network to have some tenant_id
         tenant_id = nsxv_constants.INTERNAL_TENANT_ID
@@ -283,6 +290,12 @@ class NsxVMetadataProxyHandler(object):
             rtr_id = self._get_edge_rtr_id_by_ext_ip(context, rtr_ext_ip)
         if not edge_id:
             edge_id = self._get_edge_id_by_rtr_id(context, rtr_id)
+        if not rtr_id or not edge_id:
+            # log this error and return without the ip, but don't fail
+            LOG.error(_LE("Failed find edge for router %(rtr_id)s with ip "
+                          "%(rtr_ext_ip)s"),
+                      {'rtr_id': rtr_id, 'rtr_ext_ip': rtr_ext_ip})
+            return
 
         # Read and validate DGW. If different, replace with new value
         try:
@@ -403,7 +416,7 @@ class NsxVMetadataProxyHandler(object):
                     'name': 'metadata_proxy_router',
                     'admin_state_up': True,
                     'router_type': 'exclusive',
-                    'tenant_id': None}}
+                    'tenant_id': nsxv_constants.INTERNAL_TENANT_ID}}
 
             rtr = self.nsxv_plugin.create_router(
                 context,
@@ -432,7 +445,7 @@ class NsxVMetadataProxyHandler(object):
                     'fixed_ips': constants.ATTR_NOT_SPECIFIED,
                     'mac_address': constants.ATTR_NOT_SPECIFIED,
                     'port_security_enabled': False,
-                    'tenant_id': None}}
+                    'tenant_id': nsxv_constants.INTERNAL_TENANT_ID}}
 
             port = self.nsxv_plugin.base_create_port(context, port_data)
 
@@ -660,7 +673,7 @@ class NsxVMetadataProxyHandler(object):
                 'fixed_ips': constants.ATTR_NOT_SPECIFIED,
                 'mac_address': constants.ATTR_NOT_SPECIFIED,
                 'port_security_enabled': False,
-                'tenant_id': None}}
+                'tenant_id': nsxv_constants.INTERNAL_TENANT_ID}}
 
         self.nsxv_plugin.base_create_port(ctx, port_data)
 

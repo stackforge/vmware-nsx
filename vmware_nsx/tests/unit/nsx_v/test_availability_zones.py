@@ -35,10 +35,19 @@ class NsxvAvailabilityZonesTestCase(base.BaseTestCase):
         config.register_nsxv_azs(cfg.CONF, [self.az_name])
         cfg.CONF.set_override("ha_placement_random", True, group="nsxv")
 
-    def _config_az(self, resource_pool_id="respool", datastore_id="datastore",
-                   edge_ha=True, ha_datastore_id="hastore",
+    def _config_az(self,
+                   resource_pool_id="respool",
+                   datastore_id="datastore",
+                   edge_ha=True,
+                   ha_datastore_id="hastore",
+                   backup_edge_pool=DEF_AZ_POOL,
                    ha_placement_random=False,
-                   backup_edge_pool=DEF_AZ_POOL):
+                   mgt_net_moid="portgroup-407",
+                   mgt_net_proxy_ips=["1.1.1.1"],
+                   mgt_net_proxy_netmask="255.255.255.0",
+                   mgt_net_default_gateway="2.2.2,2",
+                   external_network="network-17",
+                   vdn_scope_id="vdnscope-1"):
         cfg.CONF.set_override("resource_pool_id", resource_pool_id,
                               group=self.group_name)
         cfg.CONF.set_override("datastore_id", datastore_id,
@@ -55,6 +64,26 @@ class NsxvAvailabilityZonesTestCase(base.BaseTestCase):
         if backup_edge_pool is not None:
             cfg.CONF.set_override("backup_edge_pool", backup_edge_pool,
                                   group=self.group_name)
+        if mgt_net_moid is not None:
+            cfg.CONF.set_override("mgt_net_moid", mgt_net_moid,
+                                  group=self.group_name)
+        if mgt_net_proxy_ips is not None:
+            cfg.CONF.set_override("mgt_net_proxy_ips", mgt_net_proxy_ips,
+                                  group=self.group_name)
+        if mgt_net_proxy_netmask is not None:
+            cfg.CONF.set_override("mgt_net_proxy_netmask",
+                                  mgt_net_proxy_netmask,
+                                  group=self.group_name)
+        if mgt_net_default_gateway is not None:
+            cfg.CONF.set_override("mgt_net_default_gateway",
+                                  mgt_net_default_gateway,
+                                  group=self.group_name)
+        if external_network is not None:
+            cfg.CONF.set_override("external_network", external_network,
+                                  group=self.group_name)
+        if vdn_scope_id is not None:
+            cfg.CONF.set_override("vdn_scope_id", vdn_scope_id,
+                                  group=self.group_name)
 
     def test_simple_availability_zone(self):
         self._config_az()
@@ -66,6 +95,12 @@ class NsxvAvailabilityZonesTestCase(base.BaseTestCase):
         self.assertEqual("hastore", az.ha_datastore_id)
         self.assertEqual(False, az.ha_placement_random)
         self.assertEqual(DEF_AZ_POOL, az.backup_edge_pool)
+        self.assertEqual("portgroup-407", az.mgt_net_moid)
+        self.assertEqual(["1.1.1.1"], az.mgt_net_proxy_ips)
+        self.assertEqual("255.255.255.0", az.mgt_net_proxy_netmask)
+        self.assertEqual("2.2.2,2", az.mgt_net_default_gateway)
+        self.assertEqual("network-17", az.external_network)
+        self.assertEqual("vdnscope-1", az.vdn_scope_id)
 
     def test_availability_zone_no_edge_ha(self):
         self._config_az(edge_ha=False)

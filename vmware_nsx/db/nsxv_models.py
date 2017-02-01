@@ -79,7 +79,7 @@ class NsxvEdgeDhcpStaticBinding(model_base.BASEV2, models.TimestampMixin):
 
 class NsxvInternalNetworks(model_base.BASEV2, models.TimestampMixin):
     """Represents internal networks between NSXV plugin elements."""
-
+    # DEBUG ADIT new az column here??
     __tablename__ = 'nsxv_internal_networks'
 
     network_purpose = sa.Column(
@@ -93,7 +93,8 @@ class NsxvInternalNetworks(model_base.BASEV2, models.TimestampMixin):
 
 class NsxvInternalEdges(model_base.BASEV2, models.TimestampMixin):
     """Represents internal Edge appliances for NSXV plugin operations."""
-
+    # DEBUG ADIT add az column? maybe can get this info from the
+    # router-binding table
     __tablename__ = 'nsxv_internal_edges'
 
     ext_ip_address = sa.Column(sa.String(64), primary_key=True)
