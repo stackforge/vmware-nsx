@@ -72,6 +72,10 @@ class FakeVcns(object):
         self._spoofguard_policies = []
         self._ipam_pools = {}
 
+    # DEBUG ADIT - from another patch
+    def do_request(self, method, uri, params=None, format='json', **kwargs):
+        pass
+
     def set_fake_nsx_api(self, fake_nsx_api):
         self._fake_nsx_api = fake_nsx_api
 
@@ -246,7 +250,7 @@ class FakeVcns(object):
         response = {
             'label': 'vNic_1',
             'name': 'internal1',
-            'address_groups': {'address_groups': []},
+            'addressGroups': {'addressGroups': []},
             'mtu': 1500,
             'type': 'trunk',
             'subInterfaces': {'subInterfaces': []},
