@@ -1648,7 +1648,7 @@ class EdgeManager(object):
         virtual_wire = {"name": lswitch_name,
                         "tenantId": "virtual wire tenant"}
         config_spec = {"virtualWireCreateSpec": virtual_wire}
-        vdn_scope_id = cfg.CONF.nsxv.vdn_scope_id
+        vdn_scope_id = availability_zone.vdn_scope_id
         h, lswitch_id = self.nsxv_manager.vcns.create_virtual_wire(
             vdn_scope_id, config_spec)
 
@@ -1967,6 +1967,83 @@ class EdgeManager(object):
         metainfo = self.plugin.get_flavor_metainfo(context, flavor_id)
         return metainfo.get('syslog')
 
+    def update_external_interface(
+        self, nsxv_manager, context, router_id, ext_net_id,
+        ipaddr, netmask, secondary=None):
+        with locking.LockManager.get_lock(str(router_id)):
+            self._update_external_interface(nsxv_manager, context, router_id,
+                                            ext_net_id, ipaddr, netmask,
+                                            secondary=secondary)
+
+    def _update_external_interface(
+        self, nsxv_manager, context, router_id, ext_net_id,
+        ipaddr, netmask, secondary=None):
+        secondary = secondary or []
+        binding = nsxv_db.get_nsxv_router_binding(context.session, router_id)
+
+        # If no binding was found, no interface to update - exit
+        if not binding:
+            LOG.error(_LE('Edge binding not found for router %s'), router_id)
+            return
+
+        net_bindings = nsxv_db.get_network_bindings(
+            context.session, ext_net_id)
+        if not net_bindings:
+            az_name = binding.availability_zone
+            az = self._availability_zones.get_availability_zone(az_name)
+            vcns_network_id = az.external_network
+        else:
+            vcns_network_id = net_bindings[0].phy_uuid
+
+        # reorganize external vnic's address groups
+        if netmask:
+            address_groups = []
+            addr_list = []
+            for str_cidr in netmask:
+                ip_net = netaddr.IPNetwork(str_cidr)
+                address_group = {'primaryAddress': None,
+                                 'subnetPrefixLength': str(ip_net.prefixlen)}
+                if (ipaddr not in addr_list and
+                    _check_ipnet_ip(ip_net, ipaddr)):
+                    address_group['primaryAddress'] = ipaddr
+                    addr_list.append(ipaddr)
+                for sec_ip in secondary:
+                    if (sec_ip not in addr_list and
+                        _check_ipnet_ip(ip_net, sec_ip)):
+                        if not address_group['primaryAddress']:
+                            address_group['primaryAddress'] = sec_ip
+                        else:
+                            if not address_group.get('secondaryAddresses'):
+                                address_group['secondaryAddresses'] = {
+                                    'ipAddress': [sec_ip],
+                                    'type': 'secondary_addresses'}
+                            else:
+                                address_group['secondaryAddresses'][
+                                    'ipAddress'].append(sec_ip)
+                        addr_list.append(sec_ip)
+                if address_group['primaryAddress']:
+                    address_groups.append(address_group)
+            if ipaddr not in addr_list:
+                LOG.error(_LE("primary address %s of ext vnic is not "
+                              "configured"), ipaddr)
+            if secondary:
+                missed_ip_sec = set(secondary) - set(addr_list)
+                if missed_ip_sec:
+                    LOG.error(_LE("secondary address %s of ext vnic are not "
+                              "configured"), str(missed_ip_sec))
+            nsxv_manager.update_interface(router_id, binding['edge_id'],
+                                          vcns_const.EXTERNAL_VNIC_INDEX,
+                                          vcns_network_id,
+                                          address_groups=address_groups)
+
+        else:
+            nsxv_manager.update_interface(router_id, binding['edge_id'],
+                                          vcns_const.EXTERNAL_VNIC_INDEX,
+                                          vcns_network_id,
+                                          address=ipaddr,
+                                          netmask=netmask,
+                                          secondary=secondary)
+
 
 def create_lrouter(nsxv_manager, context, lrouter, lswitch=None, dist=False,
                    availability_zone=None):
@@ -2177,15 +2254,6 @@ def clear_gateway(nsxv_manager, context, router_id):
     return update_gateway(nsxv_manager, context, router_id, None)
 
 
-def update_external_interface(
-    nsxv_manager, context, router_id, ext_net_id,
-    ipaddr, netmask, secondary=None):
-    with locking.LockManager.get_lock(str(router_id)):
-        _update_external_interface(nsxv_manager, context, router_id,
-                                   ext_net_id, ipaddr, netmask,
-                                   secondary=secondary)
-
-
 def _check_ipnet_ip(ipnet, ip_address):
     """Check one ip is valid ip from ipnet."""
     ip = netaddr.IPAddress(ip_address)
@@ -2194,73 +2262,6 @@ def _check_ipnet_ip(ipnet, ip_address):
         ipnet.netmask & ip == ipnet.network):
         return True
     return False
-
-
-def _update_external_interface(
-    nsxv_manager, context, router_id, ext_net_id,
-    ipaddr, netmask, secondary=None):
-    secondary = secondary or []
-    binding = nsxv_db.get_nsxv_router_binding(context.session, router_id)
-
-    # If no binding was found, no interface to update - exit
-    if not binding:
-        LOG.error(_LE('Edge binding not found for router %s'), router_id)
-        return
-
-    net_bindings = nsxv_db.get_network_bindings(context.session, ext_net_id)
-    if not net_bindings:
-        vcns_network_id = nsxv_manager.external_network
-    else:
-        vcns_network_id = net_bindings[0].phy_uuid
-
-    # reorganize external vnic's address groups
-    if netmask:
-        address_groups = []
-        addr_list = []
-        for str_cidr in netmask:
-            ip_net = netaddr.IPNetwork(str_cidr)
-            address_group = {'primaryAddress': None,
-                             'subnetPrefixLength': str(ip_net.prefixlen)}
-            if (ipaddr not in addr_list and
-                _check_ipnet_ip(ip_net, ipaddr)):
-                address_group['primaryAddress'] = ipaddr
-                addr_list.append(ipaddr)
-            for sec_ip in secondary:
-                if (sec_ip not in addr_list and
-                    _check_ipnet_ip(ip_net, sec_ip)):
-                    if not address_group['primaryAddress']:
-                        address_group['primaryAddress'] = sec_ip
-                    else:
-                        if not address_group.get('secondaryAddresses'):
-                            address_group['secondaryAddresses'] = {
-                                'ipAddress': [sec_ip],
-                                'type': 'secondary_addresses'}
-                        else:
-                            address_group['secondaryAddresses'][
-                                'ipAddress'].append(sec_ip)
-                    addr_list.append(sec_ip)
-            if address_group['primaryAddress']:
-                address_groups.append(address_group)
-        if ipaddr not in addr_list:
-            LOG.error(_LE("primary address %s of ext vnic is not "
-                          "configured"), ipaddr)
-        if secondary:
-            missed_ip_sec = set(secondary) - set(addr_list)
-            if missed_ip_sec:
-                LOG.error(_LE("secondary address %s of ext vnic are not "
-                          "configured"), str(missed_ip_sec))
-        nsxv_manager.update_interface(router_id, binding['edge_id'],
-                                      vcns_const.EXTERNAL_VNIC_INDEX,
-                                      vcns_network_id,
-                                      address_groups=address_groups)
-
-    else:
-        nsxv_manager.update_interface(router_id, binding['edge_id'],
-                                      vcns_const.EXTERNAL_VNIC_INDEX,
-                                      vcns_network_id,
-                                      address=ipaddr,
-                                      netmask=netmask,
-                                      secondary=secondary)
 
 
 def update_internal_interface(nsxv_manager, context, router_id, int_net_id,

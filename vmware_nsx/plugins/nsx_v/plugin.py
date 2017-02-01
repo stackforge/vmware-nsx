@@ -964,6 +964,17 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 net_morefs, net_data['id'], net_data[psec.PORTSECURITY])[1]
         return sg_policy_id, False
 
+    def _get_network_vdn_scope_id(self, net_data):
+        # If this network has an availability zone hint - return the vdn-scope
+        # of this AZ.
+        if az_ext.AZ_HINTS in net_data and net_data[az_ext.AZ_HINTS]:
+            az = self._availability_zones_data.get_availability_zone(
+                net_data[az_ext.AZ_HINTS][0])
+            return az.vdn_scope_id
+
+        # return the global vdn scope
+        return self.vdn_scope_id
+
     def create_network(self, context, network):
         net_data = network['network']
         tenant_id = net_data['tenant_id']
@@ -992,7 +1003,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 virtual_wire = {"name": net_data['id'],
                                 "tenantId": "virtual wire tenant"}
                 config_spec = {"virtualWireCreateSpec": virtual_wire}
-                vdn_scope_id = self.vdn_scope_id
+                vdn_scope_id = self._get_network_vdn_scope_id(net_data)
                 if provider_type is not None:
                     segment = net_data[mpnet.SEGMENTS][0]
                     if validators.is_attr_set(
@@ -1059,10 +1070,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
                 # update the network with the availability zone hints
                 if az_ext.AZ_HINTS in net_data:
-                    self.validate_availability_zones(context, 'network',
-                                                     net_data[az_ext.AZ_HINTS])
                     az_hints = az_ext.convert_az_list_to_string(
-                                                    net_data[az_ext.AZ_HINTS])
+                        net_data[az_ext.AZ_HINTS])
                     super(NsxVPluginV2, self).update_network(context,
                         new_net['id'],
                         {'network': {az_ext.AZ_HINTS: az_hints}})
@@ -3035,7 +3044,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         secondary = self._get_floatingips_by_router(context, router['id'])
         if not router_id:
             router_id = router['id']
-        edge_utils.update_external_interface(
+        self.edge_manager.update_external_interface(
             self.nsx_v, context, router_id, ext_net_id,
             addr, mask, secondary)
 
