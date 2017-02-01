@@ -292,10 +292,26 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             and cfg.CONF.nsxv.mgt_net_proxy_ips
             and cfg.CONF.nsxv.mgt_net_proxy_netmask)
         if has_metadata_cfg:
-            self.metadata_proxy_handler = (
-                nsx_v_md_proxy.NsxVMetadataProxyHandler(self))
+            # Init md_proxy handler per availability zone
+            self.metadata_proxy_handler = {}
+            az_list = self._availability_zones_data.list_availability_zones()
+            for name in az_list:
+                az = self._availability_zones_data.get_availability_zone(name)
+                # create metadata handler only if the az supports it.
+                # if not, the global one will be used
+                if az.az_metadata_support:
+                    self.metadata_proxy_handler[name] = (
+                        nsx_v_md_proxy.NsxVMetadataProxyHandler(self, az))
 
         self.init_is_complete = True
+
+    def get_metadata_proxy_handler(self, az_name):
+        if not self.metadata_proxy_handler:
+            return None
+        if az_name in self.metadata_proxy_handler:
+            return self.metadata_proxy_handler[az_name]
+        # fallback to the global handler
+        return self.metadata_proxy_handler['default']
 
     def add_vms_to_service_insertion(self, sg_id):
         def _add_vms_to_service_insertion(*args, **kwargs):
@@ -967,6 +983,17 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 net_morefs, net_data['id'], net_data[psec.PORTSECURITY])[1]
         return sg_policy_id, False
 
+    def _get_network_vdn_scope_id(self, net_data):
+        # If this network has an availability zone hint - return the vdn-scope
+        # of this AZ.
+        if az_ext.AZ_HINTS in net_data and net_data[az_ext.AZ_HINTS]:
+            az = self._availability_zones_data.get_availability_zone(
+                net_data[az_ext.AZ_HINTS][0])
+            return az.vdn_scope_id
+
+        # return the global vdn scope
+        return self.vdn_scope_id
+
     def create_network(self, context, network):
         net_data = network['network']
         tenant_id = net_data['tenant_id']
@@ -995,7 +1022,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 virtual_wire = {"name": net_data['id'],
                                 "tenantId": "virtual wire tenant"}
                 config_spec = {"virtualWireCreateSpec": virtual_wire}
-                vdn_scope_id = self.vdn_scope_id
+                vdn_scope_id = self._get_network_vdn_scope_id(net_data)
                 if provider_type is not None:
                     segment = net_data[mpnet.SEGMENTS][0]
                     if validators.is_attr_set(
@@ -1062,10 +1089,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
                 # update the network with the availability zone hints
                 if az_ext.AZ_HINTS in net_data:
-                    self.validate_availability_zones(context, 'network',
-                                                     net_data[az_ext.AZ_HINTS])
                     az_hints = az_ext.convert_az_list_to_string(
-                                                    net_data[az_ext.AZ_HINTS])
+                        net_data[az_ext.AZ_HINTS])
                     super(NsxVPluginV2, self).update_network(context,
                         new_net['id'],
                         {'network': {az_ext.AZ_HINTS: az_hints}})
@@ -1190,8 +1215,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                         context.session, dhcp_edge['edge_id'])
                     if rtr_binding:
                         rtr_id = rtr_binding['router_id']
-                        self.metadata_proxy_handler.cleanup_router_edge(
-                            context, rtr_id)
+                        az_name = rtr_binding['availability_zone']
+                        md_proxy = self.get_metadata_proxy_handler(az_name)
+                        md_proxy.cleanup_router_edge(context, rtr_id)
                 else:
                     self.edge_manager.reconfigure_shared_edge_metadata_port(
                         context, (vcns_const.DHCP_EDGE_PREFIX + net_id)[:36])
@@ -2336,15 +2362,24 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if binding:
             return binding['edge_id']
 
+    def _get_edge_id_and_az_by_rtr_id(self, context, rtr_id):
+        binding = nsxv_db.get_nsxv_router_binding(
+            context.session,
+            rtr_id)
+
+        if binding:
+            return binding['edge_id'], binding['availability_zone']
+
     def _update_dhcp_service_new_edge(self, context, resource_id):
-        edge_id = self._get_edge_id_by_rtr_id(context, resource_id)
+        edge_id, az_name = self._get_edge_id_and_az_by_rtr_id(
+            context, resource_id)
         if edge_id:
             with locking.LockManager.get_lock(str(edge_id)):
                 if self.metadata_proxy_handler:
                     LOG.debug('Update metadata for resource %s',
                               resource_id)
-                    self.metadata_proxy_handler.configure_router_edge(
-                        context, resource_id)
+                    md_proxy = self.get_metadata_proxy_handler(az_name)
+                    md_proxy.configure_router_edge(context, resource_id)
 
                 self.setup_dhcp_edge_fw_rules(context, self,
                                               resource_id)
@@ -2744,6 +2779,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         dhcp_edge_binding = nsxv_db.get_nsxv_router_binding(
             context.session, resource_id)
         if dhcp_edge_binding:
+            #TODO(asarfaty): if we have the binding, we already have the az.
+            # no need to go to the DB again
             edge_id = dhcp_edge_binding['edge_id']
             return [self._get_availability_zone_name_by_edge(
                 context, edge_id)]
@@ -2753,6 +2790,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         """Return availability zones which a router belongs to."""
         context = n_context.get_admin_context()
         edge_id = self._get_edge_id_by_rtr_id(context, router["id"])
+        #TODO(asarfaty): if we have the binding, we already have the az.
+        # no need to go to the DB again
         if edge_id:
             return [self._get_availability_zone_name_by_edge(
                 context, edge_id)]
@@ -3092,7 +3131,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         secondary = self._get_floatingips_by_router(context, router['id'])
         if not router_id:
             router_id = router['id']
-        edge_utils.update_external_interface(
+        self.edge_manager.update_external_interface(
             self.nsx_v, context, router_id, ext_net_id,
             addr, mask, secondary)
 
