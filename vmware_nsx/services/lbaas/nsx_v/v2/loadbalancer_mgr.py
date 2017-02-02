@@ -34,8 +34,9 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
 
     @log_helpers.log_method_call
     def create(self, context, lb):
-        edge_id = lb_common.get_lbaas_edge_id_for_subnet(
-            context, self.core_plugin, lb.vip_subnet_id, lb.tenant_id)
+        edge_id = lb_common.get_lbaas_edge_id(
+            context, self.core_plugin, lb.id, lb.vip_address, lb.vip_subnet_id,
+            lb.tenant_id)
 
         if not edge_id:
             msg = _(
@@ -47,8 +48,6 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
                     context.session, edge_id):
                 lb_common.enable_edge_acceleration(self.vcns, edge_id)
 
-            lb_common.add_vip_as_secondary_ip(self.vcns, edge_id,
-                                              lb.vip_address)
             edge_fw_rule_id = lb_common.add_vip_fw_rule(
                 self.vcns, edge_id, lb.id, lb.vip_address)
 
