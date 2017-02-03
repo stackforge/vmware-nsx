@@ -286,6 +286,20 @@ class ProviderSecurityGroupExtTestCase(
                                  port['port']['provider_security_groups'])
                 self.assertEqual([sg_id], port['port']['security_groups'])
 
+    def test_update_port_provider_security_groups(self):
+        with self.port(tenant_id=self._tenant_id) as p:
+            # Port created before provider secgroup is created, so the port
+            # would not be associated with the pvd secgroup at this point.
+            provider_secgroup = self._create_provider_security_group()
+            pvd_sg_id = provider_secgroup['security_group']['id']
+            body = {'port': {
+                'provider_security_groups': [pvd_sg_id]}
+            }
+            req = self.new_update_request('ports', body, p['port']['id'])
+            port = self.deserialize(self.fmt, req.get_response(self.api))
+            self.assertEqual([pvd_sg_id],
+                             port['port']['provider_security_groups'])
+
     def test_non_admin_cannot_delete_provider_sg_and_admin_can(self):
         provider_secgroup = self._create_provider_security_group()
         pvd_sg_id = provider_secgroup['security_group']['id']
@@ -377,3 +391,17 @@ class TestNSXvProviderSecurityGroup(test_nsxv_plugin.NsxVPluginV2TestCase,
                 create_rule_m.assert_called_with(mock.ANY, mock.ANY,
                                                  logged=mock.ANY,
                                                  action='deny')
+
+    def test_update_port_provider_security_groups(self):
+        _update_port_sg_mapping = (
+            self.plugin._update_security_groups_port_mapping)
+
+        def m_update_sg_mapping(*args, **kwargs):
+            return _update_port_sg_mapping(*args, **kwargs)
+
+        with mock.patch.object(self.plugin,
+                               '_update_security_groups_port_mapping',
+                               side_effect=m_update_sg_mapping) as update_m:
+            super(TestNSXvProviderSecurityGroup,
+                  self).test_update_port_provider_security_groups()
+            update_m.assert_called()
