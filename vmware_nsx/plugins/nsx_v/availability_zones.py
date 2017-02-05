@@ -74,6 +74,7 @@ class ConfiguredAvailabilityZone(object):
             self.external_network = cfg.CONF.nsxv.external_network
             self.vdn_scope_id = cfg.CONF.nsxv.vdn_scope_id
             self.dvs_id = cfg.CONF.nsxv.dvs_id
+            self.edge_host_groups = cfg.CONF.nsxv.edge_host_groups
 
             # No support for metadata per az
             self.az_metadata_support = False
@@ -135,6 +136,10 @@ class ConfiguredAvailabilityZone(object):
             self.dvs_id = az_info.get('dvs_id')
             if not self.dvs_id:
                 self.dvs_id = cfg.CONF.nsxv.dvs_id
+
+            self.edge_host_groups = az_info.get('edge_host_groups', [])
+            if not self.edge_host_groups:
+                self.edge_host_groups = cfg.CONF.nsxv.edge_host_groups
 
             # Support for metadata per az only if configured, and different
             # from the global one
@@ -201,6 +206,9 @@ class ConfiguredAvailabilityZone(object):
         # Return True if this az has it's own metadata configuration
         # If False - it uses the global metadata (if defined)
         return self.az_metadata_support
+=======
+            self.edge_host_groups = cfg.CONF.nsxv.edge_host_groups
+>>>>>>> 6e188f8... NSX|V: add support for host groups for DRS HA
 
 
 class ConfiguredAvailabilityZones(object):
