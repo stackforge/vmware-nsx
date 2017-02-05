@@ -471,6 +471,12 @@ nsxv_opts = [
                        'edges will be placed in the primary datastore as '
                        'active and the other half will be placed in the '
                        'ha_datastore')),
+    cfg.ListOpt('host_groups',
+                default=[],
+                help=_('When using VSAN only one datastore is defined. This '
+                       'requires that the plugfin create DRS rules for the '
+                       'edges. This requires that HA be enabled and that the '
+                       'plugin makes use of the DVS configuration'))
     cfg.StrOpt('external_network',
                help=_('(Required) Network ID for physical network '
                       'connectivity')),
@@ -683,6 +689,12 @@ nsxv_az_opts = [
                 help=_("(Optional) Defines edge pool's management range for "
                        "the availability zone. If not defined, the global one "
                        "will be used")),
+    cfg.ListOpt('host_groups',
+                default=[],
+                help=_('When using VSAN only one datastore is defined. This '
+                       'requires that the plugfin create DRS rules for the '
+                       'edges. This requires that HA be enabled and that the '
+                       'plugin makes use of the DVS configuration'))
 ]
 
 # Register the configuration options
