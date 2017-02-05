@@ -71,6 +71,7 @@ class ConfiguredAvailabilityZone(object):
             # using the global ones instead.
             self.ha_placement_random = cfg.CONF.nsxv.ha_placement_random
             self.backup_edge_pool = cfg.CONF.nsxv.backup_edge_pool
+            self.edge_host_groups = cfg.CONF.nsxv.edge_host_groups
         elif config_line:
             # Newer configuration - the name of the availability zone can be
             # used to get the rest of the configuration for this AZ
@@ -113,6 +114,10 @@ class ConfiguredAvailabilityZone(object):
             if not self.backup_edge_pool:
                 self.backup_edge_pool = cfg.CONF.nsxv.backup_edge_pool
 
+            self.edge_host_groups = az_info.get('edge_host_groups', [])
+            if not self.edge_host_groups:
+                self.edge_host_groups = cfg.CONF.nsxv.edge_host_groups
+
         else:
             # use the default configuration
             self.name = DEFAULT_NAME
@@ -122,6 +127,7 @@ class ConfiguredAvailabilityZone(object):
             self.ha_datastore_id = cfg.CONF.nsxv.ha_datastore_id
             self.ha_placement_random = cfg.CONF.nsxv.ha_placement_random
             self.backup_edge_pool = cfg.CONF.nsxv.backup_edge_pool
+            self.edge_host_groups = cfg.CONF.nsxv.edge_host_groups
 
 
 class ConfiguredAvailabilityZones(object):

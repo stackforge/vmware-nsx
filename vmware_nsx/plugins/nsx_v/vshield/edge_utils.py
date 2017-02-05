@@ -37,7 +37,7 @@ from neutron.plugins.common import constants as plugin_const
 from neutron_lib.api import validators
 from neutron_lib import exceptions as n_exc
 
-from vmware_nsx._i18n import _, _LE, _LW
+from vmware_nsx._i18n import _, _LE, _LI, _LW
 from vmware_nsx.common import config as conf
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import locking
@@ -2535,7 +2535,8 @@ class NsxVCallbacks(object):
         self.plugin = plugin
 
     def complete_edge_creation(
-            self, context, edge_id, name, router_id, dist, deploy_successful):
+            self, context, edge_id, name, router_id, dist, deploy_successful,
+            availability_zone=None):
         router_db = None
         if uuidutils.is_uuid_like(router_id):
             try:
@@ -2554,6 +2555,30 @@ class NsxVCallbacks(object):
             nsxv_db.update_nsxv_router_binding(
                 context.session, router_id,
                 status=plugin_const.ACTIVE)
+            if (self.plugin._dvs and availability_zone and
+                availability_zone.edge_ha):
+                # Update edge DRS host groups
+                h, appliances = self.plugin.nsx_v.vcns.get_edge_appliances(
+                    edge_id)
+                vms = [appliance['vmId']
+                       for appliance in appliances['appliances']]
+                # Ensure random distribution of the VMs
+                if availability_zone.ha_placement_random:
+                    random.shuffle(vms)
+                try:
+                    LOG.info(_LI('Create DRS groups for '
+                                  '%(vms)s on edge %(edge_id)s'),
+                              {'vms': vms,
+                               'edge_id': edge_id})
+                    self.plugin._dvs.update_cluster_edge_failover(
+                        availability_zone.resource_pool,
+                        vms, edge_id, availability_zone.edge_host_groups)
+                except Exception as e:
+                    LOG.error(_LE('Unable to create DRS groups for '
+                                  '%(vms)s on edge %(edge_id)s. Error: %(e)s'),
+                              {'vms': vms,
+                               'edge_id': edge_id,
+                               'e': e})
         else:
             LOG.error(_LE("Failed to deploy Edge for router %s"), name)
             if router_db:
@@ -2564,6 +2589,22 @@ class NsxVCallbacks(object):
             if not dist and edge_id:
                 nsxv_db.clean_edge_vnic_binding(
                     context.session, edge_id)
+
+    def pre_edge_deletion(self, edge_id):
+        if self.plugin._dvs:
+            h, apps = self.plugin.nsx_v.vcns.get_edge_appliances(edge_id)
+            if len(apps['appliances']) >= 2:
+                resource_pool_id = apps['appliances'][0]['resourcePoolId']
+                try:
+                    LOG.info(_LI('Removing DRS groups for edge %(edge_id)s'),
+                             {'edge_id': edge_id})
+                    self.plugin._dvs.cluster_edge_delete(
+                        resource_pool_id, edge_id)
+                except Exception as e:
+                    LOG.error(_LE('Unable to remove DRS groups for '
+                                  'edge %(edge_id)s. Error: %(e)s'),
+                              {'edge_id': edge_id,
+                               'e': e})
 
     def complete_edge_update(
             self, context, edge_id, router_id, successful, set_errors):
