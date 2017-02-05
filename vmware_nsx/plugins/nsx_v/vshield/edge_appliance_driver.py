@@ -443,7 +443,8 @@ class EdgeApplianceDriver(object):
                 raise nsxv_exc.NsxPluginException(err_msg=error)
 
             self.callbacks.complete_edge_creation(
-                context, edge_id, name, router_id, dist, True)
+                context, edge_id, name, router_id, dist, True,
+                availability_zone)
 
         except exceptions.VcnsApiException:
             self.callbacks.complete_edge_creation(
@@ -544,6 +545,8 @@ class EdgeApplianceDriver(object):
             LOG.error(_LE("Failed to resize edge: %s"), e.response)
 
     def delete_edge(self, context, router_id, edge_id, dist=False):
+        # TODO(garyk)add locks
+        self.callbacks.pre_edge_deletion(edge_id)
         try:
             nsxv_db.delete_nsxv_router_binding(context.session, router_id)
             if not dist:

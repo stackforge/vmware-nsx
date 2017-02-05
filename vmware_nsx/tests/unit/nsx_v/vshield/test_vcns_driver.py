@@ -347,7 +347,8 @@ class VcnsDriverTestCase(base.BaseTestCase):
         super(VcnsDriverTestCase, self).tearDown()
 
     def complete_edge_creation(
-            self, context, edge_id, name, router_id, dist, deploy_successful):
+            self, context, edge_id, name, router_id, dist, deploy_successful,
+            None):
         pass
 
     def _deploy_edge(self):
