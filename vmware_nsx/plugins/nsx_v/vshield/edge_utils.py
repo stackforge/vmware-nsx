@@ -2524,7 +2524,8 @@ class NsxVCallbacks(object):
         self.plugin = plugin
 
     def complete_edge_creation(
-            self, context, edge_id, name, router_id, dist, deploy_successful):
+            self, context, edge_id, name, router_id, dist, deploy_successful,
+            availability_zone=None):
         router_db = None
         if uuidutils.is_uuid_like(router_id):
             try:
@@ -2543,6 +2544,17 @@ class NsxVCallbacks(object):
             nsxv_db.update_nsxv_router_binding(
                 context.session, router_id,
                 status=plugin_const.ACTIVE)
+            if availability_zone:
+                # Update edge DRS host groups
+                if (availability_zone.edge_ha and
+                    len(availability_zone.host_groups) == 2 and
+                    self.plugin._dvs):
+                    h, appliances = self.plugin.nsx_v.vcns.get_edge_appliances(edge_id)
+                    vms = [appliance['vmId'] for appliance in appliances['appliances']]
+                    # TODO(garyk_: add locking
+                    self.plugin._dvs.update_cluster_edge_failover(
+                        availability_zone.resource_pool_id,
+                        vms, edge_id, availability_zone.host_groups)
         else:
             LOG.error(_LE("Failed to deploy Edge for router %s"), name)
             if router_db:
@@ -2553,6 +2565,14 @@ class NsxVCallbacks(object):
             if not dist and edge_id:
                 nsxv_db.clean_edge_vnic_binding(
                     context.session, edge_id)
+
+    def pre_edge_deletion(self, edge_id):
+        if self.plugin._dvs:
+            h, appliances = self.plugin.nsx_v.vcns.get_edge_appliances(edge_id)
+            if len(appliances['appliances']) >= 2:
+                resource_pool_id = appliances['appliances'][0]['resourcePoolId']
+                self.plugin._dvs.cluster_edge_delete(
+                    resource_pool_id, edge_id)
 
     def complete_edge_update(
             self, context, edge_id, router_id, successful, set_errors):
