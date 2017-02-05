@@ -2524,7 +2524,8 @@ class NsxVCallbacks(object):
         self.plugin = plugin
 
     def complete_edge_creation(
-            self, context, edge_id, name, router_id, dist, deploy_successful):
+            self, context, edge_id, name, router_id, dist, deploy_successful,
+            availability_zone=None):
         router_db = None
         if uuidutils.is_uuid_like(router_id):
             try:
@@ -2543,6 +2544,25 @@ class NsxVCallbacks(object):
             nsxv_db.update_nsxv_router_binding(
                 context.session, router_id,
                 status=plugin_const.ACTIVE)
+            if (self.plugin._dvs and availability_zone and
+                availability_zone.edge_ha):
+                # Update edge DRS host groups
+                h, appliances = self.plugin.nsx_v.vcns.get_edge_appliances(
+                    edge_id)
+                # Ensure random distribution of the VMs to the host_groups
+                vms = random.shuffle(
+                    [appliance['vmId']
+                     for appliance in appliances['appliances']])
+                try:
+                    self.plugin._dvs.update_cluster_edge_failover(
+                        availability_zone.resource_pool_id,
+                        vms, edge_id, availability_zone.host_groups)
+                except Exception as e:
+                    LOG.error(_LE('Unable to create DRS groups for '
+                                  '%(vms)s on edge %(edge_id)s. Error: %(e)s'),
+                              {'vms': vms,
+                               'edge_id': edge_id,
+                               'e': e})
         else:
             LOG.error(_LE("Failed to deploy Edge for router %s"), name)
             if router_db:
@@ -2553,6 +2573,20 @@ class NsxVCallbacks(object):
             if not dist and edge_id:
                 nsxv_db.clean_edge_vnic_binding(
                     context.session, edge_id)
+
+    def pre_edge_deletion(self, edge_id):
+        if self.plugin._dvs:
+            h, apps = self.plugin.nsx_v.vcns.get_edge_appliances(edge_id)
+            if len(apps['appliances']) >= 2:
+                resource_pool_id = apps['appliances'][0]['resourcePoolId']
+                try:
+                    self.plugin._dvs.cluster_edge_delete(
+                        resource_pool_id, edge_id)
+                except Exception as e:
+                    LOG.error(_LE('Unable to remove DRS groups for '
+                                  'edge %(edge_id)s. Error: %(e)s'),
+                              {'edge_id': edge_id,
+                               'e': e})
 
     def complete_edge_update(
             self, context, edge_id, router_id, successful, set_errors):
