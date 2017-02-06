@@ -14,7 +14,7 @@ The homepage for the VMware-NSX project is on Launchpad_.
 Use this site for asking for help, and filing bugs.
 Code is available both git.openstack.org_ and github_.
 
-.. _git.openstack.org: http://git.openstack.org/cgit/openstack/vmware-nsx/tree/
+.. _git.openstack.org: https://git.openstack.org/cgit/openstack/vmware-nsx/tree/
 .. _github: https://github.com/openstack/vmware-nsx
 
 For help on usage and hacking of VMware-NSX, please send a message to the
