@@ -317,6 +317,65 @@ class ProviderSecurityGroupTest(base.BaseAdminNetworkTest):
 
     @test.attr(type='nsxv3')
     @test.idempotent_id('cef8d816-e5fa-45a5-a5a5-f1f2ed8fb49f')
+    def test_update_port_with_psg(self):
+        net_client = self.cmgr_adm.networks_client
+        body = {'name': 'provider-network'}
+        network = net_client.create_network(**body)
+        body = {"network_id": network['network']['id'],
+                "allocation_pools": [{"start": "2.0.0.2",
+                                      "end": "2.0.0.254"}],
+                "ip_version": 4, "cidr": "2.0.0.0/24"}
+        subnet_client = self.cmgr_adm.subnets_client
+        subnet_client.create_subnet(**body)
+        body = {"network_id": network['network']['id'],
+                "provider_security_groups": []}
+        port_client = self.cmgr_adm.ports_client
+        port_id = port_client.create_port(**body)
+        ss = port_client.show_port(port_id['port']['id'])
+        self.assertEqual([], ss['port']['provider_security_groups'])
+        tenant_id = self.cmgr_adm.networks_client.tenant_id
+        sg = self.create_security_provider_group(self.cmgr_adm,
+                                                 tenant_id=tenant_id,
+                                                 provider=True)
+        sg_id = sg.get('id')
+        body = {"provider_security_groups": ["%s" % sg_id]}
+        port_client.update_port(port_id['port']['id'], **body)
+        ss = port_client.show_port(port_id['port']['id'])
+        self.assertIsNotNone(ss['port']['provider_security_groups'])
+        port_client.delete_port(port_id['port']['id'])
+        net_client.delete_network(network['network']['id'])
+
+    @test.attr(type='nsxv3')
+    @test.idempotent_id('cef8d816-e5fa-45a5-a5a5-f1f2ed8fb49f')
+    def test_update_port_with_psg_using_different_tenant(self):
+        net_client = self.cmgr_alt.networks_client
+        body = {'name': 'provider-network'}
+        network = net_client.create_network(**body)
+        body = {"network_id": network['network']['id'],
+                "allocation_pools": [{"start": "2.0.0.2",
+                                      "end": "2.0.0.254"}],
+                "ip_version": 4, "cidr": "2.0.0.0/24"}
+        subnet_client = self.cmgr_alt.subnets_client
+        subnet_client.create_subnet(**body)
+        body = {"network_id": network['network']['id'],
+                "provider_security_groups": []}
+        port_client = self.cmgr_alt.ports_client
+        port_id = port_client.create_port(**body)
+        ss = port_client.show_port(port_id['port']['id'])
+        self.assertEqual([], ss['port']['provider_security_groups'])
+        tenant_id = self.cmgr_adm.networks_client.tenant_id
+        sg = self.create_security_provider_group(self.cmgr_adm,
+                                                 tenant_id=tenant_id,
+                                                 provider=True)
+        sg_id = sg.get('id')
+        body = {"provider_security_groups": ["%s" % sg_id]}
+        self.assertRaises(exceptions.NotFound,
+                          port_client.update_port,
+                          port_id['port']['id'], **body)
+        port_client.delete_port(port_id['port']['id'])
+
+    @test.attr(type='nsxv3')
+    @test.idempotent_id('cef8d816-e5fa-45a5-a5a5-f1f2ed8fb49f')
     def test_tenant_cannot_create_provider_sec_group_for_other_tenant(self):
         tenant_cmgr = self.cmgr_alt
         tenant_id = tenant_cmgr.networks_client.tenant_id
