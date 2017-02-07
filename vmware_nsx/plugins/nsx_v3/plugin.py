@@ -14,6 +14,7 @@
 #    under the License.
 
 import netaddr
+import os
 import six
 
 from neutron.api.rpc.agentnotifiers import dhcp_rpc_agent_api
@@ -192,6 +193,16 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self.nsxlib.reinitialize_cluster,
             resources.PROCESS, events.AFTER_INIT)
 
+        if cfg.CONF.nsx_v3.nsx_use_client_auth:
+            # this callback will be called when nsxlib
+            # backend healthcheck fails due to cert untrusted
+            # this can happen when nsxadmin regenerates cert,
+            # and we want to catch this change on the fly
+            def init_client_certificate_wrapper():
+                return self._init_client_certificate()
+            self.nsxlib.subscribe(init_client_certificate_wrapper,
+                    nsxlib_consts.ON_CLIENT_CERT_UNTRUSTED)
+
         self._nsx_version = self.nsxlib.get_version()
         LOG.info(_LI("NSX Version: %s"), self._nsx_version)
         self._nsx_client = self.nsxlib.client
@@ -271,7 +282,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 msg = _("Unable to load from nsx-db")
                 raise nsx_exc.ClientCertificateException(err_msg=msg)
             # TODO(annak): add certificate expiration warning if expires soon
-            cert_manager.export_pem(cfg.CONF.nsx_v3.nsx_client_cert_file)
+            cert_file = cfg.CONF.nsx_v3.nsx_client_cert_file
+            # export certificate and PK for the use of backend connections
+            if not os.path.exists(os.path.dirname(cert_file)):
+                if len(os.path.dirname(cert_file)) > 0:
+                    os.makedirs(os.path.dirname(cert_file))
+            cert_manager.export_pem(cert_file)
 
     def _init_nsx_profiles(self):
         LOG.debug("Initializing NSX v3 port spoofguard switching profile")
