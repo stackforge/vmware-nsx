@@ -18,6 +18,7 @@ import testtools
 from tempest.api.network import base
 from tempest import config
 from tempest.lib.common.utils import data_utils
+from tempest.lib.common.utils import test_utils
 from tempest.lib import exceptions
 from tempest import test
 
@@ -66,7 +67,7 @@ class BaseQosTest(base.BaseAdminNetworkTest):
                 cls.delete_port(port['id'])
             cls.delete_network(network['id'])
         for policy in cls.policies_created:
-            cls._try_delete_resource(
+            test_utils.call_and_ignore_notfound_exc(
                 cls.adm_qos_client.delete_policy, policy['id'])
         super(BaseQosTest, cls).resource_cleanup()
 
@@ -322,25 +323,29 @@ class QosPolicyTest(BaseQosTest):
     @test.attr(type='negative')
     @test.idempotent_id('9efe63d0-836f-4cc2-b00c-468e63aa614e')
     def test_policy_association_with_network_nonexistent_policy(self):
-        """Can not create network with nonexist policy."""
-        self.assertRaises(
-            exceptions.NotFound,
-            self.create_network,
+        """Can not attach network to a nonexist policy."""
+        network = self.create_network(
             'test network',
             qos_policy_id='9efe63d0-836f-4cc2-b00c-468e63aa614e')
+        retrieved_network = self.show_network(network['id'])
+        #check if network is not attached to the policy
+        self.assertIsNone(retrieved_network['qos_policy_id'])
 
     @test.attr(type='negative')
     @test.idempotent_id('1aa55a79-324f-47d9-a076-894a8fc2448b')
     def test_policy_association_with_network_non_shared_policy(self):
-        """tenant/project can not create network with not-shared policy."""
+        """tenant/project can not attach network with not-shared policy."""
         policy = self.create_qos_policy(name='test-policy',
                                         description='test policy',
                                         shared=False)
-        self.assertRaises(
-            exceptions.NotFound,
-            self.create_network,
-            'test network', qos_policy_id=policy['id'],
+        network = self.create_network(
+            'test network',
+            qos_policy_id=policy['id'],
             client_mgr=self.primary_mgr)
+        retrieved_network = self.show_network(network['id'],
+                                              client_mgr=self.primary_mgr)
+        #check if network is not attached to the policy
+        self.assertIsNone(retrieved_network['qos_policy_id'])
 
     @test.idempotent_id('10a9392c-1359-4cbb-989f-fb768e5834a8')
     def test_policy_update_association_with_admin_network(self):
@@ -403,11 +408,12 @@ class QosPolicyTest(BaseQosTest):
                                         description='test policy',
                                         shared=False)
         network = self.create_shared_network('test network')
-        self.assertRaises(
-            exceptions.NotFound,
-            self.create_port,
-            network, qos_policy_id=policy['id'],
-            client_mgr=self.primary_mgr)
+        port = self.create_port(network, qos_policy_id=policy['id'],
+                                client_mgr=self.primary_mgr)
+        retrieved_port = self.show_port(port['id'],
+                                        client_mgr=self.primary_mgr)
+        #check if port is not attached to the policy
+        self.assertIsNone(retrieved_port['qos_policy_id'])
 
     @test.idempotent_id('f8163237-fba9-4db5-9526-bad6d2343c76')
     def test_policy_update_association_with_port_shared_policy(self):
