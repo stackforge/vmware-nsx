@@ -61,6 +61,7 @@ from neutron.db import portbindings_db
 from neutron.db import portsecurity_db
 from neutron.db import quota_db  # noqa
 from neutron.db import securitygroups_db
+from neutron.db import vlantransparent_db
 from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.extensions import availability_zone as az_ext
 from neutron.extensions import external_net as ext_net_extn
@@ -70,6 +71,7 @@ from neutron.extensions import multiprovidernet as mpnet
 from neutron.extensions import portsecurity as psec
 from neutron.extensions import providernet
 from neutron.extensions import securitygroup as ext_sg
+from neutron.extensions import vlantransparent as ext_vlan
 from neutron.plugins.common import constants as plugin_const
 from neutron.plugins.common import utils
 from neutron.quota import resource_registry
@@ -144,7 +146,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                    securitygroups_db.SecurityGroupDbMixin,
                    extended_secgroup.ExtendedSecurityGroupPropertiesMixin,
                    vnic_index_db.VnicIndexDbMixin,
-                   dns_db.DNSDbMixin, nsxpolicy.NsxPolicyPluginBase):
+                   dns_db.DNSDbMixin, nsxpolicy.NsxPolicyPluginBase,
+                   vlantransparent_db.Vlantransparent_db_mixin):
 
     supported_extension_aliases = ["agent",
                                    "allowed-address-pairs",
@@ -243,6 +246,12 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self.supported_extension_aliases.append("security-group-policy")
             self.supported_extension_aliases.append("nsx-policy")
 
+        # Support transparent VLANS from 6.3.0 onwards. The feature is only
+        # supported if the global configuration flag vlan_transparent is
+        # True
+        if (cfg.CONF.vlan_transparent and
+            c_utils.is_nsxv_version_6_3(self.nsx_v.vcns.get_version())):
+            self.supported_extension_aliases.append("vlan-transparent")
         self.sg_container_id = self._create_security_group_container()
         self.default_section = self._create_cluster_default_fw_section()
         self._process_security_groups_rules_logging()
@@ -981,7 +990,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         backend_network = (not validators.is_attr_set(external) or
                            validators.is_attr_set(external) and not external)
         self._validate_network_qos(net_data, backend_network)
-
+        trunk_mode = False
+        # vlan transparent can be an object if not set.
+        if net_data.get(ext_vlan.VLANTRANSPARENT) is True:
+            trunk_mode = True
         network_type = None
         if backend_network:
             #NOTE(abhiraut): Consider refactoring code below to have more
@@ -994,6 +1006,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 network_type == c_utils.NsxVNetworkTypes.VXLAN):
                 virtual_wire = {"name": net_data['id'],
                                 "tenantId": "virtual wire tenant"}
+                if trunk_mode:
+                    virtual_wire["guestVlanAllowed"] = True
                 config_spec = {"virtualWireCreateSpec": virtual_wire}
                 vdn_scope_id = self.vdn_scope_id
                 if provider_type is not None:
