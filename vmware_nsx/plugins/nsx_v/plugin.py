@@ -2187,6 +2187,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         the subnet is attached is not bound to an DHCP Edge, nsx_v will
         create the Edge and make sure the network is bound to the Edge
         """
+        LOG.warning(_LW("DEBUG ADIT starting create_subnet %s"),
+            subnet['subnet'])
         self._validate_host_routes_input(subnet)
         if subnet['subnet']['enable_dhcp']:
             filters = {'id': [subnet['subnet']['network_id']],
@@ -2208,9 +2210,12 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         with locking.LockManager.get_lock(subnet['subnet']['network_id']):
             with locking.LockManager.get_lock('nsx-edge-pool'):
                 s = super(NsxVPluginV2, self).create_subnet(context, subnet)
+                LOG.warning(_LW("DEBUG ADIT after create_subnet on neutron "
+                                "%s"), s)
             self._extension_manager.process_create_subnet(
                 context, subnet['subnet'], s)
             if s['enable_dhcp']:
+                LOG.warning(_LW("DEBUG ADIT before create_subnet on backend"))
                 try:
                     self._process_subnet_ext_attr_create(
                         session=context.session,
@@ -2220,6 +2225,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 except Exception:
                     with excutils.save_and_reraise_exception():
                         self.delete_subnet(context, s['id'])
+        LOG.warning(_LW("DEBUG ADIT create_subnet Done"))
         return s
 
     def _process_subnet_ext_attr_create(self, session, subnet_db,
