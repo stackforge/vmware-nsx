@@ -20,7 +20,7 @@ from oslo_serialization import jsonutils
 import six
 import xml.etree.ElementTree as et
 
-from vmware_nsx._i18n import _LE
+from vmware_nsx._i18n import _LE, _LW
 from vmware_nsx.common import nsxv_constants
 from vmware_nsx.common import utils
 from vmware_nsx.plugins.nsx_v.vshield.common import constants
@@ -141,9 +141,10 @@ class Vcns(object):
                                                headers, encodeParams)
         te = time.time()
 
-        LOG.debug('VcnsApiHelper reply: header=%(header)s content=%(content)s'
-                  ' took %(seconds)2.4f',
-                  {'header': header, 'content': content, 'seconds': te - ts})
+        # DEBUG ADIT patchset 3
+        LOG.warning(_LW("DEBUG ADIT VcnsApiHelper('%(method)s', '%(uri)s') "
+                        " took %(seconds)2.4f"),
+                    {'method': method, 'uri': uri, 'seconds': te - ts})
         if content == '':
             return header, {}
         if kwargs.get('decode', True):
