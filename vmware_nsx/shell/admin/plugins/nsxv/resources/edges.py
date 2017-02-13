@@ -28,6 +28,7 @@ import vmware_nsx.shell.resources as shell
 
 from neutron.callbacks import registry
 from neutron_lib import exceptions
+from oslo_config import cfg
 
 from vmware_nsx._i18n import _LE, _LI
 from vmware_nsx.common import nsxv_constants
@@ -362,7 +363,7 @@ def change_edge_appliance_reservations(properties):
 
 def change_edge_hostgroup(properties):
     edge_id = properties.get('edge-id')
-    dvs_mng = dvs.DvsManager()
+    dvs_mng = dvs.DvsManager(dvs_id=cfg.CONF.nsxv.dvs_id)
     if properties.get('hostgroup').lower() == "true":
         az_name, size = _get_edge_az_and_size(edge_id)
         az = nsx_az.ConfiguredAvailabilityZones().get_availability_zone(
