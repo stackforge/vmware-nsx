@@ -362,14 +362,14 @@ def change_edge_appliance_reservations(properties):
 
 def change_edge_hostgroup(properties):
     edge_id = properties.get('edge-id')
-    dvs_mng = dvs.DvsManager()
+    cls_mng = dvs.ClusterManager()
     if properties.get('hostgroup').lower() == "true":
         az_name, size = _get_edge_az_and_size(edge_id)
         az = nsx_az.ConfiguredAvailabilityZones().get_availability_zone(
             az_name)
-        edge_utils.update_edge_host_groups(nsxv, edge_id, dvs_mng, az)
+        edge_utils.update_edge_host_groups(nsxv, edge_id, cls_mng, az)
     else:
-        edge_utils.delete_edge_host_groups(nsxv, edge_id, dvs_mng)
+        edge_utils.delete_edge_host_groups(nsxv, edge_id, cls_mng)
 
 
 @admin_utils.output_header

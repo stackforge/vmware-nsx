@@ -2646,12 +2646,12 @@ class NsxVCallbacks(object):
             nsxv_db.update_nsxv_router_binding(
                 context.session, router_id,
                 status=plugin_const.ACTIVE)
-            if (not dist and
-                self.plugin._dvs and availability_zone and
+            vc_mgr = self.plugin.get_vc_manager()
+            if (not dist and vc_mgr and availability_zone and
                 availability_zone.edge_ha and
                 availability_zone.edge_host_groups):
                 update_edge_host_groups(self.plugin.nsx_v.vcns, edge_id,
-                                        self.plugin._dvs, availability_zone)
+                                        vc_mgr, availability_zone)
         else:
             LOG.error(_LE("Failed to deploy Edge for router %s"), name)
             if router_db:
@@ -2664,10 +2664,11 @@ class NsxVCallbacks(object):
                     context.session, edge_id)
 
     def pre_edge_deletion(self, edge_id, availability_zone):
-        if (self.plugin._dvs and availability_zone and
+        vc_mgr = self.plugin.get_vc_manager()
+        if (vc_mgr and availability_zone and
             availability_zone.edge_ha and availability_zone.edge_host_groups):
             delete_edge_host_groups(self.plugin.nsx_v.vcns, edge_id,
-                                    self.plugin._dvs)
+                                    vc_mgr)
 
     def complete_edge_update(
             self, context, edge_id, router_id, successful, set_errors):
