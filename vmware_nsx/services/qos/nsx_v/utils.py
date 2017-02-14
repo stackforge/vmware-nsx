@@ -112,11 +112,14 @@ def handle_qos_policy_notification(policy_obj, dvs):
 
     for net_id in networks:
         # update the new bw limitations for this network
-        net_morefs = nsx_db.get_nsx_switch_ids(context.session, net_id)
-        for moref in net_morefs:
+        net_mappings = nsx_db.get_nsx_network_mappings(
+            context.session, net_id)
+        for mapping in net_mappings:
             # update the qos restrictions of the network
+            # TODO(asarfaty) mapping.dvs_id can be none, we need az dvs
             dvs.update_port_groups_config(
+                mapping.dvs_id,
                 net_id,
-                moref,
+                mapping.moref,
                 dvs.update_port_group_spec_qos,
                 qos_rule)

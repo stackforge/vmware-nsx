@@ -826,7 +826,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             h, switch = self.nsx_v.vcns.get_vdn_switch(dvs_id)
             try:
                 self._dvs.update_port_groups_config(
-                    net_id, net_moref,
+                    dvs_id, net_id, net_moref,
                     self._dvs.update_port_group_spec_teaming,
                     switch)
             except Exception as e:
@@ -1228,8 +1228,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 qos_policy_id=net_data[qos_consts.QOS_POLICY_ID])
 
             # update the qos data on the dvs
+            az_dvs_id = self._get_network_az_dvs_id(net_data)
             for dvs_net_id in dvs_net_ids:
                 self._dvs.update_port_groups_config(
+                    az_dvs_id,
                     dvs_net_id,
                     net_moref,
                     self._dvs.update_port_group_spec_qos, qos_data)
@@ -1542,8 +1544,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             # get the network moref/s from the db
             for moref in net_morefs:
                 # update the qos restrictions of the network
+                # TODO(asarfaty) we may need a different dvs for each moref
                 self._dvs.update_port_groups_config(
-                    id, moref, self._dvs.update_port_group_spec_qos, qos_data)
+                    az_dvs, id, moref,
+                    self._dvs.update_port_group_spec_qos, qos_data)
 
                 # attach the policy to the network in neutron DB
                 qos_com_utils.update_network_policy_binding(
