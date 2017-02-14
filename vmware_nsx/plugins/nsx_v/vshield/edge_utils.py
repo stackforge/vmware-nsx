@@ -2132,14 +2132,19 @@ def remove_irrelevant_keys_from_edge_request(edge_request):
 
 def _retrieve_nsx_switch_id(context, network_id, az_name):
     """Helper method to retrieve backend switch ID."""
+    LOG.info(_LI("_retrieve_nsx_switch_id net %(net)s az=%(az)s"), {
+        'net': network_id, 'az': az_name})
     bindings = nsxv_db.get_network_bindings(context.session, network_id)
     if bindings:
         binding = bindings[0]
         network_type = binding['binding_type']
+        LOG.info(_LI("_retrieve_nsx_switch_id binding type %s"), network_type)
         if (network_type == c_utils.NsxVNetworkTypes.VLAN
             and binding['phy_uuid'] != ''):
             if ',' not in binding['phy_uuid']:
                 dvs_id = binding['phy_uuid']
+                LOG.info(_LI("_retrieve_nsx_switch_id binding vlan single "
+                             "dvs %s"), dvs_id)
             else:
                 # If network is of type VLAN and multiple dvs associated with
                 # one neutron network, retrieve the logical network id for the
@@ -2147,9 +2152,13 @@ def _retrieve_nsx_switch_id(context, network_id, az_name):
                 azs = nsx_az.ConfiguredAvailabilityZones()
                 az = azs.get_availability_zone(az_name)
                 dvs_id = az.dvs_id
+                LOG.info(_LI("_retrieve_nsx_switch_id binding vlan az dvs "
+                             "%s"), dvs_id)
             return nsx_db.get_nsx_switch_id_for_dvs(
                 context.session, network_id, dvs_id)
     # Get the physical port group /wire id of the network id
+    LOG.info(_LI("_retrieve_nsx_switch_id checking mappings for network %s"),
+        network_id)
     mappings = nsx_db.get_nsx_switch_ids(context.session, network_id)
     if mappings:
         return mappings[0]
@@ -2619,9 +2628,9 @@ class NsxVCallbacks(object):
     def __init__(self, plugin):
         self.plugin = plugin
         if cfg.CONF.nsxv.use_dvs_features:
-            self._dvs = dvs.DvsManager(dvs_id=cfg.CONF.nsxv.dvs_id)
+            self._vcm = dvs.VCManager()
         else:
-            self._dvs = None
+            self._vcm = None
 
     def complete_edge_creation(
             self, context, edge_id, name, router_id, dist, deploy_successful,
@@ -2645,12 +2654,12 @@ class NsxVCallbacks(object):
                 context.session, router_id,
                 status=plugin_const.ACTIVE)
             if (not dist and
-                self._dvs and availability_zone and
+                self._vcm and availability_zone and
                 availability_zone.edge_ha and
                 availability_zone.edge_host_groups):
                 with locking.LockManager.get_lock('nsx-vc-drs-update'):
                     update_edge_host_groups(self.plugin.nsx_v.vcns, edge_id,
-                                            self._dvs, availability_zone)
+                                            self._vcm, availability_zone)
         else:
             LOG.error(_LE("Failed to deploy Edge for router %s"), name)
             if router_db:
