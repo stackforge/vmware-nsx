@@ -556,9 +556,6 @@ class EdgeApplianceDriver(object):
             az_name = binding['availability_zone']
         else:
             az_name = nsx_az.DEFAULT_NAME
-        az = nsx_az.ConfiguredAvailabilityZones().get_availability_zone(
-            az_name)
-        self.callbacks.pre_edge_deletion(edge_id, az)
         try:
             nsxv_db.delete_nsxv_router_binding(context.session, router_id)
             if not dist:

@@ -369,7 +369,7 @@ def change_edge_hostgroup(properties):
             az_name)
         edge_utils.update_edge_host_groups(nsxv, edge_id, dvs_mng, az)
     else:
-        edge_utils.delete_edge_host_groups(nsxv, edge_id, dvs_mng)
+        LOG.error(_LE('Currently not supported'))
 
 
 @admin_utils.output_header
