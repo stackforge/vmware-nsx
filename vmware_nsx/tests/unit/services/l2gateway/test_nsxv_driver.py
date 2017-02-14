@@ -180,7 +180,6 @@ class TestL2gatewayDriver(base.BaseTestCase):
 class TestL2GatewayDriverRouter(test_plugin.NsxVPluginV2TestCase):
 
     @mock.patch.object(dvs_utils, 'dvs_create_session')
-    @mock.patch.object(dvs.DvsManager, '_get_dvs_moref')
     def setUp(self, *mocks):
         # init the nsxv plugin, edge manager and fake vcns
         super(TestL2GatewayDriverRouter, self).setUp(plugin=CORE_PLUGIN,

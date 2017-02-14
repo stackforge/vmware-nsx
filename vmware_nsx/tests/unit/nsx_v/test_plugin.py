@@ -188,8 +188,7 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
         cfg.CONF.set_default('use_dvs_features', True, 'nsxv')
         plugin = directory.get_plugin()
         with mock.patch.object(dvs_utils, 'dvs_create_session'):
-            with mock.patch.object(dvs.DvsManager, '_get_dvs_moref'):
-                plugin._dvs = dvs.DvsManager()
+            plugin._dvs = dvs.DvsManager()
         return plugin
 
     def test_get_vlan_network_name(self):
