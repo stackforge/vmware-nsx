@@ -361,16 +361,44 @@ def change_edge_appliance_reservations(properties):
 
 
 def change_edge_hostgroup(properties):
-    edge_id = properties.get('edge-id')
     dvs_mng = dvs.DvsManager()
-    if properties.get('hostgroup').lower() == "true":
-        az_name, size = _get_edge_az_and_size(edge_id)
-        az = nsx_az.ConfiguredAvailabilityZones().get_availability_zone(
-            az_name)
-        edge_utils.update_edge_host_groups(nsxv, edge_id, dvs_mng, az,
-                                           validate=True)
+    if properties.get('hostgroup').lower() == "update":
+        edge_id = properties.get('edge-id')
+        try:
+            edge_result = nsxv.get_edge(edge_id)
+        except exceptions.NeutronException as x:
+            LOG.error(_LE("%s"), str(x))
+        else:
+            # edge_result[0] is response status code
+            # edge_result[1] is response body
+            edge = edge_result[1]
+            if edge.get('type') == 'gatewayServices':
+                az_name, size = _get_edge_az_and_size(edge_id)
+                zones = nsx_az.ConfiguredAvailabilityZones()
+                az = zones.get_availability_zone(az_name)
+                edge_utils.update_edge_host_groups(nsxv, edge_id,
+                                                   dvs_mng, az,
+                                                   validate=True)
+            else:
+                LOG.error(_LE("Host groups only for gateway services"))
+    elif properties.get('hostgroup').lower() == "all":
+        edges = utils.get_nsxv_backend_edges()
+        for edge in edges:
+            if edge.get('type') == 'gatewayServices':
+                edge_id = edge['id']
+                try:
+                    az_name, size = _get_edge_az_and_size(edge_id)
+                    zones = nsx_az.ConfiguredAvailabilityZones()
+                    az = zones.get_availability_zone(az_name)
+                    edge_utils.update_edge_host_groups(nsxv, edge_id,
+                                                       dvs_mng, az,
+                                                       validate=True)
+                except Exception as e:
+                    LOG.error(_LE("Failed to update edge %(id)s - %(e)s"),
+                              {'id': edge['id'],
+                               'e': e})
     else:
-        LOG.error(_LE('Currently not supported'))
+        LOG.error(_LE('Currently no supported'))
 
 
 @admin_utils.output_header
@@ -398,7 +426,8 @@ def nsx_update_edge(resource, event, trigger, **kwargs):
         LOG.error(usage_msg)
         return
     properties = admin_utils.parse_multi_keyval_opt(kwargs['property'])
-    if not properties.get('edge-id'):
+    if (not properties.get('edge-id') and
+        not properties.get('hostgroup', '').lower() == "all"):
         LOG.error(_LE("Need to specify edge-id. "
                       "Add --property edge-id=<edge-id>"))
         return
