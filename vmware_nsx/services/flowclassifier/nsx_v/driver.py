@@ -19,10 +19,10 @@ import xml.etree.ElementTree as et
 from networking_sfc.extensions import flowclassifier
 from networking_sfc.services.flowclassifier.common import exceptions as exc
 from networking_sfc.services.flowclassifier.drivers import base as fc_driver
-from neutron.callbacks import events
-from neutron.callbacks import registry
-from neutron.callbacks import resources
 from neutron import context as n_context
+from neutron_lib.callbacks import events
+from neutron_lib.callbacks import registry
+from neutron_lib.callbacks import resources
 from neutron_lib.plugins import directory
 from oslo_config import cfg
 from oslo_log import helpers as log_helpers
@@ -117,7 +117,7 @@ class NsxvFlowClassifierDriver(fc_driver.FlowClassifierDriverBase):
                 self._profile_id,
                 et.tostring(profile_binding, encoding="us-ascii"))
 
-    def init_complete(self, resource, event, trigger, **kwargs):
+    def init_complete(self, resource, event, trigger, payload=None):
         if self._is_new_security_group:
             # add existing VMs to the new security group
             # This code must run after init is done
