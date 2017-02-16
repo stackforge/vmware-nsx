@@ -24,12 +24,12 @@ from oslo_config import cfg
 from oslo_utils import importutils
 from oslo_utils import uuidutils
 
-from neutron.callbacks import events
-from neutron.callbacks import registry
-from neutron.callbacks import resources
 from neutron import context
 from neutron.tests import base
 
+from neutron_lib.callbacks import events
+from neutron_lib.callbacks import registry
+from neutron_lib.callbacks import resources
 from neutron_lib import exceptions as n_exc
 from vmware_nsx.services.l2gateway.nsx_v3 import driver as nsx_v3_driver
 from vmware_nsx.tests.unit.nsx_v3 import test_plugin as test_nsx_v3_plugin
@@ -82,8 +82,8 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
                               "nsx_v3")
         nsx_v3_driver.NsxV3Driver(mock.MagicMock())
         # fake the callback invoked after init
-        registry.notify(resources.PROCESS, events.BEFORE_SPAWN,
-                        mock.MagicMock())
+        registry.publish(resources.PROCESS, events.BEFORE_SPAWN,
+                         mock.MagicMock())
         l2gws = self.driver._get_l2_gateways(self.context)
         def_bridge_cluster_id = (
             self.nsxlib.bridge_cluster.get_id_by_name_or_id(
@@ -107,8 +107,8 @@ class TestNsxV3L2GatewayDriver(test_l2gw_db.L2GWTestCase,
         for i in range(0, 2):
             nsx_v3_driver.NsxV3Driver(mock.MagicMock())
             # fake the callback invoked after init
-            registry.notify(resources.PROCESS, events.BEFORE_SPAWN,
-                            mock.MagicMock())
+            registry.publish(resources.PROCESS, events.BEFORE_SPAWN,
+                             mock.MagicMock())
         l2gws = self.driver._get_l2_gateways(self.context)
         # Verify whether only one default L2 gateway is created
         self.assertEqual(1, len(l2gws))

@@ -23,14 +23,15 @@ from oslo_log import log as logging
 from oslo_utils import excutils
 from oslo_utils import uuidutils
 
-from neutron.callbacks import events
-from neutron.callbacks import registry
-from neutron.callbacks import resources
 from neutron import context
+from neutron.callbacks import registry as n_registry
 from neutron.plugins.common import utils as n_utils
 from neutron_lib.api.definitions import provider_net as providernet
 from neutron_lib import constants
 from neutron_lib import exceptions as n_exc
+from neutron_lib.callbacks import events
+from neutron_lib.callbacks import registry
+from neutron_lib.callbacks import resources
 from neutron_lib.plugins import directory
 
 from vmware_nsx._i18n import _, _LE, _LI
@@ -62,12 +63,13 @@ class NsxV3Driver(l2gateway_db.L2GatewayMixin):
         return directory.get_plugin()
 
     def subscribe_callback_notifications(self):
-        registry.subscribe(self._prevent_l2gw_port_delete, resources.PORT,
-                           events.BEFORE_DELETE)
+        n_registry.subscribe(self._prevent_l2gw_port_delete, resources.PORT,
+                             events.BEFORE_DELETE)
         registry.subscribe(self._ensure_default_l2_gateway, resources.PROCESS,
                            events.BEFORE_SPAWN)
 
-    def _ensure_default_l2_gateway(self, resource, event, trigger, **kwargs):
+    def _ensure_default_l2_gateway(self, resource, event,
+                                   trigger, payload=None):
         """
         Create a default logical L2 gateway.
 
