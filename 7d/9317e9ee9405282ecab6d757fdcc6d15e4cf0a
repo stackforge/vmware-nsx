@@ -1,0 +1,9 @@
+Code-Review+2: garyk <gkotton@vmware.com>
+Workflow+1: garyk <gkotton@vmware.com>
+Verified-1: VMware NSX CI
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 17 Feb 2017 13:48:41 +0000
+Reviewed-on: https://review.openstack.org/435409
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/ocata
