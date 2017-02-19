@@ -506,6 +506,31 @@ class NsxNativeDhcpTestCase(test_plugin.NsxV3PluginTestCaseMixin):
             self._verify_dhcp_binding(subnet, port_data, update_data,
                                       assert_data)
 
+    def test_dhcp_binding_with_update_port_dhcp_opts(self):
+        # Test if DHCP binding is updated when the IP and Mac of the associated
+        # compute port are changed at the same time.
+        with self.subnet(cidr='10.0.0.0/24', enable_dhcp=True) as subnet:
+            mac_address = '11:22:33:44:55:66'
+            ip_addr = '10.0.0.3'
+            port_data = {'mac_address': mac_address,
+                         'fixed_ips': [{'subnet_id': subnet['subnet']['id'],
+                                        'ip_address': ip_addr}],
+                         'extra_dhcp_opts': [
+                              {'opt_value': '9000',
+                               'opt_name': 'interface-mtu'}]}
+            update_data = {'port': {'extra_dhcp_opts': [
+                              {'opt_value': '9002',
+                               'opt_name': 'interface-mtu'}]}}
+            assert_data = {'mac_address': mac_address,
+                           'ip_address': ip_addr,
+                           'options': {'option121': {'static_routes': [
+                               {'network': '%s' %
+                                cfg.CONF.nsx_v3.native_metadata_route,
+                                'next_hop': ip_addr}]},
+                                'others': [{'code': 26, 'values': ['9002']}]}}
+            self._verify_dhcp_binding(subnet, port_data, update_data,
+                                      assert_data)
+
     def test_dhcp_binding_with_update_port_name(self):
         # Test if DHCP binding is not updated when the name of the associated
         # compute port is changed.
