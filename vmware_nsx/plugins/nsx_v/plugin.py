@@ -209,13 +209,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         neutron_extensions.append_api_extensions_path(
             [vmware_nsx.NSX_EXT_PATH])
 
-        self.base_binding_dict = {
-            pbin.VNIC_TYPE: pbin.VNIC_NORMAL,
-            pbin.VIF_TYPE: nsx_constants.VIF_TYPE_DVS,
-            pbin.VIF_DETAILS: {
-                # TODO(rkukura): Replace with new VIF security details
-                pbin.CAP_PORT_FILTER:
-                'security-group' in self.supported_extension_aliases}}
         # This needs to be set prior to binding callbacks
         self.dvs_id = cfg.CONF.nsxv.dvs_id
         if cfg.CONF.nsxv.use_dvs_features:
@@ -403,6 +396,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         with db_api.context_manager.writer.using(ctx):
             self._extension_manager.extend_port_dict(
                 ctx.session, portdb, result)
+            self._extend_port_dict_binding(portdb,
+                                           result)
 
     def _ext_extend_subnet_dict(self, result, subnetdb):
         ctx = n_context.get_admin_context()
@@ -687,6 +682,21 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 raise n_exc.InvalidInput(error_message=err_msg)
             # TODO(salvatore-orlando): Validate tranport zone uuid
             # which should be specified in physical_network
+
+    def _validate_network_type(self, context, network_id, net_types):
+        bindings = nsxv_db.get_network_bindings(context.session,
+                                                network_id)
+        multiprovider = nsx_db.is_multiprovider_network(context.session,
+                                                        network_id)
+        if bindings:
+            if not multiprovider:
+                return bindings[0].binding_type in net_types
+            else:
+                for binding in bindings:
+                    if binding.binding_type not in net_types:
+                        return False
+                return True
+        return False
 
     def _extend_network_dict_provider(self, context, network,
                                       multiprovider=None, bindings=None):
@@ -1593,6 +1603,32 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             context, port['port'], created_port)
         return created_port
 
+    def _process_vnic_type(self, context, port_data, attrs,
+                           has_security_groups, port_security):
+        vnic_type = attrs and attrs.get(pbin.VNIC_TYPE)
+        if validators.is_attr_set(vnic_type):
+            if vnic_type == pbin.VNIC_NORMAL:
+                pass
+            elif vnic_type == pbin.VNIC_DIRECT:
+                if has_security_groups or port_security:
+                    err_msg = _("Direct VNIC type requires no port "
+                                "security and no security groups!")
+                    raise n_exc.InvalidInput(error_message=err_msg)
+                if not self._validate_network_type(
+                    context, port_data['network_id'],
+                    [c_utils.NsxVNetworkTypes.VLAN,
+                     c_utils.NsxVNetworkTypes.FLAT]):
+                    err_msg = _("Direct VNIC type requires VLAN/Flat "
+                                "network!")
+                    raise n_exc.InvalidInput(error_message=err_msg)
+            else:
+                err_msg = _("Only direct or normal VNIC types supported")
+                raise n_exc.InvalidInput(error_message=err_msg)
+            nsxv_db.update_nsxv_port_ext_attributes(
+                session=context.session,
+                port_id=port_data['id'],
+                vnic_type=vnic_type)
+
     def create_port(self, context, port):
         port_data = port['port']
         with context.session.begin(subtransactions=True):
@@ -1653,6 +1689,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 self._process_create_allowed_address_pairs(
                     context, neutron_db,
                     attrs.get(addr_pair.ADDRESS_PAIRS)))
+
+            self._process_vnic_type(context, port_data, attrs,
+                                    has_security_groups,
+                                    port_security)
 
         try:
             # Configure NSX - this should not be done in the DB transaction
@@ -1772,7 +1812,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self._validate_address_pairs(attrs, original_port)
         orig_has_port_security = (cfg.CONF.nsxv.spoofguard_enabled and
                                   original_port[psec.PORTSECURITY])
-
         port_ip_change = port_data.get('fixed_ips') is not None
         device_owner_change = port_data.get('device_owner') is not None
         # We do not support updating the port ip and device owner together
@@ -1878,6 +1917,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             if addr_pair.ADDRESS_PAIRS in attrs:
                 update_assigned_addresses = self.update_address_pairs_on_port(
                     context, id, port, original_port, ret_port)
+
+            self._process_vnic_type(context, ret_port, attrs,
+                                    has_security_groups,
+                                    has_port_security)
 
         if comp_owner_update:
             # Create dhcp bindings, the port is now owned by an instance
@@ -2100,6 +2143,18 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             super(NsxVPluginV2, self).delete_port(context, id)
 
         self._delete_dhcp_static_binding(context, neutron_db_port)
+
+    def _extend_port_dict_binding(self, portdb, result):
+        result[pbin.VIF_TYPE] = nsx_constants.VIF_TYPE_DVS
+        port_attr = portdb.get('nsx_port_attributes')
+        if port_attr:
+            result[pbin.VNIC_TYPE] = port_attr.vnic_type
+        else:
+            result[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
+        result[pbin.VIF_DETAILS] = {
+            # TODO(rkukura): Replace with new VIF security details
+            pbin.CAP_PORT_FILTER:
+            'security-group' in self.supported_extension_aliases}
 
     def delete_subnet(self, context, id):
         subnet = self._get_subnet(context, id)
