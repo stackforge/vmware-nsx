@@ -870,3 +870,26 @@ def update_nsxv_subnet_ext_attributes(session, subnet_id,
         binding[ext_dns_search_domain.DNS_SEARCH_DOMAIN] = dns_search_domain
         binding[ext_dhcp_mtu.DHCP_MTU] = dhcp_mtu
     return binding
+
+
+def add_nsxv_port_ext_attributes(session, port_id,
+                                 vnic_type=None):
+    with session.begin(subtransactions=True):
+        binding = nsxv_models.NsxvPortExtAttributes(
+            port_id=port_id,
+            vnic_type=vnic_type)
+        session.add(binding)
+    return binding
+
+
+def update_nsxv_port_ext_attributes(session, port_id,
+                                    vnic_type=None):
+    try:
+        binding = session.query(
+            nsxv_models.NsxvPortExtAttributes).filter_by(
+            port_id=port_id).one()
+        binding['vnic_type'] = vnic_type
+        return binding
+    except exc.NoResultFound:
+        return add_nsxv_port_ext_attributes(
+            session, port_id, vnic_type=vnic_type)
