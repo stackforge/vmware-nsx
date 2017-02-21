@@ -96,6 +96,13 @@ class AbstractTestAdminUtils(base.BaseTestCase):
             for op in res_dict[res].supported_ops:
                 self._test_resource(res_name, op)
 
+    def _test_resources_with_args(self, res_dict, func_args):
+        for res in res_dict.keys():
+            res_name = res_dict[res].name
+            for op in res_dict[res].supported_ops:
+                args = {'property': func_args}
+                self._test_resource(res_name, op, **args)
+
 
 class TestNsxvAdminUtils(AbstractTestAdminUtils,
                          test_n_plugin.NeutronDbPluginV2TestCase):
@@ -125,6 +132,27 @@ class TestNsxvAdminUtils(AbstractTestAdminUtils,
         errors = self._test_resource_with_errors(
             'networks', 'nsx-update', **args)
         self.assertEqual(1, len(errors))
+
+    def test_resources_with_common_args(self):
+        """Run all nsxv admin utilities with some common arguments
+
+        Using arguments like edge-id which many apis need
+        This improves the test coverage
+        """
+        # TODO(asarfaty) create some edges/routers/...
+        # TODO(asarfaty) do the same for the v3 utilities
+        args = ["edge-id=edge-1",
+                "router-id=e5b9b249-0034-4729-8ab6-fe4dacaa3a12",
+                "policy-id=1",
+                "network_id=net-1",
+                "net-id=net-1",
+                "security-group-id=sg-1",
+                "dvs-id=dvs-1",
+                "moref=virtualwire-1",
+                "appliances=true",
+                "teamingpolicy=LACP_ACTIVE"
+                ]
+        self._test_resources_with_args(resources.nsxv_resources, args)
 
 
 class TestNsxv3AdminUtils(AbstractTestAdminUtils,

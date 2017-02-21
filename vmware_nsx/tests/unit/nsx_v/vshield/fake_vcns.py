@@ -272,7 +272,9 @@ class FakeVcns(object):
             "featureType": "dhcp_4.0",
             "version": 14,
             "enabled": True,
-            "staticBindings": {"staticBindings": [{}]},
+            "staticBindings": {"staticBindings": [{
+                "macAddress": "fa:16:3e:e6:ad:ce",
+                "bindingId": "binding-1"}]},
             "ipPools": {"ipPools": []}
         }
         return (header, response)
@@ -396,7 +398,8 @@ class FakeVcns(object):
 
     def get_edge(self, edge_id):
         if edge_id not in self._edges:
-            raise Exception(_("Edge %s does not exist!") % edge_id)
+            raise exceptions.VcnsGeneralException(
+                _("Edge %s does not exist!") % edge_id)
         header = {
             'status': 200
         }
@@ -422,6 +425,24 @@ class FakeVcns(object):
                 'data': edges
             }
         }
+        return (header, response)
+
+    def get_vdn_switch(self, dvs_id):
+        header = {
+            'status': 200
+        }
+        response = {
+            'name': 'fake-switch',
+            'id': dvs_id,
+            'teamingPolicy': 'ETHER_CHANNEL'
+        }
+        return (header, response)
+
+    def update_vdn_switch(self, switch):
+        header = {
+            'status': 200
+        }
+        response = ''
         return (header, response)
 
     def update_routes(self, edge_id, routes):
@@ -1096,7 +1117,11 @@ class FakeVcns(object):
         self._spoofguard_policies[int(policy_id)] = {}
 
     def get_spoofguard_policy(self, policy_id):
-        return None, self._spoofguard_policies[int(policy_id)]
+        try:
+            return None, self._spoofguard_policies[int(policy_id)]
+        except IndexError:
+            raise exceptions.VcnsGeneralException(
+                _("Spoofguard policy not found"))
 
     def get_spoofguard_policies(self):
         return None, {'policies': self._spoofguard_policies}
