@@ -92,6 +92,16 @@ function neutron_plugin_create_nova_conf {
         iniset $NOVA_CONF neutron service_metadata_proxy True
         if [[ "$NATIVE_DHCP_METADATA" == "True" ]]; then
             iniset $NOVA_CONF neutron metadata_proxy_shared_secret $METADATA_PROXY_SHARED_SECRET
+            if [[ "$METADATA_PROXY_USE_HTTPS" == "True" ]]; then
+                if [[ "$METADATA_PROXY_CERT_FILE" != "" ]]; then
+                    iniset $NOVA_CONF crypto ca_path `dirname $METADATA_PROXY_CERT_FILE`
+                    iniset $NOVA_CONF crypto ca_file `basename $METADATA_PROXY_CERT_FILE`
+                fi
+                if [[ "$METADATA_PROXY_PRIV_KEY_FILE" != "" ]]; then
+                    iniset $NOVA_CONF crypto keys_path `dirname $METADATA_PROXY_PRIV_KEY_FILE`
+                    iniset $NOVA_CONF crypto key_file `basename $METADATA_PROXY_PRIV_KEY_FILE`
+                fi
+            fi
         fi
     fi
 }
