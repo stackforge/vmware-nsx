@@ -615,6 +615,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         with db_api.context_manager.writer.using(ctx):
             self._extension_manager.extend_port_dict(
                 ctx.session, portdb, result)
+        self._extend_port_dict_binding(ctx, result)
 
     def _ext_extend_subnet_dict(self, result, subnetdb):
         ctx = q_context.get_admin_context()
@@ -1547,7 +1548,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         LOG.error(err_msg)
         raise n_exc.InvalidInput(error_message=err_msg)
 
-    def _create_port_at_the_backend(self, context, port_data,
+    def _create_port_at_the_backend(self, context, nsx_net_id, port_data,
                                     l2gw_port_check, psec_is_on):
         device_owner = port_data.get('device_owner')
         device_id = port_data.get('device_id')
@@ -1639,7 +1640,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         name = self._get_port_name(context, port_data)
 
-        nsx_net_id = port_data[pbin.VIF_DETAILS]['nsx-logical-switch-id']
         try:
             result = self._port_client.create(
                 nsx_net_id, vif_uuid,
@@ -2010,7 +2010,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # sgids is a set() so we need to | it in.
             if provider_groups:
                 sgids = list(set(sgids) | set(provider_groups))
-            self._extend_port_dict_binding(context, port_data)
             if validators.is_attr_set(port_data.get(mac_ext.MAC_LEARNING)):
                 if is_psec_on:
                     msg = _('Mac learning requires that port security be '
@@ -2027,9 +2026,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # NOTE(arosen): ports on external networks are nat rules and do
         # not result in ports on the backend.
         if not is_external_net:
+            net_id = self._get_network_nsx_id(context,
+                                              port_data['network_id'])
             try:
                 lport = self._create_port_at_the_backend(
-                    context, port_data, l2gw_port_check, is_psec_on)
+                    context, net_id, port_data, l2gw_port_check, is_psec_on)
             except Exception as e:
                 with excutils.save_and_reraise_exception():
                     LOG.error(_LE('Failed to create port %(id)s on NSX '
@@ -2060,7 +2061,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     else:
                         raise e
             try:
-                net_id = port_data[pbin.VIF_DETAILS]['nsx-logical-switch-id']
                 nsx_db.add_neutron_nsx_port_mapping(
                     context.session, neutron_db['id'],
                     net_id, lport['id'])
@@ -2378,7 +2378,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 context, updated_port)
             self._process_portbindings_create_and_update(
                 context, port['port'], updated_port)
-            self._extend_port_dict_binding(context, updated_port)
             mac_learning_state = updated_port.get(mac_ext.MAC_LEARNING)
             if mac_learning_state is not None:
                 if port_security and mac_learning_state:
@@ -2454,27 +2453,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if 'id' in port:
             port[qos_consts.QOS_POLICY_ID] = qos_com_utils.get_port_policy_id(
                 context, port['id'])
-
-    def get_port(self, context, id, fields=None):
-        port = super(NsxV3Plugin, self).get_port(context, id, fields=None)
-        self._extend_get_port_dict_binding(context, port)
-
-        return db_utils.resource_fields(port, fields)
-
-    def get_ports(self, context, filters=None, fields=None,
-                  sorts=None, limit=None, marker=None,
-                  page_reverse=False):
-        filters = filters or {}
-        with context.session.begin(subtransactions=True):
-            ports = (
-                super(NsxV3Plugin, self).get_ports(
-                    context, filters, fields, sorts,
-                    limit, marker, page_reverse))
-            # Add port extensions
-            for port in ports:
-                self._extend_get_port_dict_binding(context, port)
-        return (ports if not fields else
-                [db_utils.resource_fields(port, fields) for port in ports])
 
     def _extract_external_gw(self, context, router, is_extract=True):
         r = router['router']
