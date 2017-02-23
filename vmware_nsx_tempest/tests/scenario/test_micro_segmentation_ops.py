@@ -231,20 +231,8 @@ class TestMicroSegmentationOps(manager.NetworkScenarioTest):
         ssh_source = self.get_remote_client(ip_address,
                                             private_key=private_key)
         for remote_ip in address_list:
-            if should_connect:
-                msg = ("Timed out waiting for %s to become "
-                       "reachable") % remote_ip
-            else:
-                msg = "ip address %s is reachable" % remote_ip
-            try:
-                self.assertTrue(self._check_remote_connectivity
-                                (ssh_source, remote_ip, should_connect),
-                                msg)
-            except Exception:
-                LOG.exception(_LE("Unable to access %{dest}s via ssh to "
-                                  "floating-ip %{src}s"),
-                              {'dest': remote_ip, 'src': floating_ip})
-                raise
+            self.check_remote_connectivity(ssh_source, remote_ip,
+                                           should_connect)
 
     def _check_cross_network_connectivity(self, network, should_connect=False):
         if network['id'] == self.web_net['id']:

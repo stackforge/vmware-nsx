@@ -136,20 +136,8 @@ class TestMultiHVNetworkOps(manager.NetworkScenarioTest):
         ssh_source = self.get_remote_client(ip_address,
                                             private_key=private_key)
         for remote_ip in address_list:
-            if should_connect:
-                msg = ("Timed out waiting for %s to become "
-                       "reachable") % remote_ip
-            else:
-                msg = "ip address %s is reachable" % remote_ip
-            try:
-                self.assertTrue(self._check_remote_connectivity
-                                (ssh_source, remote_ip, should_connect),
-                                msg)
-            except Exception:
-                LOG.exception(_LE("Unable to access %{dest}s via ssh to "
-                                  "floating-ip %{src}s"),
-                              {'dest': remote_ip, 'src': floating_ip})
-                raise
+            self.check_remote_connectivity(ssh_source, remote_ip,
+                                           should_connect)
 
     @test.attr(type='nsxv3')
     @test.idempotent_id('42373fef-cb05-47c9-bb67-32b7a3b48168')

@@ -135,20 +135,8 @@ class TestDvsNetworkBasicOps(manager.NetworkScenarioTest):
         ssh_source = self.get_remote_client(ip_address,
                                             private_key=private_key)
         for remote_ip in address_list:
-            if should_connect:
-                msg = "Timed out waiting for "
-                "%s to become reachable" % remote_ip
-            else:
-                msg = "ip address %s is reachable" % remote_ip
-            try:
-                self.assertTrue(self._check_remote_connectivity
-                                (ssh_source, remote_ip, should_connect),
-                                msg)
-            except Exception:
-                LOG.exception("Unable to access {dest} via ping to "
-                              "fix-ip {src}".format(dest=remote_ip,
-                                                    src=ip_address))
-                raise
+            self.check_remote_connectivity(ssh_source, remote_ip,
+                                           should_connect)
 
     def _check_network_internal_connectivity(self, network,
                                              should_connect=True):
