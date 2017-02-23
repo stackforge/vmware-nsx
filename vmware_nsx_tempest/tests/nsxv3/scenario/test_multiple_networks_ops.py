@@ -23,8 +23,6 @@ from tempest.lib.common.utils import test_utils
 from tempest.scenario import manager
 from tempest import test
 
-from vmware_nsx_tempest._i18n import _LE
-
 CONF = config.CONF
 
 LOG = logging.getLogger(__name__)
@@ -177,20 +175,8 @@ class TestMultiNetworksOps(manager.NetworkScenarioTest):
         ssh_source = self.get_remote_client(ip_address,
                                             private_key=private_key)
         for remote_ip in address_list:
-            if should_connect:
-                msg = ("Timed out waiting for %s to become "
-                       "reachable") % remote_ip
-            else:
-                msg = "ip address %s is reachable" % remote_ip
-            try:
-                self.assertTrue(self._check_remote_connectivity
-                                (ssh_source, remote_ip, should_connect),
-                                msg)
-            except Exception:
-                LOG.exception(_LE("Unable to access %{dest}s via ssh to "
-                                  "floating-ip %{src}s"),
-                              {'dest': remote_ip, 'src': floating_ip})
-                raise
+            self.check_remote_connectivity(ssh_source, remote_ip,
+                                           should_connect)
 
     @test.attr(type='nsxv3')
     @test.idempotent_id('d35d1301-bfa4-49ea-acdf-f67ba97b1937')
