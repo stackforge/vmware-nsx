@@ -214,16 +214,8 @@ class TestProviderSecurityGroup(manager.NetworkScenarioTest):
                                    should_connect=True):
             ssh_source = self.get_remote_client(floating_ip,
                                                 private_key=private_key)
-            msg = "ip address %s is reachable" % remote_ip
-            try:
-                self.assertTrue(self._check_remote_connectivity
-                                (ssh_source, remote_ip, should_connect),
-                                msg)
-            except Exception:
-                LOG.exception("Unable to access {dest} via ssh to "
-                              "floating-ip {src}".format(dest=remote_ip,
-                                                         src=floating_ip))
-                raise
+            self.check_remote_connectivity(ssh_source, remote_ip,
+                                           should_connect)
 
     def _create_vms_without_psg(self, network_topo):
         server_name_default = data_utils.rand_name('server-default-sec-group')

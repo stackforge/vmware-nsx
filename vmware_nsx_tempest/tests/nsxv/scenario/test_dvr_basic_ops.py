@@ -304,20 +304,8 @@ class TestDvrBasicOps(manager.NetworkScenarioTest):
                                             private_key=private_key)
 
         for remote_ip in address_list:
-            if should_connect:
-                msg = "Timed out waiting for "
-                "%s to become reachable" % remote_ip
-            else:
-                msg = "ip address %s is reachable" % remote_ip
-            try:
-                self.assertTrue(self._check_remote_connectivity
-                                (ssh_source, remote_ip, should_connect),
-                                msg)
-            except Exception:
-                LOG.debug("Unable to access {dest} via ssh to "
-                          "floating-ip {src}".format(dest=remote_ip,
-                                                     src=floating_ip))
-                raise
+            self.check_remote_connectivity(ssh_source, remote_ip,
+                                           should_connect)
 
     @test.idempotent_id('62eb50a8-45f3-4eec-acc4-f01cee10a011')
     @test.services('compute', 'network')
