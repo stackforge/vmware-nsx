@@ -18,8 +18,8 @@ from neutron_lib.db import model_base
 import sqlalchemy as sa
 from sqlalchemy import orm
 
-from neutron.db import l3_db
 from neutron.db import models_v2
+from neutron.db.models import l3 as l3_db
 from neutron.extensions import portbindings
 from oslo_db.sqlalchemy import models
 
