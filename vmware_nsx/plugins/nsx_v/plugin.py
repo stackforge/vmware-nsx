@@ -3002,9 +3002,11 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
         attr.NETWORKS, ['_extend_availability_zone_hints'])
 
-    def _extend_availability_zone_hints(self, net_res, net_db):
-        net_res[az_ext.AZ_HINTS] = az_ext.convert_az_string_to_list(
-            net_db[az_ext.AZ_HINTS])
+    def _extend_availability_zone_hints(plugin, net_res, net_db):
+        # TODO(asarfaty) add a decorator for this check
+        if plugin.__class__.__name__ == NsxVPluginV2:
+            net_res[az_ext.AZ_HINTS] = az_ext.convert_az_string_to_list(
+                net_db[az_ext.AZ_HINTS])
 
     def _get_availability_zone_name_by_edge(self, context, edge_id):
         az_name = nsxv_db.get_edge_availability_zone(
@@ -3051,10 +3053,16 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             router_db.flavor_id = r['flavor_id']
 
     def add_flavor_id(plugin, router_res, router_db):
-        router_res['flavor_id'] = router_db['flavor_id']
+        if plugin.__class__.__name__ == NsxVPluginV2:
+            router_res['flavor_id'] = router_db['flavor_id']
+
+    def add_availability_zone(plugin, router_res, router_db):
+        if plugin.__class__.__name__ == NsxVPluginV2:
+            router_res[az_ext.AVAILABILITY_ZONES] = (
+                plugin.get_router_availability_zones(router_db))
 
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        l3.ROUTERS, [add_flavor_id])
+        l3.ROUTERS, [add_flavor_id, add_availability_zone])
 
     def get_router(self, context, id, fields=None):
         router = super(NsxVPluginV2, self).get_router(context, id, fields)

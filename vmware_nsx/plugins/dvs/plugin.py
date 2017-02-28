@@ -107,6 +107,8 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
     # Register extend dict methods for port resources.
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
         attr.PORTS, ['_ext_extend_port_dict'])
+    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
+        attr.NETWORKS, ['_extend_standard_attr_description'])
 
     def _extend_port_dict_binding(self, portdb, result):
         result[pbin.VIF_TYPE] = nsx_constants.VIF_TYPE_DVS
