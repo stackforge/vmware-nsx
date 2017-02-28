@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import decorator
 from distutils import version
 import six
 import uuid
@@ -131,6 +132,12 @@ LOG = logging.getLogger(__name__)
 PORTGROUP_PREFIX = 'dvportgroup'
 ROUTER_SIZE = routersize.ROUTER_SIZE
 VALID_EDGE_SIZES = routersize.VALID_EDGE_SIZES
+
+
+@decorator.decorator
+def call_on_v_plugin_only(f, *args, **kwargs):
+    if args[0].__class__.__name__ == 'NsxVPluginV2':
+        return f(*args, **kwargs)
 
 
 class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
@@ -2439,6 +2446,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
         attr.SUBNETS, ['_extend_subnet_dict_extended_attributes'])
 
+    @call_on_v_plugin_only
     def _extend_subnet_dict_extended_attributes(self, subnet_res, subnet_db):
         subnet_attr = subnet_db.get('nsxv_subnet_attributes')
         if subnet_attr:
@@ -3002,7 +3010,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
         attr.NETWORKS, ['_extend_availability_zone_hints'])
 
-    def _extend_availability_zone_hints(self, net_res, net_db):
+    @call_on_v_plugin_only
+    def _extend_availability_zone_hints(plugin, net_res, net_db):
         net_res[az_ext.AZ_HINTS] = az_ext.convert_az_string_to_list(
             net_db[az_ext.AZ_HINTS])
 
@@ -3050,11 +3059,17 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if validators.is_attr_set(r.get('flavor_id')):
             router_db.flavor_id = r['flavor_id']
 
+    @call_on_v_plugin_only
     def add_flavor_id(plugin, router_res, router_db):
         router_res['flavor_id'] = router_db['flavor_id']
 
+    @call_on_v_plugin_only
+    def add_availability_zone(plugin, router_res, router_db):
+        router_res[az_ext.AVAILABILITY_ZONES] = (
+            plugin.get_router_availability_zones(router_db))
+
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        l3.ROUTERS, [add_flavor_id])
+        l3.ROUTERS, [add_flavor_id, add_availability_zone])
 
     def get_router(self, context, id, fields=None):
         router = super(NsxVPluginV2, self).get_router(context, id, fields)
