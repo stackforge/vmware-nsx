@@ -3053,8 +3053,12 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def add_flavor_id(plugin, router_res, router_db):
         router_res['flavor_id'] = router_db['flavor_id']
 
+    def add_availability_zone(plugin, router_res, router_db):
+        router_res[az_ext.AVAILABILITY_ZONES] = (
+            plugin.get_router_availability_zones(router_db))
+
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        l3.ROUTERS, [add_flavor_id])
+        l3.ROUTERS, [add_flavor_id, add_availability_zone])
 
     def get_router(self, context, id, fields=None):
         router = super(NsxVPluginV2, self).get_router(context, id, fields)
