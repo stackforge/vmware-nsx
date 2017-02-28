@@ -286,15 +286,20 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if c_utils.is_nsxv_version_6_2(self.nsx_v.vcns.get_version()):
             self.supported_extension_aliases.append("provider-security-group")
 
-    # Register extend dict methods for network and port resources.
-    # Each extension driver that supports extend attribute for the resources
-    # can add those attribute to the result.
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attr.NETWORKS, ['_ext_extend_network_dict'])
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attr.PORTS, ['_ext_extend_port_dict'])
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attr.SUBNETS, ['_ext_extend_subnet_dict'])
+        self.register_dict_extend_funcs(
+            attr.NETWORKS, ['_ext_extend_network_dict'])
+        self.register_dict_extend_funcs(
+            attr.PORTS, ['_ext_extend_port_dict'])
+        self.register_dict_extend_funcs(
+            attr.SUBNETS, ['_ext_extend_subnet_dict'])
+        self.register_dict_extend_funcs(
+            attr.SUBNETS, ['_extend_subnet_dict_extended_attributes'])
+
+        self.register_dict_extend_funcs(
+            attr.NETWORKS, ['_extend_availability_zone_hints'])
+
+        self.register_dict_extend_funcs(
+            l3.ROUTERS, ['add_flavor_id', 'add_availability_zone'])
 
     def init_complete(self, resource, event, trigger, **kwargs):
         has_metadata_cfg = (
@@ -2436,9 +2441,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 self._update_subnet_dhcp_status(subnet, context)
         return subnet
 
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attr.SUBNETS, ['_extend_subnet_dict_extended_attributes'])
-
     def _extend_subnet_dict_extended_attributes(self, subnet_res, subnet_db):
         subnet_attr = subnet_db.get('nsxv_subnet_attributes')
         if subnet_attr:
@@ -2999,10 +3001,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         super(NsxVPluginV2, self).delete_router(context, id)
         router_driver.delete_router(context, id)
 
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attr.NETWORKS, ['_extend_availability_zone_hints'])
-
-    def _extend_availability_zone_hints(self, net_res, net_db):
+    def _extend_availability_zone_hints(plugin, net_res, net_db):
         net_res[az_ext.AZ_HINTS] = az_ext.convert_az_string_to_list(
             net_db[az_ext.AZ_HINTS])
 
@@ -3053,8 +3052,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def add_flavor_id(plugin, router_res, router_db):
         router_res['flavor_id'] = router_db['flavor_id']
 
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        l3.ROUTERS, [add_flavor_id])
+    def add_availability_zone(plugin, router_res, router_db):
+        router_res[az_ext.AVAILABILITY_ZONES] = (
+            plugin.get_router_availability_zones(router_db))
 
     def get_router(self, context, id, fields=None):
         router = super(NsxVPluginV2, self).get_router(context, id, fields)
