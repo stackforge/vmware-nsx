@@ -18,8 +18,8 @@ import vmware_nsx.shell.admin.plugins.common.utils as admin_utils
 import vmware_nsx.shell.admin.plugins.nsxv.resources.utils as utils
 import vmware_nsx.shell.resources as shell
 
-from neutron.callbacks import registry
 from neutron import context as n_context
+from neutron_lib.callbacks import registry
 from oslo_config import cfg
 from oslo_log import log as logging
 

@@ -14,6 +14,10 @@
 #    under the License.
 
 import netaddr
+from neutron_lib.callbacks import events
+from neutron_lib.callbacks import exceptions as callback_exc
+from neutron_lib.callbacks import registry
+from neutron_lib.callbacks import resources
 import six
 
 from neutron.api.rpc.agentnotifiers import dhcp_rpc_agent_api
@@ -23,10 +27,6 @@ from neutron.api.rpc.handlers import dhcp_rpc
 from neutron.api.rpc.handlers import metadata_rpc
 from neutron.api.rpc.handlers import resources_rpc
 from neutron.api.v2 import attributes
-from neutron.callbacks import events
-from neutron.callbacks import exceptions as callback_exc
-from neutron.callbacks import registry
-from neutron.callbacks import resources
 from neutron.common import rpc as n_rpc
 from neutron.common import topics
 from neutron import context as q_context

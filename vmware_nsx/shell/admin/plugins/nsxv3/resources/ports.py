@@ -31,12 +31,12 @@ from vmware_nsx.shell import resources as shell
 from vmware_nsxlib.v3 import exceptions as nsx_exc
 from vmware_nsxlib.v3 import resources
 
-from neutron.callbacks import registry
 from neutron import context as neutron_context
 from neutron.db import allowedaddresspairs_db as addr_pair_db
 from neutron.db import db_base_plugin_v2
 from neutron.db import portsecurity_db
 from neutron.extensions import allowedaddresspairs
+from neutron_lib.callbacks import registry
 from neutron_lib import constants as const
 from neutron_lib.plugins import directory
 

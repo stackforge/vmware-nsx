@@ -24,12 +24,12 @@ from oslo_config import cfg
 from oslo_utils import importutils
 from oslo_utils import uuidutils
 
-from neutron.callbacks import events
-from neutron.callbacks import registry
-from neutron.callbacks import resources
 from neutron import context
 from neutron.tests import base
 
+from neutron_lib.callbacks import events
+from neutron_lib.callbacks import registry
+from neutron_lib.callbacks import resources
 from neutron_lib import exceptions as n_exc
 from vmware_nsx.services.l2gateway.nsx_v3 import driver as nsx_v3_driver
 from vmware_nsx.tests.unit.nsx_v3 import test_plugin as test_nsx_v3_plugin

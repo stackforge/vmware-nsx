@@ -13,6 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from neutron_lib.callbacks import events
+from neutron_lib.callbacks import registry
+from neutron_lib.callbacks import resources
 from oslo_log import log as logging
 from oslo_utils import uuidutils
 import sqlalchemy as sa
@@ -21,9 +24,6 @@ from sqlalchemy.orm import exc
 from sqlalchemy import sql
 
 from neutron.api.v2 import attributes
-from neutron.callbacks import events
-from neutron.callbacks import registry
-from neutron.callbacks import resources
 from neutron.common import utils as n_utils
 from neutron.db import api as db_api
 from neutron.db import db_base_plugin_v2

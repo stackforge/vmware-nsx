@@ -27,8 +27,8 @@ from vmware_nsx.shell.admin.plugins.common import utils as admin_utils
 from vmware_nsx.shell.admin.plugins.nsxv.resources import utils as utils
 from vmware_nsx.shell import resources as shell
 
-from neutron.callbacks import registry
 from neutron import context
+from neutron_lib.callbacks import registry
 
 LOG = logging.getLogger(__name__)
 nsxv = utils.get_nsxv_client()

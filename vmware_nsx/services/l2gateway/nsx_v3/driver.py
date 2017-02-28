@@ -17,15 +17,15 @@
 from networking_l2gw.db.l2gateway import l2gateway_db
 from networking_l2gw.services.l2gateway.common import constants as l2gw_const
 from networking_l2gw.services.l2gateway import exceptions as l2gw_exc
+from neutron_lib.callbacks import events
+from neutron_lib.callbacks import registry
+from neutron_lib.callbacks import resources
 from oslo_config import cfg
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
 from oslo_utils import excutils
 from oslo_utils import uuidutils
 
-from neutron.callbacks import events
-from neutron.callbacks import registry
-from neutron.callbacks import resources
 from neutron import context
 from neutron.plugins.common import utils as n_utils
 from neutron_lib.api.definitions import provider_net as providernet

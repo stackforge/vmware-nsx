@@ -24,10 +24,10 @@ TODO: Add support for other resources, ports, logical switches etc.
 TODO: Autocomplete command line args
 """
 
+from neutron_lib.callbacks import registry
 import requests
 import sys
 
-from neutron.callbacks import registry
 from neutron.common import config as neutron_config
 from neutron.conf import common as neutron_common_config
 
