@@ -241,15 +241,15 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # Register NSXv3 trunk driver to support trunk extensions
         self.trunk_driver = trunk_driver.NsxV3TrunkDriver.create(self)
 
-    # Register extend dict methods for network and port resources.
-    # Each extension driver that supports extend attribute for the resources
-    # can add those attribute to the result.
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attributes.NETWORKS, ['_ext_extend_network_dict'])
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attributes.PORTS, ['_ext_extend_port_dict'])
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attributes.SUBNETS, ['_ext_extend_subnet_dict'])
+        # Register extend dict methods for network and port resources.
+        # Each extension driver that supports extend attribute for the
+        # resources can add those attribute to the result.
+        self.register_dict_extend_funcs(
+            attributes.NETWORKS, ['_ext_extend_network_dict'])
+        self.register_dict_extend_funcs(
+            attributes.PORTS, ['_ext_extend_port_dict'])
+        self.register_dict_extend_funcs(
+            attributes.SUBNETS, ['_ext_extend_subnet_dict'])
 
     def _init_client_certificate(self):
         """Load certificate data from storage"""

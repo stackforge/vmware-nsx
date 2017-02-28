@@ -104,9 +104,11 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         self._dvs = dvs.SingleDvsManager()
         self.setup_dhcpmeta_access()
 
-    # Register extend dict methods for port resources.
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attr.PORTS, ['_ext_extend_port_dict'])
+        # Register extend dict methods for port resources.
+        self.register_dict_extend_funcs(
+            attr.PORTS, ['_ext_extend_port_dict'])
+        self.register_dict_extend_funcs(
+            attr.NETWORKS, ['_extend_standard_attr_description'])
 
     def _extend_port_dict_binding(self, portdb, result):
         result[pbin.VIF_TYPE] = nsx_constants.VIF_TYPE_DVS
