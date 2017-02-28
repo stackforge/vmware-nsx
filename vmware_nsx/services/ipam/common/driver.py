@@ -228,6 +228,7 @@ class NsxIpamSubnetManager(object):
     def neutron_id(self):
         return self._neutron_subnet_id
 
+
 class NsxAbstractIpamSubnet(ipam_base.Subnet, NsxIpamBase):
     """Manage IP addresses for the NSX IPAM driver."""
 
