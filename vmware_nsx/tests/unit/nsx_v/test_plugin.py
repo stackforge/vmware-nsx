@@ -20,7 +20,6 @@ import netaddr
 from neutron.api.rpc.callbacks import events as callbacks_events
 from neutron.api.rpc.callbacks import resources as callbacks_resources
 from neutron.api.v2 import attributes
-from neutron import context
 from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.extensions import dvr as dist_router
 from neutron.extensions import external_net
@@ -45,6 +44,7 @@ from neutron_lib.api.definitions import portbindings
 from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib.api import validators
 from neutron_lib import constants
+from neutron_lib import context
 from neutron_lib import exceptions as n_exc
 from neutron_lib.plugins import directory
 from neutron_lib.utils import helpers
