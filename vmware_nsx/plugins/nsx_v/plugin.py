@@ -20,6 +20,7 @@ import uuid
 import netaddr
 from neutron_lib.api import validators
 from neutron_lib import constants
+from neutron_lib import context as n_context
 from neutron_lib.db import constants as db_const
 from neutron_lib import exceptions as n_exc
 from neutron_lib.plugins import directory
@@ -42,7 +43,6 @@ from neutron.common import ipv6_utils
 from neutron.common import rpc as n_rpc
 from neutron.common import topics
 from neutron.common import utils as n_utils
-from neutron import context as n_context
 from neutron.db import _utils as db_utils
 from neutron.db import agents_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
