@@ -219,6 +219,16 @@ class NsxAbstractIpamDriver(subnet_alloc.SubnetAllocator, NsxIpamBase):
                                         subnet_id, nsx_pool_id)
 
 
+class NsxIpamSubnetManager(object):
+
+    def __init__(self, neutron_subnet_id):
+        self._neutron_subnet_id = neutron_subnet_id
+
+    @property
+    def neutron_id(self):
+        return self._neutron_subnet_id
+
+
 class NsxAbstractIpamSubnet(ipam_base.Subnet, NsxIpamBase):
     """Manage IP addresses for the NSX IPAM driver."""
 
@@ -227,11 +237,13 @@ class NsxAbstractIpamSubnet(ipam_base.Subnet, NsxIpamBase):
         self._nsx_pool_id = nsx_pool_id
         self._context = ctx
         self._tenant_id = tenant_id
+        self.subnet_manager = NsxIpamSubnetManager(self._subnet_id)
 
     @classmethod
     def load(cls, neutron_subnet_id, nsx_pool_id, ctx, tenant_id=None):
         """Load an IPAM subnet object given its neutron ID."""
-        return cls(neutron_subnet_id, nsx_pool_id, ctx, tenant_id)
+        subnet = cls(neutron_subnet_id, nsx_pool_id, ctx, tenant_id)
+        return subnet
 
     def allocate(self, address_request):
         """Allocate an IP from the pool"""
