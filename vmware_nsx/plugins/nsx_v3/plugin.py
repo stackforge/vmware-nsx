@@ -78,6 +78,7 @@ from sqlalchemy import exc as sql_exc
 
 from vmware_nsx._i18n import _, _LE, _LI, _LW
 from vmware_nsx.api_replay import utils as api_replay_utils
+from vmware_nsx.common import availability_zones as nsx_com_az
 from vmware_nsx.common import config  # noqa
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import l3_rpc_agent_api
@@ -93,6 +94,7 @@ from vmware_nsx.extensions import advancedserviceproviders as as_providers
 from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
+from vmware_nsx.plugins.nsx_v3 import availability_zones as nsx_az
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
@@ -134,7 +136,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                   portsecurity_db.PortSecurityDbMixin,
                   extradhcpopt_db.ExtraDhcpOptMixin,
                   dns_db.DNSDbMixin,
-                  mac_db.MacLearningDbMixin):
+                  mac_db.MacLearningDbMixin,
+                  nsx_com_az.NSXAvailabilityZonesPluginCommon):
 
     __native_bulk_support = True
     __native_pagination_support = True
@@ -195,6 +198,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         self.cfg_group = 'nsx_v3'  # group name for nsx_v3 section in nsx.ini
         self.tier0_groups_dict = {}
+
+        # Initialize the network availability zones, which will be used only
+        # when native_dhcp_metadata is True
+        self.init_availability_zones()
+
         # Translate configured transport zones, routers, dhcp profile and
         # metadata proxy names to uuid.
         self._translate_configured_names_to_uuids()
@@ -240,11 +248,23 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     # Each extension driver that supports extend attribute for the resources
     # can add those attribute to the result.
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attributes.NETWORKS, ['_ext_extend_network_dict'])
+        attributes.NETWORKS, ['_ext_extend_network_dict',
+                              '_extend_availability_zone_hints'])
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
         attributes.PORTS, ['_ext_extend_port_dict'])
     db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
         attributes.SUBNETS, ['_ext_extend_subnet_dict'])
+
+    def init_availability_zones(self):
+        # availability zones are supported only with native dhcp
+        # if not - the default az will be loaded and used internally only
+        if (cfg.CONF.nsx_v3.availability_zones and
+            not cfg.CONF.nsx_v3.native_dhcp_metadata):
+            msg = _("Availability zones are not supported without native "
+                    "DHCP metadata")
+            LOG.error(msg)
+            raise n_exc.InvalidInput(error_message=msg)
+        self._availability_zones_data = nsx_az.NsxV3AvailabilityZones()
 
     def _init_nsx_profiles(self):
         LOG.debug("Initializing NSX v3 port spoofguard switching profile")
@@ -304,22 +324,16 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 cfg.CONF.nsx_v3.default_tier0_router)
             self._default_tier0_router = rtr_id
 
-        self._native_dhcp_profile_uuid = None
-        self._native_md_proxy_uuid = None
+        # Validate translate native dhcp profiles per az
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
-            if cfg.CONF.nsx_v3.dhcp_profile:
-                id = self.nsxlib.native_dhcp_profile.get_id_by_name_or_id(
-                                cfg.CONF.nsx_v3.dhcp_profile)
-                self._native_dhcp_profile_uuid = id
-            else:
+            if not cfg.CONF.nsx_v3.dhcp_profile:
                 raise cfg.RequiredOptError("dhcp_profile")
 
-            if cfg.CONF.nsx_v3.metadata_proxy:
-                proxy_id = self.nsxlib.native_md_proxy.get_id_by_name_or_id(
-                                cfg.CONF.nsx_v3.metadata_proxy)
-                self._native_md_proxy_uuid = proxy_id
-            else:
+            if not cfg.CONF.nsx_v3.metadata_proxy:
                 raise cfg.RequiredOptError("metadata_proxy")
+
+            for az in self.get_azs_list():
+                az.translate_configured_names_to_uuids(self.nsxlib)
 
     def _extend_port_dict_binding(self, context, port_data):
         port_data[pbin.VIF_TYPE] = pbin.VIF_TYPE_OVS
@@ -515,25 +529,27 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def _init_native_dhcp(self):
         try:
-            nsx_resources.DhcpProfile(self._nsx_client).get(
-                self._native_dhcp_profile_uuid)
+            for az in self.get_azs_list():
+                nsx_resources.DhcpProfile(self._nsx_client).get(
+                    az._native_dhcp_profile_uuid)
             self._dhcp_server = nsx_resources.LogicalDhcpServer(
                 self._nsx_client)
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("Unable to retrieve DHCP Profile %s, "
                               "native DHCP service is not supported"),
-                          self._native_dhcp_profile_uuid)
+                          az._native_dhcp_profile_uuid)
 
     def _init_native_metadata(self):
         try:
-            nsx_resources.MetaDataProxy(self._nsx_client).get(
-                self._native_md_proxy_uuid)
+            for az in self.get_azs_list():
+                nsx_resources.MetaDataProxy(self._nsx_client).get(
+                    az._native_md_proxy_uuid)
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error(_LE("Unable to retrieve Metadata Proxy %s, "
                               "native metadata service is not supported"),
-                          self._native_md_proxy_uuid)
+                          az._native_md_proxy_uuid)
 
     def _setup_rpc(self):
         self.endpoints = [dhcp_rpc.DhcpRpcCallback(),
@@ -799,6 +815,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     super(NsxV3Plugin, self).update_network(context,
                         net_id, {'network': {az_ext.AZ_HINTS: az_hints}})
                     created_net[az_ext.AZ_HINTS] = az_hints
+                    # Only if native_dhcp_metadata use nsx AZs
+                    if cfg.CONF.nsx_v3.native_dhcp_metadata:
+                        created_net[az_ext.AVAILABILITY_ZONES] = az_hints
 
                 if is_provider_net:
                     # Save provider network fields, needed by get_network()
@@ -817,6 +836,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         nsx_net_id)
 
             if is_backend_network and cfg.CONF.nsx_v3.native_dhcp_metadata:
+                az = self.get_network_az(created_net)
                 # Enable native metadata proxy for this network.
                 tags = self.nsxlib.build_v3_tags_payload(
                     net_data, resource_type='os-neutron-net-id',
@@ -825,7 +845,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     'mdproxy', created_net['name'] or 'network'),
                                                created_net['id'])
                 md_port = self._port_client.create(
-                    nsx_net_id, self._native_md_proxy_uuid,
+                    nsx_net_id, az._native_md_proxy_uuid,
                     tags=tags, name=name,
                     attachment_type=nsxlib_consts.ATTACHMENT_MDPROXY)
                 LOG.debug("Created MD-Proxy logical port %(port)s "
@@ -1018,10 +1038,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         existing_ports = super(NsxV3Plugin, self).get_ports(
             context, filters={'network_id': [network['id']],
                               'fixed_ips': {'subnet_id': [subnet['id']]}})
+        az = self.get_network_az(network)
         port_data = {
             "name": "",
             "admin_state_up": True,
-            "device_id": self._native_dhcp_profile_uuid,
+            "device_id": az._native_dhcp_profile_uuid,
             "device_owner": const.DEVICE_OWNER_DHCP,
             "network_id": network['id'],
             "tenant_id": network["tenant_id"],
@@ -1035,7 +1056,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             project_name=context.tenant_name)
         server_data = self.nsxlib.native_dhcp.build_server_config(
             network, subnet, neutron_port, net_tags)
-        server_data['dhcp_profile_id'] = self._native_dhcp_profile_uuid
+        server_data['dhcp_profile_id'] = az._native_dhcp_profile_uuid
         nsx_net_id = self._get_network_nsx_id(context, network['id'])
         port_tags = self.nsxlib.build_v3_tags_payload(
             neutron_port, resource_type='os-neutron-dport-id',
@@ -3469,3 +3490,38 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def save_security_group_rule_mappings(self, context, firewall_rules):
         rules = [(rule['display_name'], rule['id']) for rule in firewall_rules]
         nsx_db.save_sg_rule_mappings(context.session, rules)
+
+    def _list_availability_zones(self, context, filters=None):
+        # If no native_dhcp_metadata - use neutron AZs
+        if not cfg.CONF.nsx_v3.native_dhcp_metadata:
+            return super(NsxV3Plugin, self)._list_availability_zones(
+                context, filters=filters)
+
+        #TODO(asarfaty): We may need to use the filters arg, but now it
+        # is here only for overriding the original api
+        result = {}
+        for az in self._availability_zones_data.list_availability_zones():
+            # Add this availability zone as a network resource
+            result[(az, 'network')] = True
+        return result
+
+    def validate_availability_zones(self, context, resource_type,
+                                    availability_zones):
+        # If no native_dhcp_metadata - use neutron AZs
+        if not cfg.CONF.nsx_v3.native_dhcp_metadata:
+            return super(NsxV3Plugin, self).validate_availability_zones(
+                context, resource_type, availability_zones)
+        # Validate against the configured AZs
+        return self.validate_obj_azs(availability_zones)
+
+    def _extend_availability_zone_hints(self, net_res, net_db):
+        net_res[az_ext.AZ_HINTS] = az_ext.convert_az_string_to_list(
+            net_db[az_ext.AZ_HINTS])
+        if cfg.CONF.nsx_v3.native_dhcp_metadata:
+            # When using the configured AZs, the az will always be the same
+            # as the hint (or default if none)
+            if net_res[az_ext.AZ_HINTS]:
+                az_name = net_res[az_ext.AZ_HINTS][0]
+            else:
+                az_name = nsx_az.DEFAULT_NAME
+            net_res[az_ext.AVAILABILITY_ZONES] = [az_name]
