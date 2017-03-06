@@ -304,6 +304,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 cfg.CONF.nsx_v3.default_tier0_router)
             self._default_tier0_router = rtr_id
 
+        # DEBUG ADIT this is per az
         self._native_dhcp_profile_uuid = None
         self._native_md_proxy_uuid = None
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
@@ -514,6 +515,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._start_rpc_notifiers()
 
     def _init_native_dhcp(self):
+        # DEBUG ADIT per az
         try:
             nsx_resources.DhcpProfile(self._nsx_client).get(
                 self._native_dhcp_profile_uuid)
@@ -526,6 +528,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                           self._native_dhcp_profile_uuid)
 
     def _init_native_metadata(self):
+        # DEBUG ADIT per az
         try:
             nsx_resources.MetaDataProxy(self._nsx_client).get(
                 self._native_md_proxy_uuid)
@@ -825,7 +828,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     'mdproxy', created_net['name'] or 'network'),
                                                created_net['id'])
                 md_port = self._port_client.create(
-                    nsx_net_id, self._native_md_proxy_uuid,
+                    nsx_net_id, self._native_md_proxy_uuid, # DEBUG ADIT per az
                     tags=tags, name=name,
                     attachment_type=nsxlib_consts.ATTACHMENT_MDPROXY)
                 LOG.debug("Created MD-Proxy logical port %(port)s "
@@ -1021,7 +1024,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         port_data = {
             "name": "",
             "admin_state_up": True,
-            "device_id": self._native_dhcp_profile_uuid,
+            "device_id": self._native_dhcp_profile_uuid, # DEBUG ADIT per AZ
             "device_owner": const.DEVICE_OWNER_DHCP,
             "network_id": network['id'],
             "tenant_id": network["tenant_id"],
@@ -1035,7 +1038,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             project_name=context.tenant_name)
         server_data = self.nsxlib.native_dhcp.build_server_config(
             network, subnet, neutron_port, net_tags)
-        server_data['dhcp_profile_id'] = self._native_dhcp_profile_uuid
+        server_data['dhcp_profile_id'] = self._native_dhcp_profile_uuid # DEBUG ADIT per AZ
         nsx_net_id = self._get_network_nsx_id(context, network['id'])
         port_tags = self.nsxlib.build_v3_tags_payload(
             neutron_port, resource_type='os-neutron-dport-id',
