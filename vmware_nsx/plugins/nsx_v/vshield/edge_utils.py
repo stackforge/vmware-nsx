@@ -186,7 +186,7 @@ class EdgeManager(object):
         self._worker_pool_pid = None
         self._worker_pool = None
         self.nsxv_manager = nsxv_manager
-        self._availability_zones = nsx_az.ConfiguredAvailabilityZones()
+        self._availability_zones = nsx_az.NsxVAvailabilityZones()
         self.edge_pool_dicts = self._parse_backup_edge_pool_opt()
         self.nsxv_plugin = nsxv_manager.callbacks.plugin
         self.plugin = plugin
@@ -2150,7 +2150,7 @@ def _retrieve_nsx_switch_id(context, network_id, az_name):
                 # If network is of type VLAN and multiple dvs associated with
                 # one neutron network, retrieve the logical network id for the
                 # edge/mgmt cluster's DVS from the networks availability zone.
-                azs = nsx_az.ConfiguredAvailabilityZones()
+                azs = nsx_az.NsxVAvailabilityZones()
                 az = azs.get_availability_zone(az_name)
                 dvs_id = az.dvs_id
             return nsx_db.get_nsx_switch_id_for_dvs(
