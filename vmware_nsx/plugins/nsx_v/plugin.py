@@ -226,7 +226,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         self.edge_manager = edge_utils.EdgeManager(self.nsx_v, self)
         self.nsx_sg_utils = securitygroup_utils.NsxSecurityGroupUtils(
             self.nsx_v)
-        self._availability_zones_data = nsx_az.ConfiguredAvailabilityZones()
+        self._availability_zones_data = nsx_az.NsxVAvailabilityZones()
         # Validate the host_groups for each AZ
         if cfg.CONF.nsxv.use_dvs_features:
             azs = self._availability_zones_data.availability_zones.values()
