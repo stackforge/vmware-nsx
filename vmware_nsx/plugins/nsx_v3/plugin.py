@@ -93,6 +93,7 @@ from vmware_nsx.extensions import advancedserviceproviders as as_providers
 from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
+from vmware_nsx.plugins.nsx_v3 import availability_zones as nsx_az
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
@@ -195,6 +196,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         self.cfg_group = 'nsx_v3'  # group name for nsx_v3 section in nsx.ini
         self.tier0_groups_dict = {}
+
+        self._availability_zones_data = nsx_az.NsxV3AvailabilityZones()
+
         # Translate configured transport zones, routers, dhcp profile and
         # metadata proxy names to uuid.
         self._translate_configured_names_to_uuids()
@@ -304,6 +308,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 cfg.CONF.nsx_v3.default_tier0_router)
             self._default_tier0_router = rtr_id
 
+        # DEBUG ADIT - per az
         self._native_dhcp_profile_uuid = None
         self._native_md_proxy_uuid = None
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
@@ -825,7 +830,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     'mdproxy', created_net['name'] or 'network'),
                                                created_net['id'])
                 md_port = self._port_client.create(
-                    nsx_net_id, self._native_md_proxy_uuid,
+                    nsx_net_id, self._native_md_proxy_uuid,  # DEBUG ADIT az
                     tags=tags, name=name,
                     attachment_type=nsxlib_consts.ATTACHMENT_MDPROXY)
                 LOG.debug("Created MD-Proxy logical port %(port)s "
@@ -1021,7 +1026,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         port_data = {
             "name": "",
             "admin_state_up": True,
-            "device_id": self._native_dhcp_profile_uuid,
+            "device_id": self._native_dhcp_profile_uuid,  # DEBUG ADIT per AZ
             "device_owner": const.DEVICE_OWNER_DHCP,
             "network_id": network['id'],
             "tenant_id": network["tenant_id"],
@@ -1035,6 +1040,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             project_name=context.tenant_name)
         server_data = self.nsxlib.native_dhcp.build_server_config(
             network, subnet, neutron_port, net_tags)
+        # DEBUG ADIT per AZ
         server_data['dhcp_profile_id'] = self._native_dhcp_profile_uuid
         nsx_net_id = self._get_network_nsx_id(context, network['id'])
         port_tags = self.nsxlib.build_v3_tags_payload(
@@ -3469,3 +3475,33 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def save_security_group_rule_mappings(self, context, firewall_rules):
         rules = [(rule['display_name'], rule['id']) for rule in firewall_rules]
         nsx_db.save_sg_rule_mappings(context.session, rules)
+
+    def _list_availability_zones(self, context, filters=None):
+        # DEBUG ADIT conditional ? what about the older implementation?
+        #TODO(asarfaty): We may need to use the filters arg, but now it
+        # is here only for overriding the original api
+        result = {}
+        for az in self._availability_zones_data.list_availability_zones():
+            # Add this availability zone as a network resource
+            result[(az, 'network')] = True
+        return result
+
+    def validate_availability_zones(self, context, resource_type,
+                                    availability_zones):
+        # DEBUG ADIT conditional ? what about the older implementation?
+        """Verify that the availability zones exist, and only 1 hint
+        was set.
+        """
+        # For now we support only 1 hint per network/router
+        # TODO(asarfaty): support multiple hints
+        if len(availability_zones) > 1:
+            err_msg = _("Can't use multiple availability zone hints")
+            raise n_exc.InvalidInput(error_message=err_msg)
+
+        # check that all hints appear in the predefined list of availability
+        # zones
+        diff = (set(availability_zones) -
+                set(self._availability_zones_data.list_availability_zones()))
+        if diff:
+            raise az_ext.AvailabilityZoneNotFound(
+                availability_zone=diff.pop())
