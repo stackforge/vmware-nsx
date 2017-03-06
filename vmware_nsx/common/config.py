@@ -665,7 +665,7 @@ nsxv_opts = [
                        "be associated with all router interfaces.")),
 ]
 
-# define the configuration of each availability zone.
+# define the configuration of each NSX-V availability zone.
 # the list of expected zones in under nsxv group: availability_zones
 # Note: if any of the optional arguments is missing - the global one will be
 # used instead.
@@ -718,6 +718,23 @@ nsxv_az_opts = [
     cfg.StrOpt('dvs_id',
                help=_('(Optional) DVS MoRef ID for DVS connected to '
                       'Management / Edge cluster')),
+]
+
+# define the configuration of each NSX-V3 availability zone.
+# the list of expected zones in under nsx_v3 group: availability_zones
+# Note: if any of the optional arguments is missing - the global one will be
+# used instead.
+nsxv3_az_opts = [
+    cfg.StrOpt('metadata_proxy',
+               help=_("(Optional) The name or UUID of the NSX Metadata Proxy "
+                      "that will be used to enable native metadata service. "
+                      "It needs to be created in NSX before starting Neutron "
+                      "with the NSX plugin.")),
+    cfg.StrOpt('dhcp_profile',
+               help=_("(Optional) The name or UUID of the NSX DHCP Profile "
+                      "that will be used to enable native DHCP service. It "
+                      "needs to be created in NSX before starting Neutron "
+                      "with the NSX plugin")),
 ]
 
 # Register the configuration options
