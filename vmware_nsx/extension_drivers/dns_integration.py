@@ -31,6 +31,7 @@ LOG = logging.getLogger(__name__)
 DNS_DOMAIN_DEFAULT = 'openstacklocal.'
 
 
+# TODO(asarfaty) use dns-domain/nameserver from network az instead of global
 class DNSExtensionDriver(driver_api.ExtensionDriver):
     _supported_extension_alias = 'dns-integration'
 
@@ -285,6 +286,7 @@ class DNSExtensionDriverNSXv3(DNSExtensionDriver):
 
     def _get_dns_domain(self):
         if cfg.CONF.nsx_v3.dns_domain:
+            # TOSO(asarfaty) - from AZ!
             dns_domain = cfg.CONF.nsx_v3.dns_domain
         elif cfg.CONF.dns_domain:
             dns_domain = cfg.CONF.dns_domain

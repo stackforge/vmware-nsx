@@ -55,6 +55,8 @@ def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
         return
 
     dhcp_profile_uuid = None
+    # TODO(asarfaty) which az? global(default?) maybe add az name, and go over
+    # networks that belong to this az only?
     if kwargs.get('property'):
         properties = admin_utils.parse_multi_keyval_opt(kwargs['property'])
         dhcp_profile_uuid = properties.get('dhcp_profile_uuid')
@@ -91,6 +93,8 @@ def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
                 net_tags = nsxlib.build_v3_tags_payload(
                     network, resource_type='os-neutron-net-id',
                     project_name='admin')
+                # TODO(asarfaty): add default_dns_nameservers & dns_domain
+                # from availability zone
                 server_data = nsxlib.native_dhcp.build_server_config(
                     network, subnet, port, net_tags)
                 server_data['dhcp_profile_id'] = dhcp_profile_uuid
@@ -130,6 +134,7 @@ def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
             continue
         for (port_id, mac, ip, subnet_id) in bindings:
             hostname = 'host-%s' % ip.replace('.', '-')
+            # DEBUG ADIT - az
             options = {'option121': {'static_routes': [
                 {'network': '%s' % cfg.CONF.nsx_v3.native_metadata_route,
                  'next_hop': ip}]}}
