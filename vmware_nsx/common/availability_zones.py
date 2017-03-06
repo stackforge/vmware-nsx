@@ -14,6 +14,7 @@
 #    under the License.
 
 import abc
+import six
 
 from neutron.extensions import availability_zone as az_ext
 from neutron_lib import exceptions as n_exc

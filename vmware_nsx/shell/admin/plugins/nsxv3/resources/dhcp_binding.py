@@ -55,6 +55,8 @@ def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
         return
 
     dhcp_profile_uuid = None
+    # DEBUG ADIT which az? global(default?) maybe ass az name, and go over
+    # networks that belong to this az only
     if kwargs.get('property'):
         properties = admin_utils.parse_multi_keyval_opt(kwargs['property'])
         dhcp_profile_uuid = properties.get('dhcp_profile_uuid')
@@ -88,11 +90,14 @@ def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
                 # and update the attachment type to DHCP on the corresponding
                 # logical port of the Neutron DHCP port.
                 network = neutron_client.get_network(port['network_id'])
+                # DEBUG ADIT AZ
                 net_tags = nsxlib.build_v3_tags_payload(
                     network, resource_type='os-neutron-net-id',
                     project_name='admin')
                 server_data = nsxlib.native_dhcp.build_server_config(
                     network, subnet, port, net_tags)
+                    # default_dns_nameservers=az.nameservers,
+                    # default_dns_domain=az.dns_domain)
                 server_data['dhcp_profile_id'] = dhcp_profile_uuid
                 dhcp_server = dhcp_server_resource.create(**server_data)
                 LOG.info(_LI("Created logical DHCP server %(server)s for "
@@ -130,6 +135,7 @@ def nsx_update_dhcp_bindings(resource, event, trigger, **kwargs):
             continue
         for (port_id, mac, ip, subnet_id) in bindings:
             hostname = 'host-%s' % ip.replace('.', '-')
+            # DEBUG ADIT - az
             options = {'option121': {'static_routes': [
                 {'network': '%s' % cfg.CONF.nsx_v3.native_metadata_route,
                  'next_hop': ip}]}}
