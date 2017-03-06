@@ -69,6 +69,7 @@ class DbCertificateStorageDriver(object):
     def get_cert(self, purpose):
         cert, private_key = nsx_db.get_certificate(self._context.session,
                                                    purpose)
+        print("DEBUGGG %s" % cert)
         if _SECRET and private_key:
             try:
                 # Encrypted PK is stored in DB as string, while fernet expects
