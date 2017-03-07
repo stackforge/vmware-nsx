@@ -21,6 +21,8 @@ from tempest import test
 from vmware_nsx_tempest.lib import feature_manager
 from vmware_nsx_tempest.services import nsx_client
 
+from vmware_nsx_tempest.tests.scenario import manager
+
 CONF = config.CONF
 
 LOG = logging.getLogger(__name__)
