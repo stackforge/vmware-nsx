@@ -317,10 +317,10 @@ class TopoDeployScenarioManager(manager.NetworkScenarioTest):
         return net_subnet
 
     def setup_project_network(self, external_network_id,
-                             client_mgr=None,
-                             namestart=None, client=None,
-                             tenant_id=None, cidr_offset=0,
-                             **kwargs):
+                              client_mgr=None,
+                              namestart=None, client=None,
+                              tenant_id=None, cidr_offset=0,
+                              **kwargs):
         """NOTE:
 
             Refer to create_networks@scenario/manager.py which might refer
@@ -423,7 +423,7 @@ class TopoDeployScenarioManager(manager.NetworkScenarioTest):
             if fip:
                 elapse_time = time.time() - start_time
                 xmsg = ("%s Take %d seconds to assign floatingip to server[%s]"
-                    % ("OS-STATS:", int(elapse_time), sv.get('name')))
+                        % ("OS-STATS:", int(elapse_time), sv.get('name')))
                 LOG.debug(xmsg)
                 return fip
             time.sleep(interval)

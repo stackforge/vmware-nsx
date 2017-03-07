@@ -12,6 +12,7 @@
 
 from tempest import config
 from tempest.lib import decorators
+from tempest import test
 
 from vmware_nsx_tempest.tests.nsxv.api.lbaas import base
 
@@ -24,6 +25,9 @@ class TestL7Rules(base.BaseTestCase):
     @classmethod
     def skip_checks(cls):
         super(TestL7Rules, cls).skip_checks()
+        if not test.is_extension_enabled('l7', 'network'):
+            msg = 'lbaasv2-l7 extension is not enabled.'
+            raise cls.skipException(msg)
         if '1739510' in CONF.nsxv.bugs_to_resolve:
             msg = ("skip lbaas_l7_switching_ops because bug=1739150"
                    "  -- l7 switching is not supported")

@@ -166,10 +166,12 @@ class LBaasRoundRobinBaseTest(dmgr.TopoDeployScenarioManager):
         # Wait for load balancer become ONLINE and ACTIVE
         self.load_balancers_client.wait_for_load_balancer_status(lb_id)
 
-    def create_lbaas_networks(self):
+    def create_lbaas_networks(self, router_type='exclusive',
+                              distributed=False):
         """Create network, subnet and router for lbaasv2 environment."""
         self.network, self.subnet, self.router = self.setup_project_network(
             self.public_network_id, client_mgr=self.manager,
+            distributed=distributed, router_type=router_type,
             namestart=self.namestart)
         self._create_security_group_for_test()
         security_groups = [{'name': self.security_group['id']}]
@@ -347,7 +349,7 @@ class LBaasRoundRobinBaseTest(dmgr.TopoDeployScenarioManager):
         send_counts = (send_counts * 2) / 2
         url_path = "http://{0}/{1}".format(self.vip_ip_address, start_path)
         for x in range(send_counts):
-            resp = http.request('GET', url_path)
+            resp = http.request('GET', url_path, timeout=15.0)
             if resp.status == 200:
                 self.count_response(resp.data.strip())
             else:
@@ -357,11 +359,12 @@ class LBaasRoundRobinBaseTest(dmgr.TopoDeployScenarioManager):
     def check_project_lbaas(self):
         self.do_http_request(send_counts=self.poke_counters)
         # should response from 2 servers
-        self.assertEqual(2, len(self.http_cnt))
+        msg = "FAILHINT: Expect 2 repsponders, get: %s" % str(self.http_cnt)
+        self.assertEqual(2, len(self.http_cnt), msg)
         # ROUND_ROUBIN, so equal counts
         s0 = self.server_names[0]
         s1 = self.server_names[1]
-        self.assertEqual(self.http_cnt[s0], self.http_cnt[s1])
+        self.assertEqual(self.http_cnt[s0], self.http_cnt[s1], msg)
 
     def count_response(self, response):
         if response in self.http_cnt:
@@ -369,13 +372,20 @@ class LBaasRoundRobinBaseTest(dmgr.TopoDeployScenarioManager):
         else:
             self.http_cnt[response] = 1
 
+    def run_lbaas_round_robin_ops(self, router_type='exclusive',
+                                  distributed=False):
+        self.create_lbaas_networks(router_type, distributed)
+        self.start_web_servers(self.rr_server_list)
+        self.create_project_lbaas()
+        self.check_project_lbaas()
 
-class TestLBaasRoundRobinOps(LBaasRoundRobinBaseTest):
+
+class TestLBaasRoundRobinOpsShared(LBaasRoundRobinBaseTest):
 
     """This test checks basic load balancer V2 ROUND-ROBIN operation.
 
     The following is the scenario outline:
-    1. Create network with exclusive router, and 2 servers
+    1. Create network with shared router, and 2 servers
     2. SSH to each instance and start web server
     3. Create a load balancer with 1 listener, 1 pool, 1 healthmonitor
        and 2 members and with ROUND_ROBIN algorithm.
@@ -387,7 +397,18 @@ class TestLBaasRoundRobinOps(LBaasRoundRobinBaseTest):
     @decorators.idempotent_id('077d2a5c-4938-448f-a80f-8e65f5cc49d7')
     @test.services('compute', 'network')
     def test_lbaas_round_robin_ops(self):
-        self.create_lbaas_networks()
-        self.start_web_servers(self.rr_server_list)
-        self.create_project_lbaas()
-        self.check_project_lbaas()
+        self.run_lbaas_round_robin_ops('shared', False)
+
+
+class TestLBaasRoundRobinOpsExclusive(LBaasRoundRobinBaseTest):
+    @decorators.idempotent_id('af95dffd-0b7e-4a8b-874e-21534c6115c9')
+    @test.services('compute', 'network')
+    def test_lbaas_round_robin_ops(self):
+        self.run_lbaas_round_robin_ops('exclusive', False)
+
+
+class TestLBaasRoundRobinOpsDistributed(LBaasRoundRobinBaseTest):
+    @decorators.idempotent_id('6be41ae5-1eed-4919-a8de-72bef062b739')
+    @test.services('compute', 'network')
+    def test_lbaas_round_robin_ops(self):
+        self.run_lbaas_round_robin_ops(None, True)

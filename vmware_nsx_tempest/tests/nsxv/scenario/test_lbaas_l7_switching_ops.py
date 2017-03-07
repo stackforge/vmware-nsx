@@ -32,6 +32,13 @@ class TestL7SwitchingOps(lbaas_ops.LBaasRoundRobinBaseTest):
     """
 
     @classmethod
+    def skip_checks(cls):
+        super(TestL7SwitchingOps, cls).skip_checks()
+        if not test.is_extension_enabled('l7', 'network'):
+            msg = 'lbaasv2-l7 extension is not enabled.'
+            raise cls.skipException(msg)
+
+    @classmethod
     def resource_setup(cls):
         super(TestL7SwitchingOps, cls).resource_setup()
         cls.create_lbaas_clients(cls.manager)
@@ -171,10 +178,9 @@ class TestL7SwitchingOps(lbaas_ops.LBaasRoundRobinBaseTest):
         # URL /api/v1 should be rejected, status=403
         self.check_l7_switching('api/v1', reject_name_list, 6)
 
-    @decorators.idempotent_id('f11e19e4-16b5-41c7-878d-59b9e943e3ce')
-    @test.services('compute', 'network')
-    def test_lbaas_l7_switching_ops(self):
-        self.create_lbaas_networks()
+    def run_lbaas_l7_switching_ops(self, router_type='exclusive',
+                                   distributed=False):
+        self.create_lbaas_networks(router_type, distributed)
         self.start_web_servers()
         self.create_project_lbaas()
         self.check_project_lbaas()
@@ -182,3 +188,24 @@ class TestL7SwitchingOps(lbaas_ops.LBaasRoundRobinBaseTest):
         self.create_and_start_l7_web_servers()
         self.build_l7_switching()
         self.validate_l7_switching()
+
+
+class TestL7SwitchingOpsShared(TestL7SwitchingOps):
+    @decorators.idempotent_id('f11e19e4-16b5-41c7-878d-59b9e943e3ce')
+    @test.services('compute', 'network')
+    def test_lbaas_l7_switching_ops(self):
+        self.run_lbaas_l7_switching_ops('shared', False)
+
+
+class TestL7SwitchingOpsExclusive(TestL7SwitchingOps):
+    @test.idempotent_id('eb96ac3f-f6a9-4686-a7d2-cd39bd2f0e73')
+    @test.services('compute', 'network')
+    def test_lbaas_l7_switching_ops(self):
+        self.run_lbaas_l7_switching_ops('exclusive', False)
+
+
+class TestL7SwitchingOpsDistributed(TestL7SwitchingOps):
+    @test.idempotent_id('d2c93c48-2e35-4ea9-a7dc-18133a42277d')
+    @test.services('compute', 'network')
+    def test_lbaas_l7_switching_ops(self):
+        self.run_lbaas_l7_switching_ops('', True)

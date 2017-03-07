@@ -123,7 +123,8 @@ class BaseTestCase(base.BaseNetworkTest):
             test_utils.call_and_ignore_notfound_exc(
                 cls._delete_load_balancer, lb_id)
         # NSX-v: delete exclusive router
-        cls.delete_router(cls.router)
+        test_utils.call_and_ignore_notfound_exc(
+            cls.delete_router, cls.router)
         super(BaseTestCase, cls).resource_cleanup()
 
     @classmethod
