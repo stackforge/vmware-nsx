@@ -15,6 +15,8 @@
 import netaddr
 from oslo_config import cfg
 
+from neutron.callbacks import events
+from neutron.callbacks import registry
 from neutron.db import l3_db
 from neutron.db.models import l3 as l3_db_models
 from neutron.db import models_v2
@@ -37,6 +39,8 @@ from vmware_nsx.plugins.nsx_v.vshield.common import (
 from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 
 LOG = logging.getLogger(__name__)
+
+SHARED_ROUTER = 'shared_router'
 
 
 class RouterSharedDriver(router_driver.RouterBaseDriver):
@@ -125,7 +129,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
         router_qry = context.session.query(l3_db_models.Router)
         router_db = router_qry.filter_by(id=router_id).one()
         return self.plugin._get_external_attachment_info(
-            context, router_db)[2]
+            context, router_db.gw_port)[2]
 
     def _update_routes_on_routers(self, context, target_router_id, router_ids,
                                   only_if_target_routes=False):
@@ -257,7 +261,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
             router_qry = context.session.query(l3_db_models.Router)
             router = router_qry.filter_by(id=router_id).one()
             addr, mask, nexthop = self.plugin._get_external_attachment_info(
-                context, router)
+                context, router.gw_port)
             if addr:
                 if not gateway_primary_addr:
                     gateway_primary_addr = addr
@@ -332,6 +336,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                 context, router_id, conflict_router_ids, [], 0)
             if is_conflict:
                 with locking.LockManager.get_lock(str(edge_id)):
+                    self._notify_before_router_migration(context, router_db)
                     self._remove_router_services_on_edge(context, router_id)
                     self._unbind_router_on_edge(context, router_id)
                 self._bind_router_on_available_edge(
@@ -341,6 +346,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                 with locking.LockManager.get_lock(str(new_edge_id)):
                     self._add_router_services_on_available_edge(context,
                                                                 router_id)
+                    self._notify_after_router_migration(context, router_db)
             else:
                 with locking.LockManager.get_lock(str(edge_id)):
                     router_ids = self.edge_manager.get_routers_on_same_edge(
@@ -626,6 +632,10 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                 az.name)
             metadata_proxy_handler.cleanup_router_edge(context, router_id)
 
+    def _notify_after_router_migration(self, context, router):
+        registry.notify(SHARED_ROUTER, events.AFTER_CREATE,
+                        self, context=context, router=router)
+
     def _add_router_services_on_available_edge(self, context, router_id):
         router_ids = self.edge_manager.get_routers_on_same_edge(
             context, router_id)
@@ -636,6 +646,10 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
         self._update_nat_rules_on_routers(context, router_id, router_ids)
         self._update_subnets_and_dnat_firewall_on_routers(
             context, router_id, router_ids, allow_external=True)
+
+    def _notify_before_router_migration(self, context, router, gw_ip):
+        registry.notify(SHARED_ROUTER, events.BEFORE_DELETE,
+                        self, context=context, router=router, gw_ip=gw_ip)
 
     def _remove_router_services_on_edge(self, context, router_id,
                                         intf_net_id=None):
@@ -658,99 +672,90 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
         for net_id in intf_net_ids:
             edge_utils.delete_interface(self.nsx_v, context, router_id, net_id)
 
-    def _update_router_gw_info(self, context, router_id, info,
-                               is_routes_update=False,
-                               force_update=False):
-        router = self.plugin._get_router(context, router_id)
+    def _update_gw_info(self, context, org_gw_info, new_gw_info, router):
+        (org_ext_net_id, org_enable_snat,
+         orgaddr, orgmask, orgnexthop) = org_gw_info
+        (new_ext_net_id, new_enable_snat,
+         newaddr, newmask, newnexthop) = new_gw_info
+
+        router_id = router['id']
         edge_id = edge_utils.get_router_edge_id(context, router_id)
         if not edge_id:
-            super(nsx_v.NsxVPluginV2, self.plugin)._update_router_gw_info(
-                context, router_id, info, router=router)
+            return
         # UPDATE gw info only if the router has been attached to an edge
-        else:
-            is_migrated = False
-            with locking.LockManager.get_lock(str(edge_id)):
-                router_ids = self.edge_manager.get_routers_on_same_edge(
-                    context, router_id)
-                org_ext_net_id = (router.gw_port_id and
-                                  router.gw_port.network_id)
-                org_enable_snat = router.enable_snat
-                orgaddr, orgmask, orgnexthop = (
-                    self.plugin._get_external_attachment_info(
-                        context, router))
-                super(nsx_v.NsxVPluginV2, self.plugin)._update_router_gw_info(
-                    context, router_id, info, router=router)
-                new_ext_net_id = (router.gw_port_id and
-                                  router.gw_port.network_id)
-                new_enable_snat = router.enable_snat
-                newaddr, newmask, newnexthop = (
-                    self.plugin._get_external_attachment_info(
-                        context, router))
-                if new_ext_net_id and new_ext_net_id != org_ext_net_id:
-                    # Check whether the gw address has overlapping
-                    # with networks attached to the same edge
-                    conflict_network_ids = (
-                        self._get_conflict_network_ids_by_ext_net(
-                            context, router_id))
-                    is_migrated = self.edge_manager.is_router_conflict_on_edge(
-                        context, router_id, [], conflict_network_ids)
-                    if is_migrated:
-                        self._remove_router_services_on_edge(context,
-                                                             router_id)
-                        self._unbind_router_on_edge(context, router_id)
+        is_migrated = False
+        with locking.LockManager.get_lock(str(edge_id)):
+            router_ids = self.edge_manager.get_routers_on_same_edge(
+                context, router_id)
+            if new_ext_net_id and new_ext_net_id != org_ext_net_id:
+                # Check whether the gw address has overlapping
+                # with networks attached to the same edge
+                conflict_network_ids = (
+                    self._get_conflict_network_ids_by_ext_net(
+                        context, router_id))
+                is_migrated = self.edge_manager.is_router_conflict_on_edge(
+                    context, router_id, [], conflict_network_ids)
+                if is_migrated:
+                    self._notify_before_router_migration(context,
+                                                         router, orgaddr)
+                    self._remove_router_services_on_edge(context,
+                                                         router_id)
+                    self._unbind_router_on_edge(context, router_id)
 
-                if not is_migrated:
-                    ext_net_ids = self._get_ext_net_ids(context, router_ids)
-                    if len(ext_net_ids) > 1:
-                        # move all routing service of the router from existing
-                        # edge to a new available edge if new_ext_net_id is
-                        # changed.
-                        self._remove_router_services_on_edge(context,
-                                                             router_id)
-                        self._unbind_router_on_edge(context, router_id)
-                        is_migrated = True
-                    else:
-                        updated_routes = False
-                        # Update external vnic if addr or mask is changed
-                        if orgaddr != newaddr or orgmask != newmask:
-                            # If external gateway is removed, the default
-                            # gateway should be cleared before updating the
-                            # interface, or else the backend will fail.
-                            if (new_ext_net_id != org_ext_net_id and
-                                new_ext_net_id is None):
-                                self._update_routes_on_routers(
-                                    context, router_id, router_ids)
-                                updated_routes = True
-
-                            self._update_external_interface_on_routers(
-                                context, router_id, router_ids)
-
-                        # Update SNAT rules if ext net changed
-                        # or ext net not changed but snat is changed.
-                        if ((new_ext_net_id != org_ext_net_id) or
-                            (new_ext_net_id == org_ext_net_id and
-                             new_enable_snat != org_enable_snat)):
-                            self._update_nat_rules_on_routers(context,
-                                                              router_id,
-                                                              router_ids)
-
-                        if (new_ext_net_id != org_ext_net_id or
-                            new_enable_snat != org_enable_snat):
-                            self._update_subnets_and_dnat_firewall_on_routers(
-                                context, router_id, router_ids,
-                                allow_external=True)
-
-                        # Update static routes in all (if not updated yet).
-                        if not updated_routes:
+            if not is_migrated:
+                ext_net_ids = self._get_ext_net_ids(context, router_ids)
+                if len(ext_net_ids) > 1:
+                    self._notify_before_router_migration(context,
+                                                         router, orgaddr)
+                    # move all routing service of the router from existing
+                    # edge to a new available edge if new_ext_net_id is
+                    # changed.
+                    self._remove_router_services_on_edge(context, router_id)
+                    self._unbind_router_on_edge(context, router_id)
+                    is_migrated = True
+                else:
+                    updated_routes = False
+                    # Update external vnic if addr or mask is changed
+                    if orgaddr != newaddr or orgmask != newmask:
+                        # If external gateway is removed, the default
+                        # gateway should be cleared before updating the
+                        # interface, or else the backend will fail.
+                        if (new_ext_net_id != org_ext_net_id
+                                and new_ext_net_id is None):
                             self._update_routes_on_routers(
                                 context, router_id, router_ids)
-            if is_migrated:
-                self._bind_router_on_available_edge(
-                    context, router_id, router.admin_state_up)
-                edge_id = edge_utils.get_router_edge_id(context, router_id)
-                with locking.LockManager.get_lock(str(edge_id)):
-                    self._add_router_services_on_available_edge(context,
-                                                                router_id)
+                            updated_routes = True
+
+                        self._update_external_interface_on_routers(
+                            context, router_id, router_ids)
+
+                    # Update SNAT rules if ext net changed
+                    # or ext net not changed but snat is changed.
+                    if ((new_ext_net_id != org_ext_net_id) or
+                        (new_ext_net_id == org_ext_net_id and
+                            new_enable_snat != org_enable_snat)):
+                        self._update_nat_rules_on_routers(context,
+                                                          router_id,
+                                                          router_ids)
+
+                    if (new_ext_net_id != org_ext_net_id
+                            or new_enable_snat != org_enable_snat):
+                        self._update_subnets_and_dnat_firewall_on_routers(
+                            context, router_id, router_ids,
+                            allow_external=True)
+
+                    # Update static routes in all (if not updated yet).
+                    if not updated_routes:
+                        self._update_routes_on_routers(
+                            context, router_id, router_ids)
+        if is_migrated:
+            self._bind_router_on_available_edge(
+                context, router_id, router.admin_state_up)
+            edge_id = edge_utils.get_router_edge_id(context, router_id)
+            with locking.LockManager.get_lock(str(edge_id)):
+                self._add_router_services_on_available_edge(context,
+                                                            router_id)
+                self._notify_after_router_migration(context, router)
 
     def _base_add_router_interface(self, context, router_id, interface_info):
         with locking.LockManager.get_lock('nsx-shared-router-pool'):
@@ -801,6 +806,8 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                                 context, router_id, conflict_router_ids,
                                 conflict_network_ids, 1))
                     if is_conflict:
+                        self._notify_before_router_migration(context,
+                                                             router_db)
                         if len(interface_ports) > 1:
                             self._remove_router_services_on_edge(
                                 context, router_id)
@@ -829,6 +836,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
                 with locking.LockManager.get_lock(str(edge_id)):
                     self._add_router_services_on_available_edge(context,
                                                                 router_id)
+                    self._notify_after_router_migration(context, router_db)
         else:
             info = self._base_add_router_interface(context, router_id,
                                                    interface_info)
@@ -839,6 +847,7 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
             with locking.LockManager.get_lock(str(edge_id)):
                 self._add_router_services_on_available_edge(context,
                                                             router_id)
+                self._notify_after_router_migration(context, router_db)
         return info
 
     def remove_router_interface(self, context, router_id, interface_info):
