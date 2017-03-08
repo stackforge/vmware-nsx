@@ -49,15 +49,11 @@ class RouterAbstractDriver(object):
         pass
 
     @abc.abstractmethod
-    def _update_router_gw_info(self, context, router_id, info):
+    def add_router_interface(self, context, router, subnet, port):
         pass
 
     @abc.abstractmethod
-    def add_router_interface(self, context, router_id, interface_info):
-        pass
-
-    @abc.abstractmethod
-    def remove_router_interface(self, context, router_id, interface_info):
+    def remove_router_interface(self, context, router_id, subnet, port):
         pass
 
     @abc.abstractmethod
