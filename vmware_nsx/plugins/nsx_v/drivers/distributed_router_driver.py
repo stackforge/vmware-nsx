@@ -103,7 +103,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             # here is used to handle routes which tenant updates.
             router_db = self.plugin._get_router(context, router_id)
             nexthop = self.plugin._get_external_attachment_info(
-                context, router_db)[2]
+                context, router_db.gw_port)[2]
             with locking.LockManager.get_lock(self._get_edge_id(context,
                                                                 router_id)):
                 self.plugin._update_subnets_and_dnat_firewall(context,
@@ -156,25 +156,13 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             self._update_routes_on_plr(context, router_id, plr_id,
                                        newnexthop)
 
-    def _update_router_gw_info(self, context, router_id, info,
-                               is_routes_update=False,
-                               force_update=False):
-        router = self.plugin._get_router(context, router_id)
-        org_ext_net_id = router.gw_port_id and router.gw_port.network_id
-        org_enable_snat = router.enable_snat
-        orgaddr, orgmask, orgnexthop = (
-            self.plugin._get_external_attachment_info(
-                context, router))
+    def _update_gw_info(self, context, org_gw_info, new_gw_info, router):
+        (org_ext_net_id, org_enable_snat,
+         orgaddr, orgmask, orgnexthop) = org_gw_info
+        (new_ext_net_id, new_enable_snat,
+         newaddr, newmask, newnexthop) = new_gw_info
 
-        super(nsx_v.NsxVPluginV2, self.plugin)._update_router_gw_info(
-            context, router_id, info, router=router)
-
-        new_ext_net_id = router.gw_port_id and router.gw_port.network_id
-        new_enable_snat = router.enable_snat
-        newaddr, newmask, newnexthop = (
-            self.plugin._get_external_attachment_info(
-                context, router))
-
+        router_id = router['id']
         plr_id = self.edge_manager.get_plr_by_tlr_id(context, router_id)
         tlr_edge_id = self._get_edge_id(context, router_id)
         if not new_ext_net_id:
@@ -215,8 +203,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                 self.plugin._update_nat_rules(context, router, plr_id)
 
             if (new_ext_net_id != org_ext_net_id or
-                new_enable_snat != org_enable_snat or
-                is_routes_update):
+                new_enable_snat != org_enable_snat):
                 # Open firewall flows on plr
                 self.plugin._update_subnets_and_dnat_firewall(
                     context, router, router_id=plr_id)
@@ -306,7 +293,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                     context, router_db, router_id=plr_id)
                 # Update static routes of plr
                 nexthop = self.plugin._get_external_attachment_info(
-                    context, router_db)[2]
+                    context, router_db.gw_port)[2]
                 if do_metadata:
                     md_gw_data = self._get_metadata_gw_data(context, router_id)
                 else:
@@ -435,7 +422,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                     context, router_db, router_id=plr_id)
                 # Update static routes of plr
                 nexthop = self.plugin._get_external_attachment_info(
-                    context, router_db)[2]
+                    context, router_db.gw_port)[2]
                 md_gw_data = self._get_metadata_gw_data(context, router_id)
                 self._update_routes(context, router_id, nexthop, md_gw_data)
 

@@ -381,3 +381,11 @@ class NsxvPortExtAttributes(model_base.BASEV2, models.TimestampMixin):
         models_v2.Port,
         backref=orm.backref("nsx_port_attributes", lazy='joined',
                             uselist=False, cascade='delete'))
+
+class NsxvBGPDynamicRoutingBinding(model_base.BASEV2):
+    # Maps bgp_speaker_id to NSXv edge id
+    __tablename__ = 'nsxv_bgp_speaker_bindings'
+
+    edge_id = sa.Column(sa.String(36), primary_key=True)
+    bgp_speaker_id = sa.Column(sa.String(36), nullable=False)
+    dr_router_id = sa.Column(sa.String(64), nullable=False)
