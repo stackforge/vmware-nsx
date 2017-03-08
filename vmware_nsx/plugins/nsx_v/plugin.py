@@ -3056,8 +3056,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 LOG.error("No binding for router %s", id)
         return router
 
-    def _get_external_attachment_info(self, context, router):
-        gw_port = router.gw_port
+    def _get_external_attachment_info(self, context, gw_port):
         ipaddress = None
         netmask = None
         nexthop = None
@@ -3115,17 +3114,59 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         since the actual backend work was already done by the router driver,
         and it may cause a deadlock.
         """
+        port = router.gw_port
+        orgaddr = self._get_port_fixed_ip_addr(port)
+        newaddr = self._get_port_fixed_ip_addr(port)
+        subnet_mask = self._get_port_subnet_mask(context, port)
+        router_driver = self._find_router_driver(context, router_id)
+
+        router_driver.update_router_interface_ip(
+            context, router_id, port['id'], port['network_id'], orgaddr,
+            newaddr, subnet_mask)
+
         port_data = {'fixed_ips': ext_ips}
-        updated_port = super(NsxVPluginV2, self).update_port(
+        port = super(NsxVPluginV2, self).update_port(
             context, router.gw_port['id'], {'port': port_data})
-        self._extension_manager.process_update_port(
-            context, port_data, updated_port)
+        self._extension_manager.process_update_port(context, port_data, port)
         context.session.expire(router.gw_port)
 
-    def _update_router_gw_info(self, context, router_id, info,
-                               is_routes_update=False,
-                               force_update=False):
-        router_driver = self._find_router_driver(context, router_id)
+    def _delete_current_gw_port(self, context, router_id, router,
+                                new_network_id):
+        port = router.gw_port_id and router.gw_port
+        ext_net_id = port and port['network_id']
+        enable_snat = router.enable_snat
+        addr, mask, nexthop = (
+            self._get_external_attachment_info(context, port))
+        org_gw_info = (ext_net_id, enable_snat, addr, mask, nexthop)
+        super(NsxVPluginV2, self)._delete_current_gw_port(context, router_id,
+                                                          router,
+                                                          new_network_id)
+        new_gw_info = (None, None, None, None, None)
+        router_driver = self._find_router_driver(context, router['id'])
+        router_driver._update_gw_info(context, org_gw_info, new_gw_info,
+                                      router)
+
+    def _create_router_gw_port(self, context, router, new_network_id, ext_ips):
+        port = router.gw_port_id and router.gw_port
+        ext_net_id = port and port['network_id']
+        enable_snat = router.enable_snat
+        addr, mask, nexthop = (
+            self._get_external_attachment_info(context, port))
+        org_gw_info = (ext_net_id, enable_snat, addr, mask, nexthop)
+
+        super(NsxVPluginV2, self)._create_router_gw_port(
+            context, router, new_network_id, ext_ips)
+
+        enable_snat = router.enable_snat
+        addr, mask, nexthop = (
+            self._get_external_attachment_info(
+                context, router.gw_port))
+        new_gw_info = (new_network_id, enable_snat, addr, mask, nexthop)
+
+        router_driver = self._find_router_driver(context, router['id'])
+        router_driver._update_gw_info(context, org_gw_info, new_gw_info, router)
+
+    def _update_router_gw_info(self, context, router_id, info):
         if info:
             try:
                 ext_ips = info.get('external_fixed_ips')
@@ -3137,51 +3178,39 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 # subnet with gateway or allocate one available ip from
                 # subnet, we would just enter normal logic and admin should
                 # exactly know what he did.
+                net_id_filter = {'network_id': [network_id]}
+                subnets = self.get_subnets(context, filters=net_id_filter)
+                fixed_subnet = len(subnets) > 1 or all([
+                    not ipv6_utils.is_auto_address_subnet(s)
+                    for s in subnets])
                 if (not ext_ips and network_id and
                     (not router_db.gw_port or
-                     not router_db.gw_port.get('fixed_ips'))):
-                    net_id_filter = {'network_id': [network_id]}
-                    subnets = self.get_subnets(context, filters=net_id_filter)
-                    fixed_subnet = True
-                    if len(subnets) <= 1:
-                        fixed_subnet = False
-                    else:
-                        for subnet in subnets:
-                            if ipv6_utils.is_auto_address_subnet(subnet):
-                                fixed_subnet = False
-                    if fixed_subnet:
+                     not router_db.gw_port.get('fixed_ips')) and fixed_subnet):
                         for subnet in subnets:
                             if not subnet['gateway_ip']:
                                 continue
+                            info['external_fixed_ips'] = [{'subnet_id':
+                                                           subnet['id']}]
                             try:
-                                info['external_fixed_ips'] = [{
-                                    'subnet_id': subnet['id']}]
-                                return router_driver._update_router_gw_info(
-                                    context, router_id, info,
-                                    is_routes_update=is_routes_update)
+                                return super(NsxVPluginV2,
+                                             self)._update_router_gw_info(
+                                                 context, router_id, info)
                             except n_exc.IpAddressGenerationFailure:
                                 del info['external_fixed_ips']
-                        LOG.warning("Cannot get one subnet with gateway "
-                                    "to allocate one available gw ip")
-                router_driver._update_router_gw_info(
-                    context, router_id, info,
-                    is_routes_update=is_routes_update,
-                    force_update=force_update)
+                            LOG.warning("Cannot get one subnet with gateway "
+                                        "to allocate one available gw ip")
+                super(NsxVPluginV2, self)._update_router_gw_info(context,
+                                                                 router_id,
+                                                                 info)
             except vsh_exc.VcnsApiException:
                 with excutils.save_and_reraise_exception():
                     LOG.error("Failed to update gw_info %(info)s on "
                               "router %(router_id)s",
                               {'info': str(info),
                                'router_id': router_id})
-                    router_driver._update_router_gw_info(
-                        context, router_id, {},
-                        is_routes_update=is_routes_update,
-                        force_update=force_update)
         else:
-            router_driver._update_router_gw_info(
-                context, router_id, info,
-                is_routes_update=is_routes_update,
-                force_update=force_update)
+            super(NsxVPluginV2, self)._update_router_gw_info(
+                context, router_id, info)
 
     def _get_internal_network_ids_by_router(self, context, router_id):
         ports_qry = context.session.query(models_v2.Port)
@@ -3336,18 +3365,37 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                      'interface'))
             raise n_exc.InvalidInput(error_message=msg)
 
-        router_driver = self._find_router_driver(context, router_id)
+        return super(NsxVPluginV2, self).add_router_interface(
+            context, router_id, interface_info)
+
+    def _add_interface_by_subnet(self, context, router, subnet_id, owner):
+        port, subnets, new_router_intf = (
+            super(NsxVPluginV2, self)._add_interface_by_subnet(
+                context, router, subnet_id, owner))
+
+        router_driver = self._find_router_driver(context, router['id'])
         try:
-            return router_driver.add_router_interface(
-                context, router_id, interface_info)
+            router_driver.add_router_interface(context, router,
+                                               subnets[0], port)
         except vsh_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
-                LOG.error("Failed to add interface_info %(info)s on "
-                          "router %(router_id)s",
-                          {'info': str(interface_info),
-                           'router_id': router_id})
-                router_driver.remove_router_interface(
-                    context, router_id, interface_info)
+                LOG.error("Failed to add interface '%s' on %s",
+                          port['fixed_ips'][0]['ip_address'], router.id)
+        return port, subnets, new_router_intf
+
+    def _add_interface_by_port(self, context, router, port_id, owner):
+        port, subnets = super(NsxVPluginV2, self)._add_interface_by_port(
+            context, router, port_id, owner)
+
+        router_driver = self._find_router_driver(context, router.id)
+        try:
+            router_driver.add_router_interface(context, router.id,
+                                               subnets[0], port)
+        except vsh_exc.VcnsApiException:
+            with excutils.save_and_reraise_exception():
+                LOG.error("Failed to add interface '%s' on router %s",
+                          port['fixed_ips'][0]['ip_address'], router.id)
+        return port, subnets
 
     def remove_router_interface(self, context, router_id, interface_info):
         router_driver = self._find_router_driver(context, router_id)
@@ -3363,7 +3411,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def _update_external_interface(self, context, router, router_id=None):
         ext_net_id = router.gw_port_id and router.gw_port.network_id
         addr, mask, nexthop = self._get_external_attachment_info(
-            context, router)
+            context, router.gw_port)
         secondary = self._get_floatingips_by_router(context, router['id'])
         if not router_id:
             router_id = router['id']
