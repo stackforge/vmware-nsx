@@ -43,6 +43,7 @@ from neutron.tests.unit import testlib_api
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib.api import validators
+from neutron_lib.utils import net
 from neutron_lib import constants
 from neutron_lib import context
 from neutron_lib import exceptions as n_exc
@@ -773,7 +774,7 @@ class TestPortsV2(NsxVPluginV2TestCase,
         # simulate duplicate mac generation to make sure DBDuplicate is retried
         responses = ['12:34:56:78:00:00', '12:34:56:78:00:00',
                      '12:34:56:78:00:01']
-        with mock.patch('neutron.common.utils.get_random_mac',
+        with mock.patch.object(net, 'get_random_mac',
                         side_effect=responses) as grand_mac:
             with self.subnet(enable_dhcp=False) as s:
                 with self.port(subnet=s) as p1, self.port(subnet=s) as p2:
