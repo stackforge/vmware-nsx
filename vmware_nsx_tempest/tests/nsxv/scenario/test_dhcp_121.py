@@ -21,9 +21,9 @@ import struct
 import sys
 import time
 
-from tempest.common.utils.linux import remote_client
 from tempest import config
 from tempest.lib.common.utils import data_utils
+from tempest.lib.common.utils.linux import remote_client
 from tempest.lib import decorators
 from tempest.lib import exceptions
 from tempest import test
