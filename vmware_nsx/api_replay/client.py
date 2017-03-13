@@ -18,6 +18,12 @@ from neutronclient.v2_0 import client
 
 class ApiReplayClient(object):
 
+    basic_ignore_fields = ['updated_at',
+                           'created_at',
+                           'tags',
+                           'revision',
+                           'revision_number']
+
     def __init__(self, source_os_username, source_os_tenant_name,
                  source_os_password, source_os_auth_url,
                  dest_os_username, dest_os_tenant_name,
@@ -130,16 +136,18 @@ class ApiReplayClient(object):
         # first fetch the QoS policies from both the
         # source and destination neutron server
         try:
-            source_qos_pols = self.source_neutron.list_qos_policies()[
-                'policies']
-        except n_exc.NotFound:
-            # QoS disabled on source
-            return
-        try:
             dest_qos_pols = self.dest_neutron.list_qos_policies()['policies']
         except n_exc.NotFound:
             # QoS disabled on dest
             print("QoS is disabled on destination: ignoring QoS policies")
+            self.dest_qos_support = False
+            return
+        self.dest_qos_support = True
+        try:
+            source_qos_pols = self.source_neutron.list_qos_policies()[
+                'policies']
+        except n_exc.NotFound:
+            # QoS disabled on source
             return
 
         drop_qos_policy_fields = ['revision']
@@ -179,7 +187,7 @@ class ApiReplayClient(object):
         source_sec_groups = source_sec_groups['security_groups']
         dest_sec_groups = dest_sec_groups['security_groups']
 
-        drop_sg_fields = ['revision']
+        drop_sg_fields = self.basic_ignore_fields + ['policy']
 
         for sg in source_sec_groups:
             dest_sec_group = self.have_id(sg['id'], dest_sec_groups)
@@ -216,6 +224,8 @@ class ApiReplayClient(object):
                     # TODO(arosen): improve exception handing here.
                     print(e)
 
+                # Note - policy security groups will have no rules, and will
+                # be created on the destination with the default rules only
                 for sg_rule in sg_rules:
                     try:
                         body = self.drop_fields(sg_rule, drop_sg_fields)
@@ -247,15 +257,16 @@ class ApiReplayClient(object):
                 if router.get('routes'):
                     update_routes[router['id']] = router['routes']
 
-                drop_router_fields = ['status',
-                                      'routes',
-                                      'ha',
-                                      'external_gateway_info',
-                                      'router_type',
-                                      'availability_zone_hints',
-                                      'availability_zones',
-                                      'distributed',
-                                      'revision']
+                drop_router_fields = self.basic_ignore_fields + [
+                    'status',
+                    'routes',
+                    'ha',
+                    'external_gateway_info',
+                    'router_type',
+                    'availability_zone_hints',
+                    'availability_zones',
+                    'distributed',
+                    'flavor_id']
                 body = self.drop_fields(router, drop_router_fields)
                 new_router = (self.dest_neutron.create_router(
                     {'router': body}))
@@ -280,26 +291,31 @@ class ApiReplayClient(object):
         # NOTE: These are fields we drop of when creating a subnet as the
         # network api doesn't allow us to specify them.
         # TODO(arosen): revisit this to make these fields passable.
-        drop_subnet_fields = ['updated_at',
-                              'created_at',
-                              'network_id',
-                              'advanced_service_providers',
-                              'id', 'revision']
+        drop_subnet_fields = self.basic_ignore_fields + [
+            'advanced_service_providers',
+            'id']
 
-        drop_port_fields = ['updated_at',
-                            'created_at',
-                            'status',
-                            'port_security_enabled',
-                            'binding:vif_details',
-                            'binding:vif_type',
-                            'binding:host_id',
-                            'revision',
-                            'vnic_index']
+        drop_port_fields = self.basic_ignore_fields + [
+            'status',
+            'port_security_enabled',
+            'binding:vif_details',
+            'binding:vif_type',
+            'binding:host_id',
+            'vnic_index',
+            'dns_assignment']
 
-        drop_network_fields = ['status', 'subnets', 'availability_zones',
-                               'created_at', 'updated_at', 'tags',
-                               'ipv4_address_scope', 'ipv6_address_scope',
-                               'mtu', 'revision']
+        drop_network_fields = self.basic_ignore_fields + [
+            'status',
+            'subnets',
+            'availability_zones',
+            'availability_zone_hints',
+            'ipv4_address_scope',
+            'ipv6_address_scope',
+            'mtu']
+
+        if not self.dest_qos_support:
+            drop_network_fields.append('qos_policy_id')
+            drop_port_fields.append('qos_policy_id')
 
         for network in source_networks:
             body = self.drop_fields(network, drop_network_fields)
