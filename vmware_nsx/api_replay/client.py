@@ -179,7 +179,7 @@ class ApiReplayClient(object):
         source_sec_groups = source_sec_groups['security_groups']
         dest_sec_groups = dest_sec_groups['security_groups']
 
-        drop_sg_fields = ['revision']
+        drop_sg_fields = ['revision', 'policy']
 
         for sg in source_sec_groups:
             dest_sec_group = self.have_id(sg['id'], dest_sec_groups)
@@ -216,6 +216,8 @@ class ApiReplayClient(object):
                     # TODO(arosen): improve exception handing here.
                     print(e)
 
+                # Note - policy security groups will have no rules, and will
+                # be created on the destination with the default rules only
                 for sg_rule in sg_rules:
                     try:
                         body = self.drop_fields(sg_rule, drop_sg_fields)
@@ -299,7 +301,7 @@ class ApiReplayClient(object):
         drop_network_fields = ['status', 'subnets', 'availability_zones',
                                'created_at', 'updated_at', 'tags',
                                'ipv4_address_scope', 'ipv6_address_scope',
-                               'mtu', 'revision']
+                               'mtu', 'revision', 'availability_zone_hints']
 
         for network in source_networks:
             body = self.drop_fields(network, drop_network_fields)
