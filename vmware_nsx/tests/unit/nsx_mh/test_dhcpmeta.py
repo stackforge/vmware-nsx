@@ -386,7 +386,8 @@ class LsnManagerTestCase(base.BaseTestCase):
         with mock.patch.object(self.manager, 'lsn_get', return_value=None):
             expected = self.manager.lsn_port_get(
                 mock.ANY, self.net_id, self.sub_id, raise_on_err=False)
-            self.assertEqual(expected, (None, None))
+            self.assertIsNone(expected[0])
+            self.assertIsNone(expected[1])
 
     def test_lsn_port_get_port_not_found_on_raise(self):
         self.mock_lsn_api.lsn_port_by_subnet_get.side_effect = n_exc.NotFound
@@ -402,7 +403,8 @@ class LsnManagerTestCase(base.BaseTestCase):
             self.manager, 'lsn_get', return_value=self.lsn_id):
             expected = self.manager.lsn_port_get(
                 mock.ANY, self.net_id, self.sub_id, raise_on_err=False)
-            self.assertEqual(expected, (self.lsn_id, None))
+            self.assertEqual(expected[0], self.lsn_id)
+            self.assertIsNone(expected[1])
 
     def test_lsn_port_create(self):
         self.mock_lsn_api.lsn_port_create.return_value = self.lsn_port_id
@@ -794,7 +796,8 @@ class PersistentLsnManagerTestCase(testlib_api.SqlTestCase):
     def test_lsn_port_get_silent_not_found(self):
         result = self.manager.lsn_port_get(
             self.context, self.net_id, self.sub_id, raise_on_err=False)
-        self.assertEqual((None, None), result)
+        self.assertIsNone(result[0])
+        self.assertIsNone(result[1])
 
     def test_lsn_port_get_sync_on_missing(self):
         return
@@ -830,7 +833,8 @@ class PersistentLsnManagerTestCase(testlib_api.SqlTestCase):
     def test_lsn_port_get_by_mac_silent_not_found(self):
         result = self.manager.lsn_port_get_by_mac(
             self.context, self.net_id, self.sub_id, raise_on_err=False)
-        self.assertEqual((None, None), result)
+        self.assertIsNone(result[0])
+        self.assertIsNone(result[1])
 
     def test_lsn_port_create(self):
         lsn_db.lsn_add(self.context, self.net_id, self.lsn_id)
@@ -860,8 +864,10 @@ class PersistentLsnManagerTestCase(testlib_api.SqlTestCase):
                                     self.sub_id, self.mac, self.lsn_id)
         self.manager.lsn_port_delete(
             self.context, self.lsn_id, self.lsn_port_id)
-        self.assertEqual((None, None), self.manager.lsn_port_get(
-            self.context, self.lsn_id, self.sub_id, raise_on_err=False))
+        lsn_id, lsn_por_id = self.manager.lsn_port_get(
+            self.context, self.lsn_id, self.sub_id, raise_on_err=False)
+        self.assertIsNone(lsn_id)
+        self.assertIsNone(lsn_por_id)
 
     def test_lsn_port_delete_not_existent(self):
         self.manager.lsn_port_delete(
