@@ -54,12 +54,15 @@ class NsxExtendedSecurityGroupProperties(model_base.BASEV2):
     provider = sa.Column(sa.Boolean, default=False, server_default=sql.false(),
                          nullable=False)
     policy = sa.Column(sa.String(36))
+    # DEBUG ADIT max length on backend?? + add upgrade file
+    grouptag = sa.Column(sa.String(36))
     security_group = orm.relationship(
         securitygroups_db.SecurityGroup,
         backref=orm.backref('ext_properties', lazy='joined',
                             uselist=False, cascade='delete'))
 
 
+# DEBUG ADIT add grouptag to all apis
 class ExtendedSecurityGroupPropertiesMixin(object):
 
     # NOTE(arosen): here we add a relationship so that from the ports model

@@ -422,6 +422,12 @@ nsx_v3_opts = [
                        'zones names for the native dhcp configuration. The '
                        'configuration of each zone will be under a group '
                        'names [az:<name>]')),
+    cfg.BoolOpt('use_policy_group_tag_in_security_groups',
+                default=False,
+                help=_('(Optional) Indicates whether security groups can be '
+                       'configured using the group tag from the NSX policy '
+                       'instead of configuration with rules.')),
+    # DEBUG ADIT - additional parameters? default group-tag?
 ]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000

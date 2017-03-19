@@ -67,6 +67,7 @@ class NsxV3NetworkTypes(object):
     VXLAN = 'vxlan'
 
 
+# DEBUG ADIT - add function for the DK version!
 def is_nsx_version_1_1_0(nsx_version):
     return (version.LooseVersion(nsx_version) >=
             version.LooseVersion(NSXV3_VERSION_1_1_0))

@@ -244,6 +244,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # Register NSXv3 trunk driver to support trunk extensions
         self.trunk_driver = trunk_driver.NsxV3TrunkDriver.create(self)
 
+        # Support group-tag in security groups
+        if cfg.CONF.nsx_v3.use_policy_group_tag_in_security_groups:
+            # DEBUG ADIT Only for DK + verify that there is a policy manager?
+            if utils.is_nsx_version_1_1_0(self._nsx_version):
+                # DEBUG ADIT add section/rules to block cross-domain traffic?
+                self.supported_extension_aliases.append(
+                    'security-group-group-tag')
+
     # Register extend dict methods for network and port resources.
     # Each extension driver that supports extend attribute for the resources
     # can add those attribute to the result.
@@ -1610,6 +1618,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             address_pairs = port_data.get(addr_pair.ADDRESS_PAIRS)
             if validators.is_attr_set(address_pairs) and address_pairs:
                 mac_learning_profile_set = True
+            # DEBUG ADIT if seurity group with grouptag:
+            # add tag instead of profile
             profiles.append(self._get_port_security_profile_id())
         if device_owner == const.DEVICE_OWNER_DHCP:
             profiles.append(self._dhcp_profile)
@@ -2461,6 +2471,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         address_bindings = self._build_address_bindings(updated_port)
         if port_security and address_bindings:
+            # DEBUG ADIT if seurity group with grouptag:
+            # add tag instead of profile
             switch_profile_ids = [self._get_port_security_profile_id()]
         else:
             switch_profile_ids = [self._no_psec_profile_id]
@@ -3328,6 +3340,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             ruleid_2_remote_nsgroup_map)
 
     def create_security_group(self, context, security_group, default_sg=False):
+        # DEBUG ADIT - if grouptag exists:
+        # 1) no rules are allowed (create_security_group_without_rules)
+        # 2) verify group-tag / group path? and keep it in DB
+        # 3) possibly get description/name from policy-manager
+        # 4) what about the default policy?
         secgroup = security_group['security_group']
         secgroup['id'] = secgroup.get('id') or uuidutils.generate_uuid()
         ns_group = {}
@@ -3411,6 +3428,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return secgroup_db
 
     def update_security_group(self, context, id, security_group):
+        # DEBUG ADIT - if grouptag changes:
+        # 1) cannot change the type of the SG to regular one.
+        # 2) verify new group-tag / group path? and keep it in DB
+        # 3) Update the tag on all the relevant ports
         orig_secgroup = self.get_security_group(
             context, id, fields=['id', 'name', 'description'])
         with context.session.begin(subtransactions=True):
