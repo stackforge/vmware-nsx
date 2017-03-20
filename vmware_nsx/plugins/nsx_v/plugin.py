@@ -51,6 +51,7 @@ from neutron.db.availability_zone import router as router_az_db
 from neutron.db import db_base_plugin_v2
 from neutron.db import dns_db
 from neutron.db import external_net_db
+from neutron.db import extradhcpopt_db
 from neutron.db import extraroute_db
 from neutron.db import l3_attrs_db
 from neutron.db import l3_db
@@ -66,6 +67,7 @@ from neutron.db import vlantransparent_db
 from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.extensions import availability_zone as az_ext
 from neutron.extensions import external_net as ext_net_extn
+from neutron.extensions import extra_dhcp_opt as ext_edo
 from neutron.extensions import flavors
 from neutron.extensions import l3
 from neutron.extensions import multiprovidernet as mpnet
@@ -140,6 +142,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                    rt_rtr.RouterType_mixin,
                    external_net_db.External_net_db_mixin,
                    extraroute_db.ExtraRoute_db_mixin,
+                   extradhcpopt_db.ExtraDhcpOptMixin,
                    router_az_db.RouterAvailabilityZoneMixin,
                    l3_gwmode_db.L3_NAT_db_mixin,
                    portbindings_db.PortBindingMixin,
@@ -163,6 +166,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                    "provider",
                                    "quotas",
                                    "external-net",
+                                   "extra_dhcp_opt",
                                    "extraroute",
                                    "router",
                                    "security-group",
@@ -180,6 +184,13 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
     supported_qos_rule_types = [qos_consts.RULE_TYPE_BANDWIDTH_LIMIT,
                                 qos_consts.RULE_TYPE_DSCP_MARKING]
+
+    _supported_dhcp_options = {
+        'interface-mtu': 'option26',
+        'tftp-server-name': 'option66',
+        'bootfile-name': 'option67',
+        'classless-static-route': 'option121',
+        'tftp-server-address': 'option150'}
 
     __native_bulk_support = True
     __native_pagination_support = True
@@ -1630,8 +1641,36 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 port_id=port_data['id'],
                 vnic_type=vnic_type)
 
+    def _validate_extra_dhcp_options(self, opts):
+        if not opts:
+            return
+        for opt in opts:
+            opt_name = opt['opt_name']
+            opt_val = opt['opt_value']
+            if opt_name == 'classless-static-route':
+                # separate validation for option121
+                if opt_val is not None:
+                    try:
+                        net, ip = opt_val.split(',')
+                    except Exception:
+                        msg = (_("Bad value %(val)s for DHCP option "
+                                 "%(name)s") % {'name': opt_name,
+                                                'val': opt_val})
+                        raise n_exc.InvalidInput(error_message=msg)
+            elif opt_name not in self._supported_dhcp_options:
+                try:
+                    option = int(opt_name)
+                except Exception:
+                    option = 255
+                if option >= 255:
+                    msg = (_("DHCP option %s is not supported") % opt_name)
+                    raise n_exc.InvalidInput(error_message=msg)
+
     def create_port(self, context, port):
         port_data = port['port']
+        dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS)
+        self._validate_extra_dhcp_options(dhcp_opts)
+
         with context.session.begin(subtransactions=True):
             # First we allocate port in neutron database
             neutron_db = super(NsxVPluginV2, self).create_port(context, port)
@@ -1694,11 +1733,13 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self._process_vnic_type(context, port_data, attrs,
                                     has_security_groups,
                                     port_security)
+            self._process_port_create_extra_dhcp_opts(
+                context, port_data, dhcp_opts)
 
         try:
             # Configure NSX - this should not be done in the DB transaction
             # Configure the DHCP Edge service
-            self._create_dhcp_static_binding(context, neutron_db)
+            self._create_dhcp_static_binding(context, port_data)
         except Exception:
             with excutils.save_and_reraise_exception():
                 LOG.exception(_LE('Failed to create port'))
@@ -1789,6 +1830,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                          {"dev": device_id, "port": port_id})
 
     def update_port(self, context, id, port):
+        dhcp_opts = port['port'].get(ext_edo.EXTRADHCPOPTS)
+        self._validate_extra_dhcp_options(dhcp_opts)
         with locking.LockManager.get_lock('port-update-%s' % id):
 
             original_port = super(NsxVPluginV2, self).get_port(context, id)
@@ -1922,6 +1965,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self._process_vnic_type(context, ret_port, attrs,
                                     has_security_groups,
                                     has_port_security)
+            self._update_extra_dhcp_opts_on_port(context, id, port,
+                                                 ret_port)
 
         if comp_owner_update:
             # Create dhcp bindings, the port is now owned by an instance
