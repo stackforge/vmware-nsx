@@ -127,6 +127,8 @@ from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 from vmware_nsx.plugins.nsx_v.vshield import securitygroup_utils
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
 from vmware_nsx.services.flowclassifier.nsx_v import utils as fc_utils
+from vmware_nsx.services.fwaas.nsx_v import fwaas_callbacks
+from vmware_nsx.services.fwaas.nsx_v import utils as fwaas_utils
 
 LOG = logging.getLogger(__name__)
 PORTGROUP_PREFIX = 'dvportgroup'
@@ -272,6 +274,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # will happen only once
         self.start_rpc_listeners_called = False
 
+        # Init the FWaaS support
+        self._init_fwaas()
+
         # Service insertion driver register
         self._si_handler = fc_utils.NsxvServiceInsertionHandler(self)
         registry.subscribe(self.add_vms_to_service_insertion,
@@ -376,6 +381,11 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         self.start_rpc_listeners_called = True
         return self.conn.consume_in_threads()
+
+    def _init_fwaas(self):
+        # Bind FWaaS callbacks to the driver
+        # DEBUG ADIT - TO DO - check when disabled
+        self.fwaas_callbacks = fwaas_callbacks.NsxvFwaasCallbacks()
 
     def _ext_extend_network_dict(self, result, netdb):
         ctx = n_context.get_admin_context()
@@ -3492,7 +3502,11 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             }
             fake_fw_rules.append(lb_fw_rule)
 
-        # TODO(berlin): Add fw rules if fw service is supported
+        # Add fw rules if fw service is enabled
+        fw_id = fwaas_utils.get_router_firewall_id(context.session, router_id)
+        if fw_id:
+            fake_fw_rules.append(fwaas_utils.get_fw_rules(context, fw_id))
+
         fake_fw = {'firewall_rule_list': fake_fw_rules}
         try:
             edge_utils.update_firewall(self.nsx_v, context, router_id, fake_fw,
