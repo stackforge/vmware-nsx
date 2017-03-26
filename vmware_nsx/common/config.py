@@ -699,6 +699,9 @@ nsxv_opts = [
                 default=True,
                 help=_("If False, different tenants will not use the same "
                        "DHCP edge or router edge.")),
+    cfg.ListOpt('housekeeping_jobs',
+                default=['error_dhcp_edge'],
+                help=_(".")),
 ]
 
 # define the configuration of each NSX-V availability zone.
