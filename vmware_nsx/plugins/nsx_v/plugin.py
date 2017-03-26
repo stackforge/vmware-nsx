@@ -113,12 +113,14 @@ from vmware_nsx.extensions import (
     vnicindex as ext_vnic_idx)
 from vmware_nsx.extensions import dhcp_mtu as ext_dhcp_mtu
 from vmware_nsx.extensions import dns_search_domain as ext_dns_search_domain
+from vmware_nsx.extensions import housekeeper as hk_ext
 from vmware_nsx.extensions import nsxpolicy
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import routersize
 from vmware_nsx.extensions import secgroup_rule_local_ip_prefix
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.extensions import securitygrouppolicy as sg_policy
+from vmware_nsx.plugins.common.housekeeper import housekeeper
 from vmware_nsx.plugins.common import plugin as nsx_plugin_common
 from vmware_nsx.plugins.nsx_v import availability_zones as nsx_az
 from vmware_nsx.plugins.nsx_v import managers
@@ -163,7 +165,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                    vnic_index_db.VnicIndexDbMixin,
                    dns_db.DNSDbMixin, nsxpolicy.NsxPolicyPluginBase,
                    vlantransparent_db.Vlantransparent_db_mixin,
-                   nsx_com_az.NSXAvailabilityZonesPluginCommon):
+                   nsx_com_az.NSXAvailabilityZonesPluginCommon,
+                   hk_ext.Housekeeper):
 
     supported_extension_aliases = ["agent",
                                    "allowed-address-pairs",
@@ -193,6 +196,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                    "router_availability_zone",
                                    "l3-flavors",
                                    "flavors",
+                                   "housekeeper",
                                    "dhcp-mtu"]
 
     __native_bulk_support = True
@@ -210,6 +214,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         floatingip=l3_db_models.FloatingIP)
     def __init__(self):
         self._extension_manager = nsx_managers.ExtensionManager()
+        self.housekeeper = None
         super(NsxVPluginV2, self).__init__()
         # Bind the dummy L3 notifications
         self.l3_rpc_notifier = l3_rpc_agent_api.L3NotifyAPI()
@@ -323,6 +328,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                         self.metadata_proxy_handler[az.name] = (
                             nsx_v_md_proxy.NsxVMetadataProxyHandler(
                                 self, az))
+
+            self.housekeeper = housekeeper.NsxvHousekeeper(
+                hk_ns='vmware_nsx.neutron.nsxv.housekeeper.jobs',
+                hk_jobs=['error_dhcp_edge'])
 
             self.init_is_complete = True
 
@@ -4423,6 +4432,18 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             if not self._nsx_policy_is_hidden(policy):
                 results.append(self._nsx_policy_to_dict(policy))
         return results
+
+    def get_housekeeper(self, context, name, fields=None):
+        return self.housekeeper.get(name)
+
+    def get_housekeepers(self, context, filters=None, fields=None,
+                              sorts=None, limit=None, marker=None,
+                              page_reverse=False):
+        return self.housekeeper.list()
+
+    def update_housekeeper(self, context, name, housekeeper):
+        self.housekeeper.run(context, name)
+        return self.housekeeper.get(name)
 
 
 # Register the callback

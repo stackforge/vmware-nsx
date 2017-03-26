@@ -695,6 +695,9 @@ nsxv_opts = [
     cfg.IntOpt('nsx_transaction_timeout',
                default=120,
                help=_("Timeout interval for NSX backend transactions.")),
+    cfg.ListOpt('housekeeping_jobs',
+                default=['error_dhcp_edge'],
+                help=_(".")),
 ]
 
 # define the configuration of each NSX-V availability zone.
