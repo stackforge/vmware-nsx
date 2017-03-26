@@ -1122,7 +1122,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 predefined = False
                 sg_policy_id, predefined = self._prepare_spoofguard_policy(
                     network_type, net_data, net_morefs)
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 new_net = super(NsxVPluginV2, self).create_network(context,
                                                                    network)
                 self._extension_manager.process_create_network(
@@ -1343,7 +1343,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                 'Reason: %(e)s',
                                 {'port_id': port_id, 'e': e})
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             self._process_l3_delete(context, id)
             # We would first delete subnet db if the backend dhcp service is
             # deleted in case of entering delete_subnet logic and retrying
@@ -1382,7 +1382,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             context, net['id'])
 
     def get_network(self, context, id, fields=None):
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             # goto to the plugin DB and fetch the network
             network = self._get_network(context, id)
             # Don't do field selection here otherwise we won't be able
@@ -1396,7 +1396,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                      sorts=None, limit=None, marker=None,
                      page_reverse=False):
         filters = filters or {}
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             networks = (
                 super(NsxVPluginV2, self).get_networks(
                     context, filters, fields, sorts,
@@ -1510,7 +1510,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 new_dvs = list(new_dvs_pg_mappings.values())
                 net_morefs.extend(new_dvs)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             net_res = super(NsxVPluginV2, self).update_network(context, id,
                                                                network)
             self._extension_manager.process_update_network(context, net_attrs,
@@ -2177,7 +2177,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # corresponding dhcp interface rest call and lead to overlap response
         # from backend.
         with locking.LockManager.get_lock('nsx-edge-pool'):
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 super(NsxVPluginV2, self).delete_subnet(context, id)
                 if subnet['enable_dhcp']:
                     # There is only DHCP port available

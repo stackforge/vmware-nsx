@@ -787,7 +787,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self._create_network_at_the_backend(context, net_data, az))
             is_backend_network = True
         try:
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 # Create network in Neutron
                 created_net = super(NsxV3Plugin, self).create_network(context,
                                                                       network)
@@ -881,7 +881,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         first_try = True
         while True:
             try:
-                with context.session.begin(subtransactions=True):
+                with db_api.context_manager.writer.using(context):
                     self._process_l3_delete(context, network_id)
                     return super(NsxV3Plugin, self).delete_network(
                         context, network_id)
@@ -1433,7 +1433,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             get_network_policy_id(context, network['id']))
 
     def get_network(self, context, id, fields=None):
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             # Get network from Neutron database
             network = self._get_network(context, id)
             # Don't do field selection here otherwise we won't be able to add
@@ -1447,7 +1447,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                      page_reverse=False):
         # Get networks from Neutron database
         filters = filters or {}
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             networks = (
                 super(NsxV3Plugin, self).get_networks(
                     context, filters, fields, sorts,

@@ -959,7 +959,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 transport_zone_config,
                 shared=net_data.get(attr.SHARED))
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             new_net = super(NsxPluginV2, self).create_network(context,
                                                               network)
             # Process port security extension
@@ -1016,7 +1016,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if not external:
             lswitch_ids = nsx_utils.get_nsx_switch_ids(
                 context.session, self.cluster, id)
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             self._process_l3_delete(context, id)
             nsx_db.delete_network_bindings(context.session, id)
             super(NsxPluginV2, self).delete_network(context, id)
@@ -1032,7 +1032,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         LOG.debug("Delete network complete for network: %s", id)
 
     def get_network(self, context, id, fields=None):
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             # goto to the plugin DB and fetch the network
             network = self._get_network(context, id)
             if (self.nsx_sync_opts.always_read_status or
@@ -1052,7 +1052,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                      sorts=None, limit=None, marker=None,
                      page_reverse=False):
         filters = filters or {}
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             networks = (
                 super(NsxPluginV2, self).get_networks(
                     context, filters, fields, sorts,
@@ -1068,7 +1068,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if network["network"].get("admin_state_up") is False:
             raise NotImplementedError(_("admin_state_up=False networks "
                                         "are not supported."))
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             net = super(NsxPluginV2, self).update_network(context, id, network)
             if psec.PORTSECURITY in network['network']:
                 self._process_network_port_security_update(
