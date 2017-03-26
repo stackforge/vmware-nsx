@@ -1122,7 +1122,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 predefined = False
                 sg_policy_id, predefined = self._prepare_spoofguard_policy(
                     network_type, net_data, net_morefs)
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 new_net = super(NsxVPluginV2, self).create_network(context,
                                                                    network)
                 self._extension_manager.process_create_network(
@@ -1343,17 +1343,16 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                 'Reason: %(e)s',
                                 {'port_id': port_id, 'e': e})
 
-        with context.session.begin(subtransactions=True):
-            self._process_l3_delete(context, id)
-            # We would first delete subnet db if the backend dhcp service is
-            # deleted in case of entering delete_subnet logic and retrying
-            # to delete backend dhcp service again.
-            if is_dhcp_backend_deleted:
-                subnets = self._get_subnets_by_network(context, id)
-                for subnet in subnets:
-                    super(NsxVPluginV2, self).delete_subnet(
-                        context, subnet['id'])
-            super(NsxVPluginV2, self).delete_network(context, id)
+        self._process_l3_delete(context, id)
+        # We would first delete subnet db if the backend dhcp service is
+        # deleted in case of entering delete_subnet logic and retrying
+        # to delete backend dhcp service again.
+        if is_dhcp_backend_deleted:
+            subnets = self._get_subnets_by_network(context, id)
+            for subnet in subnets:
+                super(NsxVPluginV2, self).delete_subnet(
+                    context, subnet['id'])
+        super(NsxVPluginV2, self).delete_network(context, id)
 
         # Do not delete a predefined port group that was attached to
         # an external network
@@ -1382,7 +1381,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             context, net['id'])
 
     def get_network(self, context, id, fields=None):
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             # goto to the plugin DB and fetch the network
             network = self._get_network(context, id)
             # Don't do field selection here otherwise we won't be able
@@ -1396,7 +1395,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                      sorts=None, limit=None, marker=None,
                      page_reverse=False):
         filters = filters or {}
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             networks = (
                 super(NsxVPluginV2, self).get_networks(
                     context, filters, fields, sorts,
@@ -1510,7 +1509,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 new_dvs = list(new_dvs_pg_mappings.values())
                 net_morefs.extend(new_dvs)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             net_res = super(NsxVPluginV2, self).update_network(context, id,
                                                                network)
             self._extension_manager.process_update_network(context, net_attrs,
@@ -1632,11 +1631,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
     def create_port(self, context, port):
         port_data = port['port']
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # First we allocate port in neutron database
             neutron_db = super(NsxVPluginV2, self).create_port(context, port)
-            self._extension_manager.process_create_port(
-                context, port_data, neutron_db)
             # Port port-security is decided by the port-security state on the
             # network it belongs to, unless specifically specified here
             if validators.is_attr_set(port_data.get(psec.PORTSECURITY)):
@@ -1694,6 +1691,20 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self._process_vnic_type(context, port_data, attrs,
                                     has_security_groups,
                                     port_security)
+
+        # Invoking the manager callback under transaction fails so here
+        # we do it outside. If this fails we will blow away the port
+        try:
+            with db_api.context_manager.writer.using(context):
+                self._extension_manager.process_create_port(
+                    context, port_data, neutron_db)
+        except Exception as e:
+            with excutils.save_and_reraise_exception():
+                LOG.error('Failed to create port %(id)s. '
+                          'Exception: %(e)s',
+                          {'id': neutron_db['id'], 'e': e})
+                # Revert what we have created and raise the exception
+                self.delete_port(context, port_data['id'])
 
         try:
             # Configure NSX - this should not be done in the DB transaction
@@ -1883,7 +1894,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         comp_owner_update = ('device_owner' in port_data and
                              port_data['device_owner'].startswith('compute:'))
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             ret_port = super(NsxVPluginV2, self).update_port(
                 context, id, port)
             self._extension_manager.process_update_port(
@@ -2148,7 +2159,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                                   expected_count=1)
 
         self.disassociate_floatingips(context, id)
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             super(NsxVPluginV2, self).delete_port(context, id)
 
         self._delete_dhcp_static_binding(context, neutron_db_port)
@@ -2177,7 +2188,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # corresponding dhcp interface rest call and lead to overlap response
         # from backend.
         with locking.LockManager.get_lock('nsx-edge-pool'):
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 super(NsxVPluginV2, self).delete_subnet(context, id)
                 if subnet['enable_dhcp']:
                     # There is only DHCP port available
