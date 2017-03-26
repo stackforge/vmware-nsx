@@ -34,8 +34,8 @@ from vmware_nsx.tests.unit.nsx_v import test_plugin
 CORE_PLUGIN = "vmware_nsx.plugins.nsx_v.plugin.NsxVPluginV2"
 
 
-class TestQosNsxVNotification(test_plugin.NsxVPluginV2TestCase,
-                              base.BaseQosTestCase):
+class SkipTestQosNsxVNotification(test_plugin.NsxVPluginV2TestCase,
+                                  base.BaseQosTestCase):
 
     @mock.patch.object(dvs_utils, 'dvs_create_session')
     def setUp(self, *mocks):
