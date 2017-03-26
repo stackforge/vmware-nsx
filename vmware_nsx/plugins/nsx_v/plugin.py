@@ -1757,8 +1757,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                    'err': e})
             else:
                 LOG.info(_LI("Add VM %(dev)s to exclude list on behalf of "
-                             "port %(port)s: already in list"),
+                             "port %(port)s: iVM already in list. Syncing."),
                          {"dev": device_id, "port": port_id})
+                self.nsx_v.vcns.sync_firewall()
 
     def _remove_vm_from_exclude_list(self, context, device_id, port_id,
                                      expected_count=0):
