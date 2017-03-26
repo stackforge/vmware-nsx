@@ -94,7 +94,7 @@ class DNSExtensionDriver(driver_api.ExtensionDriver):
         else:
             current_dns_name = dns_name
             current_dns_domain = network[dns.DNSDOMAIN]
-
+        LOG.error("====> DB DATA - %s", db_data)
         port_obj.PortDNS(plugin_context,
                          port_id=db_data['id'],
                          current_dns_name=current_dns_name,
