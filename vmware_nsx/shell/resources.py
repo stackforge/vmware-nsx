@@ -118,7 +118,7 @@ nsxv3_resources = {
                                      Operations.NSX_LIST.value]),
     constants.CONFIG: Resource(constants.CONFIG,
                                [Operations.VALIDATE.value]),
-    constants.ORPHANED_NETWORKS: Resource(constants.ORPHANED_NETWORKS,
+   constants.ORPHANED_NETWORKS: Resource(constants.ORPHANED_NETWORKS,
                                  [Operations.LIST.value,
                                   Operations.NSX_CLEAN.value]),
     constants.ORPHANED_ROUTERS: Resource(constants.ORPHANED_ROUTERS,
@@ -134,7 +134,9 @@ nsxv3_resources = {
                                     [Operations.LIST.value]),
     constants.RATE_LIMIT: Resource(constants.RATE_LIMIT,
                                    [Operations.SHOW.value,
-                                    Operations.NSX_UPDATE.value])
+                                    Operations.NSX_UPDATE.value]),
+    constants.POLICIES: Resource(constants.POLICIES,
+                                 [Operations.VALIDATE.value])
 }
 
 # Add supported NSX-V resources in this dictionary

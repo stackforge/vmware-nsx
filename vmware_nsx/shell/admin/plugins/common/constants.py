@@ -45,6 +45,7 @@ LB_VIRTUAL_SERVERS = 'lb-virtual-servers'
 LB_POOLS = 'lb-pools'
 LB_MONITORS = 'lb-monitors'
 RATE_LIMIT = 'rate-limit'
+POLICIES = 'policies'
 
 # NSXV only Resource Constants
 EDGES = 'edges'
