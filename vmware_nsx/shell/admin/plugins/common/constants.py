@@ -34,6 +34,7 @@ PORTS = 'ports'
 METADATA_PROXY = 'metadata-proxy'
 ORPHANED_DHCP_SERVERS = 'orphaned-dhcp-servers'
 CERTIFICATE = 'certificate'
+POLICIES = 'policies'
 
 # NSXV only Resource Constants
 EDGES = 'edges'
