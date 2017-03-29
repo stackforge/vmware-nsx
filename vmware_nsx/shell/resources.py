@@ -102,7 +102,9 @@ nsxv3_resources = {
                                      Operations.IMPORT.value,
                                      Operations.NSX_LIST.value]),
     constants.CONFIG: Resource(constants.CONFIG,
-                               [Operations.VALIDATE.value])
+                               [Operations.VALIDATE.value]),
+    constants.POLICIES: Resource(constants.POLICIES,
+                                 [Operations.VALIDATE.value])
 }
 
 # Add supported NSX-V resources in this dictionary
