@@ -18,6 +18,7 @@ import six
 import uuid
 
 import netaddr
+from neutron_lib.api.definitions import provider_net as providernet
 from neutron_lib.api import validators
 from neutron_lib import constants
 from neutron_lib import context as n_context
@@ -70,7 +71,6 @@ from neutron.extensions import flavors
 from neutron.extensions import l3
 from neutron.extensions import multiprovidernet as mpnet
 from neutron.extensions import portsecurity as psec
-from neutron.extensions import providernet
 from neutron.extensions import securitygroup as ext_sg
 from neutron.extensions import vlantransparent as ext_vlan
 from neutron.plugins.common import constants as plugin_const
