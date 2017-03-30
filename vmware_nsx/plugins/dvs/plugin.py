@@ -37,12 +37,12 @@ from neutron.db import vlantransparent_db as vlan_ext_db
 from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.extensions import multiprovidernet as mpnet
 from neutron.extensions import portsecurity as psec
-from neutron.extensions import providernet
 from neutron.extensions import securitygroup as ext_sg
 from neutron.extensions import vlantransparent as vlan_ext
 from neutron.plugins.common import constants
 from neutron.plugins.common import utils
 from neutron.quota import resource_registry
+from neutron_lib.api.definitions import provider_net as providernet
 from neutron_lib.api.definitions import portbindings as pbin
 from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib.api import validators
