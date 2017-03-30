@@ -54,7 +54,6 @@ from neutron.extensions import external_net as ext_net_extn
 from neutron.extensions import extra_dhcp_opt as ext_edo
 from neutron.extensions import l3
 from neutron.extensions import portsecurity as psec
-from neutron.extensions import providernet
 from neutron.extensions import securitygroup as ext_sg
 from neutron.plugins.common import constants as plugin_const
 from neutron.plugins.common import utils as n_utils
@@ -950,7 +949,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         original_net = super(NsxV3Plugin, self).get_network(context, id)
         net_data = network['network']
         # Neutron does not support changing provider network values
-        providernet._raise_if_updates_provider_attributes(net_data)
+        pnet._raise_if_updates_provider_attributes(net_data)
         extern_net = self._network_is_external(context, id)
         if extern_net:
             self._assert_on_external_net_with_qos(net_data)

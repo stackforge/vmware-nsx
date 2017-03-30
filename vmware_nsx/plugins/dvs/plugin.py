@@ -19,6 +19,7 @@ from neutron_lib import context as n_context
 from oslo_log import log as logging
 from oslo_utils import excutils
 
+from neutron_lib.api.definitions import provider_net as providernet
 from neutron.api import extensions as neutron_extensions
 from neutron.api.v2 import attributes as attr
 from neutron.db import _utils as db_utils
@@ -37,7 +38,6 @@ from neutron.db import vlantransparent_db as vlan_ext_db
 from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.extensions import multiprovidernet as mpnet
 from neutron.extensions import portsecurity as psec
-from neutron.extensions import providernet
 from neutron.extensions import securitygroup as ext_sg
 from neutron.extensions import vlantransparent as vlan_ext
 from neutron.plugins.common import constants
