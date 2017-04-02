@@ -2808,7 +2808,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # Will raise FlavorNotFound if doesn't exist
         fl_db = flavors_plugin.FlavorsPlugin.get_flavor(
             flv_plugin, context, flavor_id)
-
         if fl_db['service_type'] != constants.L3:
             raise flavors.InvalidFlavorServiceType(
                 service_type=fl_db['service_type'])
@@ -2914,14 +2913,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         gw_info = self._extract_external_gw(context, router)
         lrouter = super(NsxVPluginV2, self).create_router(context, router)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             router_db = self._get_router(context, lrouter['id'])
             self._process_extra_attr_router_create(context, router_db, r)
             self._process_nsx_router_create(context, router_db, r)
             self._process_router_flavor_create(context, router_db, r)
 
-        lrouter = super(NsxVPluginV2, self).get_router(context,
-                                                       lrouter['id'])
+        with db_api.context_manager.reader.using(context):
+            lrouter = super(NsxVPluginV2, self).get_router(context,
+                                                           lrouter['id'])
         try:
             router_driver = self._get_router_driver(context, router_db)
             if router_driver.get_type() == nsxv_constants.EXCLUSIVE:
@@ -2941,7 +2941,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         except Exception:
             with excutils.save_and_reraise_exception():
                 self.delete_router(context, lrouter['id'])
-        return self.get_router(context, lrouter['id'])
+
+        # re-read the router with the updated data, and return it
+        with db_api.context_manager.reader.using(context):
+            return self.get_router(context, lrouter['id'])
 
     def _validate_router_migration(self, context, router_id,
                                    new_router_type, router):
@@ -2988,7 +2991,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     old_router_driver.detach_router(context, router_id, router)
 
                     # update the router-type
-                    with context.session.begin(subtransactions=True):
+                    with db_api.context_manager.writer.using(context):
                         router_db = self._get_router(context, router_id)
                         self._process_nsx_router_create(
                             context, router_db, router['router'])
@@ -3011,7 +3014,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         return router_driver.update_router(context, router_id, router)
 
     def _check_router_in_use(self, context, router_id):
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             # Ensure that the router is not used
             router_filter = {'router_id': [router_id]}
             fips = self.get_floatingips_count(context.elevated(),
@@ -3734,7 +3737,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         sg_id = sg_data["id"] = str(uuid.uuid4())
         self._validate_security_group(context, sg_data, default_sg)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             is_provider = True if sg_data.get(provider_sg.PROVIDER) else False
             is_policy = True if sg_data.get(sg_policy.POLICY) else False
             if is_provider or is_policy:
@@ -4001,7 +4004,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         try:
             # Save new rules in Database, including mappings between Nsx rules
             # and Neutron security-groups rules
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 new_rule_list = super(
                     NsxVPluginV2, self).create_security_group_rule_bulk_native(
                         context, security_group_rules)
@@ -4042,7 +4045,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                       "nsx-rule %(nsx_rule_id)s doesn't exist.",
                       {'id': id, 'nsx_rule_id': nsx_rule_id})
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
+            rule_db = self._get_security_group_rule(context, id)
             context.session.delete(rule_db)
 
     def _remove_vnic_from_spoofguard_policy(self, session, net_id, vnic_id):
