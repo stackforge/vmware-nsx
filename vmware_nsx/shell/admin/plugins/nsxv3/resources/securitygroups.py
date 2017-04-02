@@ -13,6 +13,7 @@
 #    under the License.
 
 from neutron.callbacks import registry
+from neutron.db import api as db_api
 from neutron.db import common_db_mixin as common_db
 from neutron.db.models import securitygroup
 from neutron.db import securitygroups_db
@@ -69,7 +70,7 @@ class NeutronSecurityGroupApi(securitygroups_db.SecurityGroupDbMixin,
             nsx_models.NeutronNsxFirewallSectionMapping).filter_by(
                 neutron_id=sg_id).one_or_none()
         if fw_mapping:
-            with self.context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(self.context):
                 self.context.session.delete(fw_mapping)
 
     def delete_security_group_backend_mapping(self, sg_id):
@@ -77,7 +78,7 @@ class NeutronSecurityGroupApi(securitygroups_db.SecurityGroupDbMixin,
             nsx_models.NeutronNsxSecurityGroupMapping).filter_by(
                 neutron_id=sg_id).one_or_none()
         if sg_mapping:
-            with self.context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(self.context):
                 self.context.session.delete(sg_mapping)
 
     def get_security_groups_mappings(self):
