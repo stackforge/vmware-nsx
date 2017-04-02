@@ -191,7 +191,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
             self._dvs.add_port_group(dvs_id, vlan_tag, trunk_mode=trunk_mode)
 
         try:
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 new_net = super(NsxDvsV2, self).create_network(context,
                                                                network)
                 # Process port security extension
@@ -270,7 +270,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         network = self._get_network(context, id)
         dvs_id = self._dvs_get_id(network)
         bindings = nsx_db.get_network_bindings(context.session, id)
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             nsx_db.delete_network_bindings(context.session, id)
             super(NsxDvsV2, self).delete_network(context, id)
         try:
@@ -285,7 +285,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         self._dvs_delete_network(context, id)
 
     def _dvs_get_network(self, context, id, fields=None):
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # goto to the plugin DB and fetch the network
             network = self._get_network(context, id)
             # Don't do field selection here otherwise we won't be able
@@ -302,7 +302,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
                      sorts=None, limit=None, marker=None,
                      page_reverse=False):
         filters = filters or {}
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             networks = (
                 super(NsxDvsV2, self).get_networks(
                     context, filters, fields, sorts,
@@ -317,7 +317,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         net_attrs = network['network']
         providernet._raise_if_updates_provider_attributes(net_attrs)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             net_res = super(NsxDvsV2, self).update_network(context, id,
                                                            network)
             # Process port security extension
@@ -346,7 +346,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         # shared network that is not owned by the tenant.
         port_data = port['port']
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # First we allocate port in neutron database
             neutron_db = super(NsxDvsV2, self).create_port(context, port)
             port_security = self._get_network_security_binding(
@@ -407,7 +407,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
             port)
         has_addr_pairs = self._check_update_has_allowed_address_pairs(port)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             ret_port = super(NsxDvsV2, self).update_port(
                 context, id, port)
             # Save current mac learning state to check whether it's
@@ -463,7 +463,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         """
         neutron_db_port = self.get_port(context, id)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # metadata_dhcp_host_route
             self.handle_port_metadata_access(
                 context, neutron_db_port, is_delete=True)

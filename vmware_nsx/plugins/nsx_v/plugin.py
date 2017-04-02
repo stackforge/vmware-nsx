@@ -1122,7 +1122,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 predefined = False
                 sg_policy_id, predefined = self._prepare_spoofguard_policy(
                     network_type, net_data, net_morefs)
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 new_net = super(NsxVPluginV2, self).create_network(context,
                                                                    network)
                 self._extension_manager.process_create_network(
@@ -1343,7 +1343,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                 'Reason: %(e)s',
                                 {'port_id': port_id, 'e': e})
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             self._process_l3_delete(context, id)
             # We would first delete subnet db if the backend dhcp service is
             # deleted in case of entering delete_subnet logic and retrying
@@ -1382,7 +1382,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             context, net['id'])
 
     def get_network(self, context, id, fields=None):
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # goto to the plugin DB and fetch the network
             network = self._get_network(context, id)
             # Don't do field selection here otherwise we won't be able
@@ -1396,7 +1396,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                      sorts=None, limit=None, marker=None,
                      page_reverse=False):
         filters = filters or {}
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             networks = (
                 super(NsxVPluginV2, self).get_networks(
                     context, filters, fields, sorts,
@@ -1510,7 +1510,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 new_dvs = list(new_dvs_pg_mappings.values())
                 net_morefs.extend(new_dvs)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             net_res = super(NsxVPluginV2, self).update_network(context, id,
                                                                network)
             self._extension_manager.process_update_network(context, net_attrs,
@@ -1632,7 +1632,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
     def create_port(self, context, port):
         port_data = port['port']
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # First we allocate port in neutron database
             neutron_db = super(NsxVPluginV2, self).create_port(context, port)
             self._extension_manager.process_create_port(
@@ -1883,7 +1883,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         comp_owner_update = ('device_owner' in port_data and
                              port_data['device_owner'].startswith('compute:'))
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             ret_port = super(NsxVPluginV2, self).update_port(
                 context, id, port)
             self._extension_manager.process_update_port(
@@ -2148,7 +2148,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                                   expected_count=1)
 
         self.disassociate_floatingips(context, id)
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             super(NsxVPluginV2, self).delete_port(context, id)
 
         self._delete_dhcp_static_binding(context, neutron_db_port)
@@ -2177,7 +2177,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # corresponding dhcp interface rest call and lead to overlap response
         # from backend.
         with locking.LockManager.get_lock('nsx-edge-pool'):
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 super(NsxVPluginV2, self).delete_subnet(context, id)
                 if subnet['enable_dhcp']:
                     # There is only DHCP port available
@@ -2863,7 +2863,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         gw_info = self._extract_external_gw(context, router)
         lrouter = super(NsxVPluginV2, self).create_router(context, router)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             router_db = self._get_router(context, lrouter['id'])
             self._process_extra_attr_router_create(context, router_db, r)
             self._process_nsx_router_create(context, router_db, r)
@@ -2937,7 +2937,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     old_router_driver.detach_router(context, router_id, router)
 
                     # update the router-type
-                    with context.session.begin(subtransactions=True):
+                    with db_api.context_manager.writer.using(context):
                         router_db = self._get_router(context, router_id)
                         self._process_nsx_router_create(
                             context, router_db, router['router'])
@@ -2960,7 +2960,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         return router_driver.update_router(context, router_id, router)
 
     def _check_router_in_use(self, context, router_id):
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # Ensure that the router is not used
             router_filter = {'router_id': [router_id]}
             fips = self.get_floatingips_count(context.elevated(),
@@ -3680,7 +3680,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         sg_id = sg_data["id"] = str(uuid.uuid4())
         self._validate_security_group(context, sg_data, default_sg)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             is_provider = True if sg_data.get(provider_sg.PROVIDER) else False
             is_policy = True if sg_data.get(sg_policy.POLICY) else False
             if is_provider or is_policy:
@@ -3947,7 +3947,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         try:
             # Save new rules in Database, including mappings between Nsx rules
             # and Neutron security-groups rules
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 new_rule_list = super(
                     NsxVPluginV2, self).create_security_group_rule_bulk_native(
                         context, security_group_rules)
@@ -3988,7 +3988,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                       "nsx-rule %(nsx_rule_id)s doesn't exist.",
                       {'id': id, 'nsx_rule_id': nsx_rule_id})
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             context.session.delete(rule_db)
 
     def _remove_vnic_from_spoofguard_policy(self, session, net_id, vnic_id):
