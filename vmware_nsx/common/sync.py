@@ -25,6 +25,7 @@ from oslo_service import loopingcall
 from oslo_utils import timeutils
 import six
 
+from neutron.db import api as db_api
 from neutron.db.models import external_net as external_net_db
 from neutron.db.models import l3 as l3_db
 from neutron.db import models_v2
@@ -300,7 +301,7 @@ class NsxSynchronizer(object):
             # do nothing
             return
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             try:
                 network = self._plugin._get_network(context,
                                                     neutron_network_data['id'])
@@ -382,7 +383,7 @@ class NsxSynchronizer(object):
             # do nothing
             return
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             try:
                 router = self._plugin._get_router(context,
                                                   neutron_router_data['id'])
@@ -434,7 +435,7 @@ class NsxSynchronizer(object):
                     (models_v2.Network.id ==
                      external_net_db.ExternalNetwork.network_id))]
         if neutron_port_data['network_id'] in ext_networks:
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 neutron_port_data['status'] = constants.PORT_STATUS_ACTIVE
                 return
 
@@ -477,7 +478,7 @@ class NsxSynchronizer(object):
             # do nothing
             return
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.reader.using(context):
             try:
                 port = self._plugin._get_port(context,
                                               neutron_port_data['id'])
