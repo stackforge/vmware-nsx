@@ -1032,7 +1032,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         LOG.debug("Delete network complete for network: %s", id)
 
     def get_network(self, context, id, fields=None):
-        with db_api.context_manager.reader.using(context):
+        with db_api.context_manager.writer.using(context):
             # goto to the plugin DB and fetch the network
             network = self._get_network(context, id)
             if (self.nsx_sync_opts.always_read_status or
@@ -1112,7 +1112,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         dhcp_opts = port_data.get(edo_ext.EXTRADHCPOPTS, [])
         # Set port status as 'DOWN'. This will be updated by backend sync.
         port_data['status'] = constants.PORT_STATUS_DOWN
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # First we allocate port in neutron database
             neutron_db = super(NsxPluginV2, self).create_port(context, port)
             neutron_port_id = neutron_db['id']
@@ -1182,7 +1182,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             LOG.warning("Logical switch for network %s was not "
                         "found in NSX.", port_data['network_id'])
             # Put port in error on neutron DB
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 port = self._get_port(context, neutron_port_id)
                 port_data['status'] = constants.PORT_STATUS_ERROR
                 port['status'] = port_data['status']
@@ -1192,7 +1192,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             with excutils.save_and_reraise_exception():
                 LOG.error("Unable to create port or set port "
                           "attachment in NSX.")
-                with context.session.begin(subtransactions=True):
+                with db_api.context_manager.writer.using(context):
                     self.ipam.delete_port(context, neutron_port_id)
         # this extra lookup is necessary to get the
         # latest db model for the extension functions
@@ -1209,7 +1209,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             port)
         has_addr_pairs = self._check_update_has_allowed_address_pairs(port)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             ret_port = super(NsxPluginV2, self).update_port(
                 context, id, port)
 
@@ -1357,7 +1357,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         port_delete_func(context, neutron_db_port)
         self.disassociate_floatingips(context, id)
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             queue = self._get_port_queue_bindings(context, {'port_id': [id]})
             # metadata_dhcp_host_route
             self.handle_port_metadata_access(
@@ -1370,7 +1370,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             context, neutron_db_port, action='delete_port')
 
     def get_port(self, context, id, fields=None):
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             if (self.nsx_sync_opts.always_read_status or
                 fields and 'status' in fields):
                 # Perform explicit state synchronization
@@ -1382,15 +1382,16 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 return super(NsxPluginV2, self).get_port(context, id, fields)
 
     def get_router(self, context, id, fields=None):
-        if (self.nsx_sync_opts.always_read_status or
-            fields and 'status' in fields):
-            db_router = self._get_router(context, id)
-            # Perform explicit state synchronization
-            self._synchronizer.synchronize_router(
-                context, db_router)
-            return self._make_router_dict(db_router, fields)
-        else:
-            return super(NsxPluginV2, self).get_router(context, id, fields)
+        with db_api.context_manager.writer.using(context):
+            if (self.nsx_sync_opts.always_read_status or
+                fields and 'status' in fields):
+                db_router = self._get_router(context, id)
+                # Perform explicit state synchronization
+                self._synchronizer.synchronize_router(
+                    context, db_router)
+                return self._make_router_dict(db_router, fields)
+            else:
+                return super(NsxPluginV2, self).get_router(context, id, fields)
 
     def _create_lrouter(self, context, router, nexthop):
         tenant_id = router['tenant_id']
@@ -1482,10 +1483,10 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         lrouter = self._create_lrouter(context, r, nexthop)
         # TODO(salv-orlando): Deal with backend object removal in case
         # of db failures
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # Transaction nesting is needed to avoid foreign key violations
             # when processing the distributed router binding
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 router_db = l3_db_models.Router(
                     id=neutron_router_id,
                     tenant_id=tenant_id,
@@ -1571,7 +1572,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # object is not found in the underlying backend
         except n_exc.NotFound:
             # Put the router in ERROR status
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 router_db = self._get_router(context, router_id)
                 router_db['status'] = constants.NET_STATUS_ERROR
             raise nsx_exc.NsxPluginException(
@@ -1603,7 +1604,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         routerlib.delete_lrouter(self.cluster, nsx_router_id)
 
     def delete_router(self, context, router_id):
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # NOTE(salv-orlando): These checks will be repeated anyway when
             # calling the superclass. This is wasteful, but is the simplest
             # way of ensuring a consistent removal of the router both in
@@ -2077,7 +2078,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         """
         # Ensure the default gateway in the config file is in sync with the db
         self._ensure_default_network_gateway()
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             try:
                 super(NsxPluginV2, self).delete_network_gateway(
                     context, gateway_id)
@@ -2143,7 +2144,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                             new_status=None, is_create=False):
         LOG.error("Rolling back database changes for gateway device %s "
                   "because of an error in the NSX backend", device_id)
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             query = self._model_query(
                 context, nsx_models.NetworkGatewayDevice).filter(
                     nsx_models.NetworkGatewayDevice.id == device_id)
@@ -2179,7 +2180,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                                             nsx_res['uuid'])
 
             # set NSX GW device in neutron database and update status
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 query = self._model_query(
                     context, nsx_models.NetworkGatewayDevice).filter(
                         nsx_models.NetworkGatewayDevice.id == neutron_id)
@@ -2218,7 +2219,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             device_status = nsx_utils.get_nsx_device_status(self.cluster,
                                                             nsx_id)
             # update status
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 query = self._model_query(
                     context, nsx_models.NetworkGatewayDevice).filter(
                         nsx_models.NetworkGatewayDevice.id == neutron_id)
@@ -2253,7 +2254,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         device_status = nsx_utils.get_nsx_device_status(self.cluster, nsx_id)
         # TODO(salv-orlando): Asynchronous sync for gateway device status
         # Update status in database
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             query = self._model_query(
                 context, nsx_models.NetworkGatewayDevice).filter(
                     nsx_models.NetworkGatewayDevice.id == device_id)
@@ -2274,7 +2275,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         nsx_statuses = nsx_utils.get_nsx_device_statuses(self.cluster,
                                                          tenant_id)
         # Update statuses in database
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             for device in devices:
                 new_status = nsx_statuses.get(device['nsx_id'])
                 if new_status:
@@ -2349,7 +2350,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         neutron_id = str(uuid.uuid4())
         nsx_secgroup = secgrouplib.create_security_profile(
             self.cluster, tenant_id, neutron_id, s)
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             s['id'] = neutron_id
             sec_group = super(NsxPluginV2, self).create_security_group(
                 context, security_group, default_sg)
@@ -2386,7 +2387,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         :param security_group_id: security group rule to remove.
         """
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             security_group = super(NsxPluginV2, self).get_security_group(
                 context, security_group_id)
             if not security_group:
@@ -2458,7 +2459,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         # TODO(arosen) is there anyway we could avoid having the update of
         # the security group rules in nsx outside of this transaction?
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             security_group_id = self._validate_security_group_rules(
                 context, security_group_rules)
             # Check to make sure security group exists
@@ -2488,7 +2489,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         """Delete a security group rule
         :param sgrid: security group id to remove.
         """
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # determine security profile id
             security_group_rule = (
                 super(NsxPluginV2, self).get_security_group_rule(

@@ -2705,7 +2705,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             r, resource_type='os-neutron-router-id',
             project_name=context.tenant_name)
         router = super(NsxV3Plugin, self).create_router(context, router)
-        with context.session.begin():
+        with db_api.context_manager.writer.using(context):
             router_db = self._get_router(context, r['id'])
             self._process_extra_attr_router_create(context, router_db, r)
         # Create backend entries here in case neutron DB exception
@@ -3343,7 +3343,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         super(NsxV3Plugin, self).create_security_group(
                             context, security_group, default_sg))
 
-                nsx_db.save_sg_mappings(context.session,
+                nsx_db.save_sg_mappings(context,
                                         secgroup_db['id'],
                                         ns_group['id'],
                                         firewall_section['id'])
