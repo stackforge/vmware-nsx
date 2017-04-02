@@ -907,6 +907,9 @@ class TestL3NatTestCase(L3NatTest,
     def test_floatingip_via_router_interface_returns_201(self):
         self.skipTest('not supported')
 
+    def test_floatingip_update_subnet_gateway_disabled(self):
+        self.skipTest('not supported')
+
 
 class ExtGwModeTestCase(NsxPluginV2TestCase,
                         test_ext_gw_mode.ExtGwModeIntTestCase):
