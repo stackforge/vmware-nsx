@@ -2875,7 +2875,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         gw_info = self._extract_external_gw(context, router)
         lrouter = super(NsxVPluginV2, self).create_router(context, router)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             router_db = self._get_router(context, lrouter['id'])
             self._process_extra_attr_router_create(context, router_db, r)
             self._process_nsx_router_create(context, router_db, r)
@@ -2949,7 +2949,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     old_router_driver.detach_router(context, router_id, router)
 
                     # update the router-type
-                    with context.session.begin(subtransactions=True):
+                    with db_api.context_manager.writer.using(context):
                         router_db = self._get_router(context, router_id)
                         self._process_nsx_router_create(
                             context, router_db, router['router'])
@@ -2972,7 +2972,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         return router_driver.update_router(context, router_id, router)
 
     def _check_router_in_use(self, context, router_id):
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             # Ensure that the router is not used
             router_filter = {'router_id': [router_id]}
             fips = self.get_floatingips_count(context.elevated(),
@@ -3692,7 +3692,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         sg_id = sg_data["id"] = str(uuid.uuid4())
         self._validate_security_group(context, sg_data, default_sg)
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             is_provider = True if sg_data.get(provider_sg.PROVIDER) else False
             is_policy = True if sg_data.get(sg_policy.POLICY) else False
             if is_provider or is_policy:
@@ -3959,7 +3959,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         try:
             # Save new rules in Database, including mappings between Nsx rules
             # and Neutron security-groups rules
-            with context.session.begin(subtransactions=True):
+            with db_api.context_manager.writer.using(context):
                 new_rule_list = super(
                     NsxVPluginV2, self).create_security_group_rule_bulk_native(
                         context, security_group_rules)
@@ -4000,7 +4000,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                       "nsx-rule %(nsx_rule_id)s doesn't exist.",
                       {'id': id, 'nsx_rule_id': nsx_rule_id})
 
-        with context.session.begin(subtransactions=True):
+        with db_api.context_manager.writer.using(context):
             context.session.delete(rule_db)
 
     def _remove_vnic_from_spoofguard_policy(self, session, net_id, vnic_id):
