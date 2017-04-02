@@ -368,9 +368,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # callback is unsubscribed here since l3 APIs are handled by
         # core_plugin instead of an advanced service, in case of NSXv3 plugin,
         # and the prevention logic is handled by NSXv3 plugin itself.
-        registry.unsubscribe(l3_db._prevent_l3_port_delete_callback,
-                             resources.PORT,
-                             events.BEFORE_DELETE)
+        registry.unsubscribe(
+            l3_db.L3_NAT_dbonly_mixin._prevent_l3_port_delete_callback,
+            resources.PORT,
+            events.BEFORE_DELETE)
 
     def _validate_dhcp_profile(self, dhcp_profile_uuid):
         dhcp_profile = self._switching_profiles.get(dhcp_profile_uuid)
@@ -2705,7 +2706,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             r, resource_type='os-neutron-router-id',
             project_name=context.tenant_name)
         router = super(NsxV3Plugin, self).create_router(context, router)
-        with context.session.begin():
+        with db_api.context_manager.writer.using(context):
             router_db = self._get_router(context, r['id'])
             self._process_extra_attr_router_create(context, router_db, r)
         # Create backend entries here in case neutron DB exception
@@ -3343,7 +3344,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         super(NsxV3Plugin, self).create_security_group(
                             context, security_group, default_sg))
 
-                nsx_db.save_sg_mappings(context.session,
+                nsx_db.save_sg_mappings(context,
                                         secgroup_db['id'],
                                         ns_group['id'],
                                         firewall_section['id'])
