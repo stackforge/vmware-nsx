@@ -786,6 +786,9 @@ class TestPortsV2(NsxVPluginV2TestCase,
                                                         ipv6_pd=False):
         self.skipTest('No DHCP v6 Support yet')
 
+    def test_update_port_with_new_ipv6_slaac_subnet_in_fixed_ips(self):
+        self.skipTest('No DHCP v6 Support yet')
+
     def test_create_port_anticipating_allocation(self):
         with self.network(shared=True) as network:
             with self.subnet(network=network, cidr='10.0.0.0/24',
@@ -1425,6 +1428,9 @@ class TestPortsV2(NsxVPluginV2TestCase,
                     self.assertEqual(1, len(port_list))
                     self.assertNotIn(port1['port']['id'], port_ids)
                     self.assertIn(port2['port']['id'], port_ids)
+
+    def test_update_port_with_new_ipv6_slaac_subnet_in_fixed_ips(self):
+        self.skipTest('No DHCP v6 Support yet')
 
 
 class TestSubnetsV2(NsxVPluginV2TestCase,
