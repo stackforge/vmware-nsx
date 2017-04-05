@@ -32,6 +32,8 @@ from oslo_utils import timeutils
 from oslo_utils import uuidutils
 from six import moves
 
+from neutron.callbacks import events
+from neutron.callbacks import registry
 from neutron.extensions import extra_dhcp_opt as ext_edo
 from neutron.extensions import l3
 from neutron.plugins.common import constants as plugin_const
@@ -65,6 +67,8 @@ SUPPORTED_EDGE_LOG_MODULES = ('routing', 'highavailability',
                               'dhcp', 'loadbalancer', 'dns')
 
 SUPPORTED_EDGE_LOG_LEVELS = ('none', 'debug', 'info', 'warning', 'error')
+
+ROUTER_EDGE_BINDING = 'router-edge-binding'
 
 
 def _get_vdr_transit_network_ipobj():
@@ -174,6 +178,17 @@ def parse_backup_edge_pool_opt_per_az(az):
                 'minimum_pooled_edges': r['minimum_pooled_edges'],
                 'maximum_pooled_edges': r['maximum_pooled_edges']}
     return edge_pool_dicts
+
+
+def _notify_after_router_edge_association(self, context, router):
+    registry.notify(ROUTER_EDGE_BINDING, events.AFTER_CREATE,
+                    self, context=context, router=router)
+
+
+def _notify_before_router_edge_association(self, context,
+                                           router, edge_id=None):
+    registry.notify(ROUTER_EDGE_BINDING, events.BEFORE_DELETE, self,
+                    context=context, router=router, edge_id=edge_id)
 
 
 class EdgeManager(object):
