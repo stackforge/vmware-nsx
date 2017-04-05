@@ -17,7 +17,6 @@ import netaddr
 import six
 
 from neutron.api.rpc.agentnotifiers import dhcp_rpc_agent_api
-from neutron.api.rpc.callbacks.consumer import registry as callbacks_registry
 from neutron.api.rpc.callbacks import resources as callbacks_resources
 from neutron.api.rpc.handlers import dhcp_rpc
 from neutron.api.rpc.handlers import metadata_rpc
@@ -66,7 +65,6 @@ from neutron_lib.api import validators
 from neutron_lib import constants as const
 from neutron_lib import context as q_context
 from neutron_lib import exceptions as n_exc
-from neutron_lib.plugins import directory
 from neutron_lib.utils import helpers
 from oslo_config import cfg
 from oslo_db import exception as db_exc
@@ -98,7 +96,6 @@ from vmware_nsx.plugins.nsx_v3 import availability_zones as nsx_az
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
-from vmware_nsx.services.qos.nsx_v3 import utils as qos_utils
 from vmware_nsx.services.trunk.nsx_v3 import driver as trunk_driver
 from vmware_nsxlib.v3 import exceptions as nsx_lib_exc
 from vmware_nsxlib.v3 import nsx_constants as nsxlib_consts
@@ -233,7 +230,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     ) % NSX_V3_EXCLUDED_PORT_NSGROUP_NAME
             raise nsx_exc.NsxPluginException(err_msg=msg)
 
-        self._init_qos_callbacks()
+        qos_driver.register()
 
         self.start_rpc_listeners_called = False
 
@@ -487,20 +484,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 NSX_V3_FW_DEFAULT_SECTION, section_description, [],
                 cfg.CONF.nsx_v3.log_security_groups_blocked_traffic)
             return section_id
-
-    def _init_qos_callbacks(self):
-        # Bind QoS notifications. the RPC option will be deprecated soon,
-        # but for now we need to support both options
-        qos_plugin = directory.get_plugin(plugin_const.QOS)
-        if (qos_plugin and qos_plugin.driver_manager and
-            qos_plugin.driver_manager.rpc_notifications_required):
-            # TODO(asarfaty) this option should be deprecated on Pike
-            self.qos_use_rpc = True
-            callbacks_registry.register(qos_utils.handle_qos_notification,
-                                        callbacks_resources.QOS_POLICY)
-        else:
-            self.qos_use_rpc = False
-            qos_driver.register()
 
     def _init_dhcp_metadata(self):
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
