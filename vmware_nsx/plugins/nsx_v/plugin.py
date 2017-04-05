@@ -33,9 +33,6 @@ from oslo_utils import uuidutils
 from sqlalchemy.orm import exc as sa_exc
 
 from neutron.api import extensions as neutron_extensions
-from neutron.api.rpc.callbacks.consumer import registry as callbacks_registry
-from neutron.api.rpc.callbacks import resources as callbacks_resources
-from neutron.api.rpc.handlers import resources_rpc
 from neutron.api.v2 import attributes as attr
 from neutron.callbacks import events
 from neutron.callbacks import registry
@@ -82,6 +79,7 @@ from neutron.services.qos import qos_consts
 from neutron_lib.api.definitions import portbindings as pbin
 from vmware_nsx.dvs import dvs
 from vmware_nsx.services.qos.common import utils as qos_com_utils
+from vmware_nsx.services.qos.nsx_v import driver as qos_driver
 from vmware_nsx.services.qos.nsx_v import utils as qos_utils
 
 import vmware_nsx
@@ -265,10 +263,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             # Only expose the extension if it is supported
             self.supported_extension_aliases.append("dhcp-mtu")
 
-        # Bind QoS notifications
-        callbacks_registry.register(self._handle_qos_notification,
-                                    callbacks_resources.QOS_POLICY)
-
         # Make sure starting rpc listeners (for QoS and other agents)
         # will happen only once
         self.start_rpc_listeners_called = False
@@ -284,6 +278,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         if c_utils.is_nsxv_version_6_2(self.nsx_v.vcns.get_version()):
             self.supported_extension_aliases.append("provider-security-group")
+
+        # Bind QoS notifications
+        qos_driver.register(self)
 
     # Register extend dict methods for network and port resources.
     # Each extension driver that supports extend attribute for the resources
@@ -366,17 +363,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         self.conn = n_rpc.create_connection()
         self.conn.create_consumer(self.topic, self.endpoints, fanout=False)
-
-        # Add QoS
-        qos_plugin = directory.get_plugin(plugin_const.QOS)
-        if (qos_plugin and qos_plugin.driver_manager and
-            qos_plugin.driver_manager.rpc_notifications_required):
-            # TODO(asarfaty) this option should be deprecated on Pike
-            qos_topic = resources_rpc.resource_type_versioned_topic(
-                callbacks_resources.QOS_POLICY)
-            self.conn.create_consumer(
-                qos_topic, [resources_rpc.ResourcesPushRpcCallback()],
-                fanout=False)
 
         self.start_rpc_listeners_called = True
         return self.conn.consume_in_threads()
