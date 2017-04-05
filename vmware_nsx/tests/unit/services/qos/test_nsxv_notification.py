@@ -42,13 +42,6 @@ class TestQosNsxVNotification(test_plugin.NsxVPluginV2TestCase,
         # init the nsx-v plugin for testing with DVS
         self._init_dvs_config()
 
-        # Add a dummy notification driver
-        # TODO(asarfaty) should be removed in Pike
-        cfg.CONF.set_override(
-            'notification_drivers',
-            ['vmware_nsx.tests.unit.services.qos.fake_nsxv_notifier.'
-             'DummyNsxVNotificationDriver'],
-            'qos')
         super(TestQosNsxVNotification, self).setUp(plugin=CORE_PLUGIN,
                                                    ext_mgr=None)
         plugin_instance = directory.get_plugin()
