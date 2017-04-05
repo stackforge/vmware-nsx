@@ -102,7 +102,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             # here is used to handle routes which tenant updates.
             router_db = self.plugin._get_router(context, router_id)
             nexthop = self.plugin._get_external_attachment_info(
-                context, router_db)[2]
+                context, router_db.gw_port)[2]
             with locking.LockManager.get_lock(self._get_edge_id(context,
                                                                 router_id)):
                 self.plugin._update_subnets_and_dnat_firewall(context,
@@ -155,25 +155,13 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             self._update_routes_on_plr(context, router_id, plr_id,
                                        newnexthop)
 
-    def _update_router_gw_info(self, context, router_id, info,
-                               is_routes_update=False,
-                               force_update=False):
-        router = self.plugin._get_router(context, router_id)
-        org_ext_net_id = router.gw_port_id and router.gw_port.network_id
-        org_enable_snat = router.enable_snat
-        orgaddr, orgmask, orgnexthop = (
-            self.plugin._get_external_attachment_info(
-                context, router))
+    def _update_gw_info(self, context, org_gw_info, new_gw_info, router):
+        (org_ext_net_id, org_enable_snat,
+         orgaddr, orgmask, orgnexthop) = org_gw_info
+        (new_ext_net_id, new_enable_snat,
+         newaddr, newmask, newnexthop) = new_gw_info
 
-        super(nsx_v.NsxVPluginV2, self.plugin)._update_router_gw_info(
-            context, router_id, info, router=router)
-
-        new_ext_net_id = router.gw_port_id and router.gw_port.network_id
-        new_enable_snat = router.enable_snat
-        newaddr, newmask, newnexthop = (
-            self.plugin._get_external_attachment_info(
-                context, router))
-
+        router_id = router['id']
         plr_id = self.edge_manager.get_plr_by_tlr_id(context, router_id)
         tlr_edge_id = self._get_edge_id(context, router_id)
         if not new_ext_net_id:
@@ -214,8 +202,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                 self.plugin._update_nat_rules(context, router, plr_id)
 
             if (new_ext_net_id != org_ext_net_id or
-                new_enable_snat != org_enable_snat or
-                is_routes_update):
+                new_enable_snat != org_enable_snat):
                 # Open firewall flows on plr
                 self.plugin._update_subnets_and_dnat_firewall(
                     context, router, router_id=plr_id)
@@ -225,11 +212,8 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             md_gw_data = self._get_metadata_gw_data(context, router_id)
             self._update_routes(context, router_id, newnexthop, md_gw_data)
 
-    def _validate_multiple_subnets_routers(self, context, router_id,
-                                           interface_info):
+    def _validate_multiple_subnets_routers(self, context, router_id, net_id):
         _nsxv_plugin = self.plugin
-        net_id = _nsxv_plugin._get_interface_info_net_id(context,
-                                                         interface_info)
 
         port_filters = {'device_owner': [l3_db.DEVICE_OWNER_ROUTER_INTF],
                         'network_id': [net_id]}
@@ -251,31 +235,18 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                 # attach to multiple routers
                 raise n_exc.Conflict(error_message=err_msg)
 
-    def add_router_interface(self, context, router_id, interface_info):
-        self._validate_multiple_subnets_routers(
-            context, router_id, interface_info)
-        info = super(nsx_v.NsxVPluginV2, self.plugin).add_router_interface(
-            context, router_id, interface_info)
-
-        router_db = self.plugin._get_router(context, router_id)
-        subnet = self.plugin.get_subnet(context, info['subnet_id'])
+    def add_router_interface(self, context, router_db, subnet, port):
+        router_id = router_db.id
         network_id = subnet['network_id']
+        self._validate_multiple_subnets_routers(context, router_id, network_id)
         address_groups = self.plugin._get_address_groups(
             context, router_id, network_id)
         with locking.LockManager.get_lock(self._get_edge_id(context,
                                                             router_id)):
-            port = self.plugin.get_port(context, info['port_id'])
-            try:
-                edge_utils.add_vdr_internal_interface(self.nsx_v, context,
-                                                      router_id, network_id,
-                                                      address_groups,
-                                                      router_db.admin_state_up)
-            except Exception:
-                with excutils.save_and_reraise_exception():
-                    super(nsx_v.NsxVPluginV2, self.plugin
-                          ).remove_router_interface(context,
-                                                    router_id,
-                                                    interface_info)
+            edge_utils.add_vdr_internal_interface(self.nsx_v, context,
+                                                  router_id, network_id,
+                                                  address_groups,
+                                                  router_db.admin_state_up)
             # Update edge's firewall rules to accept subnets flows.
             self.plugin._update_subnets_and_dnat_firewall(context, router_db)
 
@@ -305,7 +276,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                     context, router_db, router_id=plr_id)
                 # Update static routes of plr
                 nexthop = self.plugin._get_external_attachment_info(
-                    context, router_db)[2]
+                    context, router_db.gw_port)[2]
                 if do_metadata:
                     md_gw_data = self._get_metadata_gw_data(context, router_id)
                 else:
@@ -315,8 +286,6 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             elif do_metadata and self._metadata_cfg_required_after_port_add(
                     context, router_id, subnet):
                 self._metadata_route_update(context, router_id)
-
-        return info
 
     def _metadata_route_update(self, context, router_id):
         """Update metadata relative routes.
@@ -409,11 +378,8 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                 return True
         return False
 
-    def remove_router_interface(self, context, router_id, interface_info):
-        info = super(nsx_v.NsxVPluginV2, self.plugin).remove_router_interface(
-            context, router_id, interface_info)
+    def remove_router_interface(self, context, router_id, subnet, port):
         router_db = self.plugin._get_router(context, router_id)
-        subnet = self.plugin.get_subnet(context, info['subnet_id'])
         network_id = subnet['network_id']
         vdr_dhcp_binding = nsxv_db.get_vdr_dhcp_binding_by_vdr(
             context.session, router_id)
@@ -434,7 +400,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                     context, router_db, router_id=plr_id)
                 # Update static routes of plr
                 nexthop = self.plugin._get_external_attachment_info(
-                    context, router_db)[2]
+                    context, router_db.gw_port)[2]
                 md_gw_data = self._get_metadata_gw_data(context, router_id)
                 self._update_routes(context, router_id, nexthop, md_gw_data)
 
@@ -456,8 +422,6 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             if self.plugin.metadata_proxy_handler and subnet['enable_dhcp']:
                 self._attach_network_to_regular_dhcp(
                     context, router_id, network_id, subnet, vdr_dhcp_binding)
-
-            return info
 
     def _attach_network_to_regular_dhcp(
             self, context, router_id, network_id, subnet, vdr_dhcp_binding):
