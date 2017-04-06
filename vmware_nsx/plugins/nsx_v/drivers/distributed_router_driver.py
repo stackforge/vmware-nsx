@@ -502,8 +502,9 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                                                              dhcp_id)
                 if edge_id:
                     with locking.LockManager.get_lock(str(edge_id)):
+                        az = self.get_router_az_by_id(context, router_id)
                         md_proxy_handler = (
-                            self.plugin.metadata_proxy_handler)
+                            self.plugin.get_metadata_proxy_handler( az.name))
                         if md_proxy_handler:
                             md_proxy_handler.configure_router_edge(
                                 context, dhcp_id)
