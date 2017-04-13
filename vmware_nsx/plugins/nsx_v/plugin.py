@@ -3177,12 +3177,20 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         since the actual backend work was already done by the router driver,
         and it may cause a deadlock.
         """
+
         port_data = {'fixed_ips': ext_ips}
+        org_fixed_ips = router.gw_port.fixed_ips
         updated_port = super(NsxVPluginV2, self).update_port(
             context, router.gw_port['id'], {'port': port_data})
         self._extension_manager.process_update_port(
             context, port_data, updated_port)
         context.session.expire(router.gw_port)
+        registry.notify(resources.ROUTER_GATEWAY,
+                        events.AFTER_UPDATE,
+                        self._update_current_gw_port,
+                        router_id=router_id,
+                        gw_port=router.gw_port,
+                        old_fixed_ips=org_fixed_ips)
 
     def _update_router_gw_info(self, context, router_id, info,
                                is_routes_update=False,
