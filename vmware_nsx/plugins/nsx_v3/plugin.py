@@ -242,6 +242,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         self._unsubscribe_callback_events()
         if cfg.CONF.api_replay_mode:
+            LOG.error("DEBUG ADIT with api replay extension!!")
             self.supported_extension_aliases.append('api-replay')
 
         # Register NSXv3 trunk driver to support trunk extensions
