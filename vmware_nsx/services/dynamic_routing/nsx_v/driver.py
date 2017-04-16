@@ -254,8 +254,10 @@ class NSXvBgpDriver(object):
                     context.session, bgp_speaker_id)
                 for binding in bgp_bindings:
                     try:
-                        self._nsxv.update_bgp_neighbour(binding['edge_id'],
-                                                        neighbour)
+                        # Neighbours are identified by their ip address
+                        self._nsxv.update_bgp_neighbours(binding['edge_id'],
+                                                         [neighbour],
+                                                         [neighbour])
                     except vcns_exc.VcnsApiException:
                         LOG.error("Failed to update BGP neighbor '%s' on "
                                   "edge '%s'", old_bgp_peer['peer_ip'],
@@ -439,7 +441,26 @@ class NSXvBgpDriver(object):
             context.session, bgp_speaker_id)
         self._stop_bgp_on_edges(context, bgp_bindings, bgp_speaker_id)
 
-    def enable_bgp_on_router(self, context, speaker, router_id):
+    def _update_edge_bgp_identifier(self, context, bgp_binding, speaker,
+                                    new_bgp_identifier):
+        bgp_peers = self._plugin.get_bgp_peers_by_bgp_speaker(context,
+                                                              speaker['id'])
+        with context.session.begin(subtransactions=True):
+            bgp_binding['bgp_identifier'] = new_bgp_identifier
+        self._nsxv.update_router_id(bgp_binding['edge_id'], new_bgp_identifier)
+        nbr_to_remove = gw_bgp_neighbour(bgp_binding['bgp_identifier'],
+                                         speaker['local_as'],
+                                         self._edge_password)
+        nbr_to_add = gw_bgp_neighbour(new_bgp_identifier, speaker['local_as'],
+                                      self._edge_password)
+        for gw_edge_id in [peer['esg_id'] for peer in bgp_peers
+                           if peer['esg_id']]:
+            self._nsxv.update_bgp_neighbours(gw_edge_id,
+                                             [nbr_to_add],
+                                             [nbr_to_remove])
+
+    def enable_bgp_on_router(self, context, speaker, router_id,
+                             router_new_gw_address=None):
         edge_id, advertise_static_routes = (
             self._get_router_edge_info(context, router_id))
         if not edge_id:
@@ -451,12 +472,11 @@ class NSXvBgpDriver(object):
         else:
             subnets = self._query_tenant_subnets(context, [router_id])
 
-        bgp_peers = self._plugin.get_bgp_peers_by_bgp_speaker(
-            context, speaker['id'])
         bgp_binding = nsxv_db.get_nsxv_bgp_speaker_binding(
             context.session, edge_id)
 
-        if bgp_binding and subnets:
+        gw_fixed_ip = router.gw_port['fixed_ips'][0]['ip_address']
+        if bgp_binding and (router_new_gw_address or subnets):
             # Edge already configured with BGP (e.g - shared router edge),
             # Add the router attached subnets.
             prefixes, redis_rules = (
@@ -464,9 +484,16 @@ class NSXvBgpDriver(object):
                     subnets, advertise_static_routes))
             self._nsxv.add_bgp_redistribution_rules(edge_id, prefixes,
                                                     redis_rules)
+            if ((bgp_binding['bgp_identifier'] == gw_fixed_ip) and
+                    router_new_gw_address):
+                new_bgp_identifier = router_new_gw_address
+                self._update_edge_bgp_identifier(context, bgp_binding,
+                                                 speaker, new_bgp_identifier)
+
         elif not bgp_binding:
-            gw_port = router.gw_port['fixed_ips'][0]
-            bgp_identifier = gw_port['ip_address']
+            bgp_peers = self._plugin.get_bgp_peers_by_bgp_speaker(
+                context, speaker['id'])
+            bgp_identifier = gw_fixed_ip
             self._start_bgp_on_edge(context, edge_id, speaker, bgp_peers,
                                     bgp_identifier, subnets,
                                     advertise_static_routes)
@@ -506,9 +533,8 @@ class NSXvBgpDriver(object):
                 router = self._core_plugin._get_router(context, routers_ids[0])
                 new_bgp_identifier = (
                     router.gw_port['fixed_ips'][0]['ip_address'])
-                with context.session.begin(subtransactions=True):
-                    bgp_binding['bgp_identifier'] = new_bgp_identifier
-                self._nsxv.update_router_id(edge_id, new_bgp_identifier)
+                self._update_edge_bgp_identifier(context, bgp_binding, speaker,
+                                                 new_bgp_identifier)
         else:
             self._stop_bgp_on_edges(context, [bgp_binding], speaker['id'])
 
