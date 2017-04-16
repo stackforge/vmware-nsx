@@ -217,9 +217,14 @@ class NSXvBgpPlugin(service_base.ServicePluginBase, bgp_db.BgpDbMixin):
                 if event == events.AFTER_DELETE:
                     gw_ips = kwargs['gateway_ips']
                     self.nsxv_driver.disable_bgp_on_router(context,
-                                                          speaker,
-                                                          router_id,
-                                                          gw_ips[0])
+                                                           speaker,
+                                                           router_id,
+                                                           gw_ips[0])
+                if event == events.AFTER_UPDATE:
+                    old_fixed_ips = kwargs['old_fixed_ips']
+                    self.nsxv_driver.enable_bgp_on_router(
+                        context, speaker, router_id,
+                        old_fixed_ips[0]['ip_address'])
 
     def _before_service_edge_delete_callback(self, resource, event,
                                              trigger, **kwargs):
