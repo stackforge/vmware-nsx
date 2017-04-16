@@ -366,7 +366,7 @@ class NSXvBgpDriver(object):
                                         advertise_static_routes)
             except vcns_exc.VcnsApiException:
                 LOG.error("Failed to configure BGP speaker %s on edge '%s'.",
-                          bgp_speaker_id)
+                          bgp_speaker_id, edge_id)
             else:
                 nbr = gw_bgp_neighbour(bgp_identifier, speaker['local_as'],
                                        self._edge_password)
@@ -397,7 +397,7 @@ class NSXvBgpDriver(object):
                                               redis_rules)
         except vcns_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
-                LOG.error("Failed to configure BGP speaker %s on edge '%s'.",
+                LOG.error("Failed to configure BGP speaker '%s' on edge '%s'.",
                           speaker['id'], edge_id)
         else:
             nsxv_db.add_nsxv_bgp_speaker_binding(context.session, edge_id,
@@ -411,8 +411,8 @@ class NSXvBgpDriver(object):
             try:
                 self._nsxv.delete_bgp_speaker_config(edge_id)
             except vcns_exc.VcnsApiException:
-                LOG.error("Failed to delete BGP speaker %s config on edge "
-                          "%s.", speaker_id, edge_id)
+                LOG.error("Failed to delete BGP speaker '%s' config on edge "
+                          "'%s'.", speaker_id, edge_id)
             else:
                 nsxv_db.delete_nsxv_bgp_speaker_binding(context.session,
                                                         edge_id)

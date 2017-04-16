@@ -31,7 +31,6 @@ from vmware_nsx.extensions import edge_service_gateway_bgp_peer as ext_esg
 from vmware_nsx.services.dynamic_routing.nsx_v import driver as nsxv_driver
 
 PLUGIN_NAME = bgp_ext.BGP_EXT_ALIAS + '_nsx_svc_plugin'
-LOG = logging.getLogger(__name__)
 
 
 class NSXvBgpPlugin(service_base.ServicePluginBase, bgp_db.BgpDbMixin):
