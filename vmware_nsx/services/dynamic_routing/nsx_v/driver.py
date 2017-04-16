@@ -439,7 +439,14 @@ class NSXvBgpDriver(object):
             context.session, bgp_speaker_id)
         self._stop_bgp_on_edges(context, bgp_bindings, bgp_speaker_id)
 
-    def enable_bgp_on_router(self, context, speaker, router_id):
+    def _update_edge_bgp_identifier(self, context, bgp_binding,
+                                    new_bgp_identifier):
+        with context.session.begin(subtransactions=True):
+            bgp_binding['bgp_identifier'] = new_bgp_identifier
+        self._nsxv.update_router_id(bgp_binding['edge_id'], new_bgp_identifier)
+
+    def enable_bgp_on_router(self, context, speaker, router_id,
+                             router_old_gw_address=None):
         edge_id, advertise_static_routes = (
             self._get_router_edge_info(context, router_id))
         if not edge_id:
@@ -464,6 +471,12 @@ class NSXvBgpDriver(object):
                     subnets, advertise_static_routes))
             self._nsxv.add_bgp_redistribution_rules(edge_id, prefixes,
                                                     redis_rules)
+            if bgp_binding['bgp_identifier'] == router_old_gw_address:
+                new_bgp_identifier = (
+                    router.gw_port['fixed_ips'][0]['ip_address'])
+                self._update_edge_bgp_identifier(context, bgp_binding,
+                                                 new_bgp_identifier)
+
         elif not bgp_binding:
             gw_port = router.gw_port['fixed_ips'][0]
             bgp_identifier = gw_port['ip_address']
@@ -506,9 +519,8 @@ class NSXvBgpDriver(object):
                 router = self._core_plugin._get_router(context, routers_ids[0])
                 new_bgp_identifier = (
                     router.gw_port['fixed_ips'][0]['ip_address'])
-                with context.session.begin(subtransactions=True):
-                    bgp_binding['bgp_identifier'] = new_bgp_identifier
-                self._nsxv.update_router_id(edge_id, new_bgp_identifier)
+                self._update_edge_bgp_identifier(context, bgp_binding,
+                                                 new_bgp_identifier)
         else:
             self._stop_bgp_on_edges(context, [bgp_binding], speaker['id'])
 
