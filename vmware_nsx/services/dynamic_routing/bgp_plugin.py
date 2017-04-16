@@ -61,7 +61,7 @@ class NSXvBgpPlugin(service_base.ServicePluginBase, bgp_db.BgpDbMixin):
                            events.AFTER_DELETE)
         registry.subscribe(self.router_gateway_callback,
                            resources.ROUTER_GATEWAY,
-                           events.AFTER_CREATE)
+                           events.AFTER_UPDATE)
         registry.subscribe(self.router_gateway_callback,
                            resources.ROUTER_GATEWAY,
                            events.AFTER_DELETE)
@@ -124,10 +124,10 @@ class NSXvBgpPlugin(service_base.ServicePluginBase, bgp_db.BgpDbMixin):
         return peer
 
     def update_bgp_peer(self, context, bgp_peer_id, bgp_peer):
-        super(NSXvBgpPlugin, self).update_bgp_peer(context,
-                                                   bgp_peer_id, bgp_peer)
         self.nsxv_driver.update_bgp_peer(context, bgp_peer_id, bgp_peer)
         return self.get_bgp_peer(context, bgp_peer_id)
+        super(NSXvBgpPlugin, self).update_bgp_peer(context,
+                                                   bgp_peer_id, bgp_peer)
 
     def delete_bgp_peer(self, context, bgp_peer_id):
         bgp_peer_info = {'bgp_peer_id': bgp_peer_id}
@@ -217,9 +217,14 @@ class NSXvBgpPlugin(service_base.ServicePluginBase, bgp_db.BgpDbMixin):
                 if event == events.AFTER_DELETE:
                     gw_ips = kwargs['gateway_ips']
                     self.nsxv_driver.disable_bgp_on_router(context,
-                                                          speaker,
-                                                          router_id,
-                                                          gw_ips[0])
+                                                           speaker,
+                                                           router_id,
+                                                           gw_ips[0])
+                if event == events.AFTER_UPDATE:
+                    updated_port = kwargs['updated_port']
+                    router = kwargs['router']
+                    self.nsxv_driver.process_router_gw_port_update(
+                        context, speaker, router, updated_port)
 
     def _before_service_edge_delete_callback(self, resource, event,
                                              trigger, **kwargs):
