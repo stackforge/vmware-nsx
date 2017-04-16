@@ -366,7 +366,7 @@ class NSXvBgpDriver(object):
                                         advertise_static_routes)
             except vcns_exc.VcnsApiException:
                 LOG.error("Failed to configure BGP speaker %s on edge '%s'.",
-                          bgp_speaker_id)
+                          bgp_speaker_id, edge_id)
             else:
                 nbr = gw_bgp_neighbour(bgp_identifier, speaker['local_as'],
                                        self._edge_password)
