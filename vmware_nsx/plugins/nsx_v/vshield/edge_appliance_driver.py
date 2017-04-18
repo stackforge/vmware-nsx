@@ -692,6 +692,13 @@ class EdgeApplianceDriver(object):
                 "description": "default-gateway",
                 "gatewayAddress": gateway
             }
+        else:
+            h, curr_routes = self.vcns.get_routes(edge_id)
+            curr_routes = curr_routes.get('staticRoutes',
+                                          {}).get('staticRoutes', [])
+            default_routes = [r for r in curr_routes
+                              if r['network'] != '0.0.0.0/0']
+            static_routes.extend(default_routes)
         try:
             self.vcns.update_routes(edge_id, request)
             return True
