@@ -17,12 +17,12 @@ import abc
 import mock
 import six
 
+from neutron_lib.callbacks import registry
 from oslo_config import cfg
 from oslo_log import _options
 from oslo_log import log as logging
 from oslo_utils import uuidutils
 
-from neutron.callbacks import registry
 from neutron.common import config as neutron_config
 from neutron.db import servicetype_db  # noqa
 from neutron.quota import resource_registry
