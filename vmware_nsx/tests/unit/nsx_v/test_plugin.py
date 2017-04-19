@@ -2294,10 +2294,12 @@ class L3NatTestCaseBase(test_l3_plugin.L3NatTestCaseMixin):
     def test_router_set_gateway_with_nosnat(self, mock):
         expected_fw = [{'action': 'allow',
                         'enabled': True,
+                        'name': 'Subnet Rule',
                         'source_ip_address': [],
                         'destination_ip_address': []}]
         nosnat_fw = [{'action': 'allow',
                       'enabled': True,
+                      'name': 'no_snat_rule',
                       'source_vnic_groups': ["external"],
                       'destination_ip_address': []}]
 
@@ -2995,6 +2997,7 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
             expected_cidrs = [s1_cidr, s2_cidr]
             expected_fw = [{'action': 'allow',
                             'enabled': True,
+                            'name': 'Subnet Rule',
                             'source_ip_address': expected_cidrs,
                             'destination_ip_address': expected_cidrs}]
             fw_rules = mock.call_args[0][3]['firewall_rule_list']
@@ -3030,6 +3033,7 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
             expected_cidrs = [s1_cidr, s2_cidr]
             fw_rule = {'action': 'allow',
                        'enabled': True,
+                       'name': 'Subnet Rule',
                        'source_ip_address': expected_cidrs,
                        'destination_ip_address': expected_cidrs}
             vse_rule = {'action': 'allow',
@@ -3150,6 +3154,7 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
             expected_cidrs = [s1_cidr, s2_cidr]
             expected_fw = [{'action': 'allow',
                             'enabled': True,
+                            'name': 'Subnet Rule',
                             'source_ip_address': expected_cidrs,
                             'destination_ip_address': expected_cidrs}]
             fw_rules = mock.call_args[0][3]['firewall_rule_list']
@@ -4503,10 +4508,12 @@ class TestSharedRouterTestCase(L3NatTest, L3NatTestCaseBase,
                          'destination_ip_address': []}]
         nosnat_fw1 = [{'action': 'allow',
                        'enabled': True,
+                       'name': 'no_snat_rule',
                        'source_vnic_groups': ["external"],
                        'destination_ip_address': []}]
         nosnat_fw2 = [{'action': 'allow',
                        'enabled': True,
+                       'name': 'no_snat_rule',
                        'source_vnic_groups': ["external"],
                        'destination_ip_address': []}]
         with self.router() as r1, self.router() as r2,\
