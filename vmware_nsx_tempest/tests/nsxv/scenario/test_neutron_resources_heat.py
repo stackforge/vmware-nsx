@@ -24,7 +24,6 @@ from tempest.common.utils import data_utils
 from tempest import config
 from tempest.lib import decorators
 from tempest.scenario import manager
-from tempest import test
 
 from vmware_nsx_tempest.services import nsxv_client
 
@@ -158,7 +157,7 @@ class HeatSmokeTest(base.BaseOrchestrationTest,
                 raise
 
     @decorators.idempotent_id('f693a425-b018-4cde-96ab-cdd5b858e15c')
-    @test.attr(type=["smoke"])
+    @decorators.attr(type=["smoke"])
     def test_created_resources(self):
         """Verifies created resources from template ."""
         for resource in self.resources:
@@ -169,7 +168,7 @@ class HeatSmokeTest(base.BaseOrchestrationTest,
             self.assertIsInstance(resource, dict)
 
     @decorators.idempotent_id('3c3ccfcb-e50b-4372-82dc-d5b473acd506')
-    @test.attr(type=["smoke"])
+    @decorators.attr(type=["smoke"])
     def test_created_network(self):
         """Verifies created neutron networks."""
         network_id_list = self._resource_list_check(resource='networks')
@@ -180,7 +179,7 @@ class HeatSmokeTest(base.BaseOrchestrationTest,
             self.assertIsNotNone(self.vsm.get_logical_switch(network_id), msg)
 
     @decorators.idempotent_id('b3b103a7-69b2-42ea-a1b8-aa11cc551df9')
-    @test.attr(type=["smoke"])
+    @decorators.attr(type=["smoke"])
     def test_created_router(self):
         """Verifies created router."""
         router_id_list = self._resource_list_check(resource='routers')
@@ -195,7 +194,7 @@ class HeatSmokeTest(base.BaseOrchestrationTest,
                 self.assertTrue(exc_edge is not None, msg)
 
     @decorators.idempotent_id('2b29dfef-6d9f-4a70-9377-af432100ef10')
-    @test.attr(type=["smoke"])
+    @decorators.attr(type=["smoke"])
     def test_created_server(self):
         """Verifies created sever."""
         server_id_list = self._resource_list_check(resource='servers')
@@ -205,7 +204,7 @@ class HeatSmokeTest(base.BaseOrchestrationTest,
             self.assertEqual('ACTIVE', str(server['status']), msg)
 
     @decorators.idempotent_id('d937a607-aa5e-4cf1-bbf9-00044cbe7190')
-    @test.attr(type=["smoke"])
+    @decorators.attr(type=["smoke"])
     def test_topo1_same_network_connectivity_(self):
         """Verifies same network connnectivity for Topology 1 """
         address_list = []
@@ -220,7 +219,7 @@ class HeatSmokeTest(base.BaseOrchestrationTest,
                                         should_connect=True)
 
     @decorators.idempotent_id('fdbc8b1a-755a-4b37-93e7-0a268e422f05')
-    @test.attr(type=["smoke"])
+    @decorators.attr(type=["smoke"])
     def test_topo1_cross_network_connectivity(self):
         """Verifies cross network connnectivity for Topology 1 """
         address_list = []
@@ -238,7 +237,7 @@ class HeatSmokeTest(base.BaseOrchestrationTest,
                                         should_connect=True)
 
     @decorators.idempotent_id('bcefd117-c55e-499d-a34b-653b8981f1c5')
-    @test.attr(type=["smoke"])
+    @decorators.attr(type=["smoke"])
     def test_topo1_cross_external_connectivity(self):
         """Verifies external network connnectivity for Topology 1 """
         address_list = []
