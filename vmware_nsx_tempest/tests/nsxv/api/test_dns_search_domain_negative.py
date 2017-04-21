@@ -50,7 +50,7 @@ class DnsSearchDoaminsNegativeTest(base.BaseAdminNetworkTest):
         subnet = resp.get('subnet', resp)
         return (network, subnet)
 
-    @test.attr(type=['negative'])
+    @decorators.attr(type=['negative'])
     @decorators.idempotent_id('11bdc214-10d7-4926-8f49-2da3d8719143')
     def test_create_dns_search_domain_negative(self):
         self.assertRaises(exceptions.BadRequest,
