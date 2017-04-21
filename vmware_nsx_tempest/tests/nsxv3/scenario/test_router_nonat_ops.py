@@ -341,7 +341,7 @@ class TestRouterNoNATOps(manager.NetworkScenarioTest):
         self._check_network_internal_connectivity(network=self.network)
         self._check_network_vm_connectivity(network=self.network)
 
-    @test.attr(type='nsxv3')
+    @decorators.attr(type='nsxv3')
     @decorators.idempotent_id('5e5bfdd4-0962-47d3-a89b-7ce64322b53e')
     def test_router_nat_to_nonat_ops(self):
         """Test update router from NATed to NoNAT scenario"""
@@ -355,7 +355,7 @@ class TestRouterNoNATOps(manager.NetworkScenarioTest):
         """
         self._test_router_nat_when_floating_ips_active_on_network()
 
-    @test.attr(type='nsxv3')
+    @decorators.attr(type='nsxv3')
     @decorators.idempotent_id('a0274738-d3e7-49db-bf10-a5563610940d')
     def test_router_nonat_to_nat_ops(self):
         """Test update router from NoNAT to NATed scenario"""
