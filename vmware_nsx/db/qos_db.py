@@ -16,6 +16,8 @@
 from sqlalchemy.orm import exc
 
 from neutron.api.v2 import attributes as attr
+from neutron.db import _model_query as model_query
+from neutron.db import _resource_extend as resource_extend
 from neutron.db import _utils as db_utils
 from neutron.db import api as db_api
 from neutron.db import db_base_plugin_v2
@@ -30,6 +32,7 @@ from vmware_nsx.extensions import qos_queue as qos
 LOG = log.getLogger(__name__)
 
 
+@resource_extend.has_resource_extenders
 class QoSDbMixin(qos.QueuePluginBase):
     """Mixin class to add queues."""
 
@@ -54,19 +57,19 @@ class QoSDbMixin(qos.QueuePluginBase):
 
     def _get_qos_queue(self, context, queue_id):
         try:
-            return self._get_by_id(context, nsx_models.QoSQueue, queue_id)
+            return model_query.get_by_id(context, nsx_models.QoSQueue, queue_id)
         except exc.NoResultFound:
             raise qos.QueueNotFound(id=queue_id)
 
     def get_qos_queues(self, context, filters=None, fields=None, sorts=None,
                        limit=None, marker=None, page_reverse=False):
         marker_obj = self._get_marker_obj(context, 'qos_queue', limit, marker)
-        return self._get_collection(context, nsx_models.QoSQueue,
-                                    self._make_qos_queue_dict,
-                                    filters=filters, fields=fields,
-                                    sorts=sorts, limit=limit,
-                                    marker_obj=marker_obj,
-                                    page_reverse=page_reverse)
+        return  model_query.get_collection(context, nsx_models.QoSQueue,
+                                           self._make_qos_queue_dict,
+                                           filters=filters, fields=fields,
+                                           sorts=sorts, limit=limit,
+                                           marker_obj=marker_obj,
+                                           page_reverse=page_reverse)
 
     def delete_qos_queue(self, context, queue_id):
         with db_api.context_manager.writer.using(context):
@@ -83,12 +86,12 @@ class QoSDbMixin(qos.QueuePluginBase):
                                 queue_id=queue_id))
 
     def _get_port_queue_bindings(self, context, filters=None, fields=None):
-        return self._get_collection(context, nsx_models.PortQueueMapping,
-                                    self._make_port_queue_binding_dict,
-                                    filters=filters, fields=fields)
+        return  model_query.get_collection(context, nsx_models.PortQueueMapping,
+                                           self._make_port_queue_binding_dict,
+                                           filters=filters, fields=fields)
 
     def _delete_port_queue_mapping(self, context, port_id):
-        query = self._model_query(context, nsx_models.PortQueueMapping)
+        query = model_query.query_with_hooks(context, nsx_models.PortQueueMapping)
         try:
             binding = query.filter(
                 nsx_models.PortQueueMapping.port_id == port_id).one()
@@ -110,9 +113,9 @@ class QoSDbMixin(qos.QueuePluginBase):
                                                queue_id=queue_id))
 
     def _get_network_queue_bindings(self, context, filters=None, fields=None):
-        return self._get_collection(context, nsx_models.NetworkQueueMapping,
-                                    self._make_network_queue_binding_dict,
-                                    filters=filters, fields=fields)
+        return  model_query.get_collection(context, nsx_models.NetworkQueueMapping,
+                                           self._make_network_queue_binding_dict,
+                                           filters=filters, fields=fields)
 
     def _delete_network_queue_mapping(self, context, network_id):
         query = self._model_query(context, nsx_models.NetworkQueueMapping)
@@ -121,23 +124,14 @@ class QoSDbMixin(qos.QueuePluginBase):
             if binding:
                 context.session.delete(binding)
 
-    def _extend_dict_qos_queue(self, obj_res, obj_db):
+    @staticmethod
+    @resource_extend.extends([attr.NETWORKS])
+    @resource_extend.extends([attr.PORTS])
+    def _extend_dict_qos_queue(obj_res, obj_db):
         queue_mapping = obj_db['qos_queue']
         if queue_mapping:
             obj_res[qos.QUEUE] = queue_mapping.get('queue_id')
         return obj_res
-
-    def _extend_port_dict_qos_queue(self, port_res, port_db):
-        self._extend_dict_qos_queue(port_res, port_db)
-
-    def _extend_network_dict_qos_queue(self, network_res, network_db):
-        self._extend_dict_qos_queue(network_res, network_db)
-
-    # Register dict extend functions for networks and ports
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attr.NETWORKS, ['_extend_network_dict_qos_queue'])
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attr.PORTS, ['_extend_port_dict_qos_queue'])
 
     def _make_qos_queue_dict(self, queue, fields=None):
         res = {'id': queue['id'],
@@ -203,7 +197,7 @@ class QoSDbMixin(qos.QueuePluginBase):
             filters = {'device_id': [port.get('device_id')],
                        'network_id': [network['network_id'] for
                                       network in networks_with_same_queue]}
-            query = self._model_query(context, models_v2.Port.id)
+            query = model_query.query_with_hooks(context, models_v2.Port.id)
             query = self._apply_filters_to_query(query, models_v2.Port,
                                                  filters)
             ports_ids = [p[0] for p in query]
