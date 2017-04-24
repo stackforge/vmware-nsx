@@ -25,8 +25,8 @@ from neutron.callbacks import events
 from neutron.callbacks import registry
 from neutron.callbacks import resources
 from neutron.common import utils as n_utils
+from neutron.db import _resource_extend as resource_extend
 from neutron.db import api as db_api
-from neutron.db import db_base_plugin_v2
 from neutron.db.models import securitygroup as securitygroups_db
 from neutron.extensions import securitygroup as ext_sg
 from neutron_lib.api import validators
@@ -59,6 +59,7 @@ class NsxExtendedSecurityGroupProperties(model_base.BASEV2):
                             uselist=False, cascade='delete'))
 
 
+@resource_extend.has_resource_extenders
 class ExtendedSecurityGroupPropertiesMixin(object):
 
     # NOTE(arosen): here we add a relationship so that from the ports model
@@ -345,13 +346,17 @@ class ExtendedSecurityGroupPropertiesMixin(object):
                                                                    sg_id):
             raise sg_policy.PolicySecurityGroupDeleteNotAdmin(id=sg_id)
 
-    def _extend_security_group_with_properties(self, sg_res, sg_db):
+    @staticmethod
+    @resource_extend.extends([ext_sg.SECURITYGROUPS])
+    def _extend_security_group_with_properties(sg_res, sg_db):
         if sg_db.ext_properties:
             sg_res[sg_logging.LOGGING] = sg_db.ext_properties.logging
             sg_res[provider_sg.PROVIDER] = sg_db.ext_properties.provider
             sg_res[sg_policy.POLICY] = sg_db.ext_properties.policy
 
-    def _extend_port_dict_provider_security_group(self, port_res, port_db):
+    @staticmethod
+    @resource_extend.extends([attributes.PORTS])
+    def _extend_port_dict_provider_security_group(port_res, port_db):
         # NOTE(arosen): this method overrides the one in the base
         # security group db class. The reason this is needed is because
         # we are storing provider security groups in the same security
@@ -375,9 +380,3 @@ class ExtendedSecurityGroupPropertiesMixin(object):
         port_res[ext_sg.SECURITYGROUPS] = not_provider_groups
         port_res[provider_sg.PROVIDER_SECURITYGROUPS] = provider_groups
         return port_res
-
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        attributes.PORTS, ['_extend_port_dict_provider_security_group'])
-
-    db_base_plugin_v2.NeutronDbPluginV2.register_dict_extend_funcs(
-        ext_sg.SECURITYGROUPS, ['_extend_security_group_with_properties'])
