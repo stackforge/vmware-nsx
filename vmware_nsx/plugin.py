@@ -15,6 +15,12 @@
 #    under the License.
 #
 
+# Note: this import should be here in order to appear before NeutronDbPluginV2
+#  in each of the plugins. If not: security-group/-rule will not have all the
+# relevant extend dict registries.
+from neutron.db.models import securitygroup  # noqa
+from neutron_lib.api.definitions import portbindings  # noqa
+
 from vmware_nsx.plugins.dvs import plugin as dvs
 from vmware_nsx.plugins.nsx_mh import plugin as nsx_mh
 from vmware_nsx.plugins.nsx_v import plugin as nsx_v

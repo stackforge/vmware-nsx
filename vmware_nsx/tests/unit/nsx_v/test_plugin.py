@@ -5039,7 +5039,6 @@ class TestRouterFlavorTestCase(extension.ExtensionTestCase,
         self.plugin = directory.get_plugin()
         self.plugin._flv_plugin = directory.get_plugin(plugin_const.FLAVORS)
         self.plugin._process_router_flavor_create = mock.Mock()
-
         self.plugin.register_dict_extend_funcs(
                 l3.ROUTERS, [self._mock_add_flavor_id])
 
