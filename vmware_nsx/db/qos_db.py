@@ -61,6 +61,7 @@ class QoSDbMixin(qos.QueuePluginBase):
     def get_qos_queues(self, context, filters=None, fields=None, sorts=None,
                        limit=None, marker=None, page_reverse=False):
         marker_obj = self._get_marker_obj(context, 'qos_queue', limit, marker)
+        # DEBUG ADIT use api from model_query instead
         return self._get_collection(context, nsx_models.QoSQueue,
                                     self._make_qos_queue_dict,
                                     filters=filters, fields=fields,
@@ -83,6 +84,7 @@ class QoSDbMixin(qos.QueuePluginBase):
                                 queue_id=queue_id))
 
     def _get_port_queue_bindings(self, context, filters=None, fields=None):
+        # DEBUG ADIT use api from model_query instead
         return self._get_collection(context, nsx_models.PortQueueMapping,
                                     self._make_port_queue_binding_dict,
                                     filters=filters, fields=fields)
@@ -110,6 +112,7 @@ class QoSDbMixin(qos.QueuePluginBase):
                                                queue_id=queue_id))
 
     def _get_network_queue_bindings(self, context, filters=None, fields=None):
+        # DEBUG ADIT use api from model_query instead
         return self._get_collection(context, nsx_models.NetworkQueueMapping,
                                     self._make_network_queue_binding_dict,
                                     filters=filters, fields=fields)
