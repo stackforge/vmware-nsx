@@ -172,6 +172,7 @@ class NetworkGatewayMixin(networkgw.NetworkGatewayPluginBase):
         for k, v in six.iteritems(mapping_info):
             if v and k != NETWORK_ID:
                 filters[k] = [v]
+        # DEBUG ADIT use api from model_query instead
         query = self._get_collection_query(context,
                                            nsx_models.NetworkConnection,
                                            filters)
@@ -265,6 +266,7 @@ class NetworkGatewayMixin(networkgw.NetworkGatewayPluginBase):
                              page_reverse=False):
         marker_obj = self._get_marker_obj(
             context, 'network_gateway', limit, marker)
+        # DEBUG ADIT use api from model_query instead
         return self._get_collection(context, nsx_models.NetworkGateway,
                                     self._make_network_gateway_dict,
                                     filters=filters, fields=fields,
@@ -403,6 +405,7 @@ class NetworkGatewayMixin(networkgw.NetworkGatewayPluginBase):
             raise GatewayDeviceNotFound(device_id=device_id)
 
     def _is_device_in_use(self, context, device_id):
+        # DEBUG ADIT use api from model_query instead
         query = self._get_collection_query(
             context, nsx_models.NetworkGatewayDeviceReference,
             {'id': [device_id]})

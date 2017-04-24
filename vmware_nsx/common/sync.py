@@ -336,6 +336,7 @@ class NsxSynchronizer(object):
         if not scan_missing:
             filters['id'] = neutron_net_ids
 
+        # DEBUG ADIT use api from model_query instead
         networks = self._plugin._get_collection(
             ctx, models_v2.Network, self._plugin._make_network_dict,
             filters=filters)
@@ -416,6 +417,7 @@ class NsxSynchronizer(object):
         # Fetch neutron routers from database
         filters = ({} if scan_missing else
                    {'id': neutron_router_mappings.keys()})
+        # DEBUG ADIT use api from model_query instead
         routers = self._plugin._get_collection(
             ctx, l3_db.Router, self._plugin._make_router_dict,
             filters=filters)
@@ -518,6 +520,7 @@ class NsxSynchronizer(object):
                 external_net_db.ExternalNetwork,
                 (models_v2.Network.id ==
                  external_net_db.ExternalNetwork.network_id))]
+        # DEBUG ADIT use api from model_query instead
         ports = self._plugin._get_collection(
             ctx, models_v2.Port, self._plugin._make_port_dict,
             filters=filters)
