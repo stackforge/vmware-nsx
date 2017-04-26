@@ -70,7 +70,7 @@ class EdgeDynamicRoutingDriver(object):
         global_config = routing_config['routing']['routingGlobalConfig']
         current_prefixes = global_config['ipPrefixes']
 
-        global_config['ecmp'] = True
+        global_config['ecmp'] = kwargs.get('ecmp') or global_config['ecmp']
 
         if 'router_id' in kwargs:
             global_config['routerId'] = kwargs['router_id']
@@ -129,11 +129,12 @@ class EdgeDynamicRoutingDriver(object):
 
         self.vcns.update_bgp_dynamic_routing(edge_id, bgp_config)
 
-    def add_bgp_speaker_config(self, edge_id, prot_router_id, local_as,
+    def add_bgp_speaker_config(self, edge_id, ecmp, prot_router_id, local_as,
                                enabled, bgp_neighbours,
                                prefixes, redistribution_rules):
         with locking.LockManager.get_lock(str(edge_id)):
             self._update_routing_config(edge_id,
+                                        ecmp=ecmp,
                                         router_id=prot_router_id,
                                         prefixes_to_add=prefixes)
             self._update_bgp_routing_config(edge_id, enabled=enabled,

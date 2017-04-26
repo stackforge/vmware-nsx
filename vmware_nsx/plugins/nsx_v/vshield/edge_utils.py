@@ -2194,6 +2194,9 @@ def _retrieve_nsx_switch_id(context, network_id, az_name):
                 dvs_id = az.dvs_id
             return nsx_db.get_nsx_switch_id_for_dvs(
                 context.session, network_id, dvs_id)
+        if (network_type == c_utils.NsxVNetworkTypes.VXLAN
+            and binding['phy_uuid'] != ''):
+            return binding['phy_uuid']
     # Get the physical port group /wire id of the network id
     mappings = nsx_db.get_nsx_switch_ids(context.session, network_id)
     if mappings:

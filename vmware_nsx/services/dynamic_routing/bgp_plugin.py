@@ -186,6 +186,11 @@ class NSXvBgpPlugin(service_base.ServicePluginBase, bgp_db.BgpDbMixin):
         network_id = kwargs['network_id']
         port = kwargs['port']
 
+        is_ext = self._core_plugin._network_is_external(context, subnets[0])
+        # Don't advertise external networks
+        if is_ext:
+            return
+
         speakers = self._bgp_speakers_for_gateway_network(context,
                                                           network_id)
         for speaker in speakers:
@@ -195,8 +200,8 @@ class NSXvBgpPlugin(service_base.ServicePluginBase, bgp_db.BgpDbMixin):
                 if network_id not in speaker['networks']:
                     continue
                 if event == events.AFTER_CREATE:
-                    self.nsxv_driver.advertise_subnet(context, speaker_id,
-                                                      router_id, subnets[0])
+                    self.nsxv_driver.advertise_subnet(
+                        context, speaker_id, router_id, subnets[0])
                 if event == events.AFTER_DELETE:
                     subnet_id = port['fixed_ips'][0]['subnet_id']
                     self.nsxv_driver.withdraw_subnet(context, speaker_id,
