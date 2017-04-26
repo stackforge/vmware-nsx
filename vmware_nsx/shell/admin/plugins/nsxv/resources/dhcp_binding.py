@@ -148,7 +148,7 @@ def delete_old_dhcp_edge(context, old_edge_id, bindings):
 
         try:
             # Remove bindings from Neutron DB
-            nsxv_db.delete_nsxv_router_binding(context.session, dhcp_name)
+            nsxv_db.clean_edge_router_binding(context.session, old_edge_id)
             nsxv_db.clean_edge_vnic_binding(context.session, old_edge_id)
         except Exception as e:
             LOG.warning("Failed to delete the old edge %(id)s from the "
