@@ -335,10 +335,7 @@ class NSXvBgpDriver(object):
 
         subnet_id = ext_net['subnets'][0]
         ext_subnet = self._core_plugin.get_subnet(context, subnet_id)
-
-        if ext_subnet.get('gateway_ip'):
-            raise ext_esg_peer.ExternalSubnetHasGW(
-                network_id=gateway_network_id, subnet_id=subnet_id)
+        ecmp = False if ext_subnet.get('gateway_ip') else True
 
         edge_router_dict = self._get_dynamic_routing_edge_list(
             context, gateway_network_id)
@@ -356,7 +353,7 @@ class NSXvBgpDriver(object):
             # the BGP configuration.
             bgp_identifier = edge_router_config['bgp_identifier']
             try:
-                self._start_bgp_on_edge(context, edge_id, speaker,
+                self._start_bgp_on_edge(context, edge_id, speaker, ecmp,
                                         bgp_peers, bgp_identifier, subnets,
                                         advertise_static_routes)
             except vcns_exc.VcnsApiException:
@@ -375,7 +372,7 @@ class NSXvBgpDriver(object):
                 LOG.error("Failed to add BGP neighbour on GW Edge '%s'",
                           edge_gw)
 
-    def _start_bgp_on_edge(self, context, edge_id, speaker, bgp_peers,
+    def _start_bgp_on_edge(self, context, edge_id, speaker, ecmp, bgp_peers,
                            bgp_identifier, subnets, advertise_static_routes):
         enabled_state = speaker['advertise_tenant_networks']
         local_as = speaker['local_as']
@@ -384,7 +381,7 @@ class NSXvBgpDriver(object):
 
         bgp_neighbours = [bgp_neighbour(bgp_peer) for bgp_peer in bgp_peers]
         try:
-            self._nsxv.add_bgp_speaker_config(edge_id, bgp_identifier,
+            self._nsxv.add_bgp_speaker_config(edge_id, ecmp, bgp_identifier,
                                               local_as, enabled_state,
                                               bgp_neighbours, prefixes,
                                               redis_rules)
@@ -516,7 +513,10 @@ class NSXvBgpDriver(object):
             if router.enable_snat:
                 subnets = []
             bgp_identifier = router.gw_port['fixed_ips'][0]['ip_address']
-            self._start_bgp_on_edge(context, edge_id, speaker, bgp_peers,
+            subnet_id = router.gw_port['fixed_ips'][0]['subnet_id']
+            ext_subnet = self._core_plugin.get_subnet(context, subnet_id)
+            ecmp = False if ext_subnet.get('gateway_ip') else True
+            self._start_bgp_on_edge(context, edge_id, speaker, bgp_peers, ecmp,
                                     bgp_identifier, subnets,
                                     advertise_static_routes)
             nbr = gw_bgp_neighbour(bgp_identifier, speaker['local_as'],

@@ -3380,12 +3380,13 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         return False
 
     def add_router_interface(self, context, router_id, interface_info):
-        # Do not support external subnet/port as a router interface
-        if self._is_external_interface_info(context.elevated(),
-                                            interface_info):
-            msg = (_('cannot add an external subnet/port as a router '
-                     'interface'))
-            raise n_exc.InvalidInput(error_message=msg)
+        if not context.is_admin:
+            # Do not support external subnet/port as a router interface
+            if self._is_external_interface_info(context.elevated(),
+                                                interface_info):
+                msg = (_('cannot add an external subnet/port as a router '
+                         'interface'))
+                raise n_exc.InvalidInput(error_message=msg)
 
         router_driver = self._find_router_driver(context, router_id)
         try:
