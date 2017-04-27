@@ -48,8 +48,8 @@ class NSXv3NativeDHCPNegative(base.BaseNetworkTest):
                                            CONF.nsxv3.nsx_user,
                                            CONF.nsxv3.nsx_password)
 
-    @test.attr(type='nsxv3')
-    @test.attr(type=['negative'])
+    @decorators.attr(type='nsxv3')
+    @decorators.attr(type=['negative'])
     @decorators.idempotent_id('d1fb24b9-6ee8-4fb3-b6fe-169fed3cfa7e')
     def test_create_network_without_subnet(self):
         name = data_utils.rand_name('network-')
@@ -65,8 +65,8 @@ class NSXv3NativeDHCPNegative(base.BaseNetworkTest):
         self.assertIsNotNone(nsx_switch)
         self.assertIsNone(dhcp_server)
 
-    @test.attr(type='nsxv3')
-    @test.attr(type=['negative'])
+    @decorators.attr(type='nsxv3')
+    @decorators.attr(type=['negative'])
     @decorators.idempotent_id('caab60b9-b78c-4127-983f-cfb515b555fe')
     def test_create_dhcp_disabled_subnet(self):
         name = data_utils.rand_name('network-')
@@ -83,8 +83,8 @@ class NSXv3NativeDHCPNegative(base.BaseNetworkTest):
         self.assertIsNotNone(nsx_switch)
         self.assertIsNone(dhcp_server)
 
-    @test.attr(type='nsxv3')
-    @test.attr(type=['negative'])
+    @decorators.attr(type='nsxv3')
+    @decorators.attr(type=['negative'])
     @decorators.idempotent_id('bcfd9e1c-456f-43cc-a22a-baceb2188b53')
     def test_update_dhcp_disabled_subnet(self):
         name = data_utils.rand_name('network-')
