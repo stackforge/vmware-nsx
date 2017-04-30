@@ -131,26 +131,44 @@ class EdgeFwaasDriver(fwaas_base.FwaasDriverBase):
 
         Those rules should stay on the backend firewall, when updating the
         FWaaS rules.
+
+        Return it as 2 separate lists of rules, which should go before/after
+        the fwaas rules.
         """
+        print "DEBUG ADIT _get_other_backend_rules"
         try:
             backend_fw = self._nsxv.get_firewall(context, edge_id)
             backend_rules = backend_fw['firewall_rule_list']
         except vcns_exc.VcnsApiException:
             # Need to create a new one
             backend_rules = []
-
         # remove old FWaaS rules from the rules list.
         # also delete the allow-external rule, if it is there.
         # If necessary - we will add it again later
-        other_rules = []
+        before_rules = []
+        after_rules = []
+        go_after = False
         for rule_item in backend_rules:
             rule = rule_item['firewall_rule']
             rule_name = rule.get('name', '')
-            if (not rule_name.startswith(RULE_NAME_PREFIX) and
+            fwaas_rule = rule_name.startswith(RULE_NAME_PREFIX)
+            if fwaas_rule:
+                # reached the fwaas part, the rest of the rules should be
+                # in the 'after' list
+                go_after = True
+            if (rule_name == edge_firewall_driver.DNAT_RULE_NAME or
+                rule_name == edge_firewall_driver.NO_SNAT_RULE_NAME):
+                # passed the fwaas part, the rest of the rules should be
+                # in the 'after' list
+                go_after = True
+            if (not fwaas_rule and
                 not self._is_allow_external_rule(rule)):
-                other_rules.append(rule)
+                if go_after:
+                    after_rules.append(rule)
+                else:
+                    before_rules.append(rule)
 
-        return other_rules
+        return before_rules, after_rules
 
     def _set_rules_on_edge(self, context, edge_id, fw_id, translated_rules,
                            allow_external=False):
@@ -162,11 +180,15 @@ class EdgeFwaasDriver(fwaas_base.FwaasDriverBase):
         allow_external is usually False because it shouldn't exist with a
         firewall. It should only be True when the firewall is being deleted.
         """
+        print "DEBUG ADIT _set_rules_on_edge"
         # Get the existing backend rules which do not belong to FWaaS
-        backend_rules = self._get_other_backend_rules(context, edge_id)
+        backend_rules, after_rules = self._get_other_backend_rules(
+            context, edge_id)
 
-        # add new FWaaS rules at the end by their original order
+        # add new FWaaS rules at the correct location by their original order
         backend_rules.extend(translated_rules)
+        backend_rules.extend(after_rules)
+
         # update the backend
         try:
             with locking.LockManager.get_lock(str(edge_id)):
@@ -183,8 +205,10 @@ class EdgeFwaasDriver(fwaas_base.FwaasDriverBase):
 
     def _create_or_update_firewall(self, agent_mode, apply_list, firewall):
         # admin state down means default block rule firewall
+        print "DEBUG ADIT _create_or_update_firewall 1 apply_list=%s"%apply_list
         if not firewall['admin_state_up']:
             self.apply_default_policy(agent_mode, apply_list, firewall)
+            print "DEBUG ADIT _create_or_update_firewall 2"
             return
 
         context = n_context.get_admin_context()
@@ -192,11 +216,13 @@ class EdgeFwaasDriver(fwaas_base.FwaasDriverBase):
         # Find out the relevant edges
         router_edges = self._get_routers_edges(context, apply_list)
         if not router_edges:
+            print "DEBUG ADIT _create_or_update_firewall 3"
             LOG.warning("Cannot apply the firewall to any of the routers %s",
                         apply_list)
             return
 
         rules = self._translate_rules(firewall['firewall_rule_list'])
+        print "DEBUG ADIT _create_or_update_firewall 4 %s"%rules
         # update each edge
         for edge_id in router_edges:
             self._set_rules_on_edge(
