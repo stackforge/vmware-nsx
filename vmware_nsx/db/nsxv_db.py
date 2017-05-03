@@ -15,10 +15,10 @@
 #    under the License.
 
 import neutron.db.api as db
-from neutron.plugins.common import constants as neutron_const
 
 import decorator
 from neutron_lib.api.definitions import portbindings as pbin
+from neutron_lib import constants as lib_const
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
 from oslo_utils import excutils
@@ -69,7 +69,7 @@ def warn_on_binding_status_error(f, *args, **kwargs):
         bindings = [result]
 
     for binding in bindings:
-        if binding and binding['status'] == neutron_const.ERROR:
+        if binding and binding['status'] == lib_const.ERROR:
             LOG.warning("Found NSXV router binding entry with status "
                         "%(status)s: router %(router)s, "
                         "edge %(edge)s, lswitch %(lswitch)s, "
@@ -190,9 +190,9 @@ def init_edge_vnic_binding(session, edge_id):
     """Init edge vnic binding to preallocated 10 available edge vnics."""
 
     with session.begin(subtransactions=True):
-        for vnic_index in range(constants.MAX_VNIC_NUM)[1:]:
-            start = (vnic_index - 1) * constants.MAX_TUNNEL_NUM
-            stop = vnic_index * constants.MAX_TUNNEL_NUM
+        for vnic_index in range(lib_const.MAX_VNIC_NUM)[1:]:
+            start = (vnic_index - 1) * lib_const.MAX_TUNNEL_NUM
+            stop = vnic_index * lib_const.MAX_TUNNEL_NUM
             for tunnel_index in range(start, stop):
                 binding = nsxv_models.NsxvEdgeVnicBinding(
                     edge_id=edge_id,
@@ -216,7 +216,7 @@ def allocate_edge_vnic(session, edge_id, network_id):
         bindings = (session.query(nsxv_models.NsxvEdgeVnicBinding).
                     filter_by(edge_id=edge_id, network_id=None).all())
         for binding in bindings:
-            if binding['tunnel_index'] % constants.MAX_TUNNEL_NUM == 1:
+            if binding['tunnel_index'] % lib_const.MAX_TUNNEL_NUM == 1:
                 binding['network_id'] = network_id
                 session.add(binding)
                 return binding
