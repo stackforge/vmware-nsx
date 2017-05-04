@@ -758,6 +758,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         az = self.get_obj_az_by_hints(net_data)
 
         self._ensure_default_security_group(context, tenant_id)
+        nsx_net_id = None
         if validators.is_attr_set(external) and external:
             self._assert_on_external_net_with_qos(net_data)
             is_provider_net, net_type, physical_net, vlan_id = (
@@ -767,6 +768,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self._create_network_at_the_backend(context, net_data, az))
             is_backend_network = True
         try:
+            created_net = None
             with db_api.context_manager.writer.using(context):
                 # Create network in Neutron
                 created_net = super(NsxV3Plugin, self).create_network(context,
@@ -825,8 +827,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 # Undo creation on the backend
                 LOG.exception('Failed to create network %s',
                               created_net['id'])
-                if net_type != utils.NetworkTypes.L3_EXT:
-                    self.nsxlib.logical_switch.delete(created_net['id'])
+                if nsx_net_id:
+                    self.nsxlib.logical_switch.delete(nsx_net_id)
+                if created_net:
+                    super(NsxV3Plugin, self).delete_network(
+                        context, created_net['id'])
 
         # this extra lookup is necessary to get the
         # latest db model for the extension functions
