@@ -34,6 +34,8 @@ class Operations(enum.Enum):
     LIST = 'list'
     CLEAN = 'clean'
     CLEAN_ALL = 'clean-all'
+    CREATE = 'create'
+    DELETE = 'delete'
     LIST_MISMATCHES = 'list-mismatches'
     FIX_MISMATCH = 'fix-mismatch'
 
@@ -102,7 +104,7 @@ nsxv3_resources = {
                                      Operations.IMPORT.value,
                                      Operations.NSX_LIST.value]),
     constants.CONFIG: Resource(constants.CONFIG,
-                               [Operations.VALIDATE.value])
+                               [Operations.VALIDATE.value]),
 }
 
 # Add supported NSX-V resources in this dictionary
@@ -161,7 +163,12 @@ nsxv_resources = {
     constants.ROUTERS: Resource(constants.ROUTERS,
                                 [Operations.NSX_RECREATE.value]),
     constants.CONFIG: Resource(constants.CONFIG,
-                               [Operations.VALIDATE.value])
+                               [Operations.VALIDATE.value]),
+    constants.BGP_GW_EDGES: Resource(constants.BGP_GW_EDGES,
+                                     [Operations.CREATE, Operations.DELETE]),
+    constants.ROUTING_REDIS_RULE: Resource(constants.ROUTING_REDIS_RULE,
+                                           [Operations.CREATE,
+                                            Operations.DELETE])
 }
 
 nsxv3_resources_names = list(nsxv3_resources.keys())

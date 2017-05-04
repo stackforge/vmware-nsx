@@ -321,6 +321,12 @@ class Vcns(object):
             edge_id, FIREWALL_SERVICE, None)
         return self.do_request(HTTP_DELETE, uri)
 
+    def disable_firewall(self, edge_id):
+        body = {'firewall': {'enabled': False}}
+        uri = self._build_uri_path(
+            edge_id, FIREWALL_SERVICE, None)
+        return self.do_request(HTTP_PUT, uri, body)
+
     def update_firewall_rule(self, edge_id, vcns_rule_id, fwr_req):
         uri = self._build_uri_path(
             edge_id, FIREWALL_SERVICE,
