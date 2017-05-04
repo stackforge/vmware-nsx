@@ -19,7 +19,6 @@ LARGE = 'large'
 XLARGE = 'xlarge'
 QUADLARGE = 'quadlarge'
 
-
 SHARED = "shared"
 EXCLUSIVE = "exclusive"
 
