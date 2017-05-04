@@ -343,6 +343,25 @@ Client Certificate
 
     nsxadmin -r certificate -o nsx-list
 
+
+BGP GW edges
+~~~~~~~~~~~~
+- Create new BGP GW edge::
+
+    nsxadmin -r bgp-gw-edge -o create --property name=<NAME> --property bgp-speaker-id=<Neutron BGP speaker id> --property external-iface=<PORTGROUP>:<IP_ADDRESS/PREFIX_LEN> --property internal-iface=<PORTGROUP>:<IP_ADDRESS/PREFIX_LEN>
+
+- Delete BGP GW edge::
+
+    nsxadmin -r bgp-gw-edge -o delete --property edge-id=<edge-id>
+
+- Add a redistribution rule to a BGP GW edge::
+
+    nsxadmin -r routing-redistribution-rule -o create --property edge-ids=<edge_id>[,...] [--property prefix=<NAME:CIDR>] --property learner-protocol=<ospf/bgp> --property learn-from=ospf,bgp,connected,static --property action=<permit/deny>
+
+- Remove a redistribution rule from BGP GW edge::
+
+    nsxadmin -r routing-redistribution-rule -o delete --property edge-ids=<edge_id>[,...] [--property prefix-name=<NAME>]
+
 Config
 ~~~~~~
 
