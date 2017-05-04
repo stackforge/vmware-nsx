@@ -183,6 +183,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self.supported_extension_aliases.extend(
             self._extension_manager.extension_aliases())
 
+        # DEBUG ADIT - checking nsxlib refactor backwards compatibility
         self.nsxlib = v3_utils.get_nsxlib_wrapper()
         # reinitialize the cluster upon fork for api workers to ensure each
         # process has its own keepalive loops + state
