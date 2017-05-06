@@ -1891,6 +1891,11 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 return self._update_port(context, id, port, original_port,
                                          is_compute_port, device_id)
 
+    def _update_dhcp_adddress(self, context, network_id):
+        address_groups = self._create_network_dhcp_address_group(context,
+                                                                 network_id)
+        self._update_dhcp_edge_service(context, network_id, address_groups)
+
     def _update_port(self, context, id, port, original_port, is_compute_port,
                      device_id):
         attrs = port[port_def.RESOURCE_NAME]
@@ -2036,12 +2041,22 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 self._delete_dhcp_static_binding(context, original_port)
                 self._create_dhcp_static_binding(context, ret_port)
             elif owner == constants.DEVICE_OWNER_DHCP:
+                # Need to determine if we need locking (already locked in
+                # delete subnet)
+                lock_network = True
+                fixed_ips = port['port'].get('fixed_ips', [])
+                for fixed_ip in fixed_ips:
+                    if 'delete_subnet' in fixed_ip:
+                        lock_network = False
+                    break
                 # Update the ip of the dhcp port
-                with locking.LockManager.get_lock(ret_port['network_id']):
-                    address_groups = self._create_network_dhcp_address_group(
-                        context, ret_port['network_id'])
-                    self._update_dhcp_edge_service(
-                        context, ret_port['network_id'], address_groups)
+                if lock_network:
+                    with locking.LockManager.get_lock(ret_port['network_id']):
+                        self._update_dhcp_adddress(context,
+                                                   ret_port['network_id'])
+                else:
+                    self._update_dhcp_adddress(context,
+                                               ret_port['network_id'])
             elif (owner == constants.DEVICE_OWNER_ROUTER_GW or
                   owner == constants.DEVICE_OWNER_ROUTER_INTF):
                 # This is a router port - update the edge appliance
@@ -2276,30 +2291,30 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # and send update dhcp interface rest call before deleting subnet's
         # corresponding dhcp interface rest call and lead to overlap response
         # from backend.
-        with locking.LockManager.get_lock('nsx-edge-pool'):
-            with db_api.context_manager.writer.using(context):
-                super(NsxVPluginV2, self).delete_subnet(context, id)
-                if subnet['enable_dhcp']:
-                    # There is only DHCP port available
-                    if len(ports) == 1:
-                        port = ports.pop()
-                        self.ipam.delete_port(context, port['id'])
+        network_id = subnet['network_id']
+        with locking.LockManager.get_lock(network_id):
+            with locking.LockManager.get_lock('nsx-edge-pool'):
+                with db_api.context_manager.writer.using(context):
+                    super(NsxVPluginV2, self).delete_subnet(context, id)
+                    if subnet['enable_dhcp']:
+                        # There is only DHCP port available
+                        if len(ports) == 1:
+                            port = ports.pop()
+                            self.ipam.delete_port(context, port['id'])
 
-            if subnet['enable_dhcp']:
-                # Delete the DHCP edge service
-                network_id = subnet['network_id']
-                filters = {'network_id': [network_id]}
-                remaining_subnets = self.get_subnets(context,
-                                                     filters=filters)
-                if len(remaining_subnets) == 0:
-                    self._cleanup_dhcp_edge_before_deletion(
-                        context, network_id)
-                    LOG.debug("Delete the DHCP service for network %s",
-                              network_id)
-                    self._delete_dhcp_edge_service(context, network_id)
-                else:
-                    # Update address group and delete the DHCP port only
-                    with locking.LockManager.get_lock(network_id):
+                if subnet['enable_dhcp']:
+                    # Delete the DHCP edge service
+                    filters = {'network_id': [network_id]}
+                    remaining_subnets = self.get_subnets(context,
+                                                         filters=filters)
+                    if len(remaining_subnets) == 0:
+                        self._cleanup_dhcp_edge_before_deletion(
+                            context, network_id)
+                        LOG.debug("Delete the DHCP service for network %s",
+                                  network_id)
+                        self._delete_dhcp_edge_service(context, network_id)
+                    else:
+                        # Update address group and delete the DHCP port only
                         addr_groups = self._create_network_dhcp_address_group(
                             context, network_id)
                         self._update_dhcp_edge_service(context, network_id,
@@ -2426,7 +2441,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     self._update_dhcp_service_with_subnet(context, s)
                 except Exception:
                     with excutils.save_and_reraise_exception():
-                        self.delete_subnet(context, s['id'])
+                        super(NsxVPluginV2, self).delete_subnet(context,
+                                                                s['id'])
         return s
 
     def _process_subnet_ext_attr_create(self, session, subnet_db,
