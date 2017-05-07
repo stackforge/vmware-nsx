@@ -62,6 +62,7 @@ from neutron.db import portsecurity_db
 from neutron.db import quota_db  # noqa
 from neutron.db import securitygroups_db
 from neutron.db import vlantransparent_db
+from neutron.extensions import address_scope as ext_address_scope
 from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.extensions import availability_zone as az_ext
 from neutron.extensions import external_net as ext_net_extn
@@ -2966,7 +2967,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
     def update_router(self, context, router_id, router):
         # Validate that the gateway information is relevant
-        self._extract_external_gw(context, router, is_extract=False)
+        gw_info = self._extract_external_gw(context, router, is_extract=False)
         # Toggling the distributed flag is not supported
         if 'distributed' in router['router']:
             r = self.get_router(context, router_id)
@@ -3013,6 +3014,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     # continue to update the router with the new driver
                     # but remove the router-size that was already updated
                     router['router'].pop(ROUTER_SIZE, None)
+
+        if gw_info and not gw_info.get('enable_snat',
+                                       cfg.CONF.enable_snat_by_default):
+            router_ports = self._get_router_interfaces(context, router_id)
+            for port in router_ports:
+                for fip in port['fixed_ips']:
+                    self._validate_address_scope_for_router_interface(
+                        context, router_id,
+                        gw_info['network_id'], fip['subnet_id'])
 
         router_driver = self._find_router_driver(context, router_id)
         return router_driver.update_router(context, router_id, router)
@@ -3263,6 +3273,11 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                         'network_id': [network_id]}
         return self.get_ports(context, filters=port_filters)
 
+    def _get_router_interfaces(self, context, router_id):
+        port_filters = {'device_id': [router_id],
+                        'device_owner': [l3_db.DEVICE_OWNER_ROUTER_INTF]}
+        return self.get_ports(context, filters=port_filters)
+
     def _get_address_groups(self, context, router_id, network_id):
         address_groups = []
         ports = self._get_router_interface_ports_by_network(
@@ -3377,30 +3392,51 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 else:
                     edge_utils.update_internal_interface(*update_args)
 
-    def _get_interface_info_net_id(self, context, interface_info):
+    def _get_interface_info(self, context, interface_info):
         is_port, is_sub = self._validate_interface_info(interface_info)
         if is_port:
-            net_id = self.get_port(
-                context, interface_info['port_id'])['network_id']
+            port = self.get_port(
+                context, interface_info['port_id'])
+            subnet_id = port['fixed_ips'][0]['subnet_id']
+            net_id = port['network_id']
         elif is_sub:
+            subnet_id = interface_info['subnet_id']
             net_id = self.get_subnet(
-                context, interface_info['subnet_id'])['network_id']
-        return net_id
+                context, subnet_id)['network_id']
+        return subnet_id, net_id
 
-    def _is_external_interface_info(self, context, interface_info):
-        net_id = self._get_interface_info_net_id(context, interface_info)
-        network = self.get_network(context, net_id)
-        if (network.get(ext_net_extn.EXTERNAL)):
-            return True
-        return False
+    def _validate_address_scope_for_router_interface(self, context, router_id,
+                                                     gw_network_id, subnet_id):
+        network = self.get_network(context, gw_network_id)
+        subnet = self.get_subnet(subnet_id)
+        address_scope = network.get(ext_address_scope.IPV4_ADDRESS_SCOPE)
+        if not address_scope:
+            return
+        if not subnet['subnetpool_id']:
+            raise nsx_exc.NsxRouterInterfaceDoesNotMatchAddressScope(
+                router_id=router_id, address_scope_id=address_scope)
+        subnetpool = self.get_subnetpool(context, subnet['subnetpool_id'])
+        if subnetpool.get('address_scope_id', '') != address_scope:
+            raise nsx_exc.NsxRouterInterfaceDoesNotMatchAddressScope(
+                router_id=router_id, address_scope_id=address_scope)
 
     def add_router_interface(self, context, router_id, interface_info):
+        router = self.get_router(context, router_id)
+        subnet_id, net_id = self._get_interface_info(context, interface_info)
+        network = self.get_network(context.elevated(), net_id)
         # Do not support external subnet/port as a router interface
-        if self._is_external_interface_info(context.elevated(),
-                                            interface_info):
-            msg = (_('cannot add an external subnet/port as a router '
-                     'interface'))
-            raise n_exc.InvalidInput(error_message=msg)
+        if (network.get(ext_net_extn.EXTERNAL) and
+            router.get(l3.EXTERNAL_GW_INFO)):
+                msg = (_('cannot add an external subnet/port as a router '
+                         'interface'))
+                raise n_exc.InvalidInput(error_message=msg)
+
+        snat_disabled = (router[l3.EXTERNAL_GW_INFO] and
+                         not router[l3.EXTERNAL_GW_INFO]['enable_snat'])
+        if snat_disabled:
+            gw_network_id = router[l3.EXTERNAL_GW_INFO]['network_id']
+            self._validate_address_scope_for_router_interface(
+                context, router_id, gw_network_id, subnet_id)
 
         router_driver = self._find_router_driver(context, router_id)
         try:
