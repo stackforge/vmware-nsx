@@ -25,7 +25,6 @@ from vmware_nsx.shell.admin.plugins.common import utils as admin_utils
 from vmware_nsx.shell.admin.plugins.nsxv3.resources import utils
 import vmware_nsx.shell.resources as shell
 from vmware_nsxlib.v3 import nsx_constants
-from vmware_nsxlib.v3 import resources
 
 LOG = logging.getLogger(__name__)
 neutron_client = utils.NeutronDbClient()
@@ -76,8 +75,6 @@ def nsx_update_metadata_proxy(resource, event, trigger, **kwargs):
     cfg.CONF.set_override('metadata_proxy', metadata_proxy_uuid, 'nsx_v3')
 
     plugin = utils.NsxV3PluginWrapper()
-    nsx_client = utils.get_nsxv3_client()
-    port_resource = resources.LogicalPort(nsx_client)
 
     # For each Neutron network, check if it is an internal metadata network.
     # If yes, delete the network and associated router interface.
@@ -108,7 +105,7 @@ def nsx_update_metadata_proxy(resource, event, trigger, **kwargs):
                 project_name='admin')
             name = nsx_utils.get_name_and_uuid('%s-%s' % (
                 'mdproxy', network['name'] or 'network'), network['id'])
-            port_resource.create(
+            nsxlib.logical_port.create(
                 lswitch_id, metadata_proxy_uuid, tags=tags, name=name,
                 attachment_type=nsx_constants.ATTACHMENT_MDPROXY)
             LOG.info("Enabled native metadata proxy for network %s",
