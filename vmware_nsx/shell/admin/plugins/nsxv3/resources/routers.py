@@ -20,7 +20,6 @@ from vmware_nsx.shell.admin.plugins.common import utils as admin_utils
 from vmware_nsx.shell.admin.plugins.nsxv3.resources import utils
 from vmware_nsx.shell import resources as shell
 from vmware_nsxlib.v3 import exceptions as nsx_exc
-from vmware_nsxlib.v3 import resources as nsx_resources
 
 from neutron.db import db_base_plugin_v2
 from neutron.db import l3_db
@@ -29,6 +28,7 @@ from neutron_lib import context as neutron_context
 from oslo_log import log as logging
 
 LOG = logging.getLogger(__name__)
+nsxlib = utils.get_connected_nsxlib()
 
 
 class RoutersPlugin(db_base_plugin_v2.NeutronDbPluginV2,
@@ -37,8 +37,7 @@ class RoutersPlugin(db_base_plugin_v2.NeutronDbPluginV2,
 
 
 def get_router_client():
-    _nsx_client = utils.get_nsxv3_client()
-    return nsx_resources.LogicalRouter(_nsx_client)
+    return nsxlib.logical_router
 
 
 @admin_utils.output_header
