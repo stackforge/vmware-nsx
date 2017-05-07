@@ -85,7 +85,8 @@ def _mock_nsx_backend_calls():
         return key
 
     mock.patch(
-        "vmware_nsxlib.v3.resources.SwitchingProfile.find_by_display_name",
+        "vmware_nsxlib.v3.core_resources.NsxLibSwitchingProfile."
+        "find_by_display_name",
         return_value=[fake_profile]
     ).start()
 
@@ -93,7 +94,7 @@ def _mock_nsx_backend_calls():
         "vmware_nsxlib.v3.router.RouterLib.validate_tier0").start()
 
     mock.patch(
-        "vmware_nsxlib.v3.resources.SwitchingProfile."
+        "vmware_nsxlib.v3.core_resources.NsxLibSwitchingProfile."
         "create_port_mirror_profile",
         side_effect=_return_id_key).start()
 
@@ -134,7 +135,7 @@ def _mock_nsx_backend_calls():
         side_effect=_return_id_key).start()
 
     mock.patch(
-        "vmware_nsxlib.v3.resources.LogicalRouter.create",
+        "vmware_nsxlib.v3.core_resources.NsxLibLogicalRouter.create",
         side_effect=_return_id_key).start()
 
     mock.patch(
