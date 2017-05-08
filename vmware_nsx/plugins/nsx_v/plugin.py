@@ -1039,7 +1039,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             vlt = ext_vlan.get_vlan_transparent(net_data)
 
         network_type = None
-        if backend_network:
+        if backend_network or provider_type:
             #NOTE(abhiraut): Consider refactoring code below to have more
             #                readable conditions.
             if provider_type is not None:
