@@ -1035,20 +1035,24 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         external = net_data.get(ext_net_extn.EXTERNAL)
         backend_network = (not validators.is_attr_set(external) or
                            validators.is_attr_set(external) and not external)
+        network_type = None
+        if provider_type is not None:
+            segment = net_data[mpnet.SEGMENTS][0]
+            network_type = segment.get(pnet.NETWORK_TYPE)
+        # A external network should be created in the case that we have a flat,
+        # vlan or vxlan network. For port groups we do not make any changes.
+        external_backend_network = (
+            external and provider_type is not None and
+            network_type != c_utils.NsxVNetworkTypes.PORTGROUP)
         self._validate_network_qos(net_data, backend_network)
         # Update the transparent vlan if configured
         vlt = False
         if n_utils.is_extension_supported(self, 'vlan-transparent'):
             vlt = ext_vlan.get_vlan_transparent(net_data)
 
-        network_type = None
-        if backend_network:
+        if backend_network or external_backend_network:
             #NOTE(abhiraut): Consider refactoring code below to have more
             #                readable conditions.
-            if provider_type is not None:
-                segment = net_data[mpnet.SEGMENTS][0]
-                network_type = segment.get(pnet.NETWORK_TYPE)
-
             if (provider_type is None or
                 network_type == c_utils.NsxVNetworkTypes.VXLAN):
                 virtual_wire = {"name": net_data['id'],
@@ -1174,9 +1178,12 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                         physical_net_set = validators.is_attr_set(
                             physical_network)
                         if not physical_net_set:
-                            # Use the dvs_id of the availability zone
-                            physical_network = self._get_network_az_dvs_id(
-                                net_data)
+                            if external_backend_network:
+                                physical_network = net_morefs[0]
+                            else:
+                                # Use the dvs_id of the availability zone
+                                physical_network = self._get_network_az_dvs_id(
+                                    net_data)
                         net_bindings.append(nsxv_db.add_network_binding(
                             context.session, new_net['id'],
                             network_type,
@@ -1188,7 +1195,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     self._extend_network_dict_provider(context, new_net,
                                                        provider_type,
                                                        net_bindings)
-                if backend_network:
+                if backend_network or external_backend_network:
                     # Save moref in the DB for future access
                     if (network_type == c_utils.NsxVNetworkTypes.VLAN or
                         network_type == c_utils.NsxVNetworkTypes.FLAT):
@@ -1205,7 +1212,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                             nsx_db.add_neutron_nsx_network_mapping(
                                 context.session, new_net['id'],
                                 net_moref)
-                    if cfg.CONF.nsxv.spoofguard_enabled:
+                    if cfg.CONF.nsxv.spoofguard_enabled and backend_network:
                         nsxv_db.map_spoofguard_policy_for_network(
                             context.session, new_net['id'], sg_policy_id)
 
