@@ -110,8 +110,8 @@ def nsx_update_metadata_proxy(resource, event, trigger, **kwargs):
                     project_name='admin')
                 name = nsx_utils.get_name_and_uuid('%s-%s' % (
                     'mdproxy', network['name'] or 'network'), network['id'])
-                existing_ports = port_resource.find_by_display_name(name)
                 # check if this logical port already exists
+                existing_ports = port_resource.find_by_display_name(name)
                 if not existing_ports:
                     # create a new port with the md-proxy
                     port_resource.create(
