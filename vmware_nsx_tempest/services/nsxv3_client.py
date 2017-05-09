@@ -43,9 +43,11 @@ class NSXV3Client(object):
         self.interface = "json"
         self.url = None
         self.headers = None
+        self.super_admin_headers = None
         self.api_version = NSXV3Client.API_VERSION
 
         self.__set_headers()
+        self.__set_super_admin_headers()
 
     def __set_endpoint(self, endpoint):
         self.endpoint = endpoint
@@ -93,6 +95,21 @@ class NSXV3Client(object):
         headers['Accept'] = accept_type
         self.headers = headers
 
+    def __set_super_admin_headers(self, content=None, accept=None):
+        """
+        Setting header for NSX super admin: X allow overwrite
+        """
+        content_type = self.content_type if content is None else content
+        accept_type = self.accept_type if accept is None else accept
+        auth_cred = self.username + ":" + self.password
+        auth = base64.b64encode(auth_cred)
+        headers = {}
+        headers['Authorization'] = "Basic %s" % auth
+        headers['Content-Type'] = content_type
+        headers['Accept'] = accept_type
+        headers['X-Allow-Overwrite'] = 'true'
+        self.super_admin_headers = headers
+
     def get(self, endpoint=None, params=None, cursor=None):
         """
         Basic query method for json API request
@@ -120,6 +137,15 @@ class NSXV3Client(object):
         """
         self.__set_url(endpoint=endpoint)
         response = requests.delete(self.url, headers=self.headers,
+                                   verify=self.verify, params=params)
+        return response
+
+    def delete_super_admin(self, endpoint=None, params=None):
+        """
+        Basic delete API method for NSX super admin on endpoint
+        """
+        self.__set_url(endpoint=endpoint)
+        response = requests.delete(self.url, headers=self.super_admin_headers,
                                    verify=self.verify, params=params)
         return response
 
@@ -271,6 +297,12 @@ class NSXV3Client(object):
         return self.get_logical_resources("/logical-switches")
 
     def get_logical_switch_profiles(self):
+        """
+        Retrieve all switching profiles on NSX backend
+        """
+        return self.get_logical_resources("/switching-profiles")
+
+    def get_switching_profiles(self):
         """
         Retrieve all switching profiles on NSX backend
         """
