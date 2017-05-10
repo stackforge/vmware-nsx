@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import re
 import time
 
 from oslo_config import cfg
@@ -122,12 +123,22 @@ class Vcns(object):
                                                          insecure=insecure)
         self._nsx_version = None
 
+    def _log_request(self, method, uri, body):
+        body = re.sub(r'<password>.*?</password>',
+                      '<password>********</password>', body)
+        body = re.sub(r'\"password\":[^,}]*', '"password": "********"', body)
+        LOG.debug("VcnsApiHelper('%(method)s', '%(uri)s', '%(body)s')", {
+                  'method': method,
+                  'uri': uri,
+                  'body': body})
+
     @retry_upon_exception(exceptions.ServiceConflict)
     def _client_request(self, client, method, uri,
                         params, headers, encodeParams):
         return client(method, uri, params, headers, encodeParams)
 
     def do_request(self, method, uri, params=None, format='json', **kwargs):
+        self._log_request(method, uri, jsonutils.dumps(params))
         LOG.debug("VcnsApiHelper('%(method)s', '%(uri)s', '%(body)s')", {
                   'method': method,
                   'uri': uri,
