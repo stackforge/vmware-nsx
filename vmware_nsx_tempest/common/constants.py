@@ -1,4 +1,4 @@
-# Copyright 2016 VMware, Inc.
+# Copyright 2017 VMware, Inc.
 # All Rights Reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -41,3 +41,6 @@ MD_BASE_URL = "http://169.254.169.254/"
 NSX_BACKEND_TIME_INTERVAL = 30
 NSX_BACKEND_SMALL_TIME_INTERVAL = 10
 NSX_BACKEND_VERY_SMALL_TIME_INTERVAL = 5
+
+# NSXV3 Firewall
+NSX_FIREWALL_REALIZED_DELAY = 2
