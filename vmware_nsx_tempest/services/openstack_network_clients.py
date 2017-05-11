@@ -1,4 +1,4 @@
-# Copyright 2016 VMware, Inc.
+# Copyright 2017 VMware, Inc.
 # All Rights Reserved
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -62,21 +62,39 @@ class L2GatewayClient(base.BaseNetworkClient):
         return self.list_resources(uri, **filters)
 
 
-def get_client(client_mgr):
+class L2GatewayConnectionClient(base.BaseNetworkClient):
     """
-    Create a l2-gateway client from manager or networks_client
+    Request resources via API for L2GatewayClient
+        l2 gateway connection create request
+        l2 gateway connection update request
+        l2 gateway connection show request
+        l2 gateway connection delete request
+        l2 gateway connection list all request
     """
-    try:
-        manager = getattr(client_mgr, "manager", client_mgr)
-        net_client = getattr(manager, "networks_client")
-        _params = manager.default_params_withy_timeout_values.copy()
-    except AttributeError as attribute_err:
-        LOG.warning("Failed to locate the attribute, Error: %(err_msg)s",
-                    {"err_msg": attribute_err.__str__()})
-        _params = {}
-    client = L2GatewayClient(net_client.auth_provider,
-                             net_client.service,
-                             net_client.region,
-                             net_client.endpoint_type,
-                             **_params)
-    return client
+    resource = 'l2_gateway_connection'
+    resource_plural = 'l2_gateway_connections'
+    path = 'l2-gateway-connections'
+    resource_base_path = '/%s' % path
+    resource_object_path = '/%s/%%s' % path
+
+    def create_l2_gateway_connection(self, **kwargs):
+        uri = self.resource_base_path
+        post_data = {self.resource: kwargs}
+        return self.create_resource(uri, post_data)
+
+    def update_l2_gateway_connection(self, l2_gateway_id, **kwargs):
+        uri = self.resource_object_path % l2_gateway_id
+        post_data = {self.resource: kwargs}
+        return self.update_resource(uri, post_data)
+
+    def show_l2_gateway_connection(self, l2_gateway_id, **fields):
+        uri = self.resource_object_path % l2_gateway_id
+        return self.show_resource(uri, **fields)
+
+    def delete_l2_gateway_connection(self, l2_gateway_id):
+        uri = self.resource_object_path % l2_gateway_id
+        return self.delete_resource(uri)
+
+    def list_l2_gateway_connections(self, **filters):
+        uri = self.resource_base_path
+        return self.list_resources(uri, **filters)
