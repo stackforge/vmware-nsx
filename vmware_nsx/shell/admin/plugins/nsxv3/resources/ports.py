@@ -29,9 +29,11 @@ from vmware_nsx.shell.admin.plugins.nsxv3.resources import utils as v3_utils
 from vmware_nsx.shell import resources as shell
 from vmware_nsxlib.v3 import exceptions as nsx_exc
 from vmware_nsxlib.v3 import resources
+from vmware_nsxlib.v3 import security
 
 from neutron.db import allowedaddresspairs_db as addr_pair_db
 from neutron.db import db_base_plugin_v2
+from neutron.db import l3_db
 from neutron.db import portsecurity_db
 from neutron.extensions import allowedaddresspairs
 from neutron_lib.callbacks import registry
@@ -266,6 +268,47 @@ def migrate_compute_ports_vms(resource, event, trigger, **kwargs):
         nsx_net_id = get_network_nsx_id(admin_cxt.session, port['network_id'])
         vm_mng.attach_vm_interface(vm_moref, port['id'], port['mac_address'],
                                    nsx_net_id, device_type)
+
+
+def tag_default_ports(resource, event, trigger, **kwargs):
+    _nsx_client = v3_utils.get_nsxv3_client()
+    admin_cxt = neutron_context.get_admin_context()
+    _port_client = resources.LogicalPort(_nsx_client)
+
+    # GK TBD - update defualt sec group to be with the nsgroup for the
+    # default
+
+    with PortsPlugin() as _plugin:
+        neutron_ports = _plugin.get_ports(admin_cxt)
+        for port in neutron_ports:
+            neutron_id = port['id']
+            # get the network nsx id from the mapping table
+            nsx_id = get_port_nsx_id(admin_cxt.session, neutron_id)
+            if not nsx_id:
+                continue
+            else:
+                device_owner = port['device_owner']
+                if (device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF or 
+                    device_owner == const.DEVICE_OWNER_DHCP):
+                    continue
+                ps = _plugin._get_port_security_binding(admin_cxt,
+                                                        neutron_id)
+                if not ps:
+                    continue
+                try:
+                    nsx_port = _port_client.get(nsx_id)
+                except nsx_exc.ResourceNotFound:
+                    continue
+                tags_update = nsx_port['tags']
+                tags_update += [{'scope': security.PORT_SG_SCOPE,
+                                 'tag': plugin.NSX_V3_DEFAULT_SECTION}]
+                _port_client.update(nsx_id, None,
+                                    tags_update=tags_update)
+
+
+registry.subscribe(tag_default_ports,
+                   constants.PORTS,
+                   shell.Operations.NSX_TAG_DEFAULT.value)
 
 
 registry.subscribe(list_missing_ports,
