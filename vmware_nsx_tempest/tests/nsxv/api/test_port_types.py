@@ -195,6 +195,8 @@ class PortTypeTest(base.BaseAdminNetworkTest):
         net_name = data_utils.rand_name('test-net')
         net_body = self.create_network(name=net_name)
         test_net = net_body['network']
+        self.addCleanup(test_utils.call_and_ignore_notfound_exc,
+                            self.delete_network, test_net['id'])
         self.assertRaises(ex.BadRequest, self._create_direct_port,
                           network_id=test_net['id'])
 
