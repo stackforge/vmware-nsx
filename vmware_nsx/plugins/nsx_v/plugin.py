@@ -1486,6 +1486,30 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         return True, dvs_pg_mappings
 
+    def _update_port_port_security(self, context, network_id, port_sec):
+        """Update all the networks compute ports with a new port-security"""
+        filters = {'network_id': [network_id]}
+        ports = self.get_ports(context, filters=filters)
+        updated_ports = 0
+        for port in ports:
+            if not port['device_owner'].startswith('compute:'):
+                continue
+            if port[psec.PORTSECURITY] == port_sec:
+                continue
+            try:
+                updated_ports += 1
+                port_data = {psec.PORTSECURITY: port_sec}
+                self.update_port(context, port['id'], {'port': port_data})
+            except Exception as e:
+                updated_ports -= 1
+                LOG.error("Failed to update port security for port %(port)s: "
+                          "%(e)s", {'port': port[id], 'e': e})
+        if updated_ports:
+            LOG.info("Updated %(num)s ports from network %(net)s with "
+                     "port_security_enabled %(psec)s",
+                     {'num': updated_ports, 'net': network_id,
+                      'psec': port_sec})
+
     def update_network(self, context, id, network):
         net_attrs = network['network']
         orig_net = self.get_network(context, id)
@@ -1570,6 +1594,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                         context, revert_update, net_res)
                     super(NsxVPluginV2, self).update_network(
                         context, id, {'network': revert_update})
+            if psec_update:
+                # should add/remove the relevant ports from the exclude list
+                self._update_port_port_security(context, id, port_sec)
 
         # Handle QOS updates (Value can be None, meaning to delete the
         # current policy), or moref updates with an existing qos policy
