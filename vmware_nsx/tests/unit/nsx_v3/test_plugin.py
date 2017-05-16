@@ -17,7 +17,6 @@ import mock
 import six
 from webob import exc
 
-from neutron.api.v2 import attributes
 from neutron.db import models_v2
 from neutron.extensions import external_net
 from neutron.extensions import extraroute
@@ -34,6 +33,7 @@ from neutron.tests.unit.extensions \
 from neutron.tests.unit.scheduler \
     import test_dhcp_agent_scheduler as test_dhcpagent
 
+from neutron_lib.api import attributes
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib import constants
@@ -501,7 +501,7 @@ class TestL3ExtensionManager(object):
             l3.RESOURCE_ATTRIBUTE_MAP[key].update(
                 extraroute.EXTENDED_ATTRIBUTES_2_0.get(key, {}))
         # Finally add l3 resources to the global attribute map
-        attributes.RESOURCE_ATTRIBUTE_MAP.update(
+        attributes.RESOURCES.update(
             l3.RESOURCE_ATTRIBUTE_MAP)
         return l3.L3.get_resources()
 

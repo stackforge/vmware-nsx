@@ -14,6 +14,7 @@
 #    under the License.
 
 
+from neutron_lib.api import attributes as lib_attrs
 from neutron.api.v2 import attributes
 from oslo_config import cfg
 from oslo_utils import uuidutils
@@ -26,7 +27,7 @@ def _fixup_res_dict(context, attr_name, res_dict, check_allow_post=True):
     # for the id field if one is not found ONLY if running in api_replay_mode.
     if cfg.CONF.api_replay_mode and 'id' not in res_dict:
         res_dict['id'] = uuidutils.generate_uuid()
-    attr_info = attributes.RESOURCE_ATTRIBUTE_MAP[attr_name]
+    attr_info = lib_attrs.RESOURCES[attr_name]
     try:
         attributes.populate_tenant_id(context, res_dict, attr_info, True)
         attributes.verify_attributes(res_dict, attr_info)

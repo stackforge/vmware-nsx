@@ -19,7 +19,6 @@ from eventlet import greenthread
 import mock
 import netaddr
 
-from neutron.api.v2 import attributes
 from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.extensions import dvr as dist_router
 from neutron.extensions import external_net
@@ -39,6 +38,7 @@ import neutron.tests.unit.extensions.test_l3_ext_gw_mode as test_ext_gw_mode
 import neutron.tests.unit.extensions.test_portsecurity as test_psec
 import neutron.tests.unit.extensions.test_securitygroup as ext_sg
 from neutron.tests.unit import testlib_api
+from neutron_lib.api import attributes
 from neutron_lib.api.definitions import extra_dhcp_opt as edo_ext
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.api.definitions import provider_net as pnet
@@ -1998,7 +1998,7 @@ class TestL3ExtensionManager(object):
             l3.RESOURCE_ATTRIBUTE_MAP[key].update(
                 l3_flavors.EXTENDED_ATTRIBUTES_2_0.get(key, {}))
         # Finally add l3 resources to the global attribute map
-        attributes.RESOURCE_ATTRIBUTE_MAP.update(
+        attributes.RESOURCES.update(
             l3.RESOURCE_ATTRIBUTE_MAP)
         return l3.L3.get_resources()
 
@@ -3382,7 +3382,7 @@ class NsxVSecurityGroupsTestCase(ext_sg.SecurityGroupDBTestCase):
               ext_mgr=None,
               service_plugins=None):
         test_utils.override_nsx_ini_test()
-        attributes.RESOURCE_ATTRIBUTE_MAP.update(
+        attributes.RESOURCES.update(
             securitygrouplogging.RESOURCE_ATTRIBUTE_MAP)
         mock_vcns = mock.patch(vmware.VCNS_NAME, autospec=True)
         mock_vcns_instance = mock_vcns.start()

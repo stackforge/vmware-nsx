@@ -5,7 +5,6 @@
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
 #
-#         http://www.apache.org/licenses/LICENSE-2.0
 #
 #    Unless required by applicable law or agreed to in writing, software
 #    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -15,11 +14,11 @@
 import mock
 import webob.exc
 
-from neutron.api.v2 import attributes as attr
 from neutron.db import api as db_api
 from neutron.db import db_base_plugin_v2
 from neutron.db import securitygroups_db
 from neutron.tests.unit.extensions import test_securitygroup
+from neutron_lib.api import attributes as attr
 from neutron_lib import context
 
 from vmware_nsx.db import extended_security_group
@@ -132,16 +131,16 @@ class ProviderSecurityGroupExtTestCase(
             plugin=plugin, ext_mgr=ext_mgr)
         self._tenant_id = 'foobar'
         # add provider group attributes
-        attr.RESOURCE_ATTRIBUTE_MAP['security_groups'].update(
+        attr.RESOURCES['security_groups'].update(
             provider_sg.EXTENDED_ATTRIBUTES_2_0['security_groups'])
 
-        attr.RESOURCE_ATTRIBUTE_MAP['ports'].update(
+        attr.RESOURCES['ports'].update(
             provider_sg.EXTENDED_ATTRIBUTES_2_0['ports'])
 
     def tearDown(self):
         # remove provider security group attributes
-        del attr.RESOURCE_ATTRIBUTE_MAP['security_groups']['provider']
-        del attr.RESOURCE_ATTRIBUTE_MAP['ports']['provider_security_groups']
+        del attr.RESOURCES['security_groups']['provider']
+        del attr.RESOURCES['ports']['provider_security_groups']
         super(ProviderSecurityGroupExtTestCase, self).tearDown()
 
     def _create_provider_security_group(self):

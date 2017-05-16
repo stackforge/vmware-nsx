@@ -15,12 +15,12 @@
 import contextlib
 import mock
 
+from neutron_lib.api import attributes
 from oslo_config import cfg
 from webob import exc
 import webtest
 
 from neutron.api import extensions
-from neutron.api.v2 import attributes
 from neutron.db import api as db_api
 from neutron.db import db_base_plugin_v2
 from neutron import quota
@@ -53,7 +53,7 @@ class TestExtensionManager(object):
         # This is done here as the setup process won't
         # initialize the main API router which extends
         # the global attribute map
-        attributes.RESOURCE_ATTRIBUTE_MAP.update(
+        attributes.RESOURCES.update(
             networkgw.RESOURCE_ATTRIBUTE_MAP)
         return networkgw.Networkgw.get_resources()
 

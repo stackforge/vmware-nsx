@@ -16,7 +16,6 @@ import copy
 import uuid
 
 import mock
-from neutron.api.v2 import attributes
 from neutron.extensions import dvr
 from neutron.extensions import external_net
 from neutron.extensions import l3
@@ -29,6 +28,7 @@ import neutron.tests.unit.extensions.test_l3 as test_l3_plugin
 import neutron.tests.unit.extensions.test_l3_ext_gw_mode as test_ext_gw_mode
 import neutron.tests.unit.extensions.test_securitygroup as ext_sg
 from neutron.tests.unit import testlib_api
+from neutron_lib.api import attributes
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib import constants
@@ -464,7 +464,7 @@ class TestL3ExtensionManager(object):
             l3.RESOURCE_ATTRIBUTE_MAP[key].update(
                 dvr.EXTENDED_ATTRIBUTES_2_0.get(key, {}))
         # Finally add l3 resources to the global attribute map
-        attributes.RESOURCE_ATTRIBUTE_MAP.update(
+        attributes.RESOURCES.update(
             l3.RESOURCE_ATTRIBUTE_MAP)
         return l3.L3.get_resources()
 
