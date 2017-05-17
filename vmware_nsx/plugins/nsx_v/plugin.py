@@ -1126,12 +1126,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                         netmoref, dvsmoref)
         try:
             net_data[psec.PORTSECURITY] = net_data.get(psec.PORTSECURITY, True)
+            # This variable is set as the method below may result in a
+            # exception and we may need to rollback
+            sg_policy_id = None
+            predefined = False
             # Create SpoofGuard policy for network anti-spoofing
-            if cfg.CONF.nsxv.spoofguard_enabled and backend_network:
-                # This variable is set as the method below may result in a
-                # exception and we may need to rollback
-                sg_policy_id = None
-                predefined = False
+            # Disable spoofgurad for transparent support since the same
+            # mac may have multiple ip addresses.
+            if (cfg.CONF.nsxv.spoofguard_enabled and backend_network and
+                not vlt):
                 sg_policy_id, predefined = self._prepare_spoofguard_policy(
                     network_type, net_data, net_morefs)
             with db_api.context_manager.writer.using(context):
@@ -1206,7 +1209,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                             nsx_db.add_neutron_nsx_network_mapping(
                                 context.session, new_net['id'],
                                 net_moref)
-                    if cfg.CONF.nsxv.spoofguard_enabled:
+                    if cfg.CONF.nsxv.spoofguard_enabled and not vlt:
                         nsxv_db.map_spoofguard_policy_for_network(
                             context.session, new_net['id'], sg_policy_id)
 
@@ -1326,7 +1329,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def delete_network(self, context, id):
         mappings = nsx_db.get_nsx_network_mappings(context.session, id)
         bindings = nsxv_db.get_network_bindings(context.session, id)
-        if cfg.CONF.nsxv.spoofguard_enabled:
+        net = self.get_network(context, id)
+        sg_policy_id = None
+        if cfg.CONF.nsxv.spoofguard_enabled and not net['vlan_transparent']:
             sg_policy_id = nsxv_db.get_spoofguard_policy_id(
                 context.session, id)
 
