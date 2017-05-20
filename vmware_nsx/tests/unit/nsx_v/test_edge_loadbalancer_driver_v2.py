@@ -21,8 +21,8 @@ from neutron_lib import context
 
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
+from vmware_nsx.services.lbaas import base_mgr
 from vmware_nsx.services.lbaas.nsx_v import lbaas_common as lb_common
-from vmware_nsx.services.lbaas.nsx_v.v2 import base_mgr
 
 
 LB_VIP = '10.0.0.10'
