@@ -2720,11 +2720,51 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                              advertise_route_nat_flag,
                                              advertise_route_connected_flag)
 
+        # update the router firewall rules
+        self._update_router_firewall(context, router)
+
     def _process_extra_attr_router_create(self, context, router_db, r):
         for extra_attr in l3_attrs_db.get_attr_info().keys():
             if extra_attr in r:
                 self.set_extra_attr_value(context, router_db,
                                           extra_attr, r[extra_attr])
+
+    def _update_router_firewall(self, context, router):
+        """Update the backend router firewall section
+
+        Adding all relevant rules to allow traffic between subnets,
+        And allow external traffic
+        """
+        if not utils.is_nsx_version_2_0_0(self._nsx_version):
+            # rotuer firewall is not supported
+            return
+
+        router_id = router['id']
+        try:
+            nsx_router_id = nsx_db.get_nsx_router_id(context.session,
+                                                     router_id)
+            section_id = self.nsxlib.logical_router.get_firewall_section_id(
+                nsx_router_id)
+        except Exception:
+            nsx_router_id = None
+            section_id = None
+        if not section_id:
+            LOG.error("Didn't find firewall section for router %s",
+                      router_id)
+            return
+
+        fw_rules = []
+
+        # TODO(asarfaty): add fwaas rules here too
+
+        # Add default drop all rule
+        fw_rules.append({
+            'display_name': 'Default LR Layer3 Rule',
+            'direction': 'IN_OUT',
+            'ip_protocol': 'IPV4_IPV6',
+            'action': 'DROP',
+            'target_type': 'LogicalRouter'})
+        self.nsxlib.firewall_section.update(section_id, rules=fw_rules)
 
     def create_router(self, context, router):
         # TODO(berlin): admin_state_up support
@@ -3052,6 +3092,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 # its DHCP port), by creating it if needed.
                 nsx_rpc.handle_router_metadata_access(self, context, router_id,
                                                       interface=info)
+            # update the router firewall rules
+            self._update_router_firewall(context, router_db)
+
         except Exception:
             with excutils.save_and_reraise_exception():
                 LOG.error("Neutron failed to add_router_interface on "
@@ -3122,6 +3165,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             else:
                 self.nsxlib.logical_router_port.delete_by_lswitch_id(
                     nsx_net_id)
+
+            # update the router firewall rules
+            self._update_router_firewall(context, router_db)
+
         except nsx_lib_exc.ResourceNotFound:
             LOG.error("router port on router %(router_id)s for net "
                       "%(net_id)s not found at the backend",
