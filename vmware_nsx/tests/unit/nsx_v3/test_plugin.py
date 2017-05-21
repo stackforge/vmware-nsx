@@ -149,6 +149,11 @@ def _mock_nsx_backend_calls():
         side_effect=_return_id_key).start()
 
     mock.patch(
+        "vmware_nsxlib.v3.core_resources.NsxLibLogicalRouter."
+        "get_firewall_section_id",
+        side_effect=_return_id_key).start()
+
+    mock.patch(
         "vmware_nsxlib.v3.NsxLib.get_version",
         return_value='1.1.0').start()
 
@@ -562,6 +567,11 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxV3PluginTestCaseMixin):
         cfg.CONF.set_default('max_routes', 3)
         self.addCleanup(restore_l3_attribute_map, self._l3_attribute_map_bk)
         ext_mgr = ext_mgr or TestL3ExtensionManager()
+        mock_nsx_version = mock.patch.object(nsx_plugin.utils,
+                                             'is_nsx_version_2_0_0',
+                                             new=lambda v: True)
+        mock_nsx_version.start()
+
         super(L3NatTest, self).setUp(
             plugin=plugin, ext_mgr=ext_mgr, service_plugins=service_plugins)
         self.plugin_instance = directory.get_plugin()
@@ -733,6 +743,48 @@ class TestL3NatTestCase(L3NatTest,
                 body = self._show('routers', r['router']['id'])
                 gw_info = body['router']['external_gateway_info']
                 self.assertIsNone(gw_info)
+
+    def test_router_add_interface_port_with_firewall(self):
+        orig_update_port = self.plugin.update_port
+        sec_id = 1
+        cidr = '11.0.0.0/24'
+        switch_id = '6e32cb5c-d7c7-4578-a510-aa6e8826c3ca'
+        with self.router() as r,\
+            self.subnet(cidr=cidr) as s,\
+            self.port(subnet=s) as p,\
+            mock.patch.object(self.plugin, 'update_port') as update_port,\
+            mock.patch("vmware_nsxlib.v3.core_resources.NsxLibLogicalRouter."
+                       "get_firewall_section_id", return_value=sec_id),\
+            mock.patch.object(self.plugin.nsxlib.firewall_section,
+                              'update') as update_fw:
+            update_port.side_effect = orig_update_port
+            self._router_interface_action('add', r['router']['id'],
+                                          None, p['port']['id'])
+            # verify firewall rules creation
+            expected_rules = [
+                {'display_name': 'Allow To External',
+                 'action': 'ALLOW',
+                 # DEBUG ADIT TO CHANGE THIS
+                 'destinations': [{'target_display_name': 'publicSwitch',
+                                   'target_type': 'LogicalSwitch',
+                                   'target_id': switch_id}]},
+                {'display_name': 'Subnet Rule',
+                 'action': 'ALLOW',
+                 'sources': [{'target_type': 'IPv4Address',
+                              'target_id': cidr}],
+                 'destinations': [{'target_type': 'IPv4Address',
+                                   'target_id': cidr}]},
+                {'display_name': 'Default LR Layer3 Rule',
+                 'action': 'DROP'}]
+            update_fw.assert_called_once_with(sec_id, rules=expected_rules)
+            # DEBUG ADIT
+            # clean-up
+            update_fw.reset_mock()
+            self._router_interface_action('remove', r['router']['id'],
+                                          None, p['port']['id'])
+            # verify firewall rules creation
+            expected_rules.pop(1)
+            update_fw.assert_called_once_with(sec_id, rules=expected_rules)
 
     def test_create_router_gateway_fails(self):
         self.skipTest('not supported')
