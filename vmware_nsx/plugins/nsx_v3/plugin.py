@@ -2779,11 +2779,140 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                              advertise_route_nat_flag,
                                              advertise_route_connected_flag)
 
+        # update the router firewall rules
+        self._update_router_firewall(context, router)
+
     def _process_extra_attr_router_create(self, context, router_db, r):
         for extra_attr in l3_attrs_db.get_attr_info().keys():
             if extra_attr in r:
                 self.set_extra_attr_value(context, router_db,
                                           extra_attr, r[extra_attr])
+
+    def _get_port_by_device_id(self, context, device_id, device_owner):
+        """Retrieve ports associated with a specific device id.
+
+        Used for retrieving all neutron ports attached to a given router.
+        """
+        port_qry = context.session.query(models_v2.Port)
+        return port_qry.filter_by(
+            device_id=device_id,
+            device_owner=device_owner,).all()
+
+    def _find_router_subnets_cidrs(self, context, router_id):
+        """Retrieve subnets attached to the specified router."""
+        ports = self._get_port_by_device_id(context, router_id,
+                                            l3_db.DEVICE_OWNER_ROUTER_INTF)
+        # No need to check for overlapping CIDRs
+        cidrs = []
+        for port in ports:
+            for ip in port.get('fixed_ips', []):
+                subnet_qry = context.session.query(models_v2.Subnet)
+                subnet = subnet_qry.filter_by(id=ip.subnet_id).one()
+                cidrs.append(subnet.cidr)
+        return cidrs
+
+    def _get_router_dnat_addresses(self, context, router_id):
+        fip_qry = context.session.query(l3_db_models.FloatingIP)
+        fip_db = fip_qry.filter_by(router_id=router_id).all()
+        return [fip.floating_ip_address
+                for fip in fip_db if fip.fixed_port_id]
+
+    def _update_router_firewall(self, context, router):
+        """Update the backend router firewall section
+
+        Adding all relevant rules to allow traffic between subnets,
+        And allow external traffic.
+        """
+        if not utils.is_nsx_version_2_0_0(self._nsx_version):
+            # router firewall is not supported
+            return
+
+        # find the backend router and its firewall section
+        router_id = router['id']
+        try:
+            nsx_router_id = nsx_db.get_nsx_router_id(context.session,
+                                                     router_id)
+            section_id = self.nsxlib.logical_router.get_firewall_section_id(
+                nsx_router_id)
+        except Exception:
+            nsx_router_id = None
+            section_id = None
+        if not section_id:
+            LOG.error("Didn't find firewall section for router %s", router_id)
+            return
+
+        def cidrs_to_rule_refs(cidrs):
+            return [self.nsxlib.firewall_section.get_ip_cidr_reference(
+                ip,
+                nsxlib_consts.IPV6 if netaddr.valid_ipv6(ip)
+                else nsxlib_consts.IPV4) for ip in cidrs]
+
+        def get_external_port_ref():
+            # DEBUG ADIT stub!
+            # DEBUG ADIT public switch? always? check connectivity.
+            # what about AZ? where do we get the id?
+            return {'target_display_name': 'publicSwitch',
+                    'target_id': '92d70bc5-7fd7-4dde-87fd-4aee515717fe',
+                    'target_type': 'LogicalSwitch'}
+
+        LOG.error("DEBUG ADIT current rules for section %s: %s",
+                  section_id,
+                  self.nsxlib.firewall_section.get_rules(section_id))
+
+        fw_rules = []
+        # Add allow-traffic-to-external rule:
+        fw_rules.append({
+            'display_name': 'Allow To External',
+            'destinations': [get_external_port_ref()],
+            'action': nsxlib_consts.FW_ACTION_ALLOW})
+
+        # Add FW rule to open subnets firewall flows and static routes
+        # relative flows
+        subnet_cidrs = self._find_router_subnets_cidrs(context.elevated(),
+                                                       router_id)
+        routes = self._get_extra_routes_by_router_id(context, router_id)
+        subnet_cidrs_and_routes = (subnet_cidrs +
+                                   [route['destination'] for route in routes])
+        ips = cidrs_to_rule_refs(subnet_cidrs_and_routes)
+        if subnet_cidrs:
+            fw_rules.append({
+                'display_name': 'Subnet Rule',
+                'action': nsxlib_consts.FW_ACTION_ALLOW,
+                'destinations': ips,
+                'sources': ips})
+
+        # TODO(asarfaty): add fwaas rules here when FWaaS is supported
+
+        # Add FW rule to open dnat firewall flows
+        dnat_addr = self._get_router_dnat_addresses(context, router_id)
+        if dnat_addr:
+            dnat_fw_rule = {
+                'display_name': 'DNAT Rule',
+                'action': nsxlib_consts.FW_ACTION_ALLOW,
+                'destinations': cidrs_to_rule_refs(dnat_addr)}
+            fw_rules.append(dnat_fw_rule)
+
+        # Open edge firewall holes for nosnat subnets to do static routes
+        gw_port = router.gw_port
+        if gw_port and not router.enable_snat:
+            if subnet_cidrs:
+                fw_rules.append({
+                    'display_name': 'No SNAT Rule',
+                    'action': nsxlib_consts.FW_ACTION_ALLOW,
+                    'sources': [[get_external_port_ref()]],
+                    'destinations': cidrs_to_rule_refs(subnet_cidrs)})
+
+        # Add default drop all rule
+        old_default_rule = self.nsxlib.firewall_section.get_default_rule(section_id)
+        fw_rules.append({
+            'display_name': 'Default LR Layer3 Rule',
+            'action': nsxlib_consts.FW_ACTION_DROP,
+            'is_default': True,
+            'id': old_default_rule['id'] if old_default_rule else 0})
+
+        # Update the backend firewall section with the rules
+        LOG.error("DEBUG ADIT setting rules: %s", fw_rules)
+        self.nsxlib.firewall_section.update(section_id, rules=fw_rules)
 
     def create_router(self, context, router):
         # TODO(berlin): admin_state_up support
@@ -3111,6 +3240,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 # its DHCP port), by creating it if needed.
                 nsx_rpc.handle_router_metadata_access(self, context, router_id,
                                                       interface=info)
+            # update the router firewall rules
+            self._update_router_firewall(context, router_db)
+
         except Exception:
             with excutils.save_and_reraise_exception():
                 LOG.error("Neutron failed to add_router_interface on "
@@ -3181,6 +3313,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             else:
                 self.nsxlib.logical_router_port.delete_by_lswitch_id(
                     nsx_net_id)
+
         except nsx_lib_exc.ResourceNotFound:
             LOG.error("router port on router %(router_id)s for net "
                       "%(net_id)s not found at the backend",
@@ -3193,6 +3326,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # (with the network) if this is the last DHCP-disabled subnet on
             # the router.
             nsx_rpc.handle_router_metadata_access(self, context, router_id)
+        # update the router firewall rules
+        self._update_router_firewall(context, router_db)
         return info
 
     def _create_floating_ip_wrapper(self, context, floatingip):
@@ -3225,6 +3360,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._routerlib.add_fip_nat_rules(
                 nsx_router_id, new_fip['floating_ip_address'],
                 new_fip['fixed_ip_address'])
+            # update the router firewall rules
+            router_db = self._get_router(context.elevated(), router_id)
+            self._update_router_firewall(context.elevated(), router_db)
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 self.delete_floatingip(context, new_fip['id'])
@@ -3280,6 +3418,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     self._routerlib.delete_fip_nat_rules(
                         old_nsx_router_id, old_fip['floating_ip_address'],
                         old_fip['fixed_ip_address'])
+                    # update the router firewall rules
+                    old_router_db = self._get_router(context.elevated(),
+                                                     old_fip['router_id'])
+                    self._update_router_firewall(context.elevated(),
+                                                 old_router_db)
                 except nsx_lib_exc.ResourceNotFound:
                     LOG.warning("Backend NAT rules for fip: %(fip_id)s "
                                 "(ext_ip: %(ext_ip)s int_ip: %(int_ip)s) "
@@ -3299,6 +3442,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self._routerlib.add_fip_nat_rules(
                     nsx_router_id, new_fip['floating_ip_address'],
                     new_fip['fixed_ip_address'])
+                # update the router firewall rules
+                router_db = self._get_router(context.elevated(), router_id)
+                self._update_router_firewall(context.elevated(), router_db)
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 super(NsxV3Plugin, self).update_floatingip(
@@ -3323,6 +3469,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self._routerlib.delete_fip_nat_rules(
                     nsx_router_id, fip_db.floating_ip_address,
                     fip_db.fixed_ip_address)
+                # update the router firewall rules
+                router_db = self._get_router(context.elevated(),
+                                             fip_db.router_id)
+                self._update_router_firewall(context.elevated(), router_db)
+
             except nsx_lib_exc.ResourceNotFound:
                 LOG.warning("Backend NAT rules for fip: %(fip_id)s "
                             "(ext_ip: %(ext_ip)s int_ip: %(int_ip)s) "
