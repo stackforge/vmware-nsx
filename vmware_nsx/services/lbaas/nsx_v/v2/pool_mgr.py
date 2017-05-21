@@ -76,6 +76,13 @@ class EdgePoolManager(base_mgr.EdgeLoadbalancerBaseManager):
                 with locking.LockManager.get_lock(edge_id):
                     self.vcns.update_vip(edge_id, listener_binding['vse_id'],
                                          vse)
+                # This action also set this pool as the default pool of the
+                # listener, so the application profile may need to be updated
+                # DEBUG ADIT edge_cert_id?
+                if pool.session_persistence:
+                    listener_mgr.update_app_profile(
+                        self.vcns, context, pool.listener,
+                        edge_id, edge_cert_id=None)
 
             self.lbv2_driver.pool.successful_completion(context, pool)
 
@@ -95,9 +102,12 @@ class EdgePoolManager(base_mgr.EdgeLoadbalancerBaseManager):
             'transparent': False
         }
 
-        if new_pool.listener:
-            listener = new_pool.listener
-            lb_id = listener.loadbalancer_id
+        old_listener = old_pool.listener
+        new_listener = new_pool.listener
+        old_sess_persist = old_pool.session_persistence
+        new_sess_persist = new_pool.session_persistence
+        if new_listener:
+            lb_id = new_listener.loadbalancer_id
         else:
             lb_id = new_pool.loadbalancer_id
 
@@ -114,6 +124,35 @@ class EdgePoolManager(base_mgr.EdgeLoadbalancerBaseManager):
                 self.vcns.update_pool(edge_id, edge_pool_id, edge_pool)
 
             self.lbv2_driver.pool.successful_completion(context, new_pool)
+
+            # if the listener or the session_persistence was changed,
+            # we may need to update the relevant application profile
+            # DEBUG ADIT edge_cert_id??
+            if (old_listener and
+                (not new_listener or new_listener.id != old_listener.id)):
+                # old listener should be updated as it is no longer default
+                if old_sess_persist:
+                    old_listener.default_pool = None
+                    listener_mgr.update_app_profile(
+                        self.vcns, context, old_listener, edge_id,
+                        edge_cert_id=None)
+
+            if (new_listener and
+                (not old_listener or old_listener.id != new_listener.id)):
+                # new listener should be updated as it is a new default
+                if new_sess_persist:
+                    listener_mgr.update_app_profile(
+                        self.vcns, context, new_listener, edge_id,
+                        edge_cert_id=None)
+
+            if (new_listener and old_listener and
+                new_listener.id == old_listener.id):
+                # same listener.
+                # should be updated if session_persistence was changed
+                if new_sess_persist != old_sess_persist:
+                    listener_mgr.update_app_profile(
+                        self.vcns, context, new_listener, edge_id,
+                        edge_cert_id=None)
 
         except nsxv_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
@@ -132,9 +171,16 @@ class EdgePoolManager(base_mgr.EdgeLoadbalancerBaseManager):
         edge_id = lb_binding['edge_id']
         edge_pool_id = pool_binding['edge_pool_id']
 
+        listeners_to_update = []
         try:
             if pool.listeners:
                 for listener in pool.listeners:
+                    # the pool session persistence may affect the associated
+                    # pool application profile
+                    if (pool.session_persistence and listener.default_pool and
+                        listener.default_pool.id == pool.id):
+                        listeners_to_update.append(listener)
+
                     listener_binding = nsxv_db.get_nsxv_lbaas_listener_binding(
                         context.session, lb_id, listener.id)
                     vse = listener_mgr.listener_to_edge_vse(
@@ -151,6 +197,14 @@ class EdgePoolManager(base_mgr.EdgeLoadbalancerBaseManager):
                 context, pool, delete=True)
             nsxv_db.del_nsxv_lbaas_pool_binding(
                 context.session, lb_id, pool.id)
+
+            for listener in listeners_to_update:
+                # need to update the listeners too
+                # DEBUG adit edge_cert_id?
+                listener.default_pool = None
+                listener_mgr.update_app_profile(
+                    self.vcns, context, listener, edge_id, edge_cert_id=None)
+
         except nsxv_exc.VcnsApiException:
             self.lbv2_driver.pool.failed_completion(context, pool)
             LOG.error('Failed to delete pool %s', pool.id)
