@@ -2720,11 +2720,127 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                              advertise_route_nat_flag,
                                              advertise_route_connected_flag)
 
+        # update the router firewall rules
+        self._update_router_firewall(context, router)
+
     def _process_extra_attr_router_create(self, context, router_db, r):
         for extra_attr in l3_attrs_db.get_attr_info().keys():
             if extra_attr in r:
                 self.set_extra_attr_value(context, router_db,
                                           extra_attr, r[extra_attr])
+
+    def _get_port_by_device_id(self, context, device_id, device_owner):
+        """Retrieve ports associated with a specific device id.
+
+        Used for retrieving all neutron ports attached to a given router.
+        """
+        port_qry = context.session.query(models_v2.Port)
+        return port_qry.filter_by(
+            device_id=device_id,
+            device_owner=device_owner,).all()
+
+    def _find_router_subnets_cidrs(self, context, router_id):
+        """Retrieve subnets attached to the specified router."""
+        ports = self._get_port_by_device_id(context, router_id,
+                                            l3_db.DEVICE_OWNER_ROUTER_INTF)
+        # No need to check for overlapping CIDRs
+        cidrs = []
+        for port in ports:
+            for ip in port.get('fixed_ips', []):
+                subnet_qry = context.session.query(models_v2.Subnet)
+                subnet = subnet_qry.filter_by(id=ip.subnet_id).one()
+                cidrs.append(subnet.cidr)
+        return cidrs
+
+    def _update_router_firewall(self, context, router):
+        """Update the backend router firewall section
+
+        Adding all relevant rules to allow traffic between subnets,
+        And allow external traffic.
+        """
+
+        # DEBUG ADIT use constants from nsxlib security for action, direction etc.
+        DNAT_RULE_NAME = 'DNAT Rule' # DEBUG ADIT delete
+        NO_SNAT_RULE_NAME = 'No SNAT Rule' # DEBUG ADIT delete
+
+        if not utils.is_nsx_version_2_0_0(self._nsx_version):
+            # router firewall is not supported
+            return
+
+        router_id = router['id']
+        try:
+            nsx_router_id = nsx_db.get_nsx_router_id(context.session,
+                                                     router_id)
+            section_id = self.nsxlib.logical_router.get_firewall_section_id(
+                nsx_router_id)
+        except Exception:
+            nsx_router_id = None
+            section_id = None
+        if not section_id:
+            LOG.error("Didn't find firewall section for router %s",
+                      router_id)
+            return
+
+        # DEBUG ADIT - this is only for debugging
+        LOG.error("DEBUG ADIT _update_router_firewall getting current rules fir section %s", section_id)
+        current_rules = self.nsxlib.firewall_section.get_rules(section_id)
+        LOG.error("DEBUG ADIT current rules: %s", current_rules)
+
+        fw_rules = []
+        # Add allow-traffic-to-external:
+        # DEBUG ADIT public switch? always? what about AZ? where do we get the id?
+        fw_rules.append({
+            'display_name': 'Allow To External',
+            'direction': 'IN_OUT',
+            'ip_protocol': 'IPV4_IPV6',
+            'destinations': [{'target_display_name': 'publicSwitch',
+                              'target_id': '6e32cb5c-d7c7-4578-a510-aa6e8826c3ca',
+                              'target_type': 'LogicalSwitch'}],
+            'action': 'ALLOW',
+            'target_type': 'LogicalRouter'})
+
+        # Add FW rule to open subnets firewall flows and static routes
+        # relative flows
+        subnet_cidrs = self._find_router_subnets_cidrs(context, router['id'])
+        routes = self._get_extra_routes_by_router_id(context, router_id)
+        subnet_cidrs.extend([route['destination'] for route in routes])
+        ips = [{'target_id': ip, 'target_type': 'IPv4Address'} for ip in subnet_cidrs]
+        if subnet_cidrs:
+            fw_rules.append({
+                'display_name': 'Subnet Rule',
+                'direction': 'IN_OUT',
+                'ip_protocol': 'IPV4_IPV6',
+                'action': 'ALLOW',
+                'destinations': ips,
+                'sources': ips,
+                'target_type': 'LogicalRouter'})
+
+        # TODO(asarfaty): add fwaas rules here too
+
+        # Add FW rule to open dnat firewall flows
+        # _, dnat_rules = self._get_nat_rules(context, router)
+        # dnat_cidrs = [rule['dst'] for rule in dnat_rules]
+        # if dnat_cidrs:
+        #     dnat_fw_rule = {
+        #         'name': edge_firewall_driver.DNAT_RULE_NAME,
+        #         'action': 'allow',
+        #         'enabled': True,
+        #         'destination_ip_address': dnat_cidrs}
+        #     fw_rules.append(dnat_fw_rule)
+
+        # # Add no-snat rules
+        # nosnat_fw_rules = self._get_nosnat_subnets_fw_rules(
+        #     context, router)
+        # fw_rules.extend(nosnat_fw_rules)
+
+        # Add default drop all rule
+        fw_rules.append({
+            'display_name': 'Default LR Layer3 Rule',
+            'direction': 'IN_OUT',
+            'ip_protocol': 'IPV4_IPV6',
+            'action': 'DROP',
+            'target_type': 'LogicalRouter'})
+        self.nsxlib.firewall_section.update(section_id, rules=fw_rules)
 
     def create_router(self, context, router):
         # TODO(berlin): admin_state_up support
@@ -3052,6 +3168,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 # its DHCP port), by creating it if needed.
                 nsx_rpc.handle_router_metadata_access(self, context, router_id,
                                                       interface=info)
+            # update the router firewall rules
+            self._update_router_firewall(context, router_db)
+
         except Exception:
             with excutils.save_and_reraise_exception():
                 LOG.error("Neutron failed to add_router_interface on "
@@ -3122,6 +3241,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             else:
                 self.nsxlib.logical_router_port.delete_by_lswitch_id(
                     nsx_net_id)
+
+            # update the router firewall rules
+            self._update_router_firewall(context, router_db)
+
         except nsx_lib_exc.ResourceNotFound:
             LOG.error("router port on router %(router_id)s for net "
                       "%(net_id)s not found at the backend",
