@@ -65,8 +65,8 @@ class TestSecurityGroupsNoDynamicCriteria(test_nsxv3.NsxV3PluginTestCaseMixin,
 
     def setUp(self):
         super(TestSecurityGroupsNoDynamicCriteria, self).setUp()
-        mock_nsx_version = mock.patch.object(nsx_plugin.utils,
-                                             'is_nsx_version_1_1_0',
+        mock_nsx_version = mock.patch.object(nsx_plugin.nsxlib,
+                                             'feature_supported',
                                              new=lambda v: False)
         mock_nsx_version.start()
         self._patchers.append(mock_nsx_version)
