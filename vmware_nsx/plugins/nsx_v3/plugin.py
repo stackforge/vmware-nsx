@@ -95,6 +95,7 @@ from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.plugins.nsx_v3 import availability_zones as nsx_az
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
+from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
 from vmware_nsx.services.trunk.nsx_v3 import driver as trunk_driver
@@ -214,6 +215,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # init profiles on nsx backend
         self._init_nsx_profiles()
 
+        # Init the FWaaS support
+        self._init_fwaas()
+
         # Include exclude NSGroup
         LOG.debug("Initializing NSX v3 Excluded Port NSGroup")
         self._excluded_port_nsgroup = None
@@ -233,6 +237,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         # Register NSXv3 trunk driver to support trunk extensions
         self.trunk_driver = trunk_driver.NsxV3TrunkDriver.create(self)
+
+    def _init_fwaas(self):
+        # Bind FWaaS callbacks to the driver
+        self.fwaas_callbacks = fwaas_callbacks.Nsxv3FwaasCallbacks()
 
     def init_availability_zones(self):
         # availability zones are supported only with native dhcp
@@ -2758,7 +2766,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return [fip.floating_ip_address
                 for fip in fip_db if fip.fixed_port_id]
 
-    def _update_router_firewall(self, context, router):
+    def _update_router_firewall(self, context, router,
+                                fwaas_rules=None,
+                                fwaas_allow_external=False):
         """Update the backend router firewall section
 
         Adding all relevant rules to allow traffic between subnets,
@@ -2800,12 +2810,30 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                   section_id,
                   self.nsxlib.firewall_section.get_rules(section_id))
 
+        # Get FWaaS rules to add to the fw later.
+        allow_external = True
+        if fwaas_rules is not None:
+            # Rules already given by the fwaas
+            # Also use the 'allow-external' value from fwaas
+            allow_external = fwaas_allow_external
+        else:
+            # find out if fwaas is applicable for this router
+            if (self.fwaas_callbacks.should_apply_firewall_to_router(
+                context, router, router_id)):
+                # Get the relevant FWaaS rules for this router
+                fwaas_rules = (self.fwaas_callbacks.get_fwaas_rules_for_router(
+                    context, router_id))
+                # If we have a firewall we shouldn't add the default
+                # allow-external rule
+                allow_external = False
+
         fw_rules = []
         # Add allow-traffic-to-external rule:
-        fw_rules.append({
-            'display_name': 'Allow To External',
-            'destinations': [get_external_port_ref()],
-            'action': nsxlib_consts.FW_ACTION_ALLOW})
+        if allow_external:
+            fw_rules.append({
+                'display_name': 'Allow To External',
+                'destinations': [get_external_port_ref()],
+                'action': nsxlib_consts.FW_ACTION_ALLOW})
 
         # Add FW rule to open subnets firewall flows and static routes
         # relative flows
@@ -2822,7 +2850,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 'destinations': ips,
                 'sources': ips})
 
-        # TODO(asarfaty): add fwaas rules here when FWaaS is supported
+        # Add the FWaaS rules
+        if fwaas_rules:
+            fw_rules.extend(fwaas_rules)
 
         # Add FW rule to open dnat firewall flows
         dnat_addr = self._get_router_dnat_addresses(context, router_id)
