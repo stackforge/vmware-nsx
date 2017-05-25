@@ -748,7 +748,7 @@ class TestL3NatTestCase(L3NatTest,
         orig_update_port = self.plugin.update_port
         sec_id = 1
         cidr = '11.0.0.0/24'
-        switch_id = '6e32cb5c-d7c7-4578-a510-aa6e8826c3ca'
+        switch_id = 'b07f1b12-0121-4397-a9d1-5bbbee8f9cb5'
         with self.router() as r,\
             self.subnet(cidr=cidr) as s,\
             self.port(subnet=s) as p,\
