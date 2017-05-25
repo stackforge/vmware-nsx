@@ -249,6 +249,14 @@ class NSXvBgpDriver(object):
             raise ext_esg_peer.EsgRemoteASDoNotMatch(remote_as=remote_as,
                                                      esg_id=esg_id,
                                                      esg_as=esg_as)
+        h, ifaces = self._nsxv.vcns.get_interfaces(esg_id)
+        for iface in ifaces:
+            address_groups = iface['addressGroups']['addressGroups']
+            for address_group in address_groups:
+                if address_group['primaryAddress'] == bgp_peer['peer_ip']:
+                    break
+            else:
+                raise ext_esg_peer.EsgInternalIfaceDoesNotMatch(esg_id=esg_id)
 
     def create_bgp_peer(self, context, bgp_peer):
         bgp_peer = bgp_peer['bgp_peer']
