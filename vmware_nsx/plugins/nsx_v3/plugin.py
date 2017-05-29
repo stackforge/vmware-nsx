@@ -2159,7 +2159,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         # Add Mac/IP binding to native DHCP server and neutron DB.
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
-            self._add_dhcp_binding(context, port_data)
+            try:
+                self._add_dhcp_binding(context, port_data)
+            except nsx_lib_exc.ManagerError:
+                # Rollback create port
+                self.delete_port(context, port_data['id'])
+                raise n_exc.NotAuthorized()
 
         if not cfg.CONF.nsx_v3.native_dhcp_metadata:
             nsx_rpc.handle_port_metadata_access(self, context, neutron_db)
