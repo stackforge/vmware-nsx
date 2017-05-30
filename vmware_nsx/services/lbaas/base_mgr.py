@@ -21,6 +21,7 @@ from neutron_lib.plugins import directory
 class LoadbalancerBaseManager(object):
     _lbv2_driver = None
     _core_plugin = None
+    _flavor_plugin = None
 
     def __init__(self):
         super(LoadbalancerBaseManager, self).__init__()
@@ -45,6 +46,14 @@ class LoadbalancerBaseManager(object):
                 self._get_plugin(lib_const.CORE))
 
         return LoadbalancerBaseManager._core_plugin
+
+    @property
+    def flavor_plugin(self):
+        if not LoadbalancerBaseManager._flavor_plugin:
+            LoadbalancerBaseManager._flavor_plugin = (
+                self._get_plugin(plugin_const.FLAVORS))
+
+        return LoadbalancerBaseManager._flavor_plugin
 
 
 class EdgeLoadbalancerBaseManager(LoadbalancerBaseManager):

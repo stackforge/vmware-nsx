@@ -72,3 +72,9 @@ L7_RULE_COMPARE_TYPE_STARTS_WITH = 'STARTS_WITH'
 L7_RULE_COMPARE_TYPE_ENDS_WITH = 'ENDS_WITH'
 L7_RULE_COMPARE_TYPE_CONTAINS = 'CONTAINS'
 L7_RULE_COMPARE_TYPE_EQUAL_TO = 'EQUAL_TO'
+
+# Resource type for resources created on NSX backend
+LB_RESOURCE_TYPE = 'os-lbaas-lb-id'
+LR_PORT_TYPE = 'os-neutron-rport-id'
+DEFAULT_LB_SIZE = 'SMALL'
+LB_FLAVOR_SIZES = ['SMALL', 'MEDIUM', 'LARGE', 'small', 'medium', 'large']
