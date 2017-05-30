@@ -98,6 +98,7 @@ from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.plugins.nsx_v3 import availability_zones as nsx_az
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks
+from vmware_nsx.services.lbaas.nsx_v3 import lb_driver_v2
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
 from vmware_nsx.services.trunk.nsx_v3 import driver as trunk_driver
@@ -189,6 +190,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._extension_manager.extension_aliases())
 
         self.nsxlib = v3_utils.get_nsxlib_wrapper()
+        self.lbv2_driver = lb_driver_v2.EdgeLoadbalancerDriverV2()
         # reinitialize the cluster upon fork for api workers to ensure each
         # process has its own keepalive loops + state
         registry.subscribe(
