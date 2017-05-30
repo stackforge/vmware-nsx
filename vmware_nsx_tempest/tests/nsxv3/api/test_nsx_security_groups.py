@@ -30,7 +30,7 @@ LOG = logging.getLogger(__name__)
 
 CONF = config.CONF
 
-NSX_FIREWALL_REALIZED_DELAY = 20
+NSX_FIREWALL_REALIZED_TIMEOUT = 120
 
 
 class NSXv3SecGroupTest(base.BaseSecGroupTest):
@@ -91,7 +91,16 @@ class NSXv3SecGroupTest(base.BaseSecGroupTest):
         # Create a security group
         group_create_body, name = self._create_security_group()
         secgroup = group_create_body['security_group']
-        time.sleep(NSX_FIREWALL_REALIZED_DELAY)
+        nsx_firewall_time_counter = 0
+        nsx_dfw_section = None
+        while nsx_firewall_time_counter < NSX_FIREWALL_REALIZED_TIMEOUT and \
+                not nsx_dfw_section:
+            nsx_firewall_time_counter += 1
+            nsx_nsgroup = self.nsx.get_ns_group(secgroup['name'],
+                                                secgroup['id'])
+            nsx_dfw_section = self.nsx.get_firewall_section(secgroup['name'],
+                                                            secgroup['id'])
+            time.sleep(1)
         LOG.info("Create security group with name %(name)s and id %(id)s",
                  {'name': secgroup['name'], 'id': secgroup['id']})
         # List security groups and verify if created group is there in response
@@ -100,9 +109,6 @@ class NSXv3SecGroupTest(base.BaseSecGroupTest):
         for sg in list_body['security_groups']:
             secgroup_list.append(sg['id'])
         self.assertIn(secgroup['id'], secgroup_list)
-        nsx_nsgroup = self.nsx.get_ns_group(secgroup['name'], secgroup['id'])
-        nsx_dfw_section = self.nsx.get_firewall_section(secgroup['name'],
-                                                        secgroup['id'])
         self.assertIsNotNone(nsx_nsgroup)
         self.assertIsNotNone(nsx_dfw_section)
         # Update the security group
@@ -132,9 +138,15 @@ class NSXv3SecGroupTest(base.BaseSecGroupTest):
         create_body = self.security_groups_client.create_security_group(
             name=name)
         secgroup = create_body['security_group']
-        time.sleep(NSX_FIREWALL_REALIZED_DELAY)
-        nsx_nsgroup = self.nsx.get_ns_group(name, secgroup['id'])
-        nsx_dfw_section = self.nsx.get_firewall_section(name, secgroup['id'])
+        nsx_firewall_time_counter = 0
+        nsx_dfw_section = None
+        while nsx_firewall_time_counter < NSX_FIREWALL_REALIZED_TIMEOUT and \
+                not nsx_dfw_section:
+            nsx_firewall_time_counter += 1
+            nsx_nsgroup = self.nsx.get_ns_group(name, secgroup['id'])
+            nsx_dfw_section = self.nsx.get_firewall_section(name,
+                                                            secgroup['id'])
+            time.sleep(1)
         self.assertEqual(secgroup['name'], name)
         self.assertIsNotNone(nsx_nsgroup)
         self.assertIsNotNone(nsx_dfw_section)
@@ -150,11 +162,17 @@ class NSXv3SecGroupTest(base.BaseSecGroupTest):
     def test_create_nsx_security_group_rule(self):
         # Create a security group
         create_body, _ = self._create_security_group()
-        time.sleep(NSX_FIREWALL_REALIZED_DELAY)
         secgroup = create_body['security_group']
-        nsx_nsgroup = self.nsx.get_ns_group(secgroup['name'], secgroup['id'])
-        nsx_dfw_section = self.nsx.get_firewall_section(secgroup['name'],
-                                                        secgroup['id'])
+        nsx_firewall_time_counter = 0
+        nsx_dfw_section = None
+        while nsx_firewall_time_counter < NSX_FIREWALL_REALIZED_TIMEOUT and \
+                not nsx_dfw_section:
+            nsx_firewall_time_counter += 1
+            nsx_nsgroup = self.nsx.get_ns_group(secgroup['name'],
+                                                secgroup['id'])
+            nsx_dfw_section = self.nsx.get_firewall_section(secgroup['name'],
+                                                            secgroup['id'])
+            time.sleep(1)
         self.assertIsNotNone(nsx_dfw_section)
         # Create rules for each protocol
         protocols = ['tcp', 'udp', 'icmp']
@@ -210,11 +228,16 @@ class NSXv3SecGroupTest(base.BaseSecGroupTest):
     def test_delete_nsx_security_group_rule(self):
         # Create a security group
         create_body, _ = self._create_security_group()
-        time.sleep(NSX_FIREWALL_REALIZED_DELAY)
         secgroup = create_body['security_group']
-        nsx_nsgroup = self.nsx.get_ns_group(secgroup['name'], secgroup['id'])
-        nsx_dfw_section = self.nsx.get_firewall_section(secgroup['name'],
-                                                        secgroup['id'])
+        nsx_firewall_time_counter = 0
+        nsx_dfw_section = None
+        while nsx_firewall_time_counter < NSX_FIREWALL_REALIZED_TIMEOUT and \
+                not nsx_dfw_section:
+            nsx_firewall_time_counter += 1
+            nsx_nsgroup = self.nsx.get_ns_group(secgroup['name'], secgroup['id'])
+            nsx_dfw_section = self.nsx.get_firewall_section(secgroup['name'],
+                                                            secgroup['id'])
+            time.sleep(1)
         self.assertIsNotNone(nsx_nsgroup)
         self.assertIsNotNone(nsx_dfw_section)
         # Create a security group rule
