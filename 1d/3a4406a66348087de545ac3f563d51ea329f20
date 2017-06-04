@@ -1,0 +1,10 @@
+Code-Review+2: garyk <gkotton@vmware.com>
+Verified-1: VMware NSX CI
+Code-Review+2: Tong Liu <tongl@vmware.com>
+Workflow+1: garyk <gkotton@vmware.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Sun, 04 Jun 2017 11:49:18 +0000
+Reviewed-on: https://review.openstack.org/469787
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
