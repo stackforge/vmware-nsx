@@ -62,20 +62,22 @@ def _validate_asn(asn):
 
 
 def _extract_interface_info(info):
-    portgroup, address = info.split(':')
+    info = info.split(':')
     try:
-        network = netaddr.IPNetwork(address)
+        network = netaddr.IPNetwork(info[-1])
     except Exception:
-        LOG.error("Invalid IP address given: '%s'.", address)
+        LOG.error("Invalid IP address given: '%s'.", info)
         return None
 
+    portgroup = info[0]
     subnet_mask = str(network.netmask)
     ip_address = str(network.ip)
+
     return portgroup, ip_address, subnet_mask
 
 
-def _assemble_gw_edge(name, size,
-                      external_iface_info, internal_iface_info, az):
+def _assemble_gw_edge(name, size, external_iface_info, internal_iface_info,
+                      default_gateway, az):
     edge = nsxv._assemble_edge(
         name, datacenter_moid=az.datacenter_moid,
         deployment_container_id=az.datastore_id,
@@ -110,11 +112,17 @@ def _assemble_gw_edge(name, size,
     edge['vnics']['vnics'].append(vnic_external)
     edge['vnics']['vnics'].append(vnic_internal)
 
+    edge['features'] = [{'firewall': {'enabled': False}}]
+    if default_gateway:
+        edge['features'] = {'routing':
+                            {'staticRouting':
+                             {'staticRoute':
+                              {'defaultRoute':
+                               {'description': 'default-gateway',
+                                'gatewayAddress': default_gateway}}}}}
+
     header = nsxv.vcns.deploy_edge(edge)[0]
     edge_id = header.get('location', '/').split('/')[-1]
-    disable_fw_req = {'featureType': 'firewall_4.0',
-                      'enabled': False}
-    nsxv.vcns.update_firewall(edge_id, disable_fw_req)
     return edge_id, gateway_ip
 
 
@@ -126,6 +134,7 @@ def create_bgp_gw(resource, event, trigger, **kwargs):
              "--property local-as=<LOCAL_AS_NUMBER> "
              "--property external-iface=<PORTGROUP>:<IP_ADDRESS/PREFIX_LEN> "
              "--property internal-iface=<PORTGROUP>:<IP_ADDRESS/PREFIX_LEN> "
+             "[--property default-gateway=<IP_ADDRESS>] "
              "[--property az-hint=<AZ_HINT>] "
              "[--property size=compact,large,xlarge,quadlarge]")
     required_params = ('name', 'local-as',
@@ -151,6 +160,9 @@ def create_bgp_gw(resource, event, trigger, **kwargs):
     if not (external_iface_info and internal_iface_info):
         return
 
+    default_gw = ('default-gateway' in properties and
+                  _extract_interface_info(properties['default-gateway']))
+
     az_hint = properties.get('az-hint')
     az = nsx_az.NsxVAvailabilityZones().get_availability_zone(az_hint)
 
@@ -158,6 +170,7 @@ def create_bgp_gw(resource, event, trigger, **kwargs):
                                             size,
                                             external_iface_info,
                                             internal_iface_info,
+                                            default_gw,
                                             az)
     nsxv.add_bgp_speaker_config(edge_id, gateway_ip, local_as,
                                 True, [], [], [], default_originate=True)
