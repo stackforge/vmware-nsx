@@ -257,14 +257,15 @@ class TestRouterNoNATOps(manager.NetworkScenarioTest):
         self._check_network_internal_connectivity(network=self.network)
         self._check_network_vm_connectivity(network=self.network)
         self._check_nonat_network_connectivity(should_connect=False)
+        # Configure SNAT=False, needs to release all the floating ips
+        floating_ip, server = self.floating_ip_tuple
+        self._disassociate_floating_ip(floating_ip)
         # Update router to disable snat and disassociate floating ip
         external_gateway_info = {
             'network_id': CONF.network.public_network_id,
             'enable_snat': (not snat)}
         self._update_router(self.router['id'], self.cmgr_adm.routers_client,
             external_gateway_info)
-        floating_ip, server = self.floating_ip_tuple
-        self._disassociate_floating_ip(floating_ip)
         nsx_router = self.nsx.get_logical_router(
             self.router['name'], self.router['id'])
         self.assertNotEqual(nsx_router, None)
