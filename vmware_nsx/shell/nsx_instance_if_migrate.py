@@ -14,7 +14,7 @@
 #    under the License.
 
 import getopt
-import libvirt
+import libvirt  #noqa
 import logging
 import re
 import sys
