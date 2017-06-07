@@ -1,0 +1,11 @@
+# This file contains runtime (non-python) dependencies
+# More info at: http://docs.openstack.org/infra/bindep/readme.html
+
+# For the migration tool for nsx-v3
+python-libvirt [platform:dpkg]
+
+# Neutron's test-requirements requires tempest which requires paramiko
+# which requires cryptography which requires ssl.
+libssl-dev [platform:dpkg]
+openssl-devel [platform:rpm !platform:suse]
+libopenssl-devel [platform:suse !platform:rpm]
