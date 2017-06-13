@@ -142,7 +142,7 @@ def create_bgp_gw(resource, event, trigger, **kwargs):
              "[--property size=compact,large,xlarge,quadlarge]")
     required_params = ('name', 'local-as',
                        'internal-iface', 'external-iface')
-    properties = admin_utils.parse_multi_keyval_opt(kwargs.get('property', []))
+    properties = admin_utils.parse_multi_keyval_opt(kwargs['property'] or [])
     if not properties or not set(required_params) <= set(properties.keys()):
         LOG.error(usage)
         return
@@ -194,7 +194,7 @@ def delete_bgp_gw(resource, event, trigger, **kwargs):
     usage = ("nsxadmin -r bgp-gw-edge -o delete "
              "--property gw-edge-id=<EDGE_ID>")
     required_params = ('gw-edge-id', )
-    properties = admin_utils.parse_multi_keyval_opt(kwargs.get('property', []))
+    properties = admin_utils.parse_multi_keyval_opt(kwargs['property'] or [])
     if not properties or not set(required_params) <= set(properties.keys()):
         LOG.error(usage)
         return
@@ -214,7 +214,7 @@ def create_redis_rule(resource, event, trigger, **kwargs):
              "--property learn-from=ospf,bgp,connected,static "
              "--property action=<permit/deny>")
     required_params = ('gw-edge-ids', 'learn-from', 'action')
-    properties = admin_utils.parse_multi_keyval_opt(kwargs.get('property', []))
+    properties = admin_utils.parse_multi_keyval_opt(kwargs['property'] or [])
     if not properties or not set(required_params) <= set(properties.keys()):
         LOG.error(usage)
         return
@@ -267,7 +267,7 @@ def delete_redis_rule(resource, event, trigger, **kwargs):
              "--property gw-edge-ids=<GW_EDGE_ID>[,...]"
              "[--property prefix-name=<NAME>]")
     required_params = ('gw-edge-ids', )
-    properties = admin_utils.parse_multi_keyval_opt(kwargs.get('property', []))
+    properties = admin_utils.parse_multi_keyval_opt(kwargs['property'] or [])
     if not properties or not set(required_params) <= set(properties.keys()):
         LOG.error(usage)
         return
@@ -292,7 +292,7 @@ def add_bgp_neighbour(resource, event, trigger, **kwargs):
              "--property remote-as=<AS_NUMBER> "
              "--property password=<PASSWORD>")
     required_params = ('gw-edge-ids', 'ip-address', 'remote-as', 'password')
-    properties = admin_utils.parse_multi_keyval_opt(kwargs.get('property', []))
+    properties = admin_utils.parse_multi_keyval_opt(kwargs['property'] or [])
     if not properties or not set(required_params) <= set(properties.keys()):
         LOG.error(usage)
         return
@@ -330,7 +330,7 @@ def remove_bgp_neighbour(resource, event, trigger, **kwargs):
              "--property gw-edge-ids=<GW_EDGE_ID>[,...] "
              "--property ip-address=<IP_ADDRESS>")
     required_params = ('gw-edge-ids', 'ip-address')
-    properties = admin_utils.parse_multi_keyval_opt(kwargs.get('property', []))
+    properties = admin_utils.parse_multi_keyval_opt(kwargs['property'] or [])
     if not properties or not set(required_params) <= set(properties.keys()):
         LOG.error(usage)
         return
