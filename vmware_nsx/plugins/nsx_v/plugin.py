@@ -303,7 +303,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # Bind QoS notifications
         qos_driver.register(self)
 
-    def init_complete(self, resource, event, trigger, **kwargs):
+    def init_complete(self, resource, event, trigger, payload=None):
         has_metadata_cfg = (
             cfg.CONF.nsxv.nova_metadata_ips
             and cfg.CONF.nsxv.mgt_net_moid
