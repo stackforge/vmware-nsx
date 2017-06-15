@@ -1999,8 +1999,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             has_ip = self._ip_on_port(ret_port)
 
             # checks that if update adds/modify security groups,
-            # then port has ip
-            if not has_ip:
+            # then port has ip and port-security
+            if not (has_ip and has_port_security):
                 if has_security_groups or provider_sgs_specified:
                     raise psec_exc.PortSecurityAndIPRequiredForSecurityGroups()
                 if ((not delete_security_groups
