@@ -529,7 +529,8 @@ class EdgeApplianceDriver(object):
         except exceptions.VcnsApiException as e:
             LOG.error("Failed to resize edge: %s", e.response)
 
-    def delete_edge(self, context, router_id, edge_id, dist=False):
+    def delete_edge(self, context, router_id, edge_id, dist=False,
+                    is_async=False):
         try:
             nsxv_db.delete_nsxv_router_binding(context.session, router_id)
             if not dist:
@@ -539,7 +540,7 @@ class EdgeApplianceDriver(object):
 
         if edge_id:
             try:
-                self.vcns.delete_edge(edge_id)
+                self.vcns.delete_edge(edge_id, is_async=is_async)
                 return True
             except exceptions.ResourceNotFound:
                 return True
