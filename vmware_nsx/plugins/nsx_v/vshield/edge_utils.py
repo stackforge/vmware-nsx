@@ -305,10 +305,11 @@ class EdgeManager(object):
         nsxv_db.update_nsxv_router_binding(
             context.session, router_binding['router_id'],
             status=constants.PENDING_DELETE)
-        self._get_worker_pool().spawn_n(
-            self.nsxv_manager.delete_edge, q_context.get_admin_context(),
-            router_binding['router_id'], router_binding['edge_id'],
-            dist=(router_binding['edge_type'] == nsxv_constants.VDR_EDGE))
+        with locking.LockManager.get_lock(str(router_binding['edge_id'])):
+            self.nsxv_manager.delete_edge(
+                q_context.get_admin_context(),
+                router_binding['router_id'], router_binding['edge_id'],
+                dist=(router_binding['edge_type'] == nsxv_constants.VDR_EDGE))
 
     def _delete_backup_edges_on_db(self, context, backup_router_bindings):
         for binding in backup_router_bindings:
@@ -321,10 +322,11 @@ class EdgeManager(object):
             # delete edge
             LOG.debug("Start deleting extra edge: %s in pool",
                       binding['edge_id'])
-            self._get_worker_pool().spawn_n(
-                self.nsxv_manager.delete_edge, q_context.get_admin_context(),
-                binding['router_id'], binding['edge_id'],
-                dist=(binding['edge_type'] == nsxv_constants.VDR_EDGE))
+            with locking.LockManager.get_lock(str(binding['edge_id'])):
+                self.nsxv_manager.delete_edge(
+                    q_context.get_admin_context(),
+                    binding['router_id'], binding['edge_id'],
+                    dist=(binding['edge_type'] == nsxv_constants.VDR_EDGE))
 
     def _clean_all_error_edge_bindings(self, context, availability_zone):
         # Find all backup edges in error state &
@@ -782,9 +784,9 @@ class EdgeManager(object):
                 context.session, router_id,
                 status=constants.PENDING_DELETE)
             # delete edge
-            self._get_worker_pool().spawn_n(
-                self.nsxv_manager.delete_edge, q_context.get_admin_context(),
-                router_id, edge_id, dist=dist)
+            with locking.LockManager.get_lock(str(edge_id)):
+                self.nsxv_manager.delete_edge(q_context.get_admin_context(),
+                                              router_id, edge_id, dist=dist)
             return
 
         availability_zone = self._availability_zones.get_availability_zone(
@@ -821,9 +823,9 @@ class EdgeManager(object):
                 context.session, router_id,
                 status=constants.PENDING_DELETE)
             # delete edge
-            self._get_worker_pool().spawn_n(
-                self.nsxv_manager.delete_edge, q_context.get_admin_context(),
-                router_id, edge_id, dist=dist)
+            with locking.LockManager.get_lock(str(edge_id)):
+                self.nsxv_manager.delete_edge(q_context.get_admin_context(),
+                                              router_id, edge_id, dist=dist)
 
     def _allocate_dhcp_edge_appliance(self, context, resource_id,
                                       availability_zone):
@@ -2166,9 +2168,10 @@ def delete_lrouter(nsxv_manager, context, router_id, dist=False):
         nsxv_db.update_nsxv_router_binding(
             context.session, router_id,
             status=constants.PENDING_DELETE)
-        edge_id = binding['edge_id']
         # delete edge
-        nsxv_manager.delete_edge(context, router_id, edge_id, dist=dist)
+        edge_id = binding['edge_id']
+        with locking.LockManager.get_lock(str(edge_id)):
+            nsxv_manager.delete_edge(context, router_id, edge_id, dist=dist)
     else:
         LOG.warning("router binding for router: %s not found", router_id)
 
