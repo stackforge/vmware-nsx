@@ -19,6 +19,7 @@ import webob.exc
 from oslo_utils import uuidutils
 
 from neutron.api.v2 import attributes
+from neutron.common import utils
 from neutron.db import api as db_api
 from neutron.db import db_base_plugin_v2
 from neutron.db import securitygroups_db
@@ -131,7 +132,8 @@ class TestNSXv3ExtendedSGRule(test_nsxv3_plugin.NsxV3PluginTestCaseMixin,
              'port_range_min': None,
              'local_ip_prefix': '239.255.0.0/16',
              'ethertype': 'IPv4',
-             'protocol': u'udp', 'remote_ip_prefix': '10.0.0.0/24',
+             'protocol': u'udp',
+             'remote_ip_prefix': utils.AuthenticIPNetwork('10.0.0.0/24'),
              'port_range_max': None,
              'security_group_id': mock.ANY,
              'remote_group_id': None, 'direction': u'ingress',
