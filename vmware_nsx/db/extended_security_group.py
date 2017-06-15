@@ -24,6 +24,7 @@ from neutron.db import _resource_extend as resource_extend
 from neutron.db import api as db_api
 from neutron.db.models import securitygroup as securitygroups_db
 from neutron.extensions import securitygroup as ext_sg
+from neutron.objects import securitygroup as sg_obj
 from neutron_lib.api.definitions import port as port_def
 from neutron_lib.api import validators
 from neutron_lib.callbacks import events
@@ -96,19 +97,16 @@ class ExtendedSecurityGroupPropertiesMixin(object):
         if not default_sg:
             self._ensure_default_security_group(context, tenant_id)
 
-        with db_api.autonested_transaction(context.session):
-            security_group_db = securitygroups_db.SecurityGroup(
-                id=s.get('id') or (uuidutils.generate_uuid()),
-                description=s.get('description', ''),
-                tenant_id=tenant_id,
-                name=s.get('name', ''))
-            context.session.add(security_group_db)
-            if default_sg:
-                context.session.add(securitygroups_db.DefaultSecurityGroup(
-                    security_group=security_group_db,
-                    tenant_id=tenant_id))
+        with db_api.context_manager.writer.using(context):
+            sg = sg_obj.SecurityGroup(
+                context, id=s.get('id') or uuidutils.generate_uuid(),
+                description=s.get('description', ''), project_id=tenant_id,
+                name=s.get('name', ''), is_default=default_sg)
+            sg.create()
 
-        secgroup_dict = self._make_security_group_dict(security_group_db)
+        # fetch sg from db to load the sg rules with sg model.
+        sg = sg_obj.SecurityGroup.get_object(context, id=sg.id)
+        secgroup_dict = self._make_security_group_dict(sg)
         secgroup_dict[sg_policy.POLICY] = s.get(sg_policy.POLICY)
         secgroup_dict[provider_sg.PROVIDER] = is_provider
         kwargs['security_group'] = secgroup_dict
@@ -349,10 +347,10 @@ class ExtendedSecurityGroupPropertiesMixin(object):
     @staticmethod
     @resource_extend.extends([ext_sg.SECURITYGROUPS])
     def _extend_security_group_with_properties(sg_res, sg_db):
-        if sg_db.ext_properties:
-            sg_res[sg_logging.LOGGING] = sg_db.ext_properties.logging
-            sg_res[provider_sg.PROVIDER] = sg_db.ext_properties.provider
-            sg_res[sg_policy.POLICY] = sg_db.ext_properties.policy
+        if sg_db.db_obj.ext_properties:
+            sg_res[sg_logging.LOGGING] = sg_db.db_obj.ext_properties.logging
+            sg_res[provider_sg.PROVIDER] = sg_db.db_obj.ext_properties.provider
+            sg_res[sg_policy.POLICY] = sg_db.db_obj.ext_properties.policy
 
     @staticmethod
     @resource_extend.extends([port_def.COLLECTION_NAME])

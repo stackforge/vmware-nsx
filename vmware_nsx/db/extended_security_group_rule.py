@@ -85,8 +85,8 @@ class ExtendedSecurityGroupRuleMixin(object):
     @staticmethod
     @resource_extend.extends([ext_sg.SECURITYGROUPRULES])
     def _extend_security_group_rule_with_params(sg_rule_res, sg_rule_db):
-        if sg_rule_db.ext_properties:
+        if sg_rule_db.db_obj.ext_properties:
             sg_rule_res[ext_local_ip.LOCAL_IP_PREFIX] = (
-                sg_rule_db.ext_properties.local_ip_prefix)
+                sg_rule_db.db_obj.ext_properties.local_ip_prefix)
         else:
             sg_rule_res[ext_local_ip.LOCAL_IP_PREFIX] = None
