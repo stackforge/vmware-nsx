@@ -184,7 +184,7 @@ class Vcns(object):
         return self.do_request(HTTP_GET, uri, decode="True")
 
     def delete_edge(self, edge_id):
-        uri = "%s/%s" % (URI_PREFIX, edge_id)
+        uri = "%s/%s?async=true" % (URI_PREFIX, edge_id)
         return self.do_request(HTTP_DELETE, uri)
 
     def add_vdr_internal_interface(self, edge_id, interface):
