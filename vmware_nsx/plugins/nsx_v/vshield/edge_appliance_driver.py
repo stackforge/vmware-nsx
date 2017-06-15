@@ -17,6 +17,7 @@ import random
 import time
 
 from neutron_lib import constants as lib_const
+from neutron_lib import context as q_context
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
@@ -25,6 +26,7 @@ from sqlalchemy.orm import exc as sa_exc
 
 from vmware_nsx._i18n import _
 from vmware_nsx.common import exceptions as nsxv_exc
+from vmware_nsx.common import locking
 from vmware_nsx.common import nsxv_constants
 from vmware_nsx.common import utils
 from vmware_nsx.db import nsxv_db
@@ -530,16 +532,22 @@ class EdgeApplianceDriver(object):
             LOG.error("Failed to resize edge: %s", e.response)
 
     def delete_edge(self, context, router_id, edge_id, dist=False):
+        LOG.debug("deleting edge %s", edge_id)
+        if context is None:
+            context = q_context.get_admin_context()
         try:
+            LOG.debug("Deleting router binding %s", router_id)
             nsxv_db.delete_nsxv_router_binding(context.session, router_id)
             if not dist:
+                LOG.debug("Deleting ivnic bindins for edge %s", edge_id)
                 nsxv_db.clean_edge_vnic_binding(context.session, edge_id)
         except sa_exc.NoResultFound:
             LOG.warning("Router Binding for %s not found", router_id)
 
         if edge_id:
             try:
-                self.vcns.delete_edge(edge_id)
+                with locking.LockManager.get_lock(str(edge_id)):
+                    self.vcns.delete_edge(edge_id)
                 return True
             except exceptions.ResourceNotFound:
                 return True
