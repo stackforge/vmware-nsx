@@ -3872,17 +3872,16 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         sg_id = sg_data["id"] = str(uuid.uuid4())
         self._validate_security_group(context, sg_data, default_sg)
 
-        with db_api.context_manager.writer.using(context):
-            is_provider = True if sg_data.get(provider_sg.PROVIDER) else False
-            is_policy = True if sg_data.get(sg_policy.POLICY) else False
-            if is_provider or is_policy:
-                new_sg = self.create_security_group_without_rules(
-                    context, security_group, default_sg, is_provider)
-            else:
-                new_sg = super(NsxVPluginV2, self).create_security_group(
-                    context, security_group, default_sg)
-            self._process_security_group_properties_create(
-                context, new_sg, sg_data, default_sg)
+        is_provider = True if sg_data.get(provider_sg.PROVIDER) else False
+        is_policy = True if sg_data.get(sg_policy.POLICY) else False
+        if is_provider or is_policy:
+            new_sg = self.create_security_group_without_rules(
+                context, security_group, default_sg, is_provider)
+        else:
+            new_sg = super(NsxVPluginV2, self).create_security_group(
+                context, security_group, default_sg)
+        self._process_security_group_properties_create(
+            context, new_sg, sg_data, default_sg)
         try:
             self._process_security_group_create_backend_resources(
                 context, new_sg)
