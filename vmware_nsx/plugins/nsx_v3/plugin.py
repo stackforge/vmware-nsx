@@ -3483,6 +3483,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 if section_id:
                     self.nsxlib.firewall_section.delete(section_id)
         try:
+            # OVO changes did not return rules - so we need to read
+            secgroup_db = super(NsxV3Plugin, self).get_security_group(
+                    context, secgroup['id'])
             sg_rules = secgroup_db['security_group_rules']
             # skip if there are no rules in group. i.e provider case
             if sg_rules:

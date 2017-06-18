@@ -3884,6 +3884,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self._process_security_group_properties_create(
                 context, new_sg, sg_data, default_sg)
         try:
+            # OVO changes did not return rules - so we need to read
+            new_sg = super(NsxVPluginV2, self).get_security_group(
+                    context, sg_id)
             self._process_security_group_create_backend_resources(
                 context, new_sg)
         except Exception:
