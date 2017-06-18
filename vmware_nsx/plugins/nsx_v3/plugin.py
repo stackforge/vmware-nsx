@@ -3440,30 +3440,26 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         try:
             ns_group, firewall_section = (
                 self._create_security_group_backend_resources(secgroup))
-            # REVISIT(roeyc): Ideally, at this point we need not be under an
-            # open db transactions, however, unittests fail if omitting
-            # subtransactions=True.
-            with db_api.context_manager.writer.using(context):
-                # NOTE(arosen): a neutron security group be default adds rules
-                # that allow egress traffic. We do not want this behavior for
-                # provider security_groups
-                if secgroup.get(provider_sg.PROVIDER) is True:
-                    secgroup_db = self.create_provider_security_group(
-                        context, security_group)
-                else:
-                    secgroup_db = (
-                        super(NsxV3Plugin, self).create_security_group(
-                            context, security_group, default_sg))
+            # NOTE(arosen): a neutron security group be default adds rules
+            # that allow egress traffic. We do not want this behavior for
+            # provider security_groups
+            if secgroup.get(provider_sg.PROVIDER) is True:
+                secgroup_db = self.create_provider_security_group(
+                    context, security_group)
+            else:
+                secgroup_db = (
+                    super(NsxV3Plugin, self).create_security_group(
+                        context, security_group, default_sg))
 
-                nsx_db.save_sg_mappings(context,
-                                        secgroup_db['id'],
-                                        ns_group['id'],
-                                        firewall_section['id'])
+            nsx_db.save_sg_mappings(context,
+                                    secgroup_db['id'],
+                                    ns_group['id'],
+                                    firewall_section['id'])
 
-                self._process_security_group_properties_create(context,
-                                                               secgroup_db,
-                                                               secgroup,
-                                                               default_sg)
+            self._process_security_group_properties_create(context,
+                                                           secgroup_db,
+                                                           secgroup,
+                                                           default_sg)
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.exception("Unable to create security-group on the "
