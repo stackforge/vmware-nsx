@@ -138,6 +138,7 @@ class TestQosNsxV3Notification(base.BaseQosTestCase,
                         tags=expected_tags
                     )
 
+    # DEBUG ADIT - add test for ingress too
     @mock.patch.object(policy_object.QosPolicy, '_reload_rules')
     def test_bw_rule_create_profile(self, *mocks):
         # test the switch profile update when a QoS BW rule is created
@@ -149,7 +150,7 @@ class TestQosNsxV3Notification(base.BaseQosTestCase,
             return_value=_policy):
             with mock.patch(
                 'vmware_nsxlib.v3.core_resources.NsxLibQosSwitchingProfile.'
-                'update_shaping'
+                'set_profile_shaping'
             ) as update_profile:
                 with mock.patch('neutron.objects.db.api.update_object',
                     return_value=self.rule_data):
@@ -164,12 +165,16 @@ class TestQosNsxV3Notification(base.BaseQosTestCase,
                     expected_peak = int(expected_bw * self.peak_bw_multiplier)
                     update_profile.assert_called_once_with(
                         self.fake_profile_id,
-                        average_bandwidth=expected_bw,
-                        burst_size=expected_burst,
-                        peak_bandwidth=expected_peak,
-                        shaping_enabled=True,
-                        qos_marking='trusted',
-                        dscp=0
+                        ingress_bw_enabled=True,
+                        ingress_burst_size=expected_burst,
+                        ingress_peak_bandwidth=expected_peak,
+                        ingress_average_bandwidth=expected_bw,
+                        egress_bw_enabled=False,
+                        egress_burst_size=None,
+                        egress_peak_bandwidth=None,
+                        egress_average_bandwidth=None,
+                        dscp=0,
+                        qos_marking='trusted'
                     )
 
     @mock.patch.object(policy_object.QosPolicy, '_reload_rules')
@@ -233,7 +238,7 @@ class TestQosNsxV3Notification(base.BaseQosTestCase,
             return_value=_policy):
             with mock.patch(
                 'vmware_nsxlib.v3.core_resources.NsxLibQosSwitchingProfile.'
-                'update_shaping'
+                'set_profile_shaping'
             ) as update_profile:
                 with mock.patch('neutron.objects.db.api.'
                     'update_object', return_value=self.dscp_rule_data):
@@ -246,12 +251,16 @@ class TestQosNsxV3Notification(base.BaseQosTestCase,
                     dscp_mark = rule_dict['dscp_mark']
                     update_profile.assert_called_once_with(
                         self.fake_profile_id,
-                        average_bandwidth=None,
-                        burst_size=None,
-                        peak_bandwidth=None,
-                        shaping_enabled=False,
-                        qos_marking='untrusted',
-                        dscp=dscp_mark
+                        ingress_bw_enabled=False,
+                        ingress_burst_size=None,
+                        ingress_peak_bandwidth=None,
+                        ingress_average_bandwidth=None,
+                        egress_bw_enabled=False,
+                        egress_burst_size=None,
+                        egress_peak_bandwidth=None,
+                        egress_average_bandwidth=None,
+                        dscp=dscp_mark,
+                        qos_marking='untrusted'
                     )
 
     def test_rule_delete_profile(self):
@@ -264,7 +273,7 @@ class TestQosNsxV3Notification(base.BaseQosTestCase,
             return_value=_policy):
             with mock.patch(
                 'vmware_nsxlib.v3.core_resources.NsxLibQosSwitchingProfile.'
-                'update_shaping'
+                'set_profile_shaping'
             ) as update_profile:
                 setattr(_policy, "rules", [self.rule])
                 self.qos_plugin.delete_policy_bandwidth_limit_rule(
@@ -272,11 +281,15 @@ class TestQosNsxV3Notification(base.BaseQosTestCase,
                 # validate the data on the profile
                 update_profile.assert_called_once_with(
                     self.fake_profile_id,
-                    shaping_enabled=False,
-                    average_bandwidth=None,
-                    burst_size=None,
+                    ingress_bw_enabled=False,
+                    ingress_burst_size=None,
+                    ingress_peak_bandwidth=None,
+                    ingress_average_bandwidth=None,
+                    egress_bw_enabled=False,
+                    egress_burst_size=None,
+                    egress_peak_bandwidth=None,
+                    egress_average_bandwidth=None,
                     dscp=0,
-                    peak_bandwidth=None,
                     qos_marking='trusted'
                 )
 
