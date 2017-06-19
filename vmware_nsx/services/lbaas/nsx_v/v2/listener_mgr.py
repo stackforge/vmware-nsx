@@ -30,6 +30,7 @@ LOG = logging.getLogger(__name__)
 
 
 def listener_to_edge_app_profile(listener, edge_cert_id):
+    LOG.error("DEBUG ADIT listener_to_edge_app_profile start")
     edge_app_profile = {
         'insertXForwardedFor': False,
         'name': listener.id,
@@ -68,7 +69,7 @@ def listener_to_edge_app_profile(listener, edge_cert_id):
                     'cookieMode': lb_const.SESSION_PERSISTENCE_COOKIE_MAP[
                         sess_persist_type]})
 
-                edge_app_profile['persistence'] = persistence
+            edge_app_profile['persistence'] = persistence
 
     return edge_app_profile
 
