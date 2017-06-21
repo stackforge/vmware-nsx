@@ -1954,6 +1954,12 @@ class TestSubnetPoolsV2(NsxVPluginV2TestCase, test_plugin.TestSubnetsV2):
     def test_create_subnet_V6_pd_slaac(self):
         self.skipTest('No DHCP v6 Support yet')
 
+    def test_create_subnet_ipv6_slaac_with_ip_already_allocated(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_dhcpv6_stateless_with_ip_already_allocated(self):
+        self.skipTest('No DHCP v6 Support yet')
+
     def test_create_subnet_dhcpv6_stateless_with_port_on_network(self):
         self.skipTest('Not supported')
 
