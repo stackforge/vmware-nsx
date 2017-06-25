@@ -379,8 +379,7 @@ def _update_host_group_for_edge(nsxv, cluster_mng, edge_id, edge):
             zones = nsx_az.NsxVAvailabilityZones()
             az = zones.get_availability_zone(az_name)
             edge_utils.update_edge_host_groups(nsxv, edge_id,
-                                               cluster_mng, az,
-                                               validate=True)
+                                               cluster_mng, az)
         except Exception as e:
             LOG.error("Failed to update edge %(id)s - %(e)s",
                       {'id': edge['id'],

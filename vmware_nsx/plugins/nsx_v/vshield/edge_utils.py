@@ -2602,20 +2602,18 @@ def update_edge_loglevel(vcns, edge_id, module, level):
                                                                 level))
 
 
-def update_edge_host_groups(vcns, edge_id, dvs, availability_zone,
-                            validate=False):
+def update_edge_host_groups(vcns, edge_id, dvs, availability_zone):
     # Update edge DRS host groups
     h, appliances = vcns.get_edge_appliances(edge_id)
     vms = [appliance['vmId']
            for appliance in appliances['appliances']]
-    if validate:
-        configured_vms = dvs.get_configured_vms(
-            availability_zone.resource_pool,
-            len(availability_zone.edge_host_groups))
-        for vm in vms:
-            if vm in configured_vms:
-                LOG.info('Edge %s already configured', edge_id)
-                return
+    configured_vms = dvs.get_configured_vms(
+        availability_zone.resource_pool,
+        len(availability_zone.edge_host_groups))
+    for vm in vms:
+        if vm in configured_vms:
+            LOG.info('Edge %s already configured', edge_id)
+            return
     LOG.info('Create DRS groups for %(vms)s on edge %(edge_id)s',
              {'vms': vms, 'edge_id': edge_id})
     # Ensure random distribution of the VMs
