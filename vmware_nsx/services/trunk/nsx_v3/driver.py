@@ -28,6 +28,7 @@ from vmware_nsx.common import nsx_constants as nsx_consts
 from vmware_nsx.common import utils as nsx_utils
 from vmware_nsx.db import db as nsx_db
 from vmware_nsxlib.v3 import exceptions as nsxlib_exc
+from vmware_nsxlib.v3 import nsx_constants
 from vmware_nsxlib.v3 import resources as nsx_resources
 
 LOG = logging.getLogger(__name__)
@@ -77,17 +78,22 @@ class NsxV3TrunkHandler(object):
             child_port)
         switching_profile_ids = self._build_switching_profile_ids(
             nsx_child_port.get('switching_profile_ids', []))
-        attachment_type = None
         seg_id = None
+        tags_update = []
+        attachment_type = nsx_constants.ATTACHMENT_VIF
         if parent_port_id:
             # Set properties for VLAN trunking
             if subport.segmentation_type == nsx_utils.NsxV3NetworkTypes.VLAN:
-                attachment_type = nsx_consts.ATTACHMENT_CIF
                 seg_id = subport.segmentation_id
+            tags_update.append({'scope': 'os-trunk-id',
+                                'tag': subport.trunk_id})
+            vif_type = nsx_constants.VIF_TYPE_CHILD
         else:
             # Unset the parent port properties from child port
-            attachment_type = nsx_consts.ATTACHMENT_VIF
             seg_id = None
+            vif_type = None
+            tags_update.append({'scope': 'os-trunk-id',
+                                'tag': None})
         # Update logical port in the backend to set/unset parent port
         try:
             self.plugin_driver.nsxlib.logical_port.update(
@@ -99,7 +105,9 @@ class NsxV3TrunkHandler(object):
                 switch_profile_ids=switching_profile_ids,
                 attachment_type=attachment_type,
                 parent_vif_id=parent_port_id,
-                traffic_tag=seg_id)
+                vif_type=vif_type,
+                traffic_tag=seg_id,
+                tags_update=tags_update)
         except nsxlib_exc.ManagerError as e:
             with excutils.save_and_reraise_exception():
                 LOG.error("Unable to update subport for attachment "
@@ -118,6 +126,16 @@ class NsxV3TrunkHandler(object):
                 context=context, parent_port_id=None, subport=subport)
 
     def trunk_created(self, context, trunk):
+        # Retrieve the logical port ID based on the parent port's neutron ID
+        nsx_parent_port_id = nsx_db.get_nsx_switch_and_port_id(
+            session=context.session, neutron_id=trunk.port_id)[1]
+        tags_update = [{'scope': 'os-trunk-id',
+                        'tag': trunk.id}]
+        self.plugin_driver.nsxlib.logical_port.update(
+                nsx_parent_port_id,
+                vif_uuid=trunk.port_id,
+                vif_type=nsx_constants.VIF_TYPE_PARENT,
+                tags_update=tags_update)
         try:
             if trunk.sub_ports:
                 self._set_subports(context, trunk.port_id, trunk.sub_ports)
@@ -126,6 +144,16 @@ class NsxV3TrunkHandler(object):
             trunk.update(status=trunk_consts.ERROR_STATUS)
 
     def trunk_deleted(self, context, trunk):
+        # Retrieve the logical port ID based on the parent port's neutron ID
+        nsx_parent_port_id = nsx_db.get_nsx_switch_and_port_id(
+            session=context.session, neutron_id=trunk.port_id)[1]
+        tags_update = [{'scope': 'os-trunk-id',
+                        'tag': None}]
+        self.plugin_driver.nsxlib.logical_port.update(
+                nsx_parent_port_id,
+                vif_uuid=trunk.port_id,
+                vif_type=None,
+                tags_update=tags_update)
         self._unset_subports(context, trunk.sub_ports)
 
     def subports_added(self, context, trunk, subports):
