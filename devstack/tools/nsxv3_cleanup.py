@@ -229,15 +229,10 @@ class NSXClient(object):
             if response.status_code != requests.codes.ok:
                 print("ERROR: Failed to update lport %s" % p['id'])
 
-    def cleanup_os_logical_ports(self):
-        """
-        Delete all logical ports created by OpenStack
-        """
-        os_lports = self.get_os_logical_ports()
-        print("Number of OS Logical Ports to be deleted: %s" % len(os_lports))
+    def _cleanup_os_logical_ports(self, lports):
         # logical port vif detachment
-        self.update_logical_port_attachment(os_lports)
-        for p in os_lports:
+        self.update_logical_port_attachment(lports)
+        for p in lports:
             endpoint = '/logical-ports/%s' % p['id']
             response = self.delete(endpoint=endpoint)
             if response.status_code == requests.codes.ok:
@@ -245,6 +240,14 @@ class NSXClient(object):
             else:
                 print("ERROR: Failed to delete lport %s, response code %s" %
                       (p['id'], response.status_code))
+
+    def cleanup_os_logical_ports(self):
+        """
+        Delete all logical ports created by OpenStack
+        """
+        os_lports = self.get_os_logical_ports()
+        print("Number of OS Logical Ports to be deleted: %s" % len(os_lports))
+        self._cleanup_os_logical_ports(os_lports)
 
     def get_os_resources(self, resources):
         """
@@ -289,6 +292,16 @@ class NSXClient(object):
         print("Number of OS Logical Switches to be deleted: %s" %
               len(lswitches))
         for ls in lswitches:
+            # Check if there are still ports on switch and blow them away
+            # An example here is a metadata proxy port (this is not stored
+            # in the DB so we are unable to delete it when reading ports
+            # from the DB)
+            lports = self.get_lswitch_ports(ls)
+            if lports:
+                print("Number of orphan OS Logical Ports to be "
+                      "deleted: %s" % len(lports))
+                self._cleanup_os_logical_ports(lports)
+
             endpoint = '/logical-switches/%s' % ls['id']
             response = self.delete(endpoint=endpoint)
             if response.status_code == requests.codes.ok:
