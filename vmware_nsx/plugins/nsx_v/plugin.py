@@ -65,7 +65,6 @@ from neutron.db import portsecurity_db
 from neutron.db import quota_db  # noqa
 from neutron.db import securitygroups_db
 from neutron.db import vlantransparent_db
-from neutron.extensions import address_scope as ext_address_scope
 from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.extensions import availability_zone as az_ext
 from neutron.extensions import external_net as ext_net_extn
@@ -3285,11 +3284,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         intf_net_ids = list(set([port['network_id'] for port in intf_ports]))
         return intf_net_ids
 
-    def _get_router_interfaces(self, context, router_id):
-        port_filters = {'device_id': [router_id],
-                        'device_owner': [l3_db.DEVICE_OWNER_ROUTER_INTF]}
-        return self.get_ports(context, filters=port_filters)
-
     def _get_address_groups(self, context, router_id, network_id):
         address_groups = []
         ports = self._get_router_interface_ports_by_network(
@@ -3416,21 +3410,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             net_id = self.get_subnet(
                 context, subnet_id)['network_id']
         return net_id, subnet_id
-
-    def _validate_address_scope_for_router_interface(self, context, router_id,
-                                                     gw_network_id, subnet_id):
-        network = self.get_network(context, gw_network_id)
-        subnet = self.get_subnet(context, subnet_id)
-        address_scope = network.get(ext_address_scope.IPV4_ADDRESS_SCOPE)
-        if not address_scope:
-            return
-        if not subnet['subnetpool_id']:
-            raise nsx_exc.NsxRouterInterfaceDoesNotMatchAddressScope(
-                router_id=router_id, address_scope_id=address_scope)
-        subnetpool = self.get_subnetpool(context, subnet['subnetpool_id'])
-        if subnetpool.get('address_scope_id', '') != address_scope:
-            raise nsx_exc.NsxRouterInterfaceDoesNotMatchAddressScope(
-                router_id=router_id, address_scope_id=address_scope)
 
     def add_router_interface(self, context, router_id, interface_info):
         router = self.get_router(context, router_id)
