@@ -43,6 +43,7 @@ class EdgeFwaasDriver(fwaas_base.FwaasDriverBase):
     def __init__(self):
         LOG.debug("Loading FWaaS NsxVDriver.")
         super(EdgeFwaasDriver, self).__init__()
+        self.driver_name = FWAAS_DRIVER_NAME
 
     def should_apply_firewall_to_router(self, router_data):
         """Return True if the firewall rules should be added the router
@@ -61,13 +62,13 @@ class EdgeFwaasDriver(fwaas_base.FwaasDriverBase):
             LOG.error("Cannot apply firewall to shared router %s",
                       router_data['id'])
             raise exceptions.FirewallInternalDriverError(
-                driver=FWAAS_DRIVER_NAME)
+                driver=self.driver_name)
 
         if router_data.get('name', '').startswith('metadata_proxy_router'):
             LOG.error("Cannot apply firewall to the metadata proxy router %s",
                       router_data['id'])
             raise exceptions.FirewallInternalDriverError(
-                driver=FWAAS_DRIVER_NAME)
+                driver=self.driver_name)
 
         if not router_data.get('external_gateway_info'):
             LOG.info("Cannot apply firewall to router %s with no gateway",
@@ -152,7 +153,7 @@ class EdgeFwaasDriver(fwaas_base.FwaasDriverBase):
             LOG.error("Failed to update firewall %(fw)s on edge %(edge_id)s: "
                       "%(e)s", {'e': e, 'fw': fw_id, 'edge_id': edge_id})
             raise exceptions.FirewallInternalDriverError(
-                driver=FWAAS_DRIVER_NAME)
+                driver=self.driver_name)
 
     def _create_or_update_firewall(self, agent_mode, apply_list, firewall):
         # admin state down means default block rule firewall
