@@ -1245,7 +1245,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # Translate the QoS rule data into Nsx values
         qos_data = qos_utils.NsxVQosRule(
             context=context, qos_policy_id=qos_policy_id)
-
         # default dvs for this network
         az = self.get_network_az_by_net_id(context, net_id)
         az_dvs_id = az.dvs_id
