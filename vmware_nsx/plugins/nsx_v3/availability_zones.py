@@ -102,16 +102,34 @@ class NsxV3AvailabilityZone(common_az.ConfiguredAvailabilityZone):
             self._native_md_proxy_uuid = None
 
         if self.default_overlay_tz:
-            tz_id = nsxlib.transport_zone.get_id_by_name_or_id(
-                self.default_overlay_tz)
+            tz_id = None
+            if cfg.CONF.nsx_v3.search_objects_by_tags:
+                # Find the TZ by its tag
+                tz_id = nsxlib.get_id_by_resource_and_tag(
+                    'TransportZone AND transport_type:OVERLAY',
+                    cfg.CONF.nsx_v3.search_objects_scope,
+                    self.default_overlay_tz)
+            if not tz_id:
+                # Find the TZ by its name or id
+                tz_id = nsxlib.transport_zone.get_id_by_name_or_id(
+                    self.default_overlay_tz)
             self._default_overlay_tz_uuid = tz_id
         else:
             self._default_overlay_tz_uuid = None
 
         # Optional configurations (may be None)
         if self.default_vlan_tz:
-            tz_id = nsxlib.transport_zone.get_id_by_name_or_id(
-                self.default_vlan_tz)
+            tz_id = None
+            if cfg.CONF.nsx_v3.search_objects_by_tags:
+                # Find the TZ by its tag
+                tz_id = nsxlib.get_id_by_resource_and_tag(
+                    'TransportZone AND transport_type:VLAN',
+                    cfg.CONF.nsx_v3.search_objects_scope,
+                    self.default_vlan_tz)
+            if not tz_id:
+                # Find the TZ by its name or id
+                tz_id = nsxlib.transport_zone.get_id_by_name_or_id(
+                    self.default_vlan_tz)
             self._default_vlan_tz_uuid = tz_id
         else:
             self._default_vlan_tz_uuid = None
