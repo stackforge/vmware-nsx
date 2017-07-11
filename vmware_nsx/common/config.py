@@ -409,6 +409,10 @@ nsx_v3_opts = [
                       "that will be used to enable native metadata service. "
                       "It needs to be created in NSX before starting Neutron "
                       "with the NSX plugin.")),
+    cfg.StrOpt('dhcp_relay_service',
+               help=_("(Optional) This is the name or UUID of the NSX dhcp "
+                      "relay service that will be used to enable DHCP relay "
+                      "on router ports.")),
     cfg.BoolOpt('log_security_groups_blocked_traffic',
                 default=False,
                 help=_("(Optional) Indicates whether distributed-firewall "
@@ -792,6 +796,10 @@ nsxv3_az_opts = [
                       "transport zone that will be used for bridging between "
                       "Neutron networks, if no physical network has been "
                       "specified")),
+    cfg.StrOpt('dhcp_relay_service',
+               help=_("(Optional) This is the name or UUID of the NSX dhcp "
+                      "relay service that will be used to enable DHCP relay "
+                      "on router ports.")),
 ]
 
 # Register the configuration options
