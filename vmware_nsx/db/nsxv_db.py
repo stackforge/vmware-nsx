@@ -111,8 +111,13 @@ def get_nsxv_router_bindings(session, filters=None,
 
 def update_nsxv_router_binding(session, router_id, **kwargs):
     with session.begin(subtransactions=True):
-        binding = (session.query(nsxv_models.NsxvRouterBinding).
-                   filter_by(router_id=router_id).one())
+        try:
+            binding = (session.query(nsxv_models.NsxvRouterBinding).
+                       filter_by(router_id=router_id).one())
+        except exc.NoResultFound:
+            LOG.debug("Unable to update router binding %s. Already deleted",
+                      router_id)
+            return
         for key, value in six.iteritems(kwargs):
             binding[key] = value
     return binding
