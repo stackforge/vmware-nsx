@@ -10,6 +10,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import logging
+
 import six
 
 from keystoneauth1 import identity
@@ -17,6 +19,11 @@ from keystoneauth1 import session
 from neutronclient.common import exceptions as n_exc
 from neutronclient.v2_0 import client
 from oslo_utils import excutils
+
+from vmware_nsx._i18n import _LE, _LI, _LW
+
+logging.basicConfig(level=logging.INFO)
+LOG = logging.getLogger(__name__)
 
 
 class ApiReplayClient(object):
@@ -34,7 +41,14 @@ class ApiReplayClient(object):
                  dest_os_username, dest_os_user_domain_id,
                  dest_os_tenant_name, dest_os_tenant_domain_id,
                  dest_os_password, dest_os_auth_url,
-                 use_old_keystone):
+                 use_old_keystone, logfile):
+
+        if logfile:
+            f_handler = logging.FileHandler(logfile)
+            f_formatter = logging.Formatter(
+                '%(asctime)s %(levelname)s %(message)s')
+            f_handler.setFormatter(f_formatter)
+            LOG.addHandler(f_handler)
 
         # connect to both clients
         if use_old_keystone:
@@ -54,14 +68,22 @@ class ApiReplayClient(object):
                 password=source_os_password,
                 auth_url=source_os_auth_url)
 
-        self.dest_neutron = self.connect_to_client(
+        # DEBUG ADIT
+        self.dest_neutron = client.Client(
             username=dest_os_username,
-            user_domain_id=dest_os_user_domain_id,
             tenant_name=dest_os_tenant_name,
-            tenant_domain_id=dest_os_tenant_domain_id,
             password=dest_os_password,
             auth_url=dest_os_auth_url)
 
+        # self.dest_neutron = self.connect_to_client(
+        #     username=dest_os_username,
+        #     user_domain_id=dest_os_user_domain_id,
+        #     tenant_name=dest_os_tenant_name,
+        #     tenant_domain_id=dest_os_tenant_domain_id,
+        #     password=dest_os_password,
+        #     auth_url=dest_os_auth_url)
+
+        LOG.info(_LI("Starting NSX migration."))
         # Migrate all the objects
         self.migrate_security_groups()
         self.migrate_qos_policies()
@@ -69,6 +91,7 @@ class ApiReplayClient(object):
         self.migrate_networks_subnets_ports(routers_gw_info)
         self.migrate_floatingips()
         self.migrate_routers_routes(routers_routes)
+        LOG.info(_LI("NSX migration is Done."))
 
     def connect_to_client(self, username, user_domain_id,
                           tenant_name, tenant_domain_id,
@@ -155,11 +178,15 @@ class ApiReplayClient(object):
                 rule = self.dest_neutron.create_dscp_marking_rule(
                     pol_id, body={'dscp_marking_rule': body})
             else:
-                print("QoS rule type %s is not supported for policy %s" % (
-                    rule_type, pol_id))
-            print("created QoS policy %s rule %s " % (pol_id, rule))
+                LOG.info(_LI("QoS rule type %(type)s is not supported for "
+                             "policy %(pol)s"),
+                         {'type': rule_type, 'pol': pol_id})
+            LOG.info(_LI("created QoS policy %(pol)s rule %(rule)s"),
+                     {'pol': pol_id, 'rule': rule})
         except Exception as e:
-            print("Failed to create QoS rule for policy %s: %s" % (pol_id, e))
+            LOG.error(_LE("Failed to create QoS rule for policy %(pol)s: "
+                          "%(e)s"),
+                      {'pol': pol_id, 'e': e})
 
     def migrate_qos_policies(self):
         """Migrates QoS policies from source to dest neutron."""
@@ -170,7 +197,8 @@ class ApiReplayClient(object):
             dest_qos_pols = self.dest_neutron.list_qos_policies()['policies']
         except n_exc.NotFound:
             # QoS disabled on dest
-            print("QoS is disabled on destination: ignoring QoS policies")
+            LOG.info(_LI("QoS is disabled on destination: ignoring QoS "
+                         "policies"))
             self.dest_qos_support = False
             return
         self.dest_qos_support = True
@@ -201,12 +229,14 @@ class ApiReplayClient(object):
                     new_pol = self.dest_neutron.create_qos_policy(
                         body={'policy': body})
                 except Exception as e:
-                    print("Failed to create QoS policy %s: %s" % (
-                        pol['id'], e))
+                    LOG.error(_LE("Failed to create QoS policy %(pol)s: "
+                                  "%(e)s"),
+                              {'pol': pol['id'], 'e': e})
                     continue
-                print("Created QoS policy %s" % new_pol)
-                for qos_rule in qos_rules:
-                    self.migrate_qos_rule(new_pol['policy'], qos_rule)
+                else:
+                    LOG.info(_LI("Created QoS policy %s"), new_pol)
+                    for qos_rule in qos_rules:
+                        self.migrate_qos_rule(new_pol['policy'], qos_rule)
 
     def migrate_security_groups(self):
         """Migrates security groups from source to dest neutron."""
@@ -234,9 +264,8 @@ class ApiReplayClient(object):
                         try:
                             body = self.drop_fields(sg_rule, drop_sg_fields)
                             self.fix_description(body)
-                            print(
-                                self.dest_neutron.create_security_group_rule(
-                                    {'security_group_rule': body}))
+                            self.dest_neutron.create_security_group_rule(
+                                    {'security_group_rule': body})
                         except n_exc.Conflict:
                             # NOTE(arosen): when you create a default
                             # security group it is automatically populated
@@ -253,10 +282,11 @@ class ApiReplayClient(object):
                     self.fix_description(body)
                     new_sg = self.dest_neutron.create_security_group(
                         {'security_group': body})
-                    print("Created security-group %s" % new_sg)
+                    LOG.info(_LI("Created security-group %s"), new_sg)
                 except Exception as e:
-                    # TODO(arosen): improve exception handing here.
-                    print(e)
+                    LOG.error(_LE("Failed to create security group (%(sg)s): "
+                                  "%(e)s"),
+                              {'sg': new_sg, 'e': e})
 
                 # Note - policy security groups will have no rules, and will
                 # be created on the destination with the default rules only
@@ -266,7 +296,8 @@ class ApiReplayClient(object):
                         self.fix_description(body)
                         rule = self.dest_neutron.create_security_group_rule(
                             {'security_group_rule': body})
-                        print("created security group rule %s " % rule['id'])
+                        LOG.info(_LI("created security group rule %s"),
+                                 rule['id'])
                     except Exception:
                         # NOTE(arosen): when you create a default
                         # security group it is automatically populated
@@ -317,7 +348,7 @@ class ApiReplayClient(object):
                 self.fix_description(body)
                 new_router = (self.dest_neutron.create_router(
                     {'router': body}))
-                print("created router %s" % new_router)
+                LOG.info(_LI("created router %s"), new_router)
         return update_routes, gw_info
 
     def migrate_routers_routes(self, routers_routes):
@@ -325,7 +356,7 @@ class ApiReplayClient(object):
         for router_id, routes in six.iteritems(routers_routes):
             self.dest_neutron.update_router(router_id,
                 {'router': {'routes': routes}})
-            print("Added routes to router %s" % router_id)
+            LOG.info(_LI("Added routes to router %s"), router_id)
 
     def migrate_subnetpools(self):
         source_subnetpools = self.source_neutron.list_subnetpools()[
@@ -361,6 +392,12 @@ class ApiReplayClient(object):
                     'subnetpools']
         return subnetpools_map
 
+    def fix_port(self, body):
+        # remove allowed_address_pairs if empty:
+        if ('allowed_address_pairs' in body and
+            not body['allowed_address_pairs']):
+            del body['allowed_address_pairs']
+
     def fix_network(self, body, dest_default_public_net):
         # neutron doesn't like some fields being None even though its
         # what it returns to us.
@@ -392,12 +429,13 @@ class ApiReplayClient(object):
                         fields_reset = True
                     del body[field]
             if fields_reset:
-                print('Ignoring provider network fields while migrating '
-                      'external network ' + body['id'])
+                LOG.warning(_LW("Ignoring provider network fields while "
+                                "migrating external network %s"),
+                            body['id'])
             if body.get('is_default') and dest_default_public_net:
                 body['is_default'] = False
-                print('Public network ' + body['id'] +
-                      'was set to non default network')
+                LOG.warning(_LW("Public network %s was set to non default "
+                                "network"), body['id'])
 
     def migrate_networks_subnets_ports(self, routers_gw_info):
         """Migrates networks/ports/router-uplinks from src to dest neutron."""
@@ -417,7 +455,6 @@ class ApiReplayClient(object):
 
         drop_port_fields = self.basic_ignore_fields + [
             'status',
-            'port_security_enabled',
             'binding:vif_details',
             'binding:vif_type',
             'binding:host_id',
@@ -454,15 +491,16 @@ class ApiReplayClient(object):
                 try:
                     created_net = self.dest_neutron.create_network(
                         {'network': body})['network']
-                    print("Created network:  %s " % created_net)
+                    LOG.info(_LI("Created network: %s"), created_net)
                 except Exception as e:
                     # Print the network and exception to help debugging
                     with excutils.save_and_reraise_exception():
-                        print("Failed to create network: " + str(body))
-                        print("Source network: " + str(network))
+                        LOG.error(_LE("Failed to create network %s"), body)
+                        LOG.error(_LE("Source network: %s"), network)
                         raise e
 
-            created_subnet = None
+            subnets_map = {}
+            count_dhcp_subnet = 0
             for subnet_id in network['subnets']:
                 subnet = self.find_subnet_by_id(subnet_id, source_subnets)
                 body = self.drop_fields(subnet, drop_subnet_fields)
@@ -475,12 +513,23 @@ class ApiReplayClient(object):
                 if body.get('subnetpool_id'):
                     body['subnetpool_id'] = subnetpools_map.get(
                         body['subnetpool_id'])
+                if body['enable_dhcp']:
+                    count_dhcp_subnet = count_dhcp_subnet + 1
+                # disable dhcp on this subnet if there is already another
+                # subnet with DHCP as the v3 plugin supports only one
+                if count_dhcp_subnet > 1:
+                    body['enable_dhcp'] = False
+                    LOG.warning(_LW("Disabling DHCP for subnet on net %s: "
+                                    "Plugin doesn't support multiple subnets "
+                                    "with DHCP"),
+                                network['id'])
                 try:
                     created_subnet = self.dest_neutron.create_subnet(
                         {'subnet': body})['subnet']
-                    print("Created subnet: " + created_subnet['id'])
+                    LOG.info(_LI("Created subnet: %s"), created_subnet['id'])
+                    subnets_map[subnet_id] = created_subnet['id']
                 except n_exc.BadRequest as e:
-                    print("Failed to create subnet: " + str(e))
+                    LOG.error(_LE("Failed to create subnet: %s"), e)
                     # NOTE(arosen): this occurs here if you run the script
                     # multiple times as we don't currently
                     # perserve the subnet_id. Also, 409 would be a better
@@ -492,11 +541,14 @@ class ApiReplayClient(object):
 
                 body = self.drop_fields(port, drop_port_fields)
                 self.fix_description(body)
+                self.fix_port(body)
 
                 # specify the network_id that we just created above
                 port['network_id'] = network['id']
 
-                # remove the subnet id field from fixed_ips dict
+                old_subnet_id = port['fixed_ips'][0]['subnet_id']
+                subnet_id = subnets_map.get(old_subnet_id)
+                # remove the old subnet id field from fixed_ips dict
                 for fixed_ips in body['fixed_ips']:
                     del fixed_ips['subnet_id']
 
@@ -517,7 +569,7 @@ class ApiReplayClient(object):
                                  "external_fixed_ips": port.get('fixed_ips')}}
                         router_uplink = self.dest_neutron.update_router(
                             router_id, {'router': rtr_body})
-                        print("Uplinked router %s" % router_uplink)
+                        LOG.info(_LI("Uplinked router %s"), router_uplink)
                         continue
 
                     # Let the neutron dhcp-agent recreate this on its own
@@ -529,7 +581,7 @@ class ApiReplayClient(object):
                         continue
 
                     if (port['device_owner'] == 'network:router_interface' and
-                        created_subnet is not None):
+                        subnet_id):
                         try:
                             # uplink router_interface ports by creating the
                             # port, and attaching it to the router
@@ -541,13 +593,15 @@ class ApiReplayClient(object):
                             self.dest_neutron.add_interface_router(
                                 router_id,
                                 {'port_id': created_port['id']})
-                            print("Uplinked router %s to subnet %s" %
-                                  (router_id, created_subnet['id']))
-                            continue
+                            LOG.info(_LI("Uplinked router %(rtr)s to network "
+                                         "%(net)s"),
+                                     {'rtr': router_id, 'net': network['id']})
                         except Exception as e:
                             # NOTE(arosen): this occurs here if you run the
                             # script multiple times as we don't track this.
-                            print("Failed to add router interface: " + str(e))
+                            LOG.error(_LE("Failed to add router interface: "
+                                          "%s"), e)
+                        continue
 
                     try:
                         created_port = self.dest_neutron.create_port(
@@ -555,9 +609,14 @@ class ApiReplayClient(object):
                     except Exception as e:
                         # NOTE(arosen): this occurs here if you run the
                         # script multiple times as we don't track this.
-                        print("Failed to create port: " + str(e))
+                        LOG.error(_LE("Failed to create port (%(port)s) : "
+                                      "%(e)s"),
+                                  {'port': port, 'e': e})
                     else:
-                        print("Created port: " + created_port['id'])
+                        LOG.info(_LI("Created port %(port)s with IPs: "
+                                     "%(ips)s"),
+                                 {'port': created_port['id'],
+                                  'ips': created_port.get('fixed_ips')})
 
     def migrate_floatingips(self):
         """Migrates floatingips from source to dest neutron."""
@@ -574,7 +633,7 @@ class ApiReplayClient(object):
             body = self.drop_fields(source_fip, drop_fip_fields)
             try:
                 fip = self.dest_neutron.create_floatingip({'floatingip': body})
-                print("Created floatingip %s" % fip)
+                LOG.info(_LI("Created floatingip %s"), fip)
             except Exception as e:
-                print("Failed to create floating ip (%s) : %s" %
-                      (source_fip, str(e)))
+                LOG.error(_LE("Failed to create floating ip (%(fip)s): %(e)s"),
+                          {'fip': source_fip, 'e': e})
