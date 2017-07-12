@@ -62,6 +62,7 @@ class NsxSecurityGroupUtils(object):
                         source=None, destination=None, services=None,
                         flags=None, logged=False):
         """Helper method to create a nsx rule dict."""
+
         ruleTag = et.Element('rule')
         ruleTag.attrib['logged'] = 'true' if logged else 'false'
         nameTag = et.SubElement(ruleTag, 'name')
