@@ -450,7 +450,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                  {'name': 'ICMPv6 neighbor protocol for Security Groups',
                   'action': 'allow',
                   'services': [('58', None, '135', None),
-                               ('58', None, '136', None)]}]
+                               ('58', None, '136', None)]},
+                 {'name': 'DHCP6 client and server',
+                  'action': 'allow',
+                  'services': [('17', '546', None, None),
+                               ('17', '547', None, None)],
+                  'destination': [{'type': 'Ipv6Address',
+                                   'value': 'FF02::1:2'},
+                                  {'type': 'Ipv6Address',
+                                   'value': 'FF05::1:3'}]}]
 
         if cfg.CONF.nsxv.cluster_moid:
             applied_to_ids = cfg.CONF.nsxv.cluster_moid
@@ -462,8 +470,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         rule_list = []
         for rule in rules:
             rule_config = self.nsx_sg_utils.get_rule_config(
-                applied_to_ids, rule['name'], rule['action'],
-                applied_to_type, services=rule['services'])
+                applied_to_ids, applied_to=applied_to_type, **rule)
             rule_list.append(rule_config)
 
         # Default security-group rules
@@ -4001,8 +4008,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         nsx_rule = self.nsx_sg_utils.get_rule_config(
             applied_to_ids=[nsx_sg_id],
             name=name,
-            source=src,
-            destination=dest,
+            source=[src],
+            destination=[dest],
             services=services,
             flags=flags,
             action=action,

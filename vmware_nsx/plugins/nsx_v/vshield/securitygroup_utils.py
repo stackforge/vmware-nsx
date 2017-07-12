@@ -62,6 +62,7 @@ class NsxSecurityGroupUtils(object):
                         source=None, destination=None, services=None,
                         flags=None, logged=False):
         """Helper method to create a nsx rule dict."""
+
         ruleTag = et.Element('rule')
         ruleTag.attrib['logged'] = 'true' if logged else 'false'
         nameTag = et.SubElement(ruleTag, 'name')
@@ -77,23 +78,25 @@ class NsxSecurityGroupUtils(object):
             apValueTag = et.SubElement(apTag, 'value')
             apValueTag.text = applied_to_id
 
-        if source is not None:
+        if source:
             sources = et.SubElement(ruleTag, 'sources')
-            sources.attrib['excluded'] = 'false'
-            srcTag = et.SubElement(sources, 'source')
-            srcTypeTag = et.SubElement(srcTag, 'type')
-            srcTypeTag.text = source['type']
-            srcValueTag = et.SubElement(srcTag, 'value')
-            srcValueTag.text = source['value']
+            for src in source:
+                sources.attrib['excluded'] = 'false'
+                srcTag = et.SubElement(sources, 'source')
+                srcTypeTag = et.SubElement(srcTag, 'type')
+                srcTypeTag.text = source['type']
+                srcValueTag = et.SubElement(srcTag, 'value')
+                srcValueTag.text = source['value']
 
-        if destination is not None:
-            dests = et.SubElement(ruleTag, 'destinations')
-            dests.attrib['excluded'] = 'false'
-            destTag = et.SubElement(dests, 'destination')
-            destTypeTag = et.SubElement(destTag, 'type')
-            destTypeTag.text = destination['type']
-            destValueTag = et.SubElement(destTag, 'value')
-            destValueTag.text = destination['value']
+        if destination:
+            dests = et.SubElement(ruleTag, 'sources')
+            for dest in destination:
+                dests.attrib['excluded'] = 'false'
+                destTag = et.SubElement(dests, 'destination')
+                destTypeTag = et.SubElement(destTag, 'type')
+                destTypeTag.text = dest['type']
+                destValueTag = et.SubElement(destTag, 'value')
+                destValueTag.text = dest['value']
 
         if services:
             s = et.SubElement(ruleTag, 'services')
