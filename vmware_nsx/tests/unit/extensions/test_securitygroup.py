@@ -135,8 +135,8 @@ class TestSecurityGroupsNoDynamicCriteria(test_nsxv3.NsxV3PluginTestCaseMixin,
                 res = self._create_port(self.fmt, net['network']['id'])
                 res_body = self.deserialize(self.fmt, res)
 
-        self.assertEqual(500, res.status_int)
-        self.assertEqual('SecurityGroupMaximumCapacityReached',
+        self.assertEqual(400, res.status_int)
+        self.assertEqual('HTTPBadRequest',
                          res_body['NeutronError']['type'])
 
     @_mock_create_and_list_nsgroups
@@ -161,8 +161,8 @@ class TestSecurityGroupsNoDynamicCriteria(test_nsxv3.NsxV3PluginTestCaseMixin,
                     res = req.get_response(self.api)
                     res_body = self.deserialize(self.fmt, res)
 
-        self.assertEqual(500, res.status_int)
-        self.assertEqual('SecurityGroupMaximumCapacityReached',
+        self.assertEqual(400, res.status_int)
+        self.assertEqual('HTTPBadRequest',
                          res_body['NeutronError']['type'])
 
         # Because the update has failed we excpect that the plugin will try to
