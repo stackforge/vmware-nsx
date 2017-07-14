@@ -1395,11 +1395,20 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if (cfg.CONF.nsx_v3.native_dhcp_metadata and
             updated_subnet['enable_dhcp']):
             kwargs = {}
-            for key in ('dns_nameservers', 'gateway_ip'):
+            for key in ('dns_nameservers', 'gateway_ip', 'host_routes'):
                 if key in subnet['subnet']:
                     value = subnet['subnet'][key]
                     if value != orig_subnet[key]:
                         kwargs[key] = value
+                        if key != 'dns_nameservers':
+                            kwargs['options'] = None
+            if 'options' in kwargs:
+                sr = self.nsxlib.native_dhcp.build_static_routes(
+                    updated_subnet.get('gateway_ip'),
+                    updated_subnet.get('cidr'),
+                    updated_subnet.get('host_routes', []))
+                kwargs['options'] = {'option121': {'static_routes': sr}}
+                kwargs.pop('host_routes', None)
             if kwargs:
                 dhcp_service = nsx_db.get_nsx_service_binding(
                     context.session, orig_subnet['network_id'],
