@@ -3353,11 +3353,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # Get FW rule/s to open subnets firewall flows and static routes
         # relative flows
         fw_rules = []
-        subnet_cidrs = self._find_router_subnets_cidrs(context, router['id'])
+        subnet_cidrs_per_ads = self._find_router_subnets_cidrs_per_addr_scope(
+          context, router['id'])
         routes = self._get_extra_routes_by_router_id(context, router['id'])
-        subnet_cidrs.extend([route['destination'] for route in routes])
-        #TODO(asarfaty): need a separate rule per address scope
-        if subnet_cidrs:
+        for subnet_cidrs in subnet_cidrs_per_ads:
+            # create a rule to allow east-west traffic between subnets on this
+            # address scope
+            # Also add the static routes to each address scope
+            subnet_cidrs.extend([route['destination'] for route in routes])
             subnet_fw_rule = {
                 'name': SUBNET_RULE_NAME,
                 'action': 'allow',
