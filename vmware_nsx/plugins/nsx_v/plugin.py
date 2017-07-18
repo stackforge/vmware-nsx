@@ -1749,6 +1749,13 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 port_security = self._get_network_security_binding(
                     context, neutron_db['network_id'])
                 port_data[psec.PORTSECURITY] = port_security
+                # In the event that port security is disabled and no
+                # security groups are configured we do not want the default
+                # security group to be configured
+                if (not port_security and
+                    not validators.is_attr_set(
+                        port_data.get(ext_sg.SECURITYGROUPS))):
+                    port_data[ext_sg.SECURITYGROUPS] = []
 
             self._process_port_port_security_create(
                 context, port_data, neutron_db)
