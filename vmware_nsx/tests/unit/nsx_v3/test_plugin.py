@@ -97,7 +97,8 @@ def _mock_nsx_backend_calls():
         side_effect=_return_id_key).start()
 
     mock.patch(
-        "vmware_nsxlib.v3.NsxLibBridgeCluster.get_id_by_name_or_id",
+        "vmware_nsxlib.v3.core_resources.NsxLibBridgeCluster"
+        ".get_id_by_name_or_id",
         return_value=uuidutils.generate_uuid()).start()
 
     mock.patch(
@@ -105,7 +106,7 @@ def _mock_nsx_backend_calls():
         return_value=uuidutils.generate_uuid()).start()
 
     mock.patch(
-        "vmware_nsxlib.v3.NsxLibBridgeEndpoint.create",
+        "vmware_nsxlib.v3.core_resources.NsxLibBridgeEndpoint.create",
         side_effect=_return_id_key).start()
 
     mock.patch(
@@ -113,15 +114,17 @@ def _mock_nsx_backend_calls():
     ).start()
 
     mock.patch(
-        "vmware_nsxlib.v3.NsxLibLogicalSwitch.create",
+        "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.create",
         side_effect=_return_id_key).start()
 
     mock.patch(
-        "vmware_nsxlib.v3.NsxLibDhcpProfile.get_id_by_name_or_id",
+        "vmware_nsxlib.v3.core_resources.NsxLibDhcpProfile"
+        ".get_id_by_name_or_id",
         return_value=NSX_DHCP_PROFILE_ID).start()
 
     mock.patch(
-        "vmware_nsxlib.v3.NsxLibMetadataProxy.get_id_by_name_or_id",
+        "vmware_nsxlib.v3.core_resources.NsxLibMetadataProxy"
+        ".get_id_by_name_or_id",
         return_value=NSX_METADATA_PROXY_ID).start()
 
     mock.patch(
