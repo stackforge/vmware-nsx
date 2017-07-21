@@ -1,0 +1,10 @@
+Verified+1: VMware NSX CI
+Code-Review+1: Deepthi Kandavara Jayarama <dkandavarajay@vmware.com>
+Code-Review+2: Devang Doshi <ddoshi@vmware.com>
+Workflow+1: Devang Doshi <ddoshi@vmware.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Fri, 21 Jul 2017 22:01:28 +0000
+Reviewed-on: https://review.openstack.org/486200
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
