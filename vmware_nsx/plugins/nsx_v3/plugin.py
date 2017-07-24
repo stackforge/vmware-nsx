@@ -195,6 +195,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self.nsxlib.reinitialize_cluster,
             resources.PROCESS, events.AFTER_INIT)
 
+        registry.subscribe(
+            self.subnetpool_address_scope_updated,
+            resources.SUBNETPOOL_ADDRESS_SCOPE, events.AFTER_UPDATE)
+
         self._nsx_version = self.nsxlib.get_version()
         LOG.info("NSX Version: %s", self._nsx_version)
 
@@ -2762,8 +2766,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # than the gw
             gw_address_scope = self._get_network_address_scope(
                 context, router.gw_port.network_id)
-            subnets = self._find_router_subnets_and_cidrs(context.elevated(),
-                                                          router_id)
+            subnets = self._find_router_subnets(context.elevated(),
+                                                router_id)
             for subnet in subnets:
                 self._add_subnet_snat_rule(context, router_id, nsx_router_id,
                                            subnet, gw_address_scope, newaddr)
@@ -2780,8 +2784,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # if the subnets address scope is the same as the gateways:
         # no need for SNAT
         if gw_address_scope:
-            subnet_address_scope = self._get_subnet_address_scope(
-                context, subnet['id'])
+            subnet_address_scope = self._get_subnetpool_address_scope(
+                context, subnet['subnetpool_id'])
             if (gw_address_scope == subnet_address_scope):
                 LOG.info("No need for SNAT rule for router %(router)s "
                          "and subnet %(subnet)s because they use the "
@@ -3668,3 +3672,74 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             else:
                 az_name = nsx_az.DEFAULT_NAME
             net_res[az_ext.AVAILABILITY_ZONES] = [az_name]
+
+    def on_router_address_scope_updated(self, context, router, subnets):
+        nsx_router_id = nsx_db.get_nsx_router_id(context.session,
+                                                 router['id'])
+
+        if not router['external_gateway_info']:
+            return
+        fip = router['external_gateway_info']['external_fixed_ips'][0]
+        ext_addr = fip['ip_address']
+        gw_address_scope = self._get_network_address_scope(
+            context, router['external_gateway_info']['network_id'])
+
+        # delete snat rules if exist
+        self._routerlib.delete_gw_snat_rules(nsx_router_id, ext_addr)
+
+        # add snat rules if needed
+        for subnet in subnets:
+            self._add_subnet_snat_rule(context, router['id'],
+                                       nsx_router_id, subnet,
+                                       gw_address_scope, ext_addr)
+
+    def _filter_subnets_by_subnetpool(self, subnets, subnetpool_id):
+        return [subnet for subnet in subnets
+                if subnet['subnetpool_id'] == subnetpool_id]
+
+    def subnetpool_address_scope_updated(self, resource, event,
+                                         trigger, **kwargs):
+        context = kwargs['context']
+
+        routers = self.get_routers(context)
+        subnetpool_id = kwargs['subnetpool_id']
+        for rtr in routers:
+            subnets = self._find_router_subnets(context.elevated(),
+                                                rtr['id'])
+            gw_subnets = self._find_router_gw_subnets(context.elevated(),
+                                                      rtr)
+
+            affected_subnets = self._filter_subnets_by_subnetpool(
+                subnets, subnetpool_id)
+            affected_gw_subnets = self._filter_subnets_by_subnetpool(
+                gw_subnets, subnetpool_id)
+
+            if not affected_subnets and not affected_gw_subnets:
+                # No subnets were affected by address scope change
+                continue
+
+            if (affected_subnets == subnets and
+                affected_gw_subnets == gw_subnets):
+                # All subnets remain under the same address scope
+                # (all router subnets were allocated from subnetpool_id)
+                continue
+
+            # TODO(annak): handle east-west FW rules
+            if not rtr['external_gateway_info']:
+                continue
+
+            if not rtr['external_gateway_info']['enable_snat']:
+                LOG.warning("Due to address scope change on subnetpool "
+                            "%(subnetpool)s, uniqueness on interface "
+                            "addresses on no-snat router %(router) is no "
+                            "longer guaranteed, which may result in faulty "
+                            "operation.")
+                continue
+
+            if affected_gw_subnets:
+                # GW address scope have changed - we need to revisit snat
+                # rules for all router interfaces
+                affected_subnets = subnets
+
+            self.on_router_address_scope_updated(context, rtr,
+                                                 affected_subnets)

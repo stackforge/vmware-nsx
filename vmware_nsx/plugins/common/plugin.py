@@ -108,6 +108,12 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
         subnetpool = self.get_subnetpool(context, subnet['subnetpool_id'])
         return subnetpool.get('address_scope_id', '')
 
+    def _get_subnetpool_address_scope(self, context, subnetpool_id):
+        if not subnetpool_id:
+            return
+        subnetpool = self.get_subnetpool(context, subnetpool_id)
+        return subnetpool.get('address_scope_id', '')
+
     # TODO(asarfaty): the NSX-V3 needs a very similar code too
     def _validate_address_scope_for_router_interface(self, context, router_id,
                                                      gw_network_id, subnet_id):
@@ -130,7 +136,7 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
 
     def _find_router_subnets_cidrs(self, context, router_id):
         """Retrieve cidrs of subnets attached to the specified router."""
-        subnets = self._find_router_subnets_and_cidrs(context, router_id)
+        subnets = self._find_router_subnets(context, router_id)
         return [subnet['cidr'] for subnet in subnets]
 
     def _find_router_subnets_cidrs_per_addr_scope(self, context, router_id):
@@ -140,10 +146,11 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
         return a list of lists of subnets cidrs belonging to same
         address pool.
         """
-        subnets = self._find_router_subnets_and_cidrs(context, router_id)
+        subnets = self._find_router_subnets(context, router_id)
         cidrs_map = {}
         for subnet in subnets:
-            ads = self._get_subnet_address_scope(context, subnet['id']) or ''
+            ads = self._get_subnetpool_address_scope(
+                context, subnet['subnetpool_id']) or ''
             if ads not in cidrs_map:
                 cidrs_map[ads] = []
             cidrs_map[ads].append(subnet['cidr'])
@@ -159,7 +166,7 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
             device_id=device_id,
             device_owner=device_owner,).all()
 
-    def _find_router_subnets_and_cidrs(self, context, router_id):
+    def _find_router_subnets(self, context, router_id):
         """Retrieve subnets attached to the specified router."""
         ports = self._get_port_by_device_id(context, router_id,
                                             l3_db.DEVICE_OWNER_ROUTER_INTF)
@@ -169,5 +176,18 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
             for ip in port.get('fixed_ips', []):
                 subnet_qry = context.session.query(models_v2.Subnet)
                 subnet = subnet_qry.filter_by(id=ip.subnet_id).one()
-                subnets.append({'id': subnet.id, 'cidr': subnet.cidr})
+                subnets.append({'id': subnet.id, 'cidr': subnet.cidr,
+                                'subnetpool_id': subnet.subnetpool_id})
+        return subnets
+
+    def _find_router_gw_subnets(self, context, router):
+        """Retrieve external subnets attached to router GW"""
+        if not router['external_gateway_info']:
+            return []
+
+        subnets = []
+        for fip in router['external_gateway_info']['external_fixed_ips']:
+            subnet = self.get_subnet(context, fip['subnet_id'])
+            subnets.append(subnet)
+
         return subnets
