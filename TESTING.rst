@@ -7,7 +7,7 @@ Overview
 The unit tests (vmware_nsx/tests/unit/) are meant to cover as much
 code as possible and should be executed without the service running. They
 are designed to test the various pieces of the neutron and VMware NSX tree
-to make sure any new changes don't break existing functionality.
+to make sure any new changes don't break existing functionality..
 
 Development process
 -------------------
