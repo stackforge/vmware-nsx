@@ -19,7 +19,7 @@ import netaddr
 import os
 import random
 import six
-from sqlalchemy import exc as db_base_exc
+from sqlalchemy.orm import exc as db_base_exc
 import time
 
 from oslo_config import cfg
