@@ -34,7 +34,7 @@ from oslo_utils import timeutils
 from oslo_utils import uuidutils
 import six
 from six import moves
-from sqlalchemy import exc as db_base_exc
+from sqlalchemy.orm import exc as db_base_exc
 
 from vmware_nsx._i18n import _
 from vmware_nsx.common import config as conf
