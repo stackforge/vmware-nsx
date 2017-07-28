@@ -39,6 +39,7 @@ from neutron.tests.unit.scheduler \
 
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.api.definitions import provider_net as pnet
+from neutron_lib.callbacks import exceptions as nc_exc
 from neutron_lib import constants
 from neutron_lib import context
 from neutron_lib import exceptions as n_exc
@@ -159,6 +160,10 @@ def _mock_nsx_backend_calls():
     mock.patch(
         "vmware_nsxlib.v3.NsxLib.get_version",
         return_value='1.1.0').start()
+
+    mock.patch(
+        "vmware_nsxlib.v3.load_balancer.Service.get_router_lb_service"
+    ).start()
 
 
 class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
@@ -645,6 +650,17 @@ class TestL3NatTestCase(L3NatTest,
 
     def test_floatingip_update_subnet_gateway_disabled(self):
         self.skipTest('not supported')
+
+    def test_router_delete_with_lb_service(self):
+        with self.router() as router:
+            with mock.patch('vmware_nsxlib.v3.load_balancer.Service.'
+                            'get_router_lb_service') as mock_get_router_lbs:
+                mock_get_router_lbs.return_value = {
+                    'id': uuidutils.generate_uuid()}
+            self.assertRaises(n_exc.BadRequest,
+                              self.plugin_instance.delete_router,
+                              context.get_admin_context(),
+                              router['router']['id'])
 
     def test_multiple_subnets_on_different_routers(self):
         with self.network() as network:
