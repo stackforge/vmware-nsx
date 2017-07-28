@@ -2806,6 +2806,19 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self.set_extra_attr_value(context, router_db,
                                           extra_attr, r[extra_attr])
 
+    def _check_lb_service_on_router(self, resource, event, trigger,
+                                    **kwargs):
+        """Check if there is any lb service on nsx router"""
+
+        nsx_router_id = nsx_db.get_nsx_router_id(kwargs['context'].session,
+                                                 kwargs['router_id'])
+        service_client = self.nsxlib.load_balancer.service
+        lb_service = service_client.get_router_lb_service(nsx_router_id)
+        if lb_service:
+            msg = _('Cannot delete router as it still has lb service '
+                    'attachment')
+            raise n_exc.BadRequest(resource='router-delete', msg=msg)
+
     def create_router(self, context, router):
         # TODO(berlin): admin_state_up support
         r = router['router']
@@ -2858,8 +2871,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return self.get_router(context, router['id'])
 
     def delete_router(self, context, router_id):
-        # TODO(tongl) Prevent router deletion if router still has load
-        # balancer attachment. Raise exception if router has lb attachment.
+        # Check if there is any LB attachment for the NSX router. Prevent
+        # router deletion if there is any.
+        registry.subscribe(self._check_lb_service_on_router,
+                           resources.ROUTER, events.BEFORE_DELETE)
         if not cfg.CONF.nsx_v3.native_dhcp_metadata:
             nsx_rpc.handle_router_metadata_access(self, context, router_id,
                                                   interface=None)
