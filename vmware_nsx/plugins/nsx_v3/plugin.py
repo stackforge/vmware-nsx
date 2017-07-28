@@ -16,6 +16,7 @@
 import netaddr
 from neutron_lib.api.definitions import network as net_def
 from neutron_lib.api.definitions import port_security as psec
+from neutron_lib.callbacks import exceptions as nc_exc
 from neutron_lib.exceptions import port_security as psec_exc
 from neutron_lib.services.qos import constants as qos_consts
 
@@ -245,6 +246,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self.start_rpc_listeners_called = False
 
         self._unsubscribe_callback_events()
+        # Subscribe neutron router delete callback
+        self._subscribe_router_delete_callback()
         if cfg.CONF.api_replay_mode:
             self.supported_extension_aliases.append('api-replay')
 
@@ -441,6 +444,26 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             l3_db.L3_NAT_dbonly_mixin._prevent_l3_port_delete_callback,
             resources.PORT,
             events.BEFORE_DELETE)
+
+    def _subscribe_router_delete_callback(self):
+        # Check if there is any LB attachment for the NSX router.
+        # This callback is subscribed here to prevent router deletion
+        # if it still has LB service attached to it.
+        registry.subscribe(self._check_lb_service_on_router,
+                           resources.ROUTER, events.BEFORE_DELETE)
+
+    def _check_lb_service_on_router(self, resource, event, trigger,
+                                    **kwargs):
+        """Check if there is any lb service on nsx router"""
+
+        nsx_router_id = nsx_db.get_nsx_router_id(kwargs['context'].session,
+                                                 kwargs['router_id'])
+        service_client = self.nsxlib.load_balancer.service
+        lb_service = service_client.get_router_lb_service(nsx_router_id)
+        if lb_service:
+            msg = _('Cannot delete router as it still has lb service '
+                    'attachment')
+            raise nc_exc.CallbackFailure(msg)
 
     def _validate_dhcp_profile(self, dhcp_profile_uuid):
         dhcp_profile = self.nsxlib.switching_profile.get(dhcp_profile_uuid)
@@ -2858,8 +2881,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return self.get_router(context, router['id'])
 
     def delete_router(self, context, router_id):
-        # TODO(tongl) Prevent router deletion if router still has load
-        # balancer attachment. Raise exception if router has lb attachment.
         if not cfg.CONF.nsx_v3.native_dhcp_metadata:
             nsx_rpc.handle_router_metadata_access(self, context, router_id,
                                                   interface=None)
