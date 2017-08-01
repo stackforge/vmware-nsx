@@ -2261,9 +2261,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         # checks if security groups were updated adding/modifying
         # security groups, port security is set and port has ip
+        provider_sgs_specified = validators.is_attr_set(
+            port['port'].get(provider_sg.PROVIDER_SECURITYGROUPS))
         if (validate_port_sec and
             not (has_ip and updated_port[psec.PORTSECURITY])):
-            if has_security_groups:
+            if has_security_groups or provider_sgs_specified:
                 raise psec_exc.PortSecurityAndIPRequiredForSecurityGroups()
             # Update did not have security groups passed in. Check
             # that port does not have any security groups already on it.
