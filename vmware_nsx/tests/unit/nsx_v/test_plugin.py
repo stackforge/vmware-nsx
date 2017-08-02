@@ -1496,29 +1496,58 @@ class TestPortsV2(NsxVPluginV2TestCase,
                             old_ip,
                             None, None)
 
-    def test_update_port_update_ip_address_only(self):
-        with self.subnet(enable_dhcp=False) as subnet:
-            ip_address = '10.0.0.2'
-            fixed_ip_data = [{'ip_address': ip_address,
-                              'subnet_id': subnet['subnet']['id']}]
-            with self.port(subnet=subnet, fixed_ips=fixed_ip_data) as port:
-                ips = port['port']['fixed_ips']
-                self.assertEqual(1, len(ips))
-                self.assertEqual(ip_address, ips[0]['ip_address'])
-                self.assertEqual(ips[0]['subnet_id'], subnet['subnet']['id'])
-                data = {'port': {'fixed_ips': [{'subnet_id':
-                                                subnet['subnet']['id'],
-                                                'ip_address': "10.0.0.10"},
-                                               {'ip_address': ip_address}]}}
+    def test_update_port_add_additional_ip(self):
+        """Test update of port with additional IP fails."""
+        with self.subnet() as subnet:
+            with self.port(subnet=subnet) as port:
+                data = {'port': {'admin_state_up': False,
+                                 'fixed_ips': [{'subnet_id':
+                                                subnet['subnet']['id']},
+                                               {'subnet_id':
+                                                subnet['subnet']['id']}]}}
                 req = self.new_update_request('ports', data,
                                               port['port']['id'])
-                res = self.deserialize(self.fmt, req.get_response(self.api))
-                ips = res['port']['fixed_ips']
-                self.assertEqual(2, len(ips))
-                self.assertIn({'ip_address': ip_address,
-                               'subnet_id': subnet['subnet']['id']}, ips)
-                self.assertIn({'ip_address': '10.0.0.10',
-                               'subnet_id': subnet['subnet']['id']}, ips)
+                res = req.get_response(self.api)
+                self.assertEqual(webob.exc.HTTPBadRequest.code,
+                                 res.status_int)
+
+    def test_create_port_additional_ip(self):
+        """Test that creation of port with additional IP fails."""
+        with self.subnet() as subnet:
+            data = {'port': {'network_id': subnet['subnet']['network_id'],
+                             'tenant_id': subnet['subnet']['tenant_id'],
+                             'fixed_ips': [{'subnet_id':
+                                            subnet['subnet']['id']},
+                                           {'subnet_id':
+                                            subnet['subnet']['id']}]}}
+            port_req = self.new_create_request('ports', data)
+            res = port_req.get_response(self.api)
+            self.assertEqual(webob.exc.HTTPBadRequest.code,
+                             res.status_int)
+
+    def test_update_port_update_ip_address_only(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_update_port_with_new_ipv6_slaac_subnet_in_fixed_ips(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_update_port_mac_v6_slaac(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_requested_subnet_id_v4_and_v6(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_requested_invalid_fixed_ips(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_requested_subnet_id_v4_and_v6_slaac(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_range_allocation(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_create_port_anticipating_allocation(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
 
     def test_update_dhcp_port_with_exceeding_fixed_ips(self):
         self.skipTest('Updating dhcp port IP is not supported')

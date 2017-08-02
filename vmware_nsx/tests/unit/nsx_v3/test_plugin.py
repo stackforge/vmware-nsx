@@ -502,6 +502,59 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
             networks = self.plugin.get_ports(ctx)
             self.assertListEqual([], networks)
 
+    def test_update_port_add_additional_ip(self):
+        """Test update of port with additional IP fails."""
+        with self.subnet() as subnet:
+            with self.port(subnet=subnet) as port:
+                data = {'port': {'admin_state_up': False,
+                                 'fixed_ips': [{'subnet_id':
+                                                subnet['subnet']['id']},
+                                               {'subnet_id':
+                                                subnet['subnet']['id']}]}}
+                req = self.new_update_request('ports', data,
+                                              port['port']['id'])
+                res = req.get_response(self.api)
+                self.assertEqual(exc.HTTPBadRequest.code,
+                                 res.status_int)
+
+    def test_create_port_additional_ip(self):
+        """Test that creation of port with additional IP fails."""
+        with self.subnet() as subnet:
+            data = {'port': {'network_id': subnet['subnet']['network_id'],
+                             'tenant_id': subnet['subnet']['tenant_id'],
+                             'fixed_ips': [{'subnet_id':
+                                            subnet['subnet']['id']},
+                                           {'subnet_id':
+                                            subnet['subnet']['id']}]}}
+            port_req = self.new_create_request('ports', data)
+            res = port_req.get_response(self.api)
+            self.assertEqual(exc.HTTPBadRequest.code,
+                             res.status_int)
+
+    def test_update_port_update_ip_address_only(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_update_port_with_new_ipv6_slaac_subnet_in_fixed_ips(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_update_port_mac_v6_slaac(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_requested_subnet_id_v4_and_v6(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_requested_invalid_fixed_ips(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_requested_subnet_id_v4_and_v6_slaac(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_range_allocation(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_create_port_anticipating_allocation(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
 
 class DHCPOptsTestCase(test_dhcpopts.TestExtraDhcpOpt,
                        NsxV3PluginTestCaseMixin):
