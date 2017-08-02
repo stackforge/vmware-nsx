@@ -2076,6 +2076,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         port_data = port['port']
         dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS)
         self._validate_extra_dhcp_options(dhcp_opts)
+        self._validate_max_ips_per_port(port_data.get('fixed_ips', []),
+                                        port_data.get('device_owner'))
 
         # TODO(salv-orlando): Undo logical switch creation on failure
         with db_api.context_manager.writer.using(context):
@@ -2495,6 +2497,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         with db_api.context_manager.writer.using(context):
             original_port = super(NsxV3Plugin, self).get_port(context, id)
+            port_data = port['port']
             nsx_lswitch_id, nsx_lport_id = nsx_db.get_nsx_switch_and_port_id(
                 context.session, id)
             is_external_net = self._network_is_external(
@@ -2503,23 +2506,26 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self._assert_on_external_net_with_compute(port['port'])
                 self._assert_on_external_net_port_with_qos(port['port'])
 
-            dhcp_opts = port['port'].get(ext_edo.EXTRADHCPOPTS)
+            dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS)
             self._validate_extra_dhcp_options(dhcp_opts)
 
-            device_owner = (port['port']['device_owner']
+            device_owner = (port_data['device_owner']
                             if 'device_owner' in port['port']
                             else original_port.get('device_owner'))
             self._assert_on_router_port_with_qos(
                 port['port'], device_owner)
 
+            self._validate_max_ips_per_port(
+                port_data.get('fixed_ips', []), device_owner)
+
             updated_port = super(NsxV3Plugin, self).update_port(context,
                                                                 id, port)
-            self._extension_manager.process_update_port(context, port['port'],
+            self._extension_manager.process_update_port(context, port_data,
                                                         updated_port)
             # copy values over - except fixed_ips as
             # they've already been processed
-            port['port'].pop('fixed_ips', None)
-            updated_port.update(port['port'])
+            port_data.pop('fixed_ips', None)
+            updated_port.update(port_data)
 
             updated_port = self._update_port_preprocess_security(
                 context, port, id, updated_port, validate_port_sec)
@@ -2535,7 +2541,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             (port_security, has_ip) = self._determine_port_security_and_has_ip(
                 context, updated_port)
             self._process_portbindings_create_and_update(
-                context, port['port'], updated_port)
+                context, port_data, updated_port)
             self._extend_nsx_port_dict_binding(context, updated_port)
             mac_learning_state = updated_port.get(mac_ext.MAC_LEARNING)
             if mac_learning_state is not None:
