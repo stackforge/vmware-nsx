@@ -174,8 +174,18 @@ class NSXvBgpDriver(object):
             int_ports = self._core_plugin.get_ports(context,
                                                     filters=filters,
                                                     fields=['fixed_ips'])
+            # We need to skip metadata subnets
+            binding = nsxv_db.get_nsxv_router_binding(context.session,
+                                                      router_id)
+            md_proxy = None
+            if binding:
+                az_name = binding['availability_zone']
+                md_proxy = self._core_plugin.get_metadata_proxy_handler(
+                    az_name)
             for p in int_ports:
                 subnet_id = p['fixed_ips'][0]['subnet_id']
+                if md_proxy and md_proxy.is_md_subnet(subnet_id):
+                    continue
                 subnet = self._core_plugin.get_subnet(context, subnet_id)
                 subnets.append({'id': subnet_id,
                                 'cidr': subnet['cidr']})
@@ -618,6 +628,15 @@ class NSXvBgpDriver(object):
         if not bgp_binding:
             return
 
+        # Need to ensure that we do not use the metadata IP's
+        router_binding = nsxv_db.get_nsxv_router_binding(context.session,
+                                                  router_id)
+        md_proxy = None
+        if router_binding:
+            az_name = router_binding['availability_zone']
+            md_proxy = self._core_plugin.get_metadata_proxy_handler(
+                az_name)
+
         routers_ids = (
             self._core_plugin.edge_manager.get_routers_on_same_edge(
                 context, router_id))
@@ -629,8 +648,11 @@ class NSXvBgpDriver(object):
         filters = {'device_owner': [n_const.DEVICE_OWNER_ROUTER_GW],
                    'device_id': routers_ids}
         edge_gw_ports = self._core_plugin.get_ports(context, filters=filters)
-        alt_bgp_identifiers = [p['fixed_ips'][0]['ip_address']
-                               for p in edge_gw_ports]
+        alt_bgp_identifiers = [
+            p['fixed_ips'][0]['ip_address'] for p in edge_gw_ports
+            if (not md_proxy or
+                not md_proxy.is_md_subnet(
+                    p['fixed_ips'][0]['subnet_id']))]
         if alt_bgp_identifiers:
             # Shared router, only remove prefixes and redistribution
             # rules.
