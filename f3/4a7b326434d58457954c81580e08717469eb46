@@ -1,0 +1,11 @@
+Verified+1: VMware NSX CI
+Code-Review+1: Tovin Seven <vinhnt@vn.fujitsu.com>
+Code-Review+2: Adit Sarfaty <asarfaty@vmware.com>
+Code-Review+2: Anna Khmelnitsky <akhmelnitsky@vmware.com>
+Workflow+1: Anna Khmelnitsky <akhmelnitsky@vmware.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 03 Aug 2017 21:10:53 +0000
+Reviewed-on: https://review.openstack.org/490065
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
