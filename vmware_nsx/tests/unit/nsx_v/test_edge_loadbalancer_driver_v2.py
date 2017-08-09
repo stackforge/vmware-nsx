@@ -494,6 +494,8 @@ class TestEdgeLbaasV2Member(BaseTestEdgeLbaasV2):
                                ) as mock_get_lb_binding, \
             mock.patch.object(nsxv_db, 'get_nsxv_lbaas_pool_binding'
                               ) as mock_get_pool_binding, \
+            mock.patch.object(nsxv_db, 'get_nsxv_router_binding_by_edge'
+                              ), \
             mock.patch.object(self.edge_driver.vcns, 'get_pool'
                               ) as mock_get_pool, \
             mock.patch.object(self.edge_driver.vcns, 'update_pool'
