@@ -278,3 +278,16 @@ def enable_edge_acceleration(vcns, edge_id):
         config['enabled'] = True
         config['featureType'] = 'loadbalancer_4.0'
         vcns.enable_service_loadbalancer(edge_id, config)
+
+
+def is_lb_on_router_edge(context, core_plugin, edge_id):
+    binding = nsxv_db.get_nsxv_router_binding_by_edge(
+        context.session, edge_id)
+    # verify that this is a router (and an exclusive one)
+    try:
+        router = core_plugin.get_router(context, binding['router_id'])
+        if router.get('router_type') == 'exclusive':
+            return True
+    except Exception:
+        pass
+    return False
