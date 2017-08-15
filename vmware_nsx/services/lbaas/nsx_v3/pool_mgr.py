@@ -128,10 +128,10 @@ class EdgePoolManager(base_mgr.Nsxv3LoadbalancerBaseManager):
                                   vs_id, vs_list)
                     service_client.update(lb_service_id,
                                           virtual_server_ids=vs_list)
+                    nsx_db.delete_nsx_lbaas_loadbalancer_binding(
+                        context.session, lb_id)
                     if not vs_list:
                         service_client.delete(lb_service_id)
-                        nsx_db.delete_nsx_lbaas_loadbalancer_binding(
-                            context.session, lb_id)
                 except nsxlib_exc.ManagerError:
                     self.lbv2_driver.pool.failed_completion(context, pool)
                     msg = (_('Failed to delete lb pool from nsx: %(pool)s') %
