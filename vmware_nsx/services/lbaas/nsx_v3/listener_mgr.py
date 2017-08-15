@@ -90,6 +90,7 @@ class EdgeListenerManager(base_mgr.Nsxv3LoadbalancerBaseManager):
     def delete(self, context, listener):
         lb_id = listener.loadbalancer_id
         load_balancer = self.core_plugin.nsxlib.load_balancer
+        service_client = load_balancer.service
         vs_client = load_balancer.virtual_server
         app_client = load_balancer.application_profile
 
@@ -98,6 +99,13 @@ class EdgeListenerManager(base_mgr.Nsxv3LoadbalancerBaseManager):
         if binding:
             vs_id = binding['lb_vs_id']
             app_profile_id = binding['app_profile_id']
+            lb_binding = nsx_db.get_nsx_lbaas_loadbalancer_binding(
+                context.session, lb_id)
+            if lb_binding:
+                lbs_id = lb_binding.get('lb_service_id')
+                lb_service = service_client.get(lbs_id)
+                if vs_id in lb_service.get('virtual_server_ids'):
+                    service_client.remove_virtual_server(lbs_id, vs_id)
             try:
                 if listener.default_pool_id:
                     vs_client.update(vs_id, pool_id='')
@@ -126,5 +134,6 @@ class EdgeListenerManager(base_mgr.Nsxv3LoadbalancerBaseManager):
                 raise n_exc.BadRequest(resource='lbaas-listener', msg=msg)
             nsx_db.delete_nsx_lbaas_listener_binding(
                 context.session, lb_id, listener.id)
+
         self.lbv2_driver.listener.successful_completion(
             context, listener, delete=True)
