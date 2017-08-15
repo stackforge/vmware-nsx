@@ -108,11 +108,11 @@ class EdgeMemberManager(base_mgr.Nsxv3LoadbalancerBaseManager):
                     lb_service = self._create_lb_service(
                         context, service_client, member.tenant_id,
                         router_id, nsx_router_id, loadbalancer.id, lb_size)
-                if lb_service:
-                    lb_service_id = lb_service['id']
                     nsx_db.add_nsx_lbaas_loadbalancer_binding(
                         context.session, loadbalancer.id, lb_service_id,
                         nsx_router_id, loadbalancer.vip_address)
+                if lb_service:
+                    lb_service_id = lb_service['id']
                     try:
                         service_client.add_virtual_server(lb_service_id, vs_id)
                     except nsxlib_exc.ManagerError:
