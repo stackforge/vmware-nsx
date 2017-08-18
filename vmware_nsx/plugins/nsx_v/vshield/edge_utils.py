@@ -1401,11 +1401,12 @@ class EdgeManager(object):
                                                      network_id)
         if dhcp_binding:
             edge_id = dhcp_binding['edge_id']
-            vnic_index = dhcp_binding['vnic_index']
-            tunnel_index = dhcp_binding['tunnel_index']
-            LOG.debug('Update the dhcp service for %s on vnic %d tunnel %d',
-                      edge_id, vnic_index, tunnel_index)
             with locking.LockManager.get_lock(str(edge_id)):
+                vnic_index = dhcp_binding['vnic_index']
+                tunnel_index = dhcp_binding['tunnel_index']
+                LOG.debug('Update the dhcp service for %s on vnic %d tunnel '
+                          '%d',
+                          edge_id, vnic_index, tunnel_index)
                 try:
                     self._update_dhcp_internal_interface(
                         context, edge_id, vnic_index, tunnel_index, network_id,
@@ -1451,16 +1452,16 @@ class EdgeManager(object):
                 context.session, edge_binding['edge_id'], network_id)
             if dhcp_binding:
                 edge_id = dhcp_binding['edge_id']
-                vnic_index = dhcp_binding['vnic_index']
-                tunnel_index = dhcp_binding['tunnel_index']
+                with locking.LockManager.get_lock(str(edge_id)):
+                    vnic_index = dhcp_binding['vnic_index']
+                    tunnel_index = dhcp_binding['tunnel_index']
 
-                LOG.debug("Delete the tunnel %d on vnic %d from DHCP Edge %s",
-                          tunnel_index, vnic_index, edge_id)
-                nsxv_db.free_edge_vnic_by_network(context.session,
-                                                  edge_id,
-                                                  network_id)
-                try:
-                    with locking.LockManager.get_lock(str(edge_id)):
+                    LOG.debug("Delete the tunnel %d on vnic %d from DHCP Edge "
+                              "%s", tunnel_index, vnic_index, edge_id)
+                    nsxv_db.free_edge_vnic_by_network(context.session,
+                                                      edge_id,
+                                                      network_id)
+                    try:
                         self._delete_dhcp_internal_interface(context, edge_id,
                                                              vnic_index,
                                                              tunnel_index,
