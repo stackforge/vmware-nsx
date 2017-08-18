@@ -1451,20 +1451,20 @@ class EdgeManager(object):
                 context.session, edge_binding['edge_id'], network_id)
             if dhcp_binding:
                 edge_id = dhcp_binding['edge_id']
-                vnic_index = dhcp_binding['vnic_index']
-                tunnel_index = dhcp_binding['tunnel_index']
+                with locking.LockManager.get_lock(str(edge_id)):
+                    vnic_index = dhcp_binding['vnic_index']
+                    tunnel_index = dhcp_binding['tunnel_index']
 
-                LOG.debug("Delete the tunnel %d on vnic %d from DHCP Edge %s",
-                          tunnel_index, vnic_index, edge_id)
-                nsxv_db.free_edge_vnic_by_network(context.session,
-                                                  edge_id,
-                                                  network_id)
+                    LOG.debug("Delete the tunnel %d on vnic %d from DHCP Edge "
+                              "%s", tunnel_index, vnic_index, edge_id)
+                    nsxv_db.free_edge_vnic_by_network(context.session,
+                                                      edge_id,
+                                                      network_id)
                 try:
-                    with locking.LockManager.get_lock(str(edge_id)):
-                        self._delete_dhcp_internal_interface(context, edge_id,
-                                                             vnic_index,
-                                                             tunnel_index,
-                                                             network_id)
+                    self._delete_dhcp_internal_interface(context, edge_id,
+                                                         vnic_index,
+                                                         tunnel_index,
+                                                         network_id)
                 except Exception:
                     with excutils.save_and_reraise_exception():
                         LOG.exception('Failed to delete the tunnel '
