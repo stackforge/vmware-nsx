@@ -655,6 +655,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         err_msg = None
         net_type = network_data.get(pnet.NETWORK_TYPE)
+        tz_type = self.nsxlib.transport_zone.TRANSPORT_TYPE_OVERLAY
         if validators.is_attr_set(net_type):
             if net_type == utils.NsxV3NetworkTypes.FLAT:
                 if vlan_id is not None:
@@ -666,10 +667,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     vlan_id = '0'
                     if physical_net is None:
                         physical_net = az._default_vlan_tz_uuid
+                    tz_type = self.nsxlib.transport_zone.TRANSPORT_TYPE_VLAN
             elif net_type == utils.NsxV3NetworkTypes.VLAN:
                 # Use default VLAN transport zone if physical network not given
                 if physical_net is None:
                     physical_net = az._default_vlan_tz_uuid
+                tz_type = self.nsxlib.transport_zone.TRANSPORT_TYPE_VLAN
 
                 # Validate VLAN id
                 if not vlan_id:
@@ -710,12 +713,26 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         else:
             net_type = None
 
-        if err_msg:
-            raise n_exc.InvalidInput(error_message=err_msg)
-
         if physical_net is None:
             # Default to transport type overlay
             physical_net = az._default_overlay_tz_uuid
+
+        # validate the transport zone existence and type
+        if is_provider_net and physical_net:
+            try:
+                backend_type = self.nsxlib.transport_zone.get_transport_type(
+                    physical_net)
+            except nsx_lib_exc.ResourceNotFound:
+                err_msg = (_('Transport zone %s does not exist') %
+                           physical_net)
+            else:
+                if backend_type != tz_type:
+                    err_msg = (_('%(tz)s transport zone is required for '
+                                 'creating a %(net)s provider network') %
+                               {'tz': tz_type, 'net': net_type})
+
+        if err_msg:
+            raise n_exc.InvalidInput(error_message=err_msg)
 
         return is_provider_net, net_type, physical_net, vlan_id
 
