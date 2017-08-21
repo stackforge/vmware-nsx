@@ -648,6 +648,10 @@ class EdgeManager(object):
 
         # The first DHCP service creation, not update
         if new_tunnel_creation:
+            # Need to ensure that the portgroup is not set if this is a
+            # virtualwire
+            if port_group_id and port_group_id.startswith('virtualwire'):
+                port_group_id = None
             network_name_item = [edge_id, str(vnic_index), str(tunnel_index)]
             network_name = ('-'.join(network_name_item) + _uuid())[:36]
             port_group_id, iface = self._create_sub_interface(
