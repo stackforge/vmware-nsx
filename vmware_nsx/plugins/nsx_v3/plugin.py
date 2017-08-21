@@ -95,7 +95,8 @@ from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.plugins.common import plugin as nsx_plugin_common
 from vmware_nsx.plugins.nsx_v3 import availability_zones as nsx_az
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
-from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks
+#from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks
+from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks_v2
 from vmware_nsx.services.lbaas.nsx_v3 import lb_driver_v2
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
@@ -274,7 +275,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def _init_fwaas(self):
         # Bind FWaaS callbacks to the driver
-        self.fwaas_callbacks = fwaas_callbacks.Nsxv3FwaasCallbacks(self.nsxlib)
+        # DEBUG ADIT - decide on the right one
+        #self.fwaas_callbacks_v1 = fwaas_callbacks.Nsxv3FwaasCallbacks(
+        #    self.nsxlib)
+        self.fwaas_callbacks_v2 = fwaas_callbacks_v2.Nsxv3FwaasCallbacksV2(
+            self.nsxlib)
 
     def _init_lbv2_driver(self):
         # Get LBaaSv2 driver during plugin initialization. If the platform
