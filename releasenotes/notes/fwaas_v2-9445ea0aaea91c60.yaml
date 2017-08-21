@@ -1,0 +1,6 @@
+---
+prelude: >
+    The NSX-v and NSX-v3 plugins supports FWaaS V2.
+features:
+    The NSX-v and NSX-v3 plugins now support FWaaS vw allowing to set a 
+    different firewall group policy on each router port.

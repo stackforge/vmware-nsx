@@ -95,7 +95,9 @@ from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.plugins.common import plugin as nsx_plugin_common
 from vmware_nsx.plugins.nsx_v3 import availability_zones as nsx_az
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
+from vmware_nsx.services.fwaas.common import utils as fwaas_utils
 from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks
+from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks_v2
 from vmware_nsx.services.lbaas.nsx_v3 import lb_driver_v2
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
@@ -273,8 +275,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                })
 
     def _init_fwaas(self):
-        # Bind FWaaS callbacks to the driver
-        self.fwaas_callbacks = fwaas_callbacks.Nsxv3FwaasCallbacks(self.nsxlib)
+        self.fwaas_callbacks_v1 = None
+        self.fwaas_callbacks_v2 = None
+        if fwaas_utils.is_fwaas_v1_plugin_enabled:
+            self.fwaas_callbacks_v1 = fwaas_callbacks.Nsxv3FwaasCallbacks(
+                self.nsxlib)
+        if fwaas_utils.is_fwaas_v2_plugin_enabled:
+            self.fwaas_callbacks_v2 = fwaas_callbacks_v2.Nsxv3FwaasCallbacksV2(
+                self.nsxlib)
 
     def _init_lbv2_driver(self):
         # Get LBaaSv2 driver during plugin initialization. If the platform
@@ -3115,6 +3123,44 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     for route in routes_removed:
                         self._routerlib.add_static_routes(nsx_router_id, route)
                 router_db['status'] = curr_status
+
+    def update_router_firewall(self, context, router_id):
+        """Rewrite all the rules in the router edge firewall
+
+        Currently only for FWaaS v2
+        This method should be called on FWaaS v2 updates, and on router
+        interfaces changes.
+        """
+        # make sure fwaas v2 is enabled
+        if not self.fwaas_callbacks_v2.fwaas_enabled:
+            return
+        fwaas_callbacks = self.fwaas_callbacks_v2
+        # find the backend router and its firewall section
+        nsx_id, sect_id = fwaas_callbacks.get_backend_router_and_fw_section(
+            context, router_id)
+
+        # find all the relevant ports of the router
+        # DEBUG ADIT add gw? add vm ports?
+        ports = self._get_router_interfaces(context, router_id)
+
+        fw_rules = []
+        for port in ports:
+            _net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
+                context.session, port['id'])
+
+            # add the rules for this port, only if it has an active fw
+            fwg = fwaas_callbacks.get_port_fwg(context, port['id'])
+            if fwg:
+                port_rules = fwaas_callbacks.get_port_rules(
+                    nsx_port_id, fwg)
+                fw_rules.extend(port_rules)
+
+        # add a default allow-all rule to all other traffic
+        fw_rules.append(fwaas_callbacks.get_default_allow_all_rule(
+            sect_id))
+
+        # update the backend
+        self.nsxlib.firewall_section.update(sect_id, rules=fw_rules)
 
     def _get_ports_and_address_groups(self, context, router_id, network_id,
                                       exclude_sub_ids=None):
