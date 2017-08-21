@@ -708,12 +708,14 @@ class NsxVMetadataProxyHandler(object):
             rtr_id,
             is_proxy=False)
 
-        edge_utils.update_internal_interface(
-            self.nsxv_plugin.nsx_v,
-            context,
-            rtr_id,
-            self.internal_net,
-            address_groups=address_groups)
+        edge_id = self._get_edge_id_by_rtr_id(context, rtr_id)
+        with locking.LockManager.get_lock(edge_id):
+            edge_utils.update_internal_interface(
+                self.nsxv_plugin.nsx_v,
+                context,
+                rtr_id,
+                self.internal_net,
+                address_groups=address_groups)
 
         self._setup_metadata_lb(rtr_id,
                                 METADATA_IP_ADDR,
