@@ -16,15 +16,20 @@
 import copy
 
 import mock
-from vmware_nsxlib.v3 import nsx_constants as consts
 
-from vmware_nsx.services.fwaas.nsx_v3 import edge_fwaas_driver
+from neutron_lib.plugins import directory
+
 from vmware_nsx.services.fwaas.nsx_v3 import edge_fwaas_driver_base
+from vmware_nsx.services.fwaas.nsx_v3 import edge_fwaas_driver_v2
+from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks_v2
 from vmware_nsx.tests.unit.nsx_v3 import test_plugin as test_v3_plugin
+from vmware_nsxlib.v3 import nsx_constants as consts
 
 FAKE_FW_ID = 'fake_fw_uuid'
 FAKE_ROUTER_ID = 'fake_rtr_uuid'
-MOCK_NSX_ID = 'nsx_router_id'
+FAKE_PORT_ID = 'fake_port_uuid'
+FAKE_NSX_PORT_ID = 'fake_nsx_port_uuid'
+MOCK_NSX_ID = 'nsx_nsx_router_id'
 MOCK_DEFAULT_RULE_ID = 'nsx_default_rule_id'
 MOCK_SECTION_ID = 'sec_id'
 DEFAULT_RULE = {'is_default': True,
@@ -36,7 +41,7 @@ DEFAULT_RULE = {'is_default': True,
 class Nsxv3FwaasTestCase(test_v3_plugin.NsxV3PluginTestCaseMixin):
     def setUp(self):
         super(Nsxv3FwaasTestCase, self).setUp()
-        self.firewall = edge_fwaas_driver.EdgeFwaasV3Driver()
+        self.firewall = edge_fwaas_driver_v2.EdgeFwaasV3DriverV2()
 
         # Start some nsxlib/DB mocks
         mock.patch(
@@ -53,12 +58,15 @@ class Nsxv3FwaasTestCase(test_v3_plugin.NsxV3PluginTestCaseMixin):
             "vmware_nsx.db.db.get_nsx_router_id",
             return_value=MOCK_NSX_ID).start()
 
-    def _default_rule(self, drop=True):
+        self.plugin = directory.get_plugin()
+        self.plugin.fwaas_callbacks_v2 = fwaas_callbacks_v2.\
+            Nsxv3FwaasCallbacksV2(self.plugin.nsxlib)
+        self.plugin.fwaas_callbacks_v2.fwaas_enabled = True
+        self.plugin.fwaas_callbacks_v2.fwaas_driver = self.firewall
+
+    def _default_rule(self):
         rule = DEFAULT_RULE
-        if drop:
-            rule['action'] = consts.FW_ACTION_DROP
-        else:
-            rule['action'] = consts.FW_ACTION_ALLOW
+        rule['action'] = consts.FW_ACTION_ALLOW
         return rule
 
     def _fake_rules_v4(self):
@@ -89,7 +97,8 @@ class Nsxv3FwaasTestCase(test_v3_plugin.NsxV3PluginTestCaseMixin):
                  'id': 'fake-fw-rule4'}
         return [rule1, rule2, rule3, rule4]
 
-    def _fake_translated_rules(self):
+    def _fake_translated_rules(self, nsx_port_id):
+        # DEBUG ADIT - support ingress too
         # The expected translation of the rules in _fake_rules_v4
         service1 = {'l4_protocol': 'TCP',
                     'resource_type': 'L4PortSetNSService',
@@ -122,115 +131,144 @@ class Nsxv3FwaasTestCase(test_v3_plugin.NsxV3PluginTestCaseMixin):
                               'target_type': 'IPv4Address'}],
                  'display_name': 'Fwaas-fake-fw-rule4'}
 
+        rule1['destinations'] = [{'target_id': nsx_port_id,
+                                  'target_type': 'LogicalPort'}]
+        rule2['destinations'] = rule1['destinations']
+        rule3['destinations'] = rule1['destinations']
+        rule4['destinations'] = rule1['destinations']
         return [rule1, rule2, rule3, rule4]
 
-    def _fake_firewall_no_rule(self):
-        rule_list = []
+    def _fake_empty_firewall_group(self):
         fw_inst = {'id': FAKE_FW_ID,
                    'admin_state_up': True,
                    'tenant_id': 'tenant-uuid',
-                   'firewall_rule_list': rule_list}
+                   'ingress_rule_list': [],
+                   'egress_rule_list': []}
         return fw_inst
 
-    def _fake_firewall(self, rule_list):
+    def _fake_firewall_group(self, rule_list):
         _rule_list = copy.deepcopy(rule_list)
         for rule in _rule_list:
             rule['position'] = str(_rule_list.index(rule))
         fw_inst = {'id': FAKE_FW_ID,
                    'admin_state_up': True,
                    'tenant_id': 'tenant-uuid',
-                   'firewall_rule_list': _rule_list}
+                   'ingress_rule_list': _rule_list,
+                   'egress_rule_list': []}
         return fw_inst
 
-    def _fake_firewall_with_admin_down(self, rule_list):
+    def _fake_firewall_group_with_admin_down(self, rule_list):
         fw_inst = {'id': FAKE_FW_ID,
                    'admin_state_up': False,
                    'tenant_id': 'tenant-uuid',
-                   'firewall_rule_list': rule_list}
+                   'ingress_rule_list': rule_list,
+                   'egress_rule_list': []}
         return fw_inst
 
-    def _fake_apply_list(self, router_count=1):
-        apply_list = []
-        while router_count > 0:
-            router_inst = {'id': FAKE_ROUTER_ID}
-            router_info_inst = mock.Mock()
-            router_info_inst.router = router_inst
-            apply_list.append(router_info_inst)
-            router_count -= 1
+    def _fake_apply_list(self):
+        router_inst = {'id': FAKE_ROUTER_ID}
+        router_info_inst = mock.Mock()
+        router_info_inst.router = router_inst
+        router_info_inst.router_id = FAKE_ROUTER_ID
+        apply_list = [(router_info_inst, FAKE_PORT_ID)]
         return apply_list
 
-    def _setup_firewall_with_rules(self, func, router_count=1):
-        apply_list = self._fake_apply_list(router_count=router_count)
+    def _setup_firewall_with_rules(self, func):
+        apply_list = self._fake_apply_list()
         rule_list = self._fake_rules_v4()
-        firewall = self._fake_firewall(rule_list)
-        with mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
-                        "update") as update_fw:
+        firewall = self._fake_firewall_group(rule_list)
+        port = {'id': FAKE_PORT_ID}
+        with mock.patch.object(self.plugin, '_get_router_interfaces',
+                               return_value=[port]),\
+            mock.patch.object(self.plugin.fwaas_callbacks_v2, 'get_port_fwg',
+                              return_value=firewall),\
+            mock.patch("vmware_nsx.db.db.get_nsx_switch_and_port_id",
+                       return_value=(0, FAKE_NSX_PORT_ID)),\
+            mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
+                       "update") as update_fw:
             func('nsx', apply_list, firewall)
-            self.assertEqual(router_count, update_fw.call_count)
-            update_fw.assert_called_with(
+            expected_rules = self._fake_translated_rules(FAKE_NSX_PORT_ID) + [
+                {'display_name': "Block port ingress",
+                 'action': consts.FW_ACTION_DROP,
+                 'destinations': [{'target_type': 'LogicalPort',
+                                   'target_id': FAKE_NSX_PORT_ID}],
+                 'direction': 'IN'},
+                {'display_name': "Block port egress",
+                 'action': consts.FW_ACTION_DROP,
+                 'sources': [{'target_type': 'LogicalPort',
+                              'target_id': FAKE_NSX_PORT_ID}],
+                 'direction': 'OUT'},
+                self._default_rule()
+            ]
+            update_fw.assert_called_once_with(
                 MOCK_SECTION_ID,
-                rules=self._fake_translated_rules() + [self._default_rule()])
+                rules=expected_rules)
 
     def test_create_firewall_no_rules(self):
         apply_list = self._fake_apply_list()
-        firewall = self._fake_firewall_no_rule()
-        initial_tags = [{'scope': 'xxx', 'tag': 'yyy'}]
-        with mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
-                        "update") as update_fw,\
-            mock.patch("vmware_nsxlib.v3.core_resources.NsxLibLogicalRouter."
-                       "update") as update_rtr,\
-            mock.patch("vmware_nsxlib.v3.core_resources.NsxLibLogicalRouter."
-                       "get", return_value={'tags': initial_tags}) as get_rtr:
-            self.firewall.create_firewall('nsx', apply_list, firewall)
+        firewall = self._fake_empty_firewall_group()
+        port = {'id': FAKE_PORT_ID}
+        with mock.patch.object(self.plugin, '_get_router_interfaces',
+                               return_value=[port]),\
+            mock.patch.object(self.plugin.fwaas_callbacks_v2, 'get_port_fwg',
+                              return_value=firewall),\
+            mock.patch("vmware_nsx.db.db.get_nsx_switch_and_port_id",
+                       return_value=(0, FAKE_NSX_PORT_ID)),\
+            mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
+                       "update") as update_fw:
+            self.firewall.create_firewall_group('nsx', apply_list, firewall)
+            # expecting 2 block rules for the logical port (egress & ingress)
+            # and last default allow all rule
+            expected_rules = [
+                {'display_name': "Block port ingress",
+                 'action': consts.FW_ACTION_DROP,
+                 'destinations': [{'target_type': 'LogicalPort',
+                                   'target_id': FAKE_NSX_PORT_ID}],
+                 'direction': 'IN'},
+                {'display_name': "Block port egress",
+                 'action': consts.FW_ACTION_DROP,
+                 'sources': [{'target_type': 'LogicalPort',
+                              'target_id': FAKE_NSX_PORT_ID}],
+                 'direction': 'OUT'},
+                self._default_rule()
+            ]
             update_fw.assert_called_once_with(
                 MOCK_SECTION_ID,
-                rules=[self._default_rule()])
-            get_rtr.assert_called_once_with(MOCK_NSX_ID)
-            expected_tags = initial_tags
-            expected_tags.append({'scope': edge_fwaas_driver.NSX_FW_TAG,
-                                  'tag': firewall['id']})
-            update_rtr.assert_called_once_with(MOCK_NSX_ID, tags=expected_tags)
+                rules=expected_rules)
 
     def test_create_firewall_with_rules(self):
-        self._setup_firewall_with_rules(self.firewall.create_firewall)
-
-    def test_create_firewall_with_rules_two_routers(self):
-        self._setup_firewall_with_rules(self.firewall.create_firewall,
-                                        router_count=2)
+        self._setup_firewall_with_rules(self.firewall.create_firewall_group)
 
     def test_update_firewall_with_rules(self):
         self._setup_firewall_with_rules(self.firewall.update_firewall)
 
     def test_delete_firewall(self):
         apply_list = self._fake_apply_list()
-        firewall = self._fake_firewall_no_rule()
-        initial_tags = [{'scope': 'xxx', 'tag': 'yyy'},
-                        {'scope': edge_fwaas_driver.NSX_FW_TAG,
-                         'tag': firewall['id']}]
-        with mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
-                        "update") as update_fw,\
-            mock.patch("vmware_nsxlib.v3.core_resources.NsxLibLogicalRouter."
-                       "update") as update_rtr,\
-            mock.patch("vmware_nsxlib.v3.core_resources.NsxLibLogicalRouter."
-                       "get", return_value={'tags': initial_tags}) as get_rtr:
-            self.firewall.delete_firewall('nsx', apply_list, firewall)
+        firewall = self._fake_empty_firewall_group()
+        port = {'id': FAKE_PORT_ID}
+        with mock.patch.object(self.plugin, '_get_router_interfaces',
+                               return_value=[port]),\
+            mock.patch.object(self.plugin.fwaas_callbacks_v2, 'get_port_fwg',
+                              return_value=None),\
+            mock.patch("vmware_nsx.db.db.get_nsx_switch_and_port_id",
+                       return_value=(0, FAKE_NSX_PORT_ID)),\
+            mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
+                       "update") as update_fw:
+            self.firewall.delete_firewall_group('nsx', apply_list, firewall)
             update_fw.assert_called_once_with(
                 MOCK_SECTION_ID,
-                rules=[self._default_rule(drop=False)])
-            get_rtr.assert_called_once_with(MOCK_NSX_ID)
-            expected_tags = initial_tags
-            expected_tags.pop()
-            expected_tags.append({'scope': edge_fwaas_driver.NSX_FW_TAG,
-                                  'tag': firewall['id']})
-            update_rtr.assert_called_once_with(MOCK_NSX_ID, tags=expected_tags)
+                rules=[self._default_rule()])
 
     def test_create_firewall_with_admin_down(self):
         apply_list = self._fake_apply_list()
         rule_list = self._fake_rules_v4()
-        firewall = self._fake_firewall_with_admin_down(rule_list)
+        firewall = self._fake_firewall_group_with_admin_down(rule_list)
         with mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
                         "update") as update_fw:
-            self.firewall.create_firewall('nsx', apply_list, firewall)
+            self.firewall.create_firewall_group('nsx', apply_list, firewall)
             update_fw.assert_called_once_with(
                 MOCK_SECTION_ID,
                 rules=[self._default_rule()])
+
+    # DEBUG ADIT add ingress test
+    # DEBUG ADIT test illegal rule
