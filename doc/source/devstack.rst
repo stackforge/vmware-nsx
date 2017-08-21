@@ -96,7 +96,7 @@ Add neutron-fwaas repo as an external repository and configure following flags i
 
     [[local|localrc]]
     enable_plugin neutron-fwaas https://git.openstack.org/openstack/neutron-fwaas
-    ENABLED_SERVICES+=,q-fwaas
+    ENABLED_SERVICES+=,q-fwaas-v1
 
     [[post-config|$NEUTRON_CONF]]
     [DEFAULT]
@@ -105,7 +105,6 @@ Add neutron-fwaas repo as an external repository and configure following flags i
     [fwaas]
     enabled = True
     driver = vmware_nsxv_edge
-
 
 Neutron dynamic routing plugin (bgp)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -197,6 +196,24 @@ Add neutron-fwaas repo as an external repository and configure following flags i
     [fwaas]
     enabled = True
     driver = vmware_nsxv3_edge
+
+
+FWAAS (V2) Driver
+~~~~~~~~~~~~~~~~~
+
+Add neutron-fwaas repo as an external repository and configure following flags in ``local.conf``::
+
+    [[local|localrc]]
+    enable_plugin neutron-fwaas https://git.openstack.org/openstack/neutron-fwaas
+    ENABLED_SERVICES+=,q-fwaas-v2
+
+    [[post-config|$NEUTRON_CONF]]
+    [DEFAULT]
+    service_plugins = neutron_fwaas.services.firewall.fwaas_plugin_v2.FirewallPlugin2
+
+    [fwaas]
+    enabled = True
+    driver = vmware_nsxv3_edge_v2
 
 LBaaS v2 Driver
 ~~~~~~~~~~~~~~~
