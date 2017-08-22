@@ -1222,6 +1222,19 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             LOG.error(msg)
             raise n_exc.InvalidInput(error_message=msg)
 
+    def _validate_subnet_dhcp(self, context, subnet):
+        enable_dhcp = subnet.get('enable_dhcp', False)
+        if not enable_dhcp:
+            return
+
+        # Subnets on external network should have dhcp disabled
+        network_id = subnet['network_id']
+        binding = nsx_db.get_network_bindings(context.session, network_id)
+        if not binding:
+            msg = _("Dhcp must be disabled on external networks")
+            LOG.error(msg)
+            raise n_exc.InvalidInput(error_message=msg)
+
     def _create_bulk_with_callback(self, resource, context, request_items,
                                    post_create_func=None, rollback_func=None):
         # This is a copy of the _create_bulk() in db_base_plugin_v2.py,
@@ -1318,24 +1331,26 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             return self._create_bulk('subnet', context, subnets)
 
     def create_subnet(self, context, subnet):
-        self._validate_address_space(subnet['subnet'])
+        subnet_data = subnet['subnet']
+        self._validate_address_space(subnet_data)
+        self._validate_subnet_dhcp(context, subnet_data)
 
         # TODO(berlin): public external subnet announcement
         if (cfg.CONF.nsx_v3.native_dhcp_metadata and
             subnet['subnet'].get('enable_dhcp', False)):
-            lock = 'nsxv3_network_' + subnet['subnet']['network_id']
+            lock = 'nsxv3_network_' + subnet_data['network_id']
             with locking.LockManager.get_lock(lock):
                 # Check if it is on an overlay network and is the first
                 # DHCP-enabled subnet to create.
                 if self._is_overlay_network(
-                    context, subnet['subnet']['network_id']):
+                    context, subnet_data['network_id']):
                     network = self._get_network(
-                        context, subnet['subnet']['network_id'])
+                        context, subnet_data['network_id'])
                     if self._has_no_dhcp_enabled_subnet(context, network):
                         created_subnet = super(
                             NsxV3Plugin, self).create_subnet(context, subnet)
                         self._extension_manager.process_create_subnet(context,
-                            subnet['subnet'], created_subnet)
+                            subnet_data, created_subnet)
                         self._enable_native_dhcp(context, network,
                                                  created_subnet)
                         msg = None
@@ -1377,6 +1392,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def update_subnet(self, context, subnet_id, subnet):
         updated_subnet = None
+        self._validate_subnet_dhcp(context, subnet['subnet'])
+
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
             orig_subnet = self.get_subnet(context, subnet_id)
             enable_dhcp = subnet['subnet'].get('enable_dhcp')
