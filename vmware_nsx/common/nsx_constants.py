@@ -12,9 +12,12 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+from neutron_lib.api.definitions import portbindings as pbin
 
 # L2 agent vif type
 VIF_TYPE_DVS = 'dvs'
 
 # NSXv3 CORE PLUGIN PATH
 VMWARE_NSX_V3_PLUGIN_NAME = 'vmware_nsxv3'
+
+VNIC_TYPES_DIRECT_PASSTHROUGH = (pbin.VNIC_DIRECT, pbin.VNIC_DIRECT_PHYSICAL)
