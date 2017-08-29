@@ -30,4 +30,4 @@ import sqlalchemy as sa
 
 def upgrade():
     op.add_column('neutron_nsx_network_mappings',
-                  sa.Column('dvs_id', sa.String(36), nullable=True))
+                  sa.Column('dvs_id', sa.String(256), nullable=True))
