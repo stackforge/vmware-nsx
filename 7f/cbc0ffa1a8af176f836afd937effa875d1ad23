@@ -1,0 +1,9 @@
+Code-Review+2: Adit Sarfaty <asarfaty@vmware.com>
+Code-Review+2: garyk <gkotton@vmware.com>
+Workflow+1: garyk <gkotton@vmware.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Thu, 31 Aug 2017 08:33:41 +0000
+Reviewed-on: https://review.openstack.org/499118
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/ocata
