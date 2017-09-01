@@ -92,7 +92,7 @@ class NsxV3ClientCertProviderTestCase(unittest.TestCase):
 
     def validate_db_provider(self, expected_cert_data):
         fname = None
-        with self._provider as p:
+        with self._provider() as p:
             # verify cert data was exported to CERTFILE
             fname = p.filename()
             with open(fname, 'r') as f:
@@ -105,7 +105,7 @@ class NsxV3ClientCertProviderTestCase(unittest.TestCase):
 
     def validate_basic_provider(self, expected_cert_data):
         fname = None
-        with self._provider as p:
+        with self._provider() as p:
             fname = p.filename()
             with open(fname, 'r') as f:
                 actual = f.read()
@@ -185,7 +185,7 @@ class NsxV3ClientCertProviderTestCase(unittest.TestCase):
             f.write(self.PKEY)
 
         self._init_config(storage_type='none', cert_file=fname)
-        with self._provider as p:
+        with self._provider() as p:
             self.assertEqual(fname, p.filename())
 
         self.validate_basic_provider(self.CERT + self.PKEY)
