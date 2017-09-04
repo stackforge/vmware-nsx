@@ -692,11 +692,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     if bindings:
                         raise n_exc.VlanIdInUse(
                             vlan_id=vlan_id, physical_network=physical_net)
-            elif net_type == utils.NsxV3NetworkTypes.VXLAN:
+            elif net_type == utils.NsxV3NetworkTypes.GENEVE:
                 if vlan_id:
                     err_msg = (_("Segmentation ID cannot be specified with "
                                  "%s network type") %
-                               utils.NsxV3NetworkTypes.VXLAN)
+                               utils.NsxV3NetworkTypes.GENEVE)
                 tz_type = self.nsxlib.transport_zone.TRANSPORT_TYPE_OVERLAY
             else:
                 err_msg = (_('%(net_type_param)s %(net_type_value)s not '
@@ -787,7 +787,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         bindings = nsx_db.get_network_bindings(context.session, network_id)
         # With NSX plugin, "normal" overlay networks will have no binding
         return (not bindings or
-                bindings[0].binding_type == utils.NsxV3NetworkTypes.VXLAN)
+                bindings[0].binding_type == utils.NsxV3NetworkTypes.GENEVE)
 
     def _extend_network_dict_provider(self, context, network, bindings=None):
         if 'id' not in network:
@@ -3171,7 +3171,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def _validate_multiple_subnets_routers(self, context, router_id, net_id):
         network = self.get_network(context, net_id)
         net_type = network.get(pnet.NETWORK_TYPE)
-        if (net_type and net_type != utils.NsxV3NetworkTypes.VXLAN):
+        if (net_type and net_type != utils.NsxV3NetworkTypes.GENEVE):
             err_msg = (_("Only overlay networks can be attached to a logical "
                          "router. Network %(net_id)s is a %(net_type)s based "
                          "network") % {'net_id': net_id, 'net_type': net_type})
