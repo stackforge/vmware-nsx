@@ -692,12 +692,23 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     if bindings:
                         raise n_exc.VlanIdInUse(
                             vlan_id=vlan_id, physical_network=physical_net)
-            elif net_type == utils.NsxV3NetworkTypes.VXLAN:
+            elif net_type == utils.NsxV3NetworkTypes.GENEVE:
                 if vlan_id:
                     err_msg = (_("Segmentation ID cannot be specified with "
                                  "%s network type") %
-                               utils.NsxV3NetworkTypes.VXLAN)
+                               utils.NsxV3NetworkTypes.GENEVE)
                 tz_type = self.nsxlib.transport_zone.TRANSPORT_TYPE_OVERLAY
+            elif net_type == utils.NsxV3NetworkTypes.NSX_NETWORK:
+                # Linking neutron networks to an existing NSX logical switch
+                if physical_net is None:
+                    err_msg = (_("Physical network must be specified with "
+                                 "%s network type") % net_type)
+                # Validate the logical switch existence
+                try:
+                    x = self.nsxlib.logical_switch.get(physical_net)
+                except nsx_lib_exc.ResourceNotFound:
+                    err_msg = (_('Logical switch %s does not exist') %
+                               physical_net)
             else:
                 err_msg = (_('%(net_type_param)s %(net_type_value)s not '
                              'supported') %
@@ -717,7 +728,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             physical_net = az._default_overlay_tz_uuid
 
         # validate the transport zone existence and type
-        if not err_msg and is_provider_net and physical_net:
+        if (not err_msg and is_provider_net and physical_net and
+            net_type != utils.NsxV3NetworkTypes.NSX_NETWORK):
             try:
                 backend_type = self.nsxlib.transport_zone.get_transport_type(
                     physical_net)
@@ -763,31 +775,36 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         admin_state = net_data.get('admin_state_up', True)
 
-        # Create network on the backend
-        LOG.debug('create_network: %(net_name)s, %(physical_net)s, '
-                  '%(tags)s, %(admin_state)s, %(vlan_id)s',
-                  {'net_name': net_name,
-                   'physical_net': physical_net,
-                   'tags': tags,
-                   'admin_state': admin_state,
-                   'vlan_id': vlan_id})
-        nsx_result = self.nsxlib.logical_switch.create(
-            net_name, physical_net, tags,
-            admin_state=admin_state,
-            vlan_id=vlan_id,
-            description=net_data.get('description'))
+        if is_provider_net and net_type == utils.NsxV3NetworkTypes.NSX_NETWORK:
+            # Network already exists on the NSX backend
+            nsx_id = physical_net
+        else:
+            # Create network on the backend
+            LOG.debug('create_network: %(net_name)s, %(physical_net)s, '
+                      '%(tags)s, %(admin_state)s, %(vlan_id)s',
+                      {'net_name': net_name,
+                       'physical_net': physical_net,
+                       'tags': tags,
+                       'admin_state': admin_state,
+                       'vlan_id': vlan_id})
+            nsx_result = self.nsxlib.logical_switch.create(
+                net_name, physical_net, tags,
+                admin_state=admin_state,
+                vlan_id=vlan_id,
+                description=net_data.get('description'))
+            nsx_id = nsx_result['id']
 
         return (is_provider_net,
                 net_type,
                 physical_net,
                 vlan_id,
-                nsx_result['id'])
+                nsx_id)
 
     def _is_overlay_network(self, context, network_id):
         bindings = nsx_db.get_network_bindings(context.session, network_id)
         # With NSX plugin, "normal" overlay networks will have no binding
         return (not bindings or
-                bindings[0].binding_type == utils.NsxV3NetworkTypes.VXLAN)
+                bindings[0].binding_type == utils.NsxV3NetworkTypes.GENEVE)
 
     def _extend_network_dict_provider(self, context, network, bindings=None):
         if 'id' not in network:
@@ -823,10 +840,18 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return super(NsxV3Plugin, self).get_subnets(
             context, filters, fields, sorts, limit, marker, page_reverse)
 
+    def _network_is_nsx_net(self, context, network_id):
+        bindings = nsx_db.get_network_bindings(context.session, network_id)
+        if not bindings:
+            return False
+        return (bindings[0].binding_type ==
+                utils.NsxV3NetworkTypes.NSX_NETWORK)
+
     def create_network(self, context, network):
         net_data = network['network']
         external = net_data.get(ext_net_extn.EXTERNAL)
         is_backend_network = False
+        is_nsx_network = False
         tenant_id = net_data['tenant_id']
 
         # validate the availability zone, and get the AZ object
@@ -873,6 +898,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     net_bindings = [nsx_db.add_network_binding(
                         context.session, created_net['id'],
                         net_type, physical_net, vlan_id)]
+                    if net_type == utils.NsxV3NetworkTypes.NSX_NETWORK:
+                        is_nsx_network = True
                     self._extend_network_dict_provider(context, created_net,
                                                        bindings=net_bindings)
                 if is_backend_network:
@@ -885,7 +912,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         nsx_net_id)
 
             rollback_network = True
-            if (is_backend_network and
+            if (is_backend_network and not is_nsx_network and
                 cfg.CONF.nsx_v3.native_dhcp_metadata and
                 self._is_overlay_network(context, created_net['id'])):
                 # Enable native metadata proxy for this network.
@@ -978,10 +1005,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     self._disable_native_dhcp(context, network_id)
 
         nsx_net_id = self._get_network_nsx_id(context, network_id)
+        is_nsx_net = self._network_is_nsx_net(context, network_id)
         # First call DB operation for delete network as it will perform
         # checks on active ports
         self._retry_delete_network(context, network_id)
-        if not self._network_is_external(context, network_id):
+        if (not self._network_is_external(context, network_id) and
+            not is_nsx_net):
             # TODO(salv-orlando): Handle backend failure, possibly without
             # requiring us to un-delete the DB object. For instance, ignore
             # failures occurring if logical switch is not found
@@ -1009,6 +1038,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # Neutron does not support changing provider network values
         providernet._raise_if_updates_provider_attributes(net_data)
         extern_net = self._network_is_external(context, id)
+        is_nsx_net = self._network_is_nsx_net(context, id)
         if extern_net:
             self._assert_on_external_net_with_qos(net_data)
         updated_net = super(NsxV3Plugin, self).update_network(context, id,
@@ -1021,7 +1051,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._process_l3_update(context, updated_net, network['network'])
         self._extend_network_dict_provider(context, updated_net)
 
-        if (not extern_net and
+        if (not extern_net and not is_nsx_net and
             ('name' in net_data or 'admin_state_up' in net_data or
              'description' in net_data)):
             try:
@@ -3171,7 +3201,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def _validate_multiple_subnets_routers(self, context, router_id, net_id):
         network = self.get_network(context, net_id)
         net_type = network.get(pnet.NETWORK_TYPE)
-        if (net_type and net_type != utils.NsxV3NetworkTypes.VXLAN):
+        if (net_type and net_type != utils.NsxV3NetworkTypes.GENEVE):
             err_msg = (_("Only overlay networks can be attached to a logical "
                          "router. Network %(net_id)s is a %(net_type)s based "
                          "network") % {'net_id': net_id, 'net_type': net_type})
