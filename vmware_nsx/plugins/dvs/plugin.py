@@ -149,6 +149,12 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         if net_data.get(pnet.NETWORK_TYPE) == c_utils.NetworkTypes.VLAN:
             vlan_tag = net_data.get(pnet.SEGMENTATION_ID, 0)
 
+        dvs_name = None
+        if net_data.has_key(pnet.PHYSICAL_NETWORK):
+            dvs_name = net_data.get(pnet.PHYSICAL_NETWORK)
+        else:
+            dvs_name = dvs_utils.dvs_name_get()
+
         net_id = None
         if net_data.get(pnet.NETWORK_TYPE) == c_utils.NetworkTypes.PORTGROUP:
             net_id = net_data.get(pnet.PHYSICAL_NETWORK)
@@ -175,7 +181,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
                 nsx_db.add_network_binding(
                     context.session, new_net['id'],
                     net_data.get(pnet.NETWORK_TYPE),
-                    net_id or 'dvs',
+                    net_id or dvs_name or 'dvs',
                     vlan_tag)
         except Exception:
             with excutils.save_and_reraise_exception():
@@ -232,6 +238,11 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
 
     def create_network(self, context, network):
         self._validate_network(context, network['network'])
+        if (network["network"].has_key(pnet.PHYSICAL_NETWORK) and 
+            network["network"][pnet.PHYSICAL_NETWORK]):
+            LOG.debug("Create DVS Network: %s", network)
+            dvs_name = network["network"][pnet.PHYSICAL_NETWORK]
+            self._dvs = dvs.DvsManager(dvs_name=dvs_name)
         return self._dvs_create_network(context, network)
 
     def _dvs_delete_network(self, context, id):

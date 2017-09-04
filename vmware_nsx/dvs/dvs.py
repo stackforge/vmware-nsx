@@ -32,7 +32,7 @@ DSCP_RULE_DESCRIPTION = 'Openstack Dscp Marking RUle'
 class DvsManager(object):
     """Management class for dvs related tasks."""
 
-    def __init__(self, dvs_id=None):
+    def __init__(self, dvs_id=None, dvs_name=None):
         """Initializer.
 
         A global session with the VC will be established. In addition to this
@@ -44,8 +44,11 @@ class DvsManager(object):
         self._session = dvs_utils.dvs_create_session()
         # In the future we may decide to support more than one DVS
         if dvs_id is None:
-            self._dvs_moref = self._get_dvs_moref(self._session,
-                                                  dvs_utils.dvs_name_get())
+            if dvs_name is None:
+                self._dvs_moref = self._get_dvs_moref(self._session,
+                                                     dvs_utils.dvs_name_get())
+            else:
+                self._dvs_moref = self._get_dvs_moref(self._session,dvs_name)
         else:
             self._dvs_moref = vim_util.get_moref(dvs_id,
                                               'VmwareDistributedVirtualSwitch')
@@ -356,9 +359,9 @@ class DvsManager(object):
 
     def get_vm_spec(self, vm_moref):
         vm_specs = self._session.invoke_api(vim_util,
-                                            'get_object_properties',
-                                            self._session.vim,
-                                            vm_moref, ['network'])
+                                           'get_object_properties',
+                                           self._session.vim,
+                                           vm_moref, ['network'])
         if vm_specs:
             return vm_specs[0]
 
