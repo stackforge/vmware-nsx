@@ -12,11 +12,14 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import re
+
 from neutron_lib.callbacks import registry
 from neutron_lib import constants as const
 from oslo_config import cfg
 from oslo_log import log as logging
 
+from vmware_nsx.common import config  # noqa
 from vmware_nsx.common import utils as nsx_utils
 from vmware_nsx.dhcp_meta import rpc as nsx_rpc
 from vmware_nsx.shell.admin.plugins.common import constants
@@ -24,6 +27,7 @@ from vmware_nsx.shell.admin.plugins.common import formatters
 from vmware_nsx.shell.admin.plugins.common import utils as admin_utils
 from vmware_nsx.shell.admin.plugins.nsxv3.resources import utils
 import vmware_nsx.shell.resources as shell
+from vmware_nsxlib.v3 import exceptions as nsx_exc
 from vmware_nsxlib.v3 import nsx_constants
 
 LOG = logging.getLogger(__name__)
@@ -126,9 +130,51 @@ def nsx_update_metadata_proxy(resource, event, trigger, **kwargs):
                              network['id'])
 
 
+@admin_utils.output_header
+def nsx_update_metadata_proxy_server_ip(resource, event, trigger, **kwargs):
+    """Update Metadata proxy server ip on the nsx."""
+    nsxlib = utils.get_connected_nsxlib()
+    nsx_version = nsxlib.get_version()
+    if not nsx_utils.is_nsx_version_1_1_0(nsx_version):
+        LOG.error("This utility is not available for NSX version %s",
+                  nsx_version)
+        return
+
+    if (not cfg.CONF.nsx_v3.metadata_proxy or
+        not cfg.CONF.nsx_v3.native_dhcp_metadata):
+        LOG.error("Native DHCP metadata is not enabled in the configuration")
+        return
+    metadata_proxy_uuid = cfg.CONF.nsx_v3.metadata_proxy
+
+    server_ip = None
+    if kwargs.get('property'):
+        properties = admin_utils.parse_multi_keyval_opt(kwargs['property'])
+        server_ip = properties.get('server-ip')
+    if not server_ip:
+        LOG.error("Need to specify server-ip parameter")
+        return
+
+    try:
+        mdproxy = nsxlib.native_md_proxy.get(metadata_proxy_uuid)
+    except nsx_exc.ResourceNotFound:
+        LOG.error("metadata proxy %s not found", metadata_proxy_uuid)
+        return
+
+    # update the IP in the URL
+    url = mdproxy.get('metadata_server_url')
+    url = re.sub(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', server_ip, url)
+    LOG.info("Updating the URL of the metadata proxy server %(uuid)s to "
+             "%(url)s", {'uuid': metadata_proxy_uuid, 'url': url})
+    nsxlib.native_md_proxy.update(metadata_proxy_uuid, server_url=url)
+    LOG.info("Done.")
+
+
 registry.subscribe(list_metadata_networks,
                    constants.METADATA_PROXY,
                    shell.Operations.LIST.value)
 registry.subscribe(nsx_update_metadata_proxy,
                    constants.METADATA_PROXY,
                    shell.Operations.NSX_UPDATE.value)
+registry.subscribe(nsx_update_metadata_proxy_server_ip,
+                   constants.METADATA_PROXY,
+                   shell.Operations.NSX_UPDATE_IP.value)
