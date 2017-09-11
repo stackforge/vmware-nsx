@@ -2600,20 +2600,17 @@ class L3NatTestCaseBase(test_l3_plugin.L3NatTestCaseMixin):
                  self.subnet(network=n, cidr='fd01::/64',
                              ip_version=6, enable_dhcp=False)) as s2:
                 with self.port(subnet=s1) as p:
+                    exp_code = webob.exc.HTTPBadRequest.code
                     self._router_interface_action('add',
                                                   r['router']['id'],
                                                   s2['subnet']['id'],
-                                                  None)
-                    exp_code = webob.exc.HTTPBadRequest.code
+                                                  None,
+                                                  expected_code=exp_code)
                     self._router_interface_action('add',
                                                   r['router']['id'],
                                                   None,
                                                   p['port']['id'],
                                                   expected_code=exp_code)
-                    self._router_interface_action('remove',
-                                                  r['router']['id'],
-                                                  s2['subnet']['id'],
-                                                  None)
 
     def test_router_add_interface_ipv6_subnet_without_gateway_ip(self):
         with self.router() as r:
