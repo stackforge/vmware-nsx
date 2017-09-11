@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import netaddr
 from oslo_log import log as logging
 from oslo_utils import excutils
 
@@ -233,6 +234,13 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
             else:
                 # attach to multiple routers
                 raise n_exc.Conflict(error_message=err_msg)
+        # Validate that the subnet is not a v6 one
+        subnet = self.plugin.get_subnet(context, subnet_id)
+        if (subnet.get('ip_version') == 6 or
+            (subnet['cidr'] not in (constants.ATTR_NOT_SPECIFIED, None)
+             and netaddr.IPNetwork(subnet['cidr']).version == 6)):
+            err_msg = _("No support for IPv6 interfaces")
+            raise n_exc.InvalidInput(error_message=err_msg)
 
     def add_router_interface(self, context, router_id, interface_info):
         self._validate_multiple_subnets_routers(
