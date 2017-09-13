@@ -195,7 +195,7 @@ Add neutron-fwaas repo as an external repository and configure following flags i
 
     [fwaas]
     enabled = True
-    driver = vmware_nsxv3_edge
+    driver = vmware_nsxv3_edge_v1
 
 
 FWAAS (V2) Driver
@@ -209,7 +209,7 @@ Add neutron-fwaas repo as an external repository and configure following flags i
 
     [[post-config|$NEUTRON_CONF]]
     [DEFAULT]
-    service_plugins = neutron_fwaas.services.firewall.fwaas_plugin_v2.FirewallPlugin2
+    service_plugins = neutron_fwaas.services.firewall.fwaas_plugin_v2.FirewallPluginV2
 
     [fwaas]
     enabled = True
