@@ -306,6 +306,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         qos_driver.register(self)
 
     def init_complete(self, resource, event, trigger, **kwargs):
+        if self.init_is_complete:
+            # Should be called only once per worker
+            return
         has_metadata_cfg = (
             cfg.CONF.nsxv.nova_metadata_ips
             and cfg.CONF.nsxv.mgt_net_moid
