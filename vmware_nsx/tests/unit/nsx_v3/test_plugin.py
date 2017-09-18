@@ -1490,7 +1490,9 @@ class TestL3NatTestCase(L3NatTest,
             az.translate_configured_names_to_uuids(self.plugin.nsxlib)
 
         with self.network() as network:
-            with self.subnet(network=network) as s1,\
+            with mock.patch.object(self.plugin,
+                                  'validate_router_dhcp_relay'),\
+                self.subnet(network=network) as s1,\
                 self.router() as r1,\
                 mock.patch.object(self.plugin.nsxlib.logical_router_port,
                                   'update') as mock_update_port:
