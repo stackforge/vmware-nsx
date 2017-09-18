@@ -1482,6 +1482,7 @@ class TestL3NatTestCase(L3NatTest,
         # Add the relay service to the config and availability zones
         cfg.CONF.set_override('dhcp_relay_service', NSX_DHCP_RELAY_SRV,
                               'nsx_v3')
+        cfg.CONF.set_override('ipam_driver', vmware_nsxv3_ipam)
         mock_nsx_version = mock.patch.object(
             self.plugin.nsxlib, 'feature_supported', return_value=True)
         mock_nsx_version.start()
