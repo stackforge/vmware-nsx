@@ -38,6 +38,7 @@ from neutron.tests.unit.scheduler \
     import test_dhcp_agent_scheduler as test_dhcpagent
 
 from neutron_lib.api.definitions import address_scope as addr_apidef
+from neutron_lib.api.definitions import port_security as psec
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib.callbacks import exceptions as nc_exc
@@ -440,6 +441,38 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
             data = self.deserialize('json', result)
             # should fail
             self.assertEqual('InvalidInput', data['NeutronError']['type'])
+
+    def test_create_ens_network_with_no_port_sec(self):
+        providernet_args = {psec.PORTSECURITY: False}
+        with mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
+                        "get_host_switch_mode", return_value="ENS"),\
+            mock.patch(
+            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+            return_value={'transport_zone_id': 'xxx'}):
+
+            result = self._create_network(fmt='json', name='ens_net',
+                                          admin_state_up=True,
+                                          providernet_args=providernet_args,
+                                          arg_list=(psec.PORTSECURITY,))
+            data = self.deserialize('json', result)
+            # should succeed, and net should have port security disabled
+            self.assertFalse(data['network']['port_security_enabled'])
+
+    def test_create_ens_network_with_port_sec(self):
+        providernet_args = {psec.PORTSECURITY: True}
+        with mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
+                        "get_host_switch_mode", return_value="ENS"),\
+            mock.patch(
+            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+            return_value={'transport_zone_id': 'xxx'}):
+            result = self._create_network(fmt='json', name='ens_net',
+                                          admin_state_up=True,
+                                          providernet_args=providernet_args,
+                                          arg_list=(psec.PORTSECURITY,))
+            data = self.deserialize('json', result)
+            # should fail
+            self.assertEqual('NsxENSPortSecurity',
+                             data['NeutronError']['type'])
 
 
 class TestSubnetsV2(test_plugin.TestSubnetsV2, NsxV3PluginTestCaseMixin):
