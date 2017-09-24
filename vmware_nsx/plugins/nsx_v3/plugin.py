@@ -668,7 +668,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         err_msg = None
         net_type = network_data.get(pnet.NETWORK_TYPE)
-        tz_type = self.nsxlib.transport_zone.TRANSPORT_TYPE_VLAN
+        nsxlib_tz = self.nsxlib.transport_zone
+        tz_type = nsxlib_tz.TRANSPORT_TYPE_VLAN
+        switch_mode = nsxlib_tz.HOST_SWITCH_MODE_STANDARD
         if validators.is_attr_set(net_type):
             if net_type == utils.NsxV3NetworkTypes.FLAT:
                 if vlan_id is not None:
@@ -710,7 +712,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     err_msg = (_("Segmentation ID cannot be specified with "
                                  "%s network type") %
                                utils.NsxV3NetworkTypes.GENEVE)
-                tz_type = self.nsxlib.transport_zone.TRANSPORT_TYPE_OVERLAY
+                tz_type = nsxlib_tz.TRANSPORT_TYPE_OVERLAY
             elif net_type == utils.NsxV3NetworkTypes.NSX_NETWORK:
                 # Linking neutron networks to an existing NSX logical switch
                 if physical_net is None:
@@ -718,7 +720,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                  "%s network type") % net_type)
                 # Validate the logical switch existence
                 try:
-                    self.nsxlib.logical_switch.get(physical_net)
+                    nsx_net = self.nsxlib.logical_switch.get(physical_net)
+                    switch_mode = nsxlib_tz.get_host_switch_mode(
+                        nsx_net['transport_zone_id'])
                 except nsx_lib_exc.ResourceNotFound:
                     err_msg = (_('Logical switch %s does not exist') %
                                physical_net)
@@ -751,7 +755,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if (not err_msg and is_provider_net and physical_net and
             net_type != utils.NsxV3NetworkTypes.NSX_NETWORK):
             try:
-                backend_type = self.nsxlib.transport_zone.get_transport_type(
+                backend_type = nsxlib_tz.get_transport_type(
+                    physical_net)
+                switch_mode = nsxlib_tz.get_host_switch_mode(
                     physical_net)
             except nsx_lib_exc.ResourceNotFound:
                 err_msg = (_('Transport zone %s does not exist') %
@@ -765,7 +771,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if err_msg:
             raise n_exc.InvalidInput(error_message=err_msg)
 
-        return is_provider_net, net_type, physical_net, vlan_id
+        return is_provider_net, net_type, physical_net, vlan_id, switch_mode
 
     def _get_edge_cluster(self, tier0_uuid):
         self._routerlib.validate_tier0(self.tier0_groups_dict, tier0_uuid)
@@ -781,8 +787,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return (True, utils.NetworkTypes.L3_EXT, tier0_uuid, 0)
 
     def _create_network_at_the_backend(self, context, net_data, az):
-        is_provider_net, net_type, physical_net, vlan_id = (
+        is_provider_net, net_type, physical_net, vlan_id, switch_mode = (
             self._validate_provider_create(context, net_data, az))
+
+        if (switch_mode == self.nsxlib.transport_zone.HOST_SWITCH_MODE_ENS and
+            net_data.get(psec.PORTSECURITY)):
+            raise nsx_exc.NsxENSPortSecurity()
 
         if is_provider_net and net_type == utils.NsxV3NetworkTypes.NSX_NETWORK:
             # Network already exists on the NSX backend
@@ -1090,9 +1100,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                                               network)
         self._extension_manager.process_update_network(context, net_data,
                                                        updated_net)
-        if psec.PORTSECURITY in network['network']:
+        if psec.PORTSECURITY in net_data:
+            # do not allow port security on ENS networks
+            if (net_data[psec.PORTSECURITY] and
+                self._is_ens_tz_net(context, id)):
+                raise nsx_exc.NsxENSPortSecurity()
             self._process_network_port_security_update(
-                context, network['network'], updated_net)
+                context, net_data, updated_net)
         self._process_l3_update(context, updated_net, network['network'])
         self._extend_network_dict_provider(context, updated_net)
 
@@ -1816,6 +1830,22 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             port_data.get(provider_sg.PROVIDER_SECURITYGROUPS) != [])
         return provider_sgs_specified
 
+    def _is_ens_tz_net(self, context, net_id):
+        #Check the host-switch-mode of the TZ connected to network
+        nsx_net_id = self._get_network_nsx_id(context, net_id)
+        if nsx_net_id:
+            nsx_net = self.nsxlib.logical_switch.get(nsx_net_id)
+            if nsx_net and nsx_net.get('transport_zone_id'):
+                # Check the mode of this TZ
+                mode = self.nsxlib.transport_zone.get_host_switch_mode(
+                    nsx_net['transport_zone_id'])
+                return mode == self.nsxlib.transport_zone.HOST_SWITCH_MODE_ENS
+        return False
+
+    def _is_ens_tz_port(self, context, port_data):
+        # Check the host-switch-mode of the TZ connected to the ports network
+        return self._is_ens_tz_net(context, port_data['network_id'])
+
     def _create_port_preprocess_security(
             self, context, port, port_data, neutron_db):
         (port_security, has_ip) = self._determine_port_security_and_has_ip(
@@ -1823,6 +1853,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         port_data[psec.PORTSECURITY] = port_security
         self._process_port_port_security_create(
                 context, port_data, neutron_db)
+        # No port security is allowed if the port belongs to an ENS TZ
+        if port_security and self._is_ens_tz_port(context, port_data):
+            raise nsx_exc.NsxENSPortSecurity()
+
         # allowed address pair checks
         address_pairs = port_data.get(addr_pair.ADDRESS_PAIRS)
         if validators.is_attr_set(address_pairs):
@@ -2443,6 +2477,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._process_create_allowed_address_pairs(
                 context, updated_port,
                 updated_port[addr_pair.ADDRESS_PAIRS])
+
+        # No port security is allowed if the port belongs to an ENS TZ
+        if (updated_port[psec.PORTSECURITY] and
+            self._is_ens_tz_port(context, updated_port)):
+            raise nsx_exc.NsxENSPortSecurity()
 
         # checks if security groups were updated adding/modifying
         # security groups, port security is set and port has ip
