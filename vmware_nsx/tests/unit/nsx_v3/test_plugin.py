@@ -38,6 +38,7 @@ from neutron.tests.unit.scheduler \
     import test_dhcp_agent_scheduler as test_dhcpagent
 
 from neutron_lib.api.definitions import address_scope as addr_apidef
+from neutron_lib.api.definitions import port_security as psec
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib.callbacks import exceptions as nc_exc
@@ -441,6 +442,38 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
             # should fail
             self.assertEqual('InvalidInput', data['NeutronError']['type'])
 
+    def test_create_ens_network_with_no_port_sec(self):
+        providernet_args = {psec.PORTSECURITY: False}
+        with mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
+                        "get_host_switch_mode", return_value="ENS"),\
+            mock.patch(
+            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+            return_value={'transport_zone_id': 'xxx'}):
+
+            result = self._create_network(fmt='json', name='ens_net',
+                                          admin_state_up=True,
+                                          providernet_args=providernet_args,
+                                          arg_list=(psec.PORTSECURITY,))
+            data = self.deserialize('json', result)
+            # should succeed, and net should have port security disabled
+            self.assertFalse(data['network']['port_security_enabled'])
+
+    def test_create_ens_network_with_port_sec(self):
+        providernet_args = {psec.PORTSECURITY: True}
+        with mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
+                        "get_host_switch_mode", return_value="ENS"),\
+            mock.patch(
+            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+            return_value={'transport_zone_id': 'xxx'}):
+            result = self._create_network(fmt='json', name='ens_net',
+                                          admin_state_up=True,
+                                          providernet_args=providernet_args,
+                                          arg_list=(psec.PORTSECURITY,))
+            data = self.deserialize('json', result)
+            # should fail
+            self.assertEqual('NsxENSPortSecurity',
+                             data['NeutronError']['type'])
+
 
 class TestSubnetsV2(test_plugin.TestSubnetsV2, NsxV3PluginTestCaseMixin):
 
@@ -732,6 +765,39 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
                 # the ports switching profiles should start with the
                 # configured one
                 self.assertEqual(expected_prof, actual_profs[0])
+
+    def test_create_ens_port_with_no_port_sec(self):
+        with self.subnet() as subnet,\
+            mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
+                       "get_host_switch_mode", return_value="ENS"),\
+            mock.patch(
+            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+            return_value={'transport_zone_id': 'xxx'}):
+            data = {'port': {'network_id': subnet['subnet']['network_id'],
+                             'tenant_id': subnet['subnet']['tenant_id'],
+                             'fixed_ips': [{'subnet_id':
+                                            subnet['subnet']['id']}],
+                             psec.PORTSECURITY: False}}
+            port_req = self.new_create_request('ports', data)
+            port = self.deserialize(self.fmt, port_req.get_response(self.api))
+            self.assertFalse(port['port']['port_security_enabled'])
+
+    def test_create_ens_port_with_port_sec(self):
+        with self.subnet() as subnet,\
+            mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
+                       "get_host_switch_mode", return_value="ENS"),\
+            mock.patch(
+            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+            return_value={'transport_zone_id': 'xxx'}):
+            data = {'port': {'network_id': subnet['subnet']['network_id'],
+                             'tenant_id': subnet['subnet']['tenant_id'],
+                             'fixed_ips': [{'subnet_id':
+                                            subnet['subnet']['id']}],
+                             psec.PORTSECURITY: True}}
+            port_req = self.new_create_request('ports', data)
+            res = port_req.get_response(self.api)
+            self.assertEqual(exc.HTTPBadRequest.code,
+                             res.status_int)
 
     def test_update_port_update_ip_address_only(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
