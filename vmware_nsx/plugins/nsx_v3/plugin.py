@@ -3567,6 +3567,23 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         return info
 
+    def _update_lb_vip(self, port, floatingip):
+        # update the load balancer virtual server's VIP with
+        # floating ip, but don't add NAT rules
+        device_id = port['device_id']
+        lb_tag = [{'scope': 'os-lbaas-lb-id', 'tag': device_id}]
+        vs_list = self.nsxlib.search_by_tags(
+            tags=lb_tag, resource_type='LbVirtualServer')
+        if vs_list['results']:
+            vs_id = vs_list['results'][0]['id']
+            vs_client = self.nsxlib.load_balancer.virtual_server
+            fip = floatingip['floating_ip_address']
+            vs_client.update_virtual_server_with_vip(vs_id, fip)
+        else:
+            LOG.error("Virtual server cannot be found!")
+            raise nsx_exc.NsxResourceNotFound(res_name='virtual_server',
+                                              res_id=device_id)
+
     def _create_floating_ip_wrapper(self, context, floatingip):
         if cfg.CONF.api_replay_mode:
             # Only import mock if the reply mode is used
@@ -3591,6 +3608,18 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         router_id = new_fip['router_id']
         if not router_id:
             return new_fip
+        port_id = floatingip['floatingip']['port_id']
+        if port_id:
+            port_data = self.get_port(context, port_id)
+            device_owner = port_data.get('device_owner')
+            if device_owner == const.DEVICE_OWNER_LOADBALANCERV2:
+                try:
+                    self._update_lb_vip(port_data)
+                except (nsx_lib_exc.ManagerError, nsx_exc.NsxResourceNotFound
+                        ) as e:
+                    with excutils.save_and_reraise_exception():
+                        self.delete_floatingip(context, new_fip['id'])
+                return new_fip
         try:
             nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                      router_id)
