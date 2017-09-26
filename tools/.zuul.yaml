@@ -1,0 +1,7 @@
+- job:
+    name: vmware-nsx-base
+    description: |
+      This job runs provides the base required projects for
+      vmware-nsx jobs.
+    required-projects:
+      - openstack/neutron
