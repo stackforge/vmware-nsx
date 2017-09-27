@@ -1,0 +1,10 @@
+Verified+1: VMware NSX CI
+Code-Review+2: garyk <gkotton@vmware.com>
+Code-Review+2: Anna Khmelnitsky <akhmelnitsky@vmware.com>
+Workflow+1: Anna Khmelnitsky <akhmelnitsky@vmware.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 27 Sep 2017 20:56:27 +0000
+Reviewed-on: https://review.openstack.org/506927
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/pike
