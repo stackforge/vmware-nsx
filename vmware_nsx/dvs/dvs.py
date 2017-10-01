@@ -444,6 +444,106 @@ class DvsManager(VCManagerBase):
         port_conf = pg_spec.defaultPortConfig
         port_conf.vlan = self._get_trunk_vlan_spec()
 
+    def update_port_group_security_policy(self, pg_spec, status):
+        policy = pg_spec.policy
+        policy.securityPolicyOverrideAllowed = status
+
+    def _get_port_details(self, dvs_moref, net_moref, device_id):
+        pg_moref = vim_util.get_moref(net_moref,
+                                      "DistributedVirtualPortgroup")
+        # Get the current configuration of the port group
+        pg_spec = self._session.invoke_api(vim_util,
+                                           'get_object_properties',
+                                           self._session.vim,
+                                           pg_moref, ['portKeys'])
+        if len(pg_spec) == 0 or len(pg_spec[0].propSet[0]) == 0:
+            return
+        # Read configured ports on the portgroup
+        client_factory = self._session.vim.client.factory
+        criteria = client_factory.create(
+            'ns0:DistributedVirtualSwitchPortCriteria')
+        criteria.portKey = []
+        for k in pg_spec[0].propSet[0].val:
+            criteria.portKey.append(k)
+        ports = self._session.invoke_api(self._session.vim,
+                                         'FetchDVPorts',
+                                         dvs_moref,
+                                         criteria=criteria)
+        for port in ports:
+            if (hasattr(port, 'state') and
+                hasattr(port.state, 'runtimeInfo') and
+                device_id in port.state.runtimeInfo.linkPeer):
+                return port
+
+    def _update_port_security_policy(self, dvs_moref, port, status):
+        client_factory = self._session.vim.client.factory
+        ps = client_factory.create('ns0:DVPortConfigSpec')
+        ps.key = port.key
+        ps.operation = 'edit'
+        policy = client_factory.create('ns0:DVSSecurityPolicy')
+        bp = client_factory.create('ns0:BoolPolicy')
+        bp.inherited = False
+        bp.value = status
+        policy.allowPromiscuous = bp
+        policy.forgedTransmits = bp
+        policy.inherited = False
+        setting = client_factory.create('ns0:VMwareDVSPortSetting')
+        setting.securityPolicy = policy
+        ps.setting = setting
+        task = self._session.invoke_api(self._session.vim,
+                                        'ReconfigureDVPort_Task',
+                                        dvs_moref,
+                                        port=ps)
+        try:
+            self._session.wait_for_task(task)
+            LOG.info("Updated port security status")
+        except Exception as e:
+            LOG.error("Failed to update port %s. Reason: %s",
+                      port.key, e)
+
+    def update_port_security_policy(self, dvs_id, net_id, net_moref,
+                                    device_id, status):
+        dvs_moref = self._get_dvs_moref_by_id(dvs_id)
+        is_vlan = self._is_vlan_network_by_moref(net_moref)
+        if is_vlan:
+            port = self._get_port_details(dvs_moref, net_moref, device_id)
+            if port:
+                self._update_port_security_policy(dvs_moref, port, status)
+        else:
+            return self._update_vxlan_port_port_security_polic(dvs_moref,
+                                                               net_id,
+                                                               net_moref,
+                                                               device_id,
+                                                               status)
+
+    def _update_vxlan_port_port_security_polic(self,
+                                               dvs_moref,
+                                               net_id,
+                                               net_moref,
+                                               device_id,
+                                               status):
+        port_groups = self._session.invoke_api(vim_util,
+                                               'get_object_properties',
+                                               self._session.vim,
+                                               dvs_moref,
+                                               ['portgroup'])
+        if len(port_groups) and hasattr(port_groups[0], 'propSet'):
+            for prop in port_groups[0].propSet:
+                for pg_moref in prop.val[0]:
+                    props = self._session.invoke_api(vim_util,
+                                                     'get_object_properties',
+                                                     self._session.vim,
+                                                     pg_moref, ['name'])
+                    if len(props) and hasattr(props[0], 'propSet'):
+                        for prop in props[0].propSet:
+                            if net_id in prop.val and net_moref in prop.val:
+                                port = self._get_port_details(
+                                    dvs_moref, pg_moref.value, device_id)
+                                if port:
+                                    self._update_port_security_policy(
+                                        dvs_moref, port, status)
+                                    return
+
 
 class VMManager(VCManagerBase):
     """Management class for VMs related VC tasks."""
