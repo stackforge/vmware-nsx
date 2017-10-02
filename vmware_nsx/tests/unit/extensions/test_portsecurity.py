@@ -13,39 +13,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import mock
-
 from neutron.tests.unit.extensions import test_portsecurity as psec
-from vmware_nsx.common import sync
-from vmware_nsx.tests import unit as vmware
-from vmware_nsx.tests.unit.nsx_mh.apiclient import fake
 from vmware_nsx.tests.unit.nsx_v3 import test_constants as v3_constants
 from vmware_nsx.tests.unit.nsx_v3 import test_plugin as test_nsxv3
-from vmware_nsx.tests.unit import test_utils
-
-
-class PortSecurityTestCaseNSXv2(psec.PortSecurityDBTestCase):
-
-    def setUp(self):
-        test_utils.override_nsx_ini_test()
-        # mock api client
-        self.fc = fake.FakeClient(vmware.STUBS_PATH)
-        self.mock_nsx = mock.patch(vmware.NSXAPI_NAME, autospec=True)
-        instance = self.mock_nsx.start()
-        instance.return_value.login.return_value = "the_cookie"
-        # Avoid runs of the synchronizer looping call
-        patch_sync = mock.patch.object(sync, '_start_loopingcall')
-        patch_sync.start()
-
-        instance.return_value.request.side_effect = self.fc.fake_request
-        super(PortSecurityTestCaseNSXv2, self).setUp(vmware.PLUGIN_NAME)
-        self.addCleanup(self.fc.reset_all)
-        self.addCleanup(self.mock_nsx.stop)
-        self.addCleanup(patch_sync.stop)
-
-
-class TestPortSecurityNSXv2(PortSecurityTestCaseNSXv2, psec.TestPortSecurity):
-        pass
 
 
 class TestPortSecurityNSXv3(psec.TestPortSecurity,

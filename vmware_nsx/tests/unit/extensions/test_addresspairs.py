@@ -18,26 +18,9 @@ from oslo_config import cfg
 from neutron.extensions import allowedaddresspairs as addr_pair
 from neutron.tests.unit.db import test_allowedaddresspairs_db as ext_pairs
 
-from vmware_nsx.tests.unit.nsx_mh import test_plugin as test_nsx_plugin
 from vmware_nsx.tests.unit.nsx_v import test_plugin as test_nsx_v_plugin
 from vmware_nsx.tests.unit.nsx_v3 import test_constants as v3_constants
 from vmware_nsx.tests.unit.nsx_v3 import test_plugin as test_v3_plugin
-
-
-class TestAllowedAddressPairsNSXv2(test_nsx_plugin.NsxPluginV2TestCase,
-                                   ext_pairs.TestAllowedAddressPairs):
-
-    # TODO(arosen): move to ext_pairs.TestAllowedAddressPairs once all
-    # plugins do this correctly.
-    def test_create_port_no_allowed_address_pairs(self):
-        with self.network() as net:
-            res = self._create_port(self.fmt, net['network']['id'])
-            port = self.deserialize(self.fmt, res)
-            self.assertEqual(port['port'][addr_pair.ADDRESS_PAIRS], [])
-            self._delete('ports', port['port']['id'])
-
-    def test_create_port_security_false_allowed_address_pairs(self):
-        self.skipTest('TBD')
 
 
 class TestAllowedAddressPairsNSXv3(test_v3_plugin.NsxV3PluginTestCaseMixin,
