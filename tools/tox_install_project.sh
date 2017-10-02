@@ -34,18 +34,6 @@ fi
 if [ $neutron_installed -eq 0 ]; then
     echo "ALREADY INSTALLED" > /tmp/tox_install-${PROJ}.txt
     echo "${PROJ} already installed; using existing package"
-elif [ -x "$ZUUL_CLONER" ]; then
-    echo "ZUUL CLONER" > /tmp/tox_install-${PROJ}.txt
-    cwd=$(/bin/pwd)
-    cd /tmp
-    $ZUUL_CLONER --cache-dir \
-        /opt/git \
-        --branch ${BRANCH_NAME} \
-        git://git.openstack.org \
-        openstack/${PROJ}
-    cd openstack/${PROJ}
-    $install_cmd -e .
-    cd "$cwd"
 else
     echo "PIP HARDCODE" > /tmp/tox_install-${PROJ}.txt
     $install_cmd -U -egit+https://git.openstack.org/openstack/${PROJ}@${BRANCH_NAME}#egg=${PROJ}
