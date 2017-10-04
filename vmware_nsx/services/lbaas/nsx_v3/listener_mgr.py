@@ -16,6 +16,7 @@
 from neutron_lib import exceptions as n_exc
 from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
+from oslo_utils import excutils
 
 from vmware_nsx._i18n import _
 from vmware_nsx.common import exceptions as nsx_exc
@@ -42,6 +43,7 @@ class EdgeListenerManager(base_mgr.Nsxv3LoadbalancerBaseManager):
         app_client = load_balancer.application_profile
         vs_client = load_balancer.virtual_server
         service_client = load_balancer.service
+        tm_client = self.core_plugin.nsxlib.trust_management
         vs_name = utils.get_name_and_uuid(listener.name, listener.id)
         tags = lb_utils.get_tags(self.core_plugin, listener.id,
                                  lb_const.LB_LISTENER_TYPE,
@@ -51,9 +53,31 @@ class EdgeListenerManager(base_mgr.Nsxv3LoadbalancerBaseManager):
                      'tag': listener.loadbalancer.name})
         tags.append({'scope': 'os-lbaas-lb-id',
                      'tag': lb_id})
-        if listener.protocol == 'HTTP' or listener.protocol == 'HTTPS':
+        nsx_cert_id = None
+        if certificate:
+            try:
+                nsx_cert_id = tm_client.create_cert(
+                    certificate.get_certificate(),
+                    private_key=certificate.get_private_key(),
+                    passphrase=certificate.get_private_key_passphrase())
+            except nsxlib_exc.ManagerError:
+                with excutils.save_and_reraise_exception():
+                    self.lbv2_driver.listener.failed_completion(context,
+                                                                listener)
+        ssl_profile_binding = None
+        if listener.protocol == lb_const.LB_PROTOCOL_TERMINATED_HTTPS:
+            ssl_profile_binding = {
+                'client_ssl_profile_binding': {
+                    'ssl_profile_id': self.core_plugin._client_ssl_profile,
+                    'default_certificate_id': nsx_cert_id
+                }
+            }
+
+        if (listener.protocol == lb_const.LB_PROTOCOL_HTTP or
+            listener.protocol == lb_const.LB_PROTOCOL_TERMINATED_HTTPS):
             profile_type = lb_const.LB_HTTP_PROFILE
-        elif listener.protocol == 'TCP':
+        elif (listener.protocol == lb_const.LB_PROTOCOL_TCP or
+              listener.protocol == lb_const.LB_PROTOCOL_HTTPS):
             profile_type = lb_const.LB_TCP_PROFILE
         else:
             msg = (_('Cannot create listener %(listener)s with '
@@ -65,13 +89,15 @@ class EdgeListenerManager(base_mgr.Nsxv3LoadbalancerBaseManager):
             app_profile = app_client.create(
                 display_name=vs_name, resource_type=profile_type, tags=tags)
             app_profile_id = app_profile['id']
-            virtual_server = vs_client.create(
-                display_name=vs_name,
-                tags=tags,
-                enabled=listener.admin_state_up,
-                ip_address=vip_address,
-                port=listener.protocol_port,
-                application_profile_id=app_profile_id)
+            kwargs = {'display_name': vs_name,
+                      'tags': tags,
+                      'enabled': listener.admin_state_up,
+                      'ip_address': vip_address,
+                      'port': listener.protocol_port,
+                      'application_profile_id': app_profile_id}
+            if ssl_profile_binding:
+                kwargs.update(ssl_profile_binding)
+            virtual_server = vs_client.create(**kwargs)
         except nsxlib_exc.ManagerError:
             self.lbv2_driver.listener.failed_completion(context, listener)
             msg = _('Failed to create virtual server at NSX backend')
