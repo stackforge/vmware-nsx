@@ -1,0 +1,10 @@
+- project:
+  name: openstack/vmware-nsx
+  check:
+    jobs:
+      - vmware-tox-pep8
+- job:
+    name: vmware-nsx-tox-pep8
+    parent: openstack-tox-pep8
+    required-projects:
+      - openstack/networking-l2gw
