@@ -1,0 +1,122 @@
+- project:
+    name: openstack/vmware-nsx
+    templates:
+      - system-required
+      - openstack-python-jobs-neutron
+      - check-requirements
+      - openstack-python35-jobs-neutron
+      - publish-to-pypi-neutron
+    check:
+      jobs:
+        - build-openstack-sphinx-docs:
+            required-projects:
+              - openstack/neutron
+              - openstack/networking-l2gw
+              - openstack/networking-sfc
+              - openstack/neutron-lbaas
+              - openstack/vmware-nsxlib
+              - openstack/neutron-fwaas
+              - openstack/neutron-dynamic-routing
+              - openstack/neutron-vpnaas
+              - openstack/tap-as-a-service
+        - openstack-tox-pep8:
+            required-projects:
+              - openstack/networking-l2gw
+              - openstack/networking-sfc
+              - openstack/neutron-lbaas
+              - openstack/vmware-nsxlib
+              - openstack/neutron-fwaas
+              - openstack/neutron-dynamic-routing
+              - openstack/neutron-vpnaas
+              - openstack/tap-as-a-service
+        - openstack-tox-py27:
+            timeout: 5400
+            required-projects:
+              - openstack/networking-l2gw
+              - openstack/networking-sfc
+              - openstack/neutron-lbaas
+              - openstack/vmware-nsxlib
+              - openstack/neutron-fwaas
+              - openstack/neutron-dynamic-routing
+              - openstack/neutron-vpnaas
+              - openstack/tap-as-a-service
+        - openstack-tox-py35:
+            timeout: 5400
+            required-projects:
+              - openstack/networking-l2gw
+              - openstack/networking-sfc
+              - openstack/neutron-lbaas
+              - openstack/vmware-nsxlib
+              - openstack/neutron-fwaas
+              - openstack/neutron-dynamic-routing
+              - openstack/neutron-vpnaas
+              - openstack/tap-as-a-service
+    gate:
+      jobs:
+        - build-openstack-sphinx-docs:
+            required-projects:
+              - openstack/neutron
+              - openstack/networking-l2gw
+              - openstack/networking-sfc
+              - openstack/neutron-lbaas
+              - openstack/vmware-nsxlib
+              - openstack/neutron-fwaas
+              - openstack/neutron-dynamic-routing
+              - openstack/neutron-vpnaas
+              - openstack/tap-as-a-service
+        - openstack-tox-pep8:
+            required-projects:
+              - openstack/networking-l2gw
+              - openstack/networking-sfc
+              - openstack/neutron-lbaas
+              - openstack/vmware-nsxlib
+              - openstack/neutron-fwaas
+              - openstack/neutron-dynamic-routing
+              - openstack/neutron-vpnaas
+              - openstack/tap-as-a-service
+        - openstack-tox-py27:
+            timeout: 5400
+            required-projects:
+              - openstack/networking-l2gw
+              - openstack/networking-sfc
+              - openstack/neutron-lbaas
+              - openstack/vmware-nsxlib
+              - openstack/neutron-fwaas
+              - openstack/neutron-dynamic-routing
+              - openstack/neutron-vpnaas
+              - openstack/tap-as-a-service
+        - openstack-tox-py35:
+            timeout: 5400
+            required-projects:
+              - openstack/networking-l2gw
+              - openstack/networking-sfc
+              - openstack/neutron-lbaas
+              - openstack/vmware-nsxlib
+              - openstack/neutron-fwaas
+              - openstack/neutron-dynamic-routing
+              - openstack/neutron-vpnaas
+              - openstack/tap-as-a-service
+    post:
+      jobs:
+        - publish-openstack-python-branch-tarball:
+            required-projects:
+              - openstack/networking-l2gw
+              - openstack/networking-sfc
+              - openstack/neutron-lbaas
+              - openstack/vmware-nsxlib
+              - openstack/neutron-fwaas
+              - openstack/neutron-dynamic-routing
+              - openstack/neutron-vpnaas
+              - openstack/tap-as-a-service
+    release:
+      jobs:
+        - release-openstack-python:
+            required-projects:
+              - openstack/networking-l2gw
+              - openstack/networking-sfc
+              - openstack/neutron-lbaas
+              - openstack/vmware-nsxlib
+              - openstack/neutron-fwaas
+              - openstack/neutron-dynamic-routing
+              - openstack/neutron-vpnaas
+              - openstack/tap-as-a-service
