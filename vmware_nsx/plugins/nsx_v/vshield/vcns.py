@@ -144,9 +144,10 @@ class Vcns(object):
                                                headers, encodeParams)
         te = time.time()
 
-        LOG.debug('VcnsApiHelper reply: header=%(header)s content=%(content)s'
-                  ' took %(seconds)2.4f',
-                  {'header': header, 'content': content, 'seconds': te - ts})
+        LOG.debug('VcnsApiHelper for %(method)s %(uri)s took %(seconds)2.4f. '
+                  'reply: header=%(header)s content=%(content)s',
+                  {'method': method, 'uri': uri,
+                   'header': header, 'content': content, 'seconds': te - ts})
         if content == '':
             return header, {}
         if kwargs.get('decode', True):
