@@ -1,6 +1,7 @@
 #! /bin/sh
 
 set -e
+set -x
 
 DIR=$(dirname $0)
 ${DIR}/tox_install_project.sh neutron neutron $*
