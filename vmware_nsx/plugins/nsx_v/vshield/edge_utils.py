@@ -432,9 +432,10 @@ class EdgeManager(object):
                 edge_type=edge_type,
                 availability_zone=availability_zone)
 
-    def check_edge_active_at_backend(self, edge_id):
+    def check_edge_active_at_backend(self, edge_id, context=None):
         try:
-            status = self.nsxv_manager.get_edge_status(edge_id)
+            status = self.nsxv_manager.get_edge_status(edge_id,
+                                                       context=context)
             return (status == vcns_const.RouterStatus.ROUTER_STATUS_ACTIVE)
         except Exception:
             return False
@@ -450,7 +451,7 @@ class EdgeManager(object):
             router_binding = random.choice(backup_router_bindings)
             if (router_binding['status'] == constants.ACTIVE):
                 if not self.check_edge_active_at_backend(
-                    router_binding['edge_id']):
+                    router_binding['edge_id'], context=context):
                     LOG.debug("Delete unavailable backup resource "
                               "%(router_id)s with edge_id %(edge_id)s",
                               {'router_id': router_binding['router_id'],
@@ -504,9 +505,10 @@ class EdgeManager(object):
             dvs_id, network_type = self._get_physical_provider_network(
                 context, network_id, az.dvs_id)
             pg, port_group_id = self.nsxv_manager.vcns.create_port_group(
-                dvs_id, config_spec)
+                dvs_id, config_spec, context=context)
             # Ensure that the portgroup has the correct teaming
-            self.plugin._update_network_teaming(dvs_id, None, port_group_id)
+            self.plugin._update_network_teaming(dvs_id, None, port_group_id,
+                                                context=context)
         interface = {
             'name': _uuid(),
             'tunnelId': tunnel_index,
@@ -516,9 +518,10 @@ class EdgeManager(object):
         interface['addressGroups'] = {'addressGroups': address_groups}
         return port_group_id, interface
 
-    def _getvnic_config(self, edge_id, vnic_index):
+    def _getvnic_config(self, edge_id, vnic_index, context=None):
         _, vnic_config = self.nsxv_manager.get_interface(edge_id,
-                                                         vnic_index)
+                                                         vnic_index,
+                                                         context=context)
         return vnic_config
 
     def _delete_dhcp_internal_interface(self, context, edge_id, vnic_index,
@@ -527,7 +530,8 @@ class EdgeManager(object):
 
         LOG.debug("Query the vnic %s for DHCP Edge %s", vnic_index, edge_id)
         try:
-            vnic_config = self._getvnic_config(edge_id, vnic_index)
+            vnic_config = self._getvnic_config(edge_id, vnic_index,
+                                               context=context)
             sub_interfaces = (vnic_config['subInterfaces']['subInterfaces'] if
                               'subInterfaces' in vnic_config else [])
             port_group_id = (vnic_config['portgroupId'] if 'portgroupId' in
@@ -542,8 +546,8 @@ class EdgeManager(object):
 
             # Clean the vnic if there is no sub-interface attached
             if len(sub_interfaces) == 0:
-                header, _ = self.nsxv_manager.vcns.delete_interface(edge_id,
-                                                                    vnic_index)
+                header, _ = self.nsxv_manager.vcns.delete_interface(
+                    edge_id, vnic_index, context=context)
                 if port_group_id:
                     az = self.plugin.get_network_az_by_net_id(
                         context, network_id)
@@ -602,7 +606,8 @@ class EdgeManager(object):
            2. Update the address groups to an existing tunnel
         """
         LOG.debug("Query the vnic %s for DHCP Edge %s", vnic_index, edge_id)
-        h, vnic_config = self.nsxv_manager.get_interface(edge_id, vnic_index)
+        h, vnic_config = self.nsxv_manager.get_interface(edge_id, vnic_index,
+                                                         context=context)
         sub_iface_dict = vnic_config.get('subInterfaces')
         port_group_id = vnic_config.get('portgroupId')
         new_tunnel_creation = True
@@ -738,7 +743,8 @@ class EdgeManager(object):
                     True, availability_zone=availability_zone,
                     deploy_metadata=deploy_metadata)
                 try:
-                    self.nsxv_manager.rename_edge(edge_id, name)
+                    self.nsxv_manager.rename_edge(edge_id, name,
+                                                  context=context)
                 except nsxapi_exc.VcnsApiException as e:
                     LOG.error("Failed to update edge: %s",
                               e.response)
@@ -792,7 +798,8 @@ class EdgeManager(object):
 
             router_id = backup_router_id
             if (binding['status'] == constants.ERROR or
-                not self.check_edge_active_at_backend(edge_id) or
+                not self.check_edge_active_at_backend(edge_id,
+                                                      context=context) or
                 not edge_pool_range):
                 nsxv_db.update_nsxv_router_binding(
                     context.session, router_id,
@@ -918,7 +925,8 @@ class EdgeManager(object):
         edge_id = binding['edge_id']
         with locking.LockManager.get_lock(str(edge_id)):
             router_name = self._build_lrouter_name(router_id, new_name)
-            self.nsxv_manager.rename_edge(edge_id, router_name)
+            self.nsxv_manager.rename_edge(edge_id, router_name,
+                                          context=context)
 
     def resize_lrouter(self, context, router_id, new_size):
         # get the router edge-id
@@ -930,7 +938,7 @@ class EdgeManager(object):
         edge_id = binding['edge_id']
         with locking.LockManager.get_lock(str(edge_id)):
             # update the router on backend
-            self.nsxv_manager.resize_edge(edge_id, new_size)
+            self.nsxv_manager.resize_edge(edge_id, new_size, context=context)
             # update the DB
             nsxv_db.update_nsxv_router_binding(
                 context.session, router_id, appliance_size=new_size)
@@ -1135,12 +1143,12 @@ class EdgeManager(object):
             nsxv_db.create_edge_dhcp_static_binding(context.session, edge_id,
                                                     mac_address, binding_id)
 
-    def _get_random_available_edge(self, available_edge_ids):
+    def _get_random_available_edge(self, available_edge_ids, context=None):
         while available_edge_ids:
             # Randomly select an edge ID from the pool.
             new_id = random.choice(available_edge_ids)
             # Validate whether the edge exists on the backend.
-            if not self.check_edge_active_at_backend(new_id):
+            if not self.check_edge_active_at_backend(new_id, context=context):
                 # Remove edge_id from available edges pool.
                 available_edge_ids.remove(new_id)
                 LOG.warning("Skipping edge: %s due to inactive status on "
@@ -1551,7 +1559,8 @@ class EdgeManager(object):
                               subnet_mask, is_uplink=False):
         with locking.LockManager.get_lock(edge_id):
             # get the current interfaces configuration
-            r = self.nsxv_manager.vcns.get_interfaces(edge_id)[1]
+            r = self.nsxv_manager.vcns.get_interfaces(edge_id,
+                                                      context=context)[1]
             vnics = r.get('vnics', [])
             # Go over the vnics to find the one we should update
             for vnic in vnics:
@@ -1573,12 +1582,12 @@ class EdgeManager(object):
         with locking.LockManager.get_lock(edge_id):
             # get the current interfaces configuration
             vnic = self.nsxv_manager.vcns.get_vdr_internal_interface(
-                edge_id, vnic_index)[1]
+                edge_id, vnic_index, context=context)[1]
             if self._update_address_in_dict(
                 vnic['addressGroups'], old_ip, new_ip, subnet_mask):
                 interface_req = {'interface': vnic}
                 self.nsxv_manager.vcns.update_vdr_internal_interface(
-                    edge_id, vnic_index, interface_req)
+                    edge_id, vnic_index, interface_req, context=context)
                 return
 
         # If we got here - we didn't find the old ip:
@@ -1614,14 +1623,14 @@ class EdgeManager(object):
         config_spec = {"virtualWireCreateSpec": virtual_wire}
         vdn_scope_id = availability_zone.vdn_scope_id
         h, lswitch_id = self.nsxv_manager.vcns.create_virtual_wire(
-            vdn_scope_id, config_spec)
+            vdn_scope_id, config_spec, context=context)
 
         # add vdr's external interface to the lswitch
         tlr_vnic_index = self.nsxv_manager.add_vdr_internal_interface(
             tlr_edge_id, lswitch_id,
             address=get_vdr_transit_network_tlr_address(),
             netmask=get_vdr_transit_network_netmask(),
-            type="uplink")
+            type="uplink", context=context)
         nsxv_db.create_edge_vnic_binding(
             context.session, tlr_edge_id, tlr_vnic_index, lswitch_id)
         # store the lswitch_id into nsxv_router_binding
@@ -1669,11 +1678,12 @@ class EdgeManager(object):
                           router_id)
             else:
                 # Clear static routes before delete internal vnic
-                self.nsxv_manager.update_routes(plr_edge_id, None, [])
+                self.nsxv_manager.update_routes(plr_edge_id, None, [],
+                                                context=context)
 
                 # Delete internal vnic
                 self.nsxv_manager.delete_interface(plr_id, plr_edge_id,
-                        vnic_binding.vnic_index)
+                        vnic_binding.vnic_index, context=context)
                 nsxv_db.free_edge_vnic_by_network(
                     context.session, plr_edge_id, lswitch_id)
 
@@ -1681,7 +1691,7 @@ class EdgeManager(object):
         self.delete_lrouter(context, plr_id)
 
         # Clear static routes of vdr
-        self.nsxv_manager.update_routes(tlr_edge_id, None, [])
+        self.nsxv_manager.update_routes(tlr_edge_id, None, [], context=context)
 
         #First delete the vdr's external interface
         tlr_vnic_binding = nsxv_db.get_edge_vnic_binding(
@@ -1690,13 +1700,13 @@ class EdgeManager(object):
             LOG.error("Vnic binding not found for router: %s", router_id)
         else:
             self.nsxv_manager.delete_vdr_internal_interface(
-                tlr_edge_id, tlr_vnic_binding.vnic_index)
+                tlr_edge_id, tlr_vnic_binding.vnic_index, context=context)
             nsxv_db.delete_edge_vnic_binding_by_network(
                 context.session, tlr_edge_id, lswitch_id)
 
         try:
             # Then delete the internal lswitch
-            self.nsxv_manager.delete_virtual_wire(lswitch_id)
+            self.nsxv_manager.delete_virtual_wire(lswitch_id, context=context)
         except Exception:
             LOG.warning("Failed to delete virtual wire: %s", lswitch_id)
 
@@ -2172,7 +2182,7 @@ def update_gateway(nsxv_manager, context, router_id, nexthop, routes=None):
     edge_id = binding['edge_id']
     if routes is None:
         routes = []
-    nsxv_manager.update_routes(edge_id, nexthop, routes)
+    nsxv_manager.update_routes(edge_id, nexthop, routes, context=context)
 
 
 def get_routes(edge_manager, context, router_id):
@@ -2190,7 +2200,7 @@ def get_routes(edge_manager, context, router_id):
         LOG.error('vNic binding not found for edge %s', edge_id)
         return []
 
-    h, routes = edge_manager.vcns.get_routes(edge_id)
+    h, routes = edge_manager.vcns.get_routes(edge_id, context=context)
     edge_routes = routes.get('staticRoutes')
     routes = []
     for edge_route in edge_routes.get('staticRoutes'):
@@ -2239,7 +2249,7 @@ def update_routes(edge_manager, context, router_id, routes, nexthop=None):
                            'net_id': route['network_id'],
                            'dest': route['destination'],
                            'nexthop': route['nexthop']})
-    edge_manager.update_routes(edge_id, nexthop, edge_routes)
+    edge_manager.update_routes(edge_id, nexthop, edge_routes, context=context)
 
 
 def get_internal_lswitch_id_of_plr_tlr(context, router_id):
@@ -2295,7 +2305,8 @@ def update_internal_interface(nsxv_manager, context, router_id, int_net_id,
                                   edge_vnic_binding.vnic_index,
                                   vcns_network_id,
                                   is_connected=is_connected,
-                                  address_groups=address_groups)
+                                  address_groups=address_groups,
+                                  context=context)
 
 
 def add_vdr_internal_interface(nsxv_manager, context, router_id,
@@ -2316,7 +2327,7 @@ def add_vdr_internal_interface(nsxv_manager, context, router_id,
     if not edge_vnic_binding:
         vnic_index = nsxv_manager.add_vdr_internal_interface(
             edge_id, vcns_network_id, address_groups=address_groups,
-            is_connected=is_connected)
+            is_connected=is_connected, context=context)
         nsxv_db.create_edge_vnic_binding(
             context.session, edge_id, vnic_index, int_net_id)
     else:
@@ -2373,12 +2384,12 @@ def delete_interface(nsxv_manager, context, router_id, network_id, dist=False):
         return
     if not dist:
         nsxv_manager.delete_interface(
-            router_id, edge_id, edge_vnic_binding.vnic_index)
+            router_id, edge_id, edge_vnic_binding.vnic_index, context=context)
         nsxv_db.free_edge_vnic_by_network(
             context.session, edge_id, network_id)
     else:
         nsxv_manager.delete_vdr_internal_interface(
-            edge_id, edge_vnic_binding.vnic_index)
+            edge_id, edge_vnic_binding.vnic_index, context=context)
         nsxv_db.delete_edge_vnic_binding_by_network(
             context.session, edge_id, network_id)
 
@@ -2408,7 +2419,8 @@ def update_nat_rules(nsxv_manager, context, router_id, snat, dnat):
                       "interface only for %s", router_id)
             indices = [vcns_const.EXTERNAL_VNIC_INDEX]
 
-        nsxv_manager.update_nat_rules(binding['edge_id'], snat, dnat, indices)
+        nsxv_manager.update_nat_rules(binding['edge_id'], snat, dnat, indices,
+                                      context=context)
     else:
         LOG.warning("Bindings do not exists for %s", router_id)
 
@@ -2486,7 +2498,7 @@ def get_loglevel_modifier(module, level):
     return wrapper
 
 
-def update_edge_loglevel(vcns, edge_id, module, level):
+def update_edge_loglevel(vcns, edge_id, module, level, context=None):
     """Update loglevel on edge for specified module"""
     if module not in SUPPORTED_EDGE_LOG_MODULES:
         LOG.error("Unrecognized logging module %s - ignored", module)
@@ -2498,7 +2510,8 @@ def update_edge_loglevel(vcns, edge_id, module, level):
 
     vcns.update_edge_config_with_modifier(edge_id, module,
                                           get_loglevel_modifier(module,
-                                                                level))
+                                                                level),
+                                          context=context)
 
 
 def update_edge_host_groups(vcns, edge_id, dvs, availability_zone,

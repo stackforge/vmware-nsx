@@ -84,7 +84,8 @@ class EdgeHealthMonitorManager(base_mgr.EdgeLoadbalancerBaseManager):
             try:
                 with locking.LockManager.get_lock(edge_id):
                     h = self.vcns.create_health_monitor(edge_id,
-                                                        edge_monitor)[0]
+                                                        edge_monitor,
+                                                        context=context)[0]
                     edge_mon_id = lb_common.extract_resource_id(h['location'])
 
                 nsxv_db.add_nsxv_lbaas_monitor_binding(
@@ -101,13 +102,15 @@ class EdgeHealthMonitorManager(base_mgr.EdgeLoadbalancerBaseManager):
         try:
             # Associate monitor with Edge pool
             with locking.LockManager.get_lock(edge_id):
-                edge_pool = self.vcns.get_pool(edge_id, edge_pool_id)[1]
+                edge_pool = self.vcns.get_pool(edge_id, edge_pool_id,
+                                               context=context)[1]
                 if edge_pool.get('monitorId'):
                     edge_pool['monitorId'].append(edge_mon_id)
                 else:
                     edge_pool['monitorId'] = [edge_mon_id]
 
-                self.vcns.update_pool(edge_id, edge_pool_id, edge_pool)
+                self.vcns.update_pool(edge_id, edge_pool_id, edge_pool,
+                                      context=context)
 
         except nsxv_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
@@ -135,7 +138,7 @@ class EdgeHealthMonitorManager(base_mgr.EdgeLoadbalancerBaseManager):
             with locking.LockManager.get_lock(edge_id):
                 self.vcns.update_health_monitor(edge_id,
                                                 hm_binding['edge_mon_id'],
-                                                edge_monitor)
+                                                edge_monitor, context=context)
 
         except nsxv_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
@@ -167,13 +170,15 @@ class EdgeHealthMonitorManager(base_mgr.EdgeLoadbalancerBaseManager):
         hm_binding = nsxv_db.get_nsxv_lbaas_monitor_binding(
             context.session, lb_id, pool_id, hm.id, edge_id)
 
-        edge_pool = self.vcns.get_pool(edge_id, edge_pool_id)[1]
+        edge_pool = self.vcns.get_pool(edge_id, edge_pool_id,
+                                       context=context)[1]
         if hm_binding['edge_mon_id'] in edge_pool['monitorId']:
             edge_pool['monitorId'].remove(hm_binding['edge_mon_id'])
 
             try:
                 with locking.LockManager.get_lock(edge_id):
-                    self.vcns.update_pool(edge_id, edge_pool_id, edge_pool)
+                    self.vcns.update_pool(edge_id, edge_pool_id, edge_pool,
+                                          context=context)
             except nsxv_exc.VcnsApiException:
                 with excutils.save_and_reraise_exception():
                     self.lbv2_driver.health_monitor.failed_completion(context,
@@ -186,7 +191,8 @@ class EdgeHealthMonitorManager(base_mgr.EdgeLoadbalancerBaseManager):
             try:
                 with locking.LockManager.get_lock(edge_id):
                     self.vcns.delete_health_monitor(hm_binding['edge_id'],
-                                                    hm_binding['edge_mon_id'])
+                                                    hm_binding['edge_mon_id'],
+                                                    context=context)
             except nsxv_exc.VcnsApiException:
                 with excutils.save_and_reraise_exception():
                     self.lbv2_driver.health_monitor.failed_completion(context,

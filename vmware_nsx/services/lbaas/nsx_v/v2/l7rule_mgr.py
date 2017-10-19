@@ -41,7 +41,8 @@ class EdgeL7RuleManager(base_mgr.EdgeLoadbalancerBaseManager):
         try:
             with locking.LockManager.get_lock(edge_id):
                 # update the backend application rule for the updated policy
-                self.vcns.update_app_rule(edge_id, app_rule_id, app_rule)
+                self.vcns.update_app_rule(edge_id, app_rule_id, app_rule,
+                                          context=context)
         except Exception as e:
             with excutils.save_and_reraise_exception():
                 self.lbv2_driver.l7rule.failed_completion(context, rule)

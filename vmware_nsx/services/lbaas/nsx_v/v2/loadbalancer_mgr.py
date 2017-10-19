@@ -52,14 +52,15 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
             raise n_exc.BadRequest(resource='edge-lbaas', msg=msg)
 
         try:
-            lb_common.enable_edge_acceleration(self.vcns, edge_id)
+            lb_common.enable_edge_acceleration(self.vcns, edge_id,
+                                               context=context)
 
             edge_fw_rule_id = lb_common.add_vip_fw_rule(
-                self.vcns, edge_id, lb.id, lb.vip_address)
+                self.vcns, edge_id, lb.id, lb.vip_address, context=context)
 
             # set LB default rule
             lb_common.set_lb_firewall_default_rule(self.vcns, edge_id,
-                                                   'accept')
+                                                   'accept', context=context)
 
             nsxv_db.add_nsxv_lbaas_loadbalancer_binding(
                 context.session, lb.id, edge_id, edge_fw_rule_id,
@@ -94,7 +95,7 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
 
             # set LB default rule
             lb_common.set_lb_firewall_default_rule(
-                self.vcns, binding['edge_id'], 'deny')
+                self.vcns, binding['edge_id'], 'deny', context=context)
             if edge_binding:
                 old_lb = lb_common.is_lb_on_router_edge(
                     context, self.core_plugin, binding['edge_id'])
@@ -107,7 +108,7 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
                     try:
                         lb_common.del_vip_fw_rule(
                             self.vcns, binding['edge_id'],
-                            binding['edge_fw_rule_id'])
+                            binding['edge_fw_rule_id'], context=context)
                     except nsxv_exc.VcnsApiException as e:
                         LOG.error('Failed to delete loadbalancer %(lb)s '
                                   'FW rule. exception is %(exc)s',
@@ -142,7 +143,7 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
 
         try:
             lb_stats = self.vcns.get_loadbalancer_statistics(
-                binding['edge_id'])
+                binding['edge_id'], context=context)
 
         except nsxv_exc.VcnsApiException:
             msg = (_('Failed to read load balancer statistics, edge: %s') %
@@ -182,4 +183,4 @@ class EdgeLoadBalancerManager(base_mgr.EdgeLoadbalancerBaseManager):
                     edge_id = edge_bind['edge_id']
 
                     self.core_plugin.nsx_v.update_routes(
-                        edge_id, subnet['gateway_ip'], [])
+                        edge_id, subnet['gateway_ip'], [], context=context)

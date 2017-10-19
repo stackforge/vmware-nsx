@@ -119,7 +119,7 @@ class VcnsApiHelper(object):
             return None
 
     def request(self, method, uri, params=None, headers=None,
-                encodeparams=True):
+                encodeparams=True, request_id=None):
         uri = self.address + uri
         if headers is None:
             headers = {}
@@ -127,6 +127,8 @@ class VcnsApiHelper(object):
         headers['Accept'] = 'application/' + self.format
         headers['Authorization'] = 'Basic ' + self.authToken.strip()
         headers['Content-Type'] = 'application/' + self.format
+        if request_id:
+            headers['TicketNumber'] = request_id
 
         if params:
             if encodeparams is True:

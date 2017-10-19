@@ -86,7 +86,7 @@ def nsx_update_switch(resource, event, trigger, **kwargs):
                   "Add --property dvs-id=<dvs-id>")
         return
     try:
-        h, switch = nsxv.get_vdn_switch(dvs_id)
+        h, switch = nsxv.get_vdn_switch(dvs_id, context=context)
     except exceptions.ResourceNotFound:
         LOG.error("DVS %s not found", dvs_id)
         return
@@ -103,7 +103,7 @@ def nsx_update_switch(resource, event, trigger, **kwargs):
                  "%(policy)s", {'dvs': dvs_id, 'policy': policy})
         switch['teamingPolicy'] = policy
         try:
-            switch = nsxv.update_vdn_switch(switch)
+            switch = nsxv.update_vdn_switch(switch, context=context)
         except exceptions.VcnsApiException as e:
             desc = jsonutils.loads(e.response)
             details = desc.get('details')

@@ -124,7 +124,7 @@ def get_lbaas_edge_id(context, plugin, lb_id, vip_addr, subnet_id, tenant_id):
 
     gw_ip = subnet.get('gateway_ip')
     if gw_ip:
-        plugin.nsx_v.update_routes(edge_id, gw_ip, [])
+        plugin.nsx_v.update_routes(edge_id, gw_ip, [], context=context)
 
     return edge_id
 
@@ -231,12 +231,13 @@ def extract_resource_id(location_uri):
     return uri_elements[-1]
 
 
-def set_lb_firewall_default_rule(vcns, edge_id, action):
+def set_lb_firewall_default_rule(vcns, edge_id, action, context=None):
     with locking.LockManager.get_lock(edge_id):
-        vcns.update_firewall_default_policy(edge_id, {'action': action})
+        vcns.update_firewall_default_policy(edge_id, {'action': action},
+        context=context)
 
 
-def add_vip_fw_rule(vcns, edge_id, vip_id, ip_address):
+def add_vip_fw_rule(vcns, edge_id, vip_id, ip_address, context=None):
     fw_rule = {
         'firewallRules': [
             {'action': 'accept', 'destination': {
@@ -245,15 +246,15 @@ def add_vip_fw_rule(vcns, edge_id, vip_id, ip_address):
              'name': vip_id}]}
 
     with locking.LockManager.get_lock(edge_id):
-        h = vcns.add_firewall_rule(edge_id, fw_rule)[0]
+        h = vcns.add_firewall_rule(edge_id, fw_rule, context=context)[0]
     fw_rule_id = extract_resource_id(h['location'])
 
     return fw_rule_id
 
 
-def del_vip_fw_rule(vcns, edge_id, vip_fw_rule_id):
+def del_vip_fw_rule(vcns, edge_id, vip_fw_rule_id, context=None):
     with locking.LockManager.get_lock(edge_id):
-        vcns.delete_firewall_rule(edge_id, vip_fw_rule_id)
+        vcns.delete_firewall_rule(edge_id, vip_fw_rule_id, context=context)
 
 
 def get_edge_ip_addresses(vcns, edge_id):
@@ -275,14 +276,14 @@ def get_edge_ip_addresses(vcns, edge_id):
     return edge_ips
 
 
-def enable_edge_acceleration(vcns, edge_id):
+def enable_edge_acceleration(vcns, edge_id, context=None):
     with locking.LockManager.get_lock(edge_id):
         # Query the existing load balancer config in case metadata lb is set
-        _, config = vcns.get_loadbalancer_config(edge_id)
+        _, config = vcns.get_loadbalancer_config(edge_id, context=context)
         config['accelerationEnabled'] = True
         config['enabled'] = True
         config['featureType'] = 'loadbalancer_4.0'
-        vcns.enable_service_loadbalancer(edge_id, config)
+        vcns.enable_service_loadbalancer(edge_id, config, context=context)
 
 
 def is_lb_on_router_edge(context, core_plugin, edge_id):

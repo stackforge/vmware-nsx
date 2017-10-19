@@ -290,7 +290,8 @@ class EdgeUtilsTestCase(EdgeUtilsTestCaseMixin):
                     self.subnet_mask)
                 vcns_update.assert_called_once_with(self.edge_id,
                                                     self.vnic,
-                                                    {'interface': fixed_vnic})
+                                                    {'interface': fixed_vnic},
+                                                    context=self.ctx)
 
     def test_update_vdr_interface_addr_intrernal(self):
         self._test_update_vdr_intereface_primary_addr(

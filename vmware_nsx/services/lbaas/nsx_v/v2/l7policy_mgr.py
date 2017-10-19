@@ -147,10 +147,10 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
         super(EdgeL7PolicyManager, self).__init__(vcns_driver)
 
     def _add_app_rule_to_virtual_server(self, edge_id, vse_id, app_rule_id,
-                                        policy_position):
+                                        policy_position, context=None):
         """Add the new nsx application rule to the virtual server"""
         # Get the current virtual server configuration
-        vse = self.vcns.get_vip(edge_id, vse_id)[1]
+        vse = self.vcns.get_vip(edge_id, vse_id, context=context)[1]
         if 'applicationRuleId' not in vse:
             vse['applicationRuleId'] = []
 
@@ -162,12 +162,13 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
             vse['applicationRuleId'].insert(policy_position - 1, app_rule_id)
 
         # update the backend with the new configuration
-        self.vcns.update_vip(edge_id, vse_id, vse)
+        self.vcns.update_vip(edge_id, vse_id, vse, context=context)
 
-    def _del_app_rule_from_virtual_server(self, edge_id, vse_id, app_rule_id):
+    def _del_app_rule_from_virtual_server(self, edge_id, vse_id, app_rule_id,
+                                          context=None):
         """Delete nsx application rule from the virtual server"""
         # Get the current virtual server configuration
-        vse = self.vcns.get_vip(edge_id, vse_id)[1]
+        vse = self.vcns.get_vip(edge_id, vse_id, context=context)[1]
         if 'applicationRuleId' not in vse:
             vse['applicationRuleId'] = []
 
@@ -176,14 +177,15 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
             vse['applicationRuleId'].remove(app_rule_id)
 
         # update the backend with the new configuration
-        self.vcns.update_vip(edge_id, vse_id, vse)
+        self.vcns.update_vip(edge_id, vse_id, vse, context=context)
 
     def _update_app_rule_possition_in_virtual_server(self, edge_id, vse_id,
                                                      app_rule_id,
-                                                     policy_position):
+                                                     policy_position,
+                                                     context=None):
         """Move the new nsx application rule to another position"""
         # Get the current virtual server configuration
-        vse = self.vcns.get_vip(edge_id, vse_id)[1]
+        vse = self.vcns.get_vip(edge_id, vse_id, context=context)[1]
 
         # delete the policy (= application rule) from the list
         if app_rule_id in vse['applicationRuleId']:
@@ -197,7 +199,7 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
             vse['applicationRuleId'].insert(policy_position - 1, app_rule_id)
 
         # update the backend with the new configuration
-        self.vcns.update_vip(edge_id, vse_id, vse)
+        self.vcns.update_vip(edge_id, vse_id, vse, context=context)
 
     def _get_vse_id(self, context, pol):
         lb_id = pol.listener.loadbalancer_id
@@ -223,7 +225,8 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
         try:
             with locking.LockManager.get_lock(edge_id):
                 # create the backend application rule for this policy
-                h = (self.vcns.create_app_rule(edge_id, app_rule))[0]
+                h = (self.vcns.create_app_rule(edge_id, app_rule,
+                                               context=context))[0]
                 app_rule_id = lb_common.extract_resource_id(h['location'])
 
                 # add the nsx application rule (neutron policy) to the nsx
@@ -231,7 +234,8 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
                 vse_id = self._get_vse_id(context, pol)
                 if vse_id:
                     self._add_app_rule_to_virtual_server(
-                        edge_id, vse_id, app_rule_id, pol.position)
+                        edge_id, vse_id, app_rule_id, pol.position,
+                        context=context)
         except Exception as e:
             with excutils.save_and_reraise_exception():
                 self.lbv2_driver.l7policy.failed_completion(context, pol)
@@ -242,7 +246,8 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
                     # Failed to add the rule to the vip: delete the rule
                     # from the backend.
                     try:
-                        self.vcns.delete_app_rule(edge_id, app_rule_id)
+                        self.vcns.delete_app_rule(edge_id, app_rule_id,
+                                                  context=context)
                     except Exception:
                         pass
 
@@ -261,14 +266,16 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
         try:
             with locking.LockManager.get_lock(edge_id):
                 # update the backend application rule for the new policy
-                self.vcns.update_app_rule(edge_id, app_rule_id, app_rule)
+                self.vcns.update_app_rule(edge_id, app_rule_id, app_rule,
+                                          context=context)
 
                 # if the position changed - update it too
                 if old_pol.position != new_pol.position:
                     vse_id = self._get_vse_id(context, new_pol)
                     if vse_id:
                         self._update_app_rule_possition_in_virtual_server(
-                            edge_id, vse_id, app_rule_id, new_pol.position)
+                            edge_id, vse_id, app_rule_id, new_pol.position,
+                            context=context)
 
         except Exception as e:
             with excutils.save_and_reraise_exception():
@@ -298,10 +305,11 @@ class EdgeL7PolicyManager(base_mgr.EdgeLoadbalancerBaseManager):
                 vse_id = self._get_vse_id(context, pol)
                 if vse_id:
                     self._del_app_rule_from_virtual_server(
-                        edge_id, vse_id, app_rule_id)
+                        edge_id, vse_id, app_rule_id, context=context)
 
                 # delete the nsx application rule
-                self.vcns.delete_app_rule(edge_id, app_rule_id)
+                self.vcns.delete_app_rule(edge_id, app_rule_id,
+                                          context=context)
             except Exception as e:
                 with excutils.save_and_reraise_exception():
                     self.lbv2_driver.l7policy.failed_completion(context, pol)

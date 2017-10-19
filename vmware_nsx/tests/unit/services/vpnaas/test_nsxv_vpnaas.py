@@ -89,10 +89,11 @@ class TestVpnaasDriver(test_plugin.NsxVPluginV2TestCase):
         mock_conv_ipsec.assert_called_with(self.context,
                                            FAKE_IPSEC_CONNECTION)
         mock_get_id.assert_called_with(self.context, FAKE_VPNSERVICE_ID)
-        mock_gen_new.assert_called_with(FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE)
-        mock_update_ipsec.assert_called_with(FAKE_EDGE_ID,
-                                             FAKE_IPSEC_VPN_SITE,
-                                             enabled=True)
+        mock_gen_new.assert_called_with(
+            FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE, context=self.context)
+        mock_update_ipsec.assert_called_with(
+            FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE, enabled=True,
+            context=self.context)
         mock_update_fw.assert_called_with(self.context, FAKE_VPNSERVICE_ID)
         mock_update_status.assert_called_with(
             self.context,
@@ -123,10 +124,11 @@ class TestVpnaasDriver(test_plugin.NsxVPluginV2TestCase):
         mock_val_conn.assert_called_with(self.context, FAKE_IPSEC_CONNECTION)
         mock_conv_ipsec.assert_called_with(self.context, FAKE_IPSEC_CONNECTION)
         mock_get_id.assert_called_with(self.context, FAKE_VPNSERVICE_ID)
-        mock_gen_new.assert_called_with(FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE)
-        mock_update_ipsec.assert_called_with(FAKE_EDGE_ID,
-                                             FAKE_IPSEC_VPN_SITE,
-                                             enabled=True)
+        mock_gen_new.assert_called_with(
+            FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE, context=self.context)
+        mock_update_ipsec.assert_called_with(
+            FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE, enabled=True,
+            context=self.context)
         mock_update_status.assert_called_with(
             self.context,
             FAKE_IPSEC_CONNECTION["vpnservice_id"],
@@ -154,10 +156,11 @@ class TestVpnaasDriver(test_plugin.NsxVPluginV2TestCase):
         mock_val_conn.assert_called_with(self.context, FAKE_IPSEC_CONNECTION)
         mock_conv_ipsec.assert_called_with(self.context, FAKE_IPSEC_CONNECTION)
         mock_get_id.assert_called_with(self.context, FAKE_VPNSERVICE_ID)
-        mock_gen_new.assert_called_with(FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE)
-        mock_update_ipsec.assert_called_with(FAKE_EDGE_ID,
-                                             FAKE_IPSEC_VPN_SITE,
-                                             enabled=True)
+        mock_gen_new.assert_called_with(
+            FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE, context=self.context)
+        mock_update_ipsec.assert_called_with(
+            FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE, enabled=True,
+            context=self.context)
         mock_update_fw.assert_called_with(self.context, FAKE_VPNSERVICE_ID)
         mock_update_status.assert_called_with(
             self.context,
@@ -179,7 +182,8 @@ class TestVpnaasDriver(test_plugin.NsxVPluginV2TestCase):
         mock_update_sites.assert_called_with(self.context, FAKE_EDGE_ID,
                                              FAKE_IPSEC_CONNECTION,
                                              FAKE_NEW_CONNECTION)
-        mock_update_ipsec.assert_called_with(FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE)
+        mock_update_ipsec.assert_called_with(
+            FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE, context=self.context)
         mock_update_fw.assert_called_with(self.context, FAKE_VPNSERVICE_ID)
 
     @mock.patch('%s._get_router_edge_id' % DRIVER_PATH)
@@ -238,8 +242,8 @@ class TestVpnaasDriver(test_plugin.NsxVPluginV2TestCase):
         mock_update_sites.assert_called_with(self.context, FAKE_EDGE_ID,
                                              FAKE_IPSEC_CONNECTION,
                                              FAKE_NEW_CONNECTION)
-        mock_update_ipsec.assert_called_with(FAKE_EDGE_ID,
-                                             FAKE_IPSEC_VPN_SITE)
+        mock_update_ipsec.assert_called_with(
+            FAKE_EDGE_ID, FAKE_IPSEC_VPN_SITE, context=self.context)
         mock_update_status.assert_called_with(
             self.context,
             FAKE_IPSEC_CONNECTION["vpnservice_id"],

@@ -582,7 +582,7 @@ class VcnsDriverHATestCase(VcnsDriverTestCase):
         self.vcns_driver.vcns.orig_deploy = self.vcns_driver.vcns.deploy_edge
         self.vcns_driver.vcns.deploy_edge = self._fake_deploy_edge
 
-    def _fake_deploy_edge(self, request):
+    def _fake_deploy_edge(self, request, context=None):
         # validate the appliance structure in the request,
         # and return the regular (fake) response
         found_app = request['appliances']['appliances']

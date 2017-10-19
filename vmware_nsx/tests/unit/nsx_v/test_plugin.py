@@ -2901,8 +2901,7 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
                                     {'router': {'name': new_name}})
                 self.assertEqual(new_name, body['router']['name'])
                 edge_rename.assert_called_once_with(
-                    edge_id,
-                    new_name + '-' + router_id)
+                    edge_id, new_name + '-' + router_id, context=ctx)
 
     def test_router_resize(self):
         with self.router() as r:
@@ -2920,7 +2919,8 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
                 body = self._update('routers', router_id,
                                     {'router': {'router_size': new_size}})
                 self.assertEqual(new_size, body['router']['router_size'])
-                edge_resize.assert_called_once_with(edge_id, new_size)
+                edge_resize.assert_called_once_with(edge_id, new_size,
+                                                    context=ctx)
 
     def _test_router_update_gateway_on_l3_ext_net(self, vlan_id=None,
                                                   validate_ext_gw=False,
@@ -3393,7 +3393,7 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
             TestExclusiveRouterTestCase,
             self).test_router_add_interface_multiple_ipv6_subnets_same_net()
 
-    def _fake_rename_edge(self, edge_id, name):
+    def _fake_rename_edge(self, edge_id, name, context=None):
         raise vcns_exc.VcnsApiException(
             status=400, header={'status': 200}, uri='fake_url', response='')
 

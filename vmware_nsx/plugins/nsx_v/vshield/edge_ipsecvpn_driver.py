@@ -126,22 +126,23 @@ class EdgeIPsecVpnDriver(object):
             'encryptionAlgorithm': ENCRYPTION_ALGORITHM_MAP.get(
                 site['ipsecpolicy'].get('encryption_algorithm'))}
 
-    def update_ipsec_config(self, edge_id, sites, enabled=True):
+    def update_ipsec_config(self, edge_id, sites, enabled=True, context=None):
         ipsec_config = {'featureType': "ipsec_4.0",
                         'enabled': enabled}
         vse_sites = [self._convert_ipsec_site(site) for site in sites]
         ipsec_config['sites'] = {'sites': vse_sites}
         try:
-            self.vcns.update_ipsec_config(edge_id, ipsec_config)
+            self.vcns.update_ipsec_config(edge_id, ipsec_config,
+                                          context=context)
         except vcns_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception("Failed to update ipsec vpn "
                               "configuration with edge_id: %s",
                               edge_id)
 
-    def delete_ipsec_config(self, edge_id):
+    def delete_ipsec_config(self, edge_id, context=None):
         try:
-            self.vcns.delete_ipsec_config(edge_id)
+            self.vcns.delete_ipsec_config(edge_id, context=context)
         except vcns_exc.ResourceNotFound:
             LOG.warning("IPsec config not found on edge: %s", edge_id)
         except vcns_exc.VcnsApiException:
@@ -149,5 +150,5 @@ class EdgeIPsecVpnDriver(object):
                 LOG.exception("Failed to delete ipsec vpn configuration "
                               "with edge_id: %s", edge_id)
 
-    def get_ipsec_config(self, edge_id):
-        return self.vcns.get_ipsec_config(edge_id)
+    def get_ipsec_config(self, edge_id, context=None):
+        return self.vcns.get_ipsec_config(edge_id, context=context)

@@ -192,23 +192,23 @@ class TestEdgeLbaasV2Loadbalancer(BaseTestEdgeLbaasV2):
 
             self.edge_driver.loadbalancer.create(self.context, self.lb)
 
-            mock_add_vip_fwr.assert_called_with(self.edge_driver.vcns,
-                                                LB_EDGE_ID,
-                                                LB_ID,
-                                                LB_VIP)
+            mock_add_vip_fwr.assert_called_with(
+                self.edge_driver.vcns, LB_EDGE_ID, LB_ID,
+                LB_VIP, context=self.context)
             mock_db_binding.assert_called_with(self.context.session,
                                                LB_ID,
                                                LB_EDGE_ID,
                                                LB_VIP_FWR_ID,
                                                LB_VIP)
             mock_set_fw_rule.assert_called_with(
-                self.edge_driver.vcns, LB_EDGE_ID, 'accept')
+                self.edge_driver.vcns, LB_EDGE_ID, 'accept',
+                context=self.context)
             mock_successful_completion = (
                 self.lbv2_driver.load_balancer.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
                                                           self.lb)
             mock_enable_edge_acceleration.assert_called_with(
-                self.edge_driver.vcns, LB_EDGE_ID)
+                self.edge_driver.vcns, LB_EDGE_ID, context=self.context)
 
     def test_update(self):
         new_lb = lb_models.LoadBalancer(LB_ID, 'yyy-yyy', 'lb-name', 'heh-huh',
@@ -241,16 +241,17 @@ class TestEdgeLbaasV2Loadbalancer(BaseTestEdgeLbaasV2):
             mock_get_r_binding.return_value = {'router_id': 'xxxx'}
             self.edge_driver.loadbalancer.delete(self.context, self.lb)
 
-            mock_del_fwr.assert_called_with(self.edge_driver.vcns,
-                                            LB_EDGE_ID,
-                                            LB_VIP_FWR_ID)
+            mock_del_fwr.assert_called_with(
+                self.edge_driver.vcns, LB_EDGE_ID, LB_VIP_FWR_ID,
+                context=self.context)
             mock_vip_sec_ip.assert_called_with(self.edge_driver.vcns,
                                                LB_EDGE_ID,
                                                LB_VIP)
             mock_del_binding.assert_called_with(self.context.session,
                                                 LB_ID)
             mock_set_fw_rule.assert_called_with(
-                self.edge_driver.vcns, LB_EDGE_ID, 'deny')
+                self.edge_driver.vcns, LB_EDGE_ID, 'deny',
+                context=self.context)
             mock_successful_completion = (
                 self.lbv2_driver.load_balancer.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
@@ -279,7 +280,8 @@ class TestEdgeLbaasV2Loadbalancer(BaseTestEdgeLbaasV2):
             mock_del_binding.assert_called_with(self.context.session,
                                                 LB_ID)
             mock_set_fw_rule.assert_called_with(
-                self.edge_driver.vcns, LB_EDGE_ID, 'deny')
+                self.edge_driver.vcns, LB_EDGE_ID, 'deny',
+                context=self.context)
             mock_delete_lrouter.assert_called_with(
                 mock.ANY, 'lbaas-' + LB_ID, dist=False)
             mock_successful_completion = (
@@ -322,10 +324,10 @@ class TestEdgeLbaasV2Listener(BaseTestEdgeLbaasV2):
 
             self.edge_driver.listener.create(self.context, self.listener)
 
-            mock_create_app_prof.assert_called_with(LB_EDGE_ID,
-                                                    EDGE_APP_PROF_DEF)
-            mock_create_vip.assert_called_with(LB_EDGE_ID,
-                                               EDGE_VIP_DEF)
+            mock_create_app_prof.assert_called_with(
+                LB_EDGE_ID, EDGE_APP_PROF_DEF, context=self.context)
+            mock_create_vip.assert_called_with(
+                LB_EDGE_ID, EDGE_VIP_DEF, context=self.context)
             mock_add_binding.assert_called_with(
                 self.context.session, LB_ID, LISTENER_ID, EDGE_APP_PROFILE_ID,
                 EDGE_VIP_ID)
@@ -357,14 +359,14 @@ class TestEdgeLbaasV2Listener(BaseTestEdgeLbaasV2):
             self.edge_driver.listener.update(
                 self.context, self.listener, new_listener)
 
-            mock_upd_app_prof.assert_called_with(LB_EDGE_ID,
-                                                 EDGE_APP_PROFILE_ID,
-                                                 EDGE_APP_PROF_DEF)
+            mock_upd_app_prof.assert_called_with(
+                LB_EDGE_ID, EDGE_APP_PROFILE_ID, EDGE_APP_PROF_DEF,
+                context=self.context)
 
             edge_vip_def = EDGE_VIP_DEF.copy()
             edge_vip_def['port'] = 8000
-            mock_upd_vip.assert_called_with(LB_EDGE_ID, EDGE_VIP_ID,
-                                            edge_vip_def)
+            mock_upd_vip.assert_called_with(
+                LB_EDGE_ID, EDGE_VIP_ID, edge_vip_def, context=self.context)
             mock_successful_completion = (
                 self.lbv2_driver.listener.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
@@ -386,9 +388,10 @@ class TestEdgeLbaasV2Listener(BaseTestEdgeLbaasV2):
 
             self.edge_driver.listener.delete(self.context, self.listener)
 
-            mock_del_vip.assert_called_with(LB_EDGE_ID, EDGE_VIP_ID)
-            mock_del_app_prof.assert_called_with(LB_EDGE_ID,
-                                                 EDGE_APP_PROFILE_ID)
+            mock_del_vip.assert_called_with(
+                LB_EDGE_ID, EDGE_VIP_ID, context=self.context)
+            mock_del_app_prof.assert_called_with(
+                LB_EDGE_ID, EDGE_APP_PROFILE_ID, context=self.context)
             mock_del_binding.assert_called_with(self.context.session,
                                                 LB_ID, LISTENER_ID)
             mock_successful_completion = (
@@ -426,17 +429,17 @@ class TestEdgeLbaasV2Pool(BaseTestEdgeLbaasV2):
 
             self.edge_driver.pool.create(self.context, self.pool)
 
-            mock_create_pool.assert_called_with(LB_EDGE_ID,
-                                                EDGE_POOL_DEF.copy())
+            mock_create_pool.assert_called_with(
+                LB_EDGE_ID, EDGE_POOL_DEF.copy(), context=self.context)
             mock_add_binding.assert_called_with(self.context.session,
                                                 LB_ID, POOL_ID, EDGE_POOL_ID)
             edge_vip_def = EDGE_VIP_DEF.copy()
             edge_vip_def['defaultPoolId'] = EDGE_POOL_ID
             mock_upd_vip.assert_called_with(LB_EDGE_ID, EDGE_VIP_ID,
-                                            edge_vip_def)
-            mock_upd_app_prof.assert_called_with(LB_EDGE_ID,
-                                                 EDGE_APP_PROFILE_ID,
-                                                 EDGE_APP_PROF_DEF)
+                                            edge_vip_def, context=self.context)
+            mock_upd_app_prof.assert_called_with(
+                LB_EDGE_ID, EDGE_APP_PROFILE_ID, EDGE_APP_PROF_DEF,
+                context=self.context)
             mock_successful_completion = (
                 self.lbv2_driver.pool.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
@@ -472,10 +475,10 @@ class TestEdgeLbaasV2Pool(BaseTestEdgeLbaasV2):
             edge_pool_def['monitorId'] = 'monitor-7'
             edge_pool_def['member'] = ['member1', 'member2']
             mock_upd_pool.assert_called_with(
-                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def)
-            mock_upd_app_prof.assert_called_with(LB_EDGE_ID,
-                                                 EDGE_APP_PROFILE_ID,
-                                                 EDGE_APP_PROF_DEF)
+                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def, context=self.context)
+            mock_upd_app_prof.assert_called_with(
+                LB_EDGE_ID, EDGE_APP_PROFILE_ID, EDGE_APP_PROF_DEF,
+                context=self.context)
             mock_successful_completion = (
                 self.lbv2_driver.pool.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
@@ -503,8 +506,9 @@ class TestEdgeLbaasV2Pool(BaseTestEdgeLbaasV2):
             self.edge_driver.pool.delete(self.context, self.pool)
 
             mock_upd_vip.assert_called_with(LB_EDGE_ID, EDGE_VIP_ID,
-                                            EDGE_VIP_DEF)
-            mock_del_pool.assert_called_with(LB_EDGE_ID, EDGE_POOL_ID)
+                                            EDGE_VIP_DEF, context=self.context)
+            mock_del_pool.assert_called_with(
+                LB_EDGE_ID, EDGE_POOL_ID, context=self.context)
             mock_del_binding.assert_called_with(
                 self.context.session, LB_ID, POOL_ID)
             mock_successful_completion = (
@@ -542,7 +546,7 @@ class TestEdgeLbaasV2Member(BaseTestEdgeLbaasV2):
             edge_pool_def = EDGE_POOL_DEF.copy()
             edge_pool_def['member'] = [EDGE_MEMBER_DEF]
             mock_update_pool.assert_called_with(
-                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def)
+                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def, context=self.context)
             mock_successful_completion = (
                 self.lbv2_driver.member.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
@@ -575,7 +579,7 @@ class TestEdgeLbaasV2Member(BaseTestEdgeLbaasV2):
             edge_member_def['condition'] = 'enabled'
             edge_pool_def['member'] = [edge_member_def]
             mock_update_pool.assert_called_with(
-                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def)
+                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def, context=self.context)
             mock_successful_completion = (
                 self.lbv2_driver.member.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
@@ -604,7 +608,7 @@ class TestEdgeLbaasV2Member(BaseTestEdgeLbaasV2):
 
             edge_pool_def['member'] = []
             mock_update_pool.assert_called_with(
-                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def)
+                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def, context=self.context)
             mock_del_lb_iface.assert_called_with(
                 self.context, self.core_plugin, LB_ID, None)
             mock_successful_completion = (
@@ -646,14 +650,15 @@ class TestEdgeLbaasV2HealthMonitor(BaseTestEdgeLbaasV2):
 
             self.edge_driver.healthmonitor.create(self.context, self.hm)
 
-            mock_create_hm.assert_called_with(LB_EDGE_ID, EDGE_HM_DEF)
+            mock_create_hm.assert_called_with(LB_EDGE_ID, EDGE_HM_DEF,
+                                              context=self.context)
             mock_add_hm_binding.assert_called_with(
                 self.context.session, LB_ID, POOL_ID, HM_ID, LB_EDGE_ID,
                 EDGE_HM_ID)
             edge_pool_def = EDGE_POOL_DEF.copy()
             edge_pool_def['monitorId'] = [EDGE_HM_ID]
             mock_update_pool.assert_called_with(
-                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def)
+                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def, context=self.context)
             mock_successful_completion = (
                 self.lbv2_driver.health_monitor.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
@@ -680,7 +685,8 @@ class TestEdgeLbaasV2HealthMonitor(BaseTestEdgeLbaasV2):
 
             edge_hm_def = EDGE_HM_DEF.copy()
             edge_hm_def['maxRetries'] = 3
-            mock_upd_hm.assert_called_with(LB_EDGE_ID, EDGE_HM_ID, edge_hm_def)
+            mock_upd_hm.assert_called_with(LB_EDGE_ID, EDGE_HM_ID, edge_hm_def,
+                                           context=self.context)
             mock_successful_completion = (
                 self.lbv2_driver.health_monitor.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
@@ -712,10 +718,11 @@ class TestEdgeLbaasV2HealthMonitor(BaseTestEdgeLbaasV2):
             self.edge_driver.healthmonitor.delete(
                 self.context, self.hm)
 
-            mock_del_hm.assert_called_with(LB_EDGE_ID, EDGE_HM_ID)
+            mock_del_hm.assert_called_with(LB_EDGE_ID, EDGE_HM_ID,
+                                           context=self.context)
             edge_pool_def['monitorId'] = []
             mock_update_pool.assert_called_with(
-                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def)
+                LB_EDGE_ID, EDGE_POOL_ID, edge_pool_def, context=self.context)
             mock_del_binding.assert_called_with(self.context.session, LB_ID,
                                                 POOL_ID, HM_ID, LB_EDGE_ID)
             mock_successful_completion = (
@@ -757,15 +764,15 @@ class TestEdgeLbaasV2L7Policy(BaseTestEdgeLbaasV2):
 
             self.edge_driver.l7policy.create(self.context, self.l7policy)
 
-            mock_create_rule.assert_called_with(LB_EDGE_ID,
-                                                EDGE_L7POL_DEF.copy())
+            mock_create_rule.assert_called_with(
+                LB_EDGE_ID, EDGE_L7POL_DEF.copy(), context=self.context)
             mock_add_l7policy_binding.assert_called_with(
                 self.context.session, L7POL_ID, LB_EDGE_ID, EDGE_RULE_ID)
 
             edge_vip_def = EDGE_VIP_DEF.copy()
             edge_vip_def['applicationRuleId'] = [EDGE_RULE_ID]
             mock_upd_vip.assert_called_with(LB_EDGE_ID, EDGE_VIP_ID,
-                                            edge_vip_def)
+                                            edge_vip_def, context=self.context)
             mock_successful_completion = (
                 self.lbv2_driver.l7policy.successful_completion)
             mock_successful_completion.assert_called_with(self.context,
@@ -807,7 +814,7 @@ class TestEdgeLbaasV2L7Policy(BaseTestEdgeLbaasV2):
             edge_rule_def = EDGE_L7POL_DEF.copy()
             edge_rule_def['script'] = "redirect location %s if TRUE" % url
             mock_update_rule.assert_called_with(
-                LB_EDGE_ID, EDGE_RULE_ID, edge_rule_def)
+                LB_EDGE_ID, EDGE_RULE_ID, edge_rule_def, context=self.context)
             mock_upd_vip.assert_called()
             mock_successful_completion = (
                 self.lbv2_driver.l7policy.successful_completion)
@@ -843,9 +850,10 @@ class TestEdgeLbaasV2L7Policy(BaseTestEdgeLbaasV2):
 
             edge_vip_def2 = EDGE_VIP_DEF.copy()
             edge_vip_def2['applicationRuleId'] = []
-            mock_upd_vip.assert_called_with(LB_EDGE_ID, EDGE_VIP_ID,
-                                            edge_vip_def2)
-            mock_del_app_rule.assert_called_with(LB_EDGE_ID, EDGE_RULE_ID)
+            mock_upd_vip.assert_called_with(
+                LB_EDGE_ID, EDGE_VIP_ID, edge_vip_def2, context=self.context)
+            mock_del_app_rule.assert_called_with(
+                LB_EDGE_ID, EDGE_RULE_ID, context=self.context)
             mock_del_l7policy_binding.assert_called_with(
                 self.context.session, L7POL_ID)
             mock_successful_completion = (
@@ -880,7 +888,7 @@ class TestEdgeLbaasV2L7Rule(BaseTestEdgeLbaasV2):
                 "http-request deny if %(rule_id)s" %
                 {'rule_id': L7RULE_ID1})
             mock_update_rule.assert_called_with(
-                LB_EDGE_ID, EDGE_RULE_ID, edge_rule_def)
+                LB_EDGE_ID, EDGE_RULE_ID, edge_rule_def, context=self.context)
 
             mock_successful_completion = (
                 self.lbv2_driver.l7rule.successful_completion)
@@ -899,7 +907,7 @@ class TestEdgeLbaasV2L7Rule(BaseTestEdgeLbaasV2):
                 {'rule_id1': L7RULE_ID1,
                  'rule_id2': L7RULE_ID2})
             mock_update_rule.assert_called_with(
-                LB_EDGE_ID, EDGE_RULE_ID, edge_rule_def)
+                LB_EDGE_ID, EDGE_RULE_ID, edge_rule_def, context=self.context)
 
             mock_successful_completion = (
                 self.lbv2_driver.l7rule.successful_completion)
@@ -932,7 +940,7 @@ class TestEdgeLbaasV2L7Rule(BaseTestEdgeLbaasV2):
                 "http-request deny if %(rule_id)s" %
                 {'rule_id': L7RULE_ID1})
             mock_update_rule.assert_called_with(
-                LB_EDGE_ID, EDGE_RULE_ID, edge_rule_def)
+                LB_EDGE_ID, EDGE_RULE_ID, edge_rule_def, context=self.context)
 
             mock_successful_completion = (
                 self.lbv2_driver.l7rule.successful_completion)
@@ -953,7 +961,7 @@ class TestEdgeLbaasV2L7Rule(BaseTestEdgeLbaasV2):
             edge_rule_def['script'] = (
                 "http-request deny if TRUE")
             mock_update_rule.assert_called_with(
-                LB_EDGE_ID, EDGE_RULE_ID, edge_rule_def)
+                LB_EDGE_ID, EDGE_RULE_ID, edge_rule_def, context=self.context)
 
             mock_successful_completion = (
                 self.lbv2_driver.l7rule.successful_completion)

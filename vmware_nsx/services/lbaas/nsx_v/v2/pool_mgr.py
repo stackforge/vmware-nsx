@@ -57,7 +57,8 @@ class EdgePoolManager(base_mgr.EdgeLoadbalancerBaseManager):
 
         try:
             with locking.LockManager.get_lock(edge_id):
-                h = self.vcns.create_pool(edge_id, edge_pool)[0]
+                h = self.vcns.create_pool(edge_id, edge_pool,
+                                          context=context)[0]
                 edge_pool_id = lb_common.extract_resource_id(h['location'])
             nsxv_db.add_nsxv_lbaas_pool_binding(context.session, lb_id,
                                                 pool.id,
@@ -75,7 +76,7 @@ class EdgePoolManager(base_mgr.EdgeLoadbalancerBaseManager):
                     listener_binding['app_profile_id'])
                 with locking.LockManager.get_lock(edge_id):
                     self.vcns.update_vip(edge_id, listener_binding['vse_id'],
-                                         vse)
+                                         vse, context=context)
                 # This action also set this pool as the default pool of the
                 # listener, so the application profile may need to be updated
                 if pool.session_persistence:
@@ -117,7 +118,8 @@ class EdgePoolManager(base_mgr.EdgeLoadbalancerBaseManager):
         try:
             with locking.LockManager.get_lock(edge_id):
                 # get the configured monitor-id
-                org_edge_pool = self.vcns.get_pool(edge_id, edge_pool_id)[1]
+                org_edge_pool = self.vcns.get_pool(edge_id, edge_pool_id,
+                                                   context=context)[1]
                 monitor_id = org_edge_pool.get('monitorId')
                 if monitor_id:
                     edge_pool['monitorId'] = monitor_id
@@ -126,7 +128,8 @@ class EdgePoolManager(base_mgr.EdgeLoadbalancerBaseManager):
                 if org_edge_pool.get('member'):
                     edge_pool['member'] = org_edge_pool['member']
 
-                self.vcns.update_pool(edge_id, edge_pool_id, edge_pool)
+                self.vcns.update_pool(edge_id, edge_pool_id, edge_pool,
+                                      context=context)
 
             self.lbv2_driver.pool.successful_completion(context, new_pool)
 
@@ -182,8 +185,9 @@ class EdgePoolManager(base_mgr.EdgeLoadbalancerBaseManager):
                         listener_binding['app_profile_id'])
                     with locking.LockManager.get_lock(edge_id):
                         self.vcns.update_vip(
-                            edge_id, listener_binding['vse_id'], vse)
-            self.vcns.delete_pool(edge_id, edge_pool_id)
+                            edge_id, listener_binding['vse_id'], vse,
+                            context=context)
+            self.vcns.delete_pool(edge_id, edge_pool_id, context=context)
             self.lbv2_driver.pool.successful_completion(
                 context, pool, delete=True)
             nsxv_db.del_nsxv_lbaas_pool_binding(

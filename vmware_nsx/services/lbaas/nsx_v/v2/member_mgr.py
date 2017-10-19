@@ -71,7 +71,8 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
                         context, self.core_plugin, lb_id, member.subnet_id,
                         member.tenant_id)
 
-            edge_pool = self.vcns.get_pool(edge_id, edge_pool_id)[1]
+            edge_pool = self.vcns.get_pool(edge_id, edge_pool_id,
+                                           context=context)[1]
             edge_member = {
                 'ipAddress': member.address,
                 'weight': member.weight,
@@ -87,7 +88,8 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
                 edge_pool['member'] = [edge_member]
 
             try:
-                self.vcns.update_pool(edge_id, edge_pool_id, edge_pool)
+                self.vcns.update_pool(edge_id, edge_pool_id, edge_pool,
+                                      context=context)
                 self.lbv2_driver.member.successful_completion(context, member)
 
             except nsxv_exc.VcnsApiException:
@@ -118,7 +120,8 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
                 'enabled' if new_member.admin_state_up else 'disabled'}
 
         with locking.LockManager.get_lock(edge_id):
-            edge_pool = self.vcns.get_pool(edge_id, edge_pool_id)[1]
+            edge_pool = self.vcns.get_pool(edge_id, edge_pool_id,
+                                           context=context)[1]
 
             if edge_pool.get('member'):
                 for i, m in enumerate(edge_pool['member']):
@@ -127,7 +130,8 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
                         break
 
                 try:
-                    self.vcns.update_pool(edge_id, edge_pool_id, edge_pool)
+                    self.vcns.update_pool(edge_id, edge_pool_id, edge_pool,
+                                          context=context)
 
                     self.lbv2_driver.member.successful_completion(
                         context, new_member)
@@ -173,7 +177,8 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
                 return
 
             edge_pool_id = pool_binding['edge_pool_id']
-            edge_pool = self.vcns.get_pool(edge_id, edge_pool_id)[1]
+            edge_pool = self.vcns.get_pool(edge_id, edge_pool_id,
+                                           context=context)[1]
 
             for i, m in enumerate(edge_pool['member']):
                 if m['name'] == lb_common.get_member_id(member.id):
@@ -181,7 +186,8 @@ class EdgeMemberManager(base_mgr.EdgeLoadbalancerBaseManager):
                     break
 
             try:
-                self.vcns.update_pool(edge_id, edge_pool_id, edge_pool)
+                self.vcns.update_pool(edge_id, edge_pool_id, edge_pool,
+                                      context=context)
 
                 self.lbv2_driver.member.successful_completion(
                     context, member, delete=True)

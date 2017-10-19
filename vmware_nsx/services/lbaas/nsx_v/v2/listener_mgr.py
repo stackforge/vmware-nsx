@@ -113,7 +113,7 @@ def update_app_profile(vcns, context, listener, edge_id, edge_cert_id=None):
     app_profile = listener_to_edge_app_profile(listener, edge_cert_id)
     with locking.LockManager.get_lock(edge_id):
         vcns.update_app_profile(
-            edge_id, app_profile_id, app_profile)
+            edge_id, app_profile_id, app_profile, context=context)
     return app_profile_id
 
 
@@ -176,7 +176,8 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
 
         try:
             with locking.LockManager.get_lock(edge_id):
-                h = (self.vcns.create_app_profile(edge_id, app_profile))[0]
+                h = (self.vcns.create_app_profile(edge_id, app_profile,
+                                                  context=context))[0]
                 app_profile_id = lb_common.extract_resource_id(h['location'])
         except vcns_exc.VcnsApiException:
             with excutils.save_and_reraise_exception():
@@ -191,7 +192,7 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
 
         try:
             with locking.LockManager.get_lock(edge_id):
-                h = self.vcns.create_vip(edge_id, vse)[0]
+                h = self.vcns.create_vip(edge_id, vse, context=context)[0]
                 edge_vse_id = lb_common.extract_resource_id(h['location'])
 
             nsxv_db.add_nsxv_lbaas_listener_binding(context.session,
@@ -205,7 +206,8 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
             with excutils.save_and_reraise_exception():
                 self.lbv2_driver.listener.failed_completion(context, listener)
                 LOG.error('Failed to create vip on Edge: %s', edge_id)
-                self.vcns.delete_app_profile(edge_id, app_profile_id)
+                self.vcns.delete_app_profile(edge_id, app_profile_id,
+                                             context=context)
 
     @log_helpers.log_method_call
     def update(self, context, old_listener, new_listener, certificate=None):
@@ -257,7 +259,8 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
                                        app_profile_id)
 
             with locking.LockManager.get_lock(edge_id):
-                self.vcns.update_vip(edge_id, listener_binding['vse_id'], vse)
+                self.vcns.update_vip(edge_id, listener_binding['vse_id'], vse,
+                                     context=context)
 
             self.lbv2_driver.listener.successful_completion(context,
                                                             new_listener)
@@ -283,7 +286,7 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
 
             try:
                 with locking.LockManager.get_lock(edge_id):
-                    self.vcns.delete_vip(edge_id, edge_vse_id)
+                    self.vcns.delete_vip(edge_id, edge_vse_id, context=context)
 
             except vcns_exc.ResourceNotFound:
                 LOG.error('vip not found on edge: %s', edge_id)
@@ -295,7 +298,8 @@ class EdgeListenerManager(base_mgr.EdgeLoadbalancerBaseManager):
 
             try:
                 with locking.LockManager.get_lock(edge_id):
-                    self.vcns.delete_app_profile(edge_id, app_profile_id)
+                    self.vcns.delete_app_profile(edge_id, app_profile_id,
+                                                 context=context)
             except vcns_exc.ResourceNotFound:
                 LOG.error('app profile not found on edge: %s', edge_id)
             except vcns_exc.VcnsApiException:
