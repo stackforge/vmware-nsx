@@ -104,9 +104,9 @@ class NSXvIPsecVpnDriver(service_drivers.VpnDriver):
         }
         return site
 
-    def _generate_new_sites(self, edge_id, ipsec_site_conn):
+    def _generate_new_sites(self, edge_id, ipsec_site_conn, context=None):
         # Fetch the previous ipsec vpn configuration
-        ipsecvpn_configs = self._get_ipsec_config(edge_id)
+        ipsecvpn_configs = self._get_ipsec_config(edge_id, context=context)
         vse_sites = []
         if ipsecvpn_configs[1]['enabled']:
             vse_sites = ([site for site
@@ -114,8 +114,8 @@ class NSXvIPsecVpnDriver(service_drivers.VpnDriver):
         vse_sites.append(ipsec_site_conn)
         return vse_sites
 
-    def _generate_ipsecvpn_firewall_rules(self, edge_id):
-        ipsecvpn_configs = self._get_ipsec_config(edge_id)
+    def _generate_ipsecvpn_firewall_rules(self, edge_id, context=None):
+        ipsecvpn_configs = self._get_ipsec_config(edge_id, context=context)
         ipsec_vpn_fw_rules = []
         if ipsecvpn_configs[1]['enabled']:
             for site in ipsecvpn_configs[1]['sites']['sites']:
@@ -161,12 +161,14 @@ class NSXvIPsecVpnDriver(service_drivers.VpnDriver):
         vpnservice_id = ipsec_site_connection['vpnservice_id']
         edge_id = self._get_router_edge_id(context, vpnservice_id)[1]
         with locking.LockManager.get_lock(edge_id):
-            vse_sites = self._generate_new_sites(edge_id, new_ipsec)
+            vse_sites = self._generate_new_sites(edge_id, new_ipsec,
+                                                 context=context)
             ipsec_id = ipsec_site_connection["id"]
             try:
                 LOG.debug('Updating ipsec vpn configuration %(vse_sites)s.',
                           {'vse_sites': vse_sites})
-                self._update_ipsec_config(edge_id, vse_sites, enabled=True)
+                self._update_ipsec_config(edge_id, vse_sites, enabled=True,
+                                          context=context)
             except vcns_exc.VcnsApiException:
                 self._update_status(context, vpnservice_id, ipsec_id,
                                     "ERROR")
@@ -185,8 +187,8 @@ class NSXvIPsecVpnDriver(service_drivers.VpnDriver):
                 raise nsxv_exc.NsxPluginException(err_msg=msg)
             self._update_status(context, vpnservice_id, ipsec_id, "ACTIVE")
 
-    def _get_ipsec_config(self, edge_id):
-        return self._vcns.get_ipsec_config(edge_id)
+    def _get_ipsec_config(self, edge_id, context=None):
+        return self._vcns.get_ipsec_config(edge_id, context=context)
 
     def delete_ipsec_site_connection(self, context, ipsec_site_conn):
         LOG.debug('Deleting ipsec site connection %(site)s.',
@@ -207,7 +209,8 @@ class NSXvIPsecVpnDriver(service_drivers.VpnDriver):
             vse_sites.remove(del_site)
             enabled = True if vse_sites else False
             try:
-                self._update_ipsec_config(edge_id, vse_sites, enabled)
+                self._update_ipsec_config(edge_id, vse_sites, enabled,
+                                          context=context)
             except vcns_exc.VcnsApiException:
                 msg = (_("Failed to delete ipsec site connection "
                          "configuration with edge_id: %(edge_id)s.") %
@@ -223,7 +226,7 @@ class NSXvIPsecVpnDriver(service_drivers.VpnDriver):
 
     def _find_vse_site(self, context, edge_id, site):
         # Fetch the previous ipsec vpn configuration
-        ipsecvpn_configs = self._get_ipsec_config(edge_id)[1]
+        ipsecvpn_configs = self._get_ipsec_config(edge_id, context=context)[1]
         vpnservice = self.service_plugin._get_vpnservice(context,
                                                          site['vpnservice_id'])
         local_cidr = vpnservice['subnet']['cidr']
@@ -275,7 +278,7 @@ class NSXvIPsecVpnDriver(service_drivers.VpnDriver):
             try:
                 LOG.debug('Updating ipsec vpn configuration %(vse_sites)s.',
                           {'vse_sites': vse_sites})
-                self._update_ipsec_config(edge_id, vse_sites)
+                self._update_ipsec_config(edge_id, vse_sites, context=context)
             except vcns_exc.VcnsApiException:
                 self._update_status(context, vpnservice_id, ipsec_id, "ERROR")
                 msg = (_("Failed to create ipsec site connection "
@@ -342,13 +345,14 @@ class NSXvIPsecVpnDriver(service_drivers.VpnDriver):
     def delete_vpnservice(self, context, vpnservice):
         pass
 
-    def _update_ipsec_config(self, edge_id, sites, enabled=True):
+    def _update_ipsec_config(self, edge_id, sites, enabled=True, context=None):
         ipsec_config = {'featureType': "ipsec_4.0",
                         'enabled': enabled}
 
         ipsec_config['sites'] = {'sites': sites}
         try:
-            self._vcns.update_ipsec_config(edge_id, ipsec_config)
+            self._vcns.update_ipsec_config(edge_id, ipsec_config,
+                                           context=context)
         except vcns_exc.VcnsApiException:
             msg = _("Failed to update ipsec vpn configuration with "
                     "edge_id: %s") % edge_id

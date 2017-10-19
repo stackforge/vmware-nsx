@@ -243,9 +243,9 @@ class EdgeApplianceDriver(object):
             {'featureType': 'highavailability_4.0',
              'enabled': True})
 
-    def get_edge_status(self, edge_id):
+    def get_edge_status(self, edge_id, context=None):
         try:
-            response = self.vcns.get_edge_status(edge_id)[1]
+            response = self.vcns.get_edge_status(edge_id, context=context)[1]
             status_level = self._edge_status_to_level(
                 response['edgeStatus'])
         except exceptions.VcnsApiException as e:
@@ -263,10 +263,11 @@ class EdgeApplianceDriver(object):
 
         return status_level
 
-    def get_interface(self, edge_id, vnic_index):
+    def get_interface(self, edge_id, vnic_index, context=None):
         # get vnic interface address groups
         try:
-            return self.vcns.query_interface(edge_id, vnic_index)
+            return self.vcns.query_interface(edge_id, vnic_index,
+                                             context=context)
         except exceptions.VcnsApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception("NSXv: Failed to query vnic %s", vnic_index)
@@ -274,7 +275,7 @@ class EdgeApplianceDriver(object):
     def update_interface(self, router_id, edge_id, index, network,
                          tunnel_index=-1, address=None, netmask=None,
                          secondary=None, is_connected=True,
-                         address_groups=None):
+                         address_groups=None, context=None):
         LOG.debug("VCNS: update vnic %(index)d: %(addr)s %(netmask)s", {
             'index': index, 'addr': address, 'netmask': netmask})
         if index == constants.EXTERNAL_VNIC_INDEX:
@@ -292,12 +293,13 @@ class EdgeApplianceDriver(object):
             address, netmask, secondary, type=intf_type,
             address_groups=address_groups, is_connected=is_connected)
 
-        self.vcns.update_interface(edge_id, config)
+        self.vcns.update_interface(edge_id, config, context=context)
 
     def add_vdr_internal_interface(self, edge_id,
                                    network, address=None, netmask=None,
                                    secondary=None, address_groups=None,
-                                   type="internal", is_connected=True):
+                                   type="internal", is_connected=True,
+                                   context=None):
         LOG.debug("Add VDR interface on edge: %s", edge_id)
         if address_groups is None:
             address_groups = []
@@ -305,15 +307,18 @@ class EdgeApplianceDriver(object):
             self._assemble_vdr_interface(network, address, netmask, secondary,
                                          address_groups=address_groups,
                                          is_connected=is_connected, type=type))
-        self.vcns.add_vdr_internal_interface(edge_id, interface_req)
-        header, response = self.vcns.get_edge_interfaces(edge_id)
+        self.vcns.add_vdr_internal_interface(edge_id, interface_req,
+                                             context=context)
+        header, response = self.vcns.get_edge_interfaces(edge_id,
+                                                         context=context)
         for interface in response['interfaces']:
             if interface['connectedToId'] == network:
                 vnic_index = int(interface['index'])
                 return vnic_index
 
     def update_vdr_internal_interface(self, edge_id, index, network,
-                                      address_groups=None, is_connected=True):
+                                      address_groups=None, is_connected=True,
+                                      context=None):
         if not address_groups:
             address_groups = []
         interface = {
@@ -326,28 +331,29 @@ class EdgeApplianceDriver(object):
         interface_req = {'interface': interface}
         try:
             header, response = self.vcns.update_vdr_internal_interface(
-                edge_id, index, interface_req)
+                edge_id, index, interface_req, context=context)
         except exceptions.VcnsApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception("Failed to update vdr interface on edge: "
                               "%s", edge_id)
 
-    def delete_vdr_internal_interface(self, edge_id, interface_index):
+    def delete_vdr_internal_interface(self, edge_id, interface_index,
+                                      context=None):
         LOG.debug("Delete VDR interface on edge: %s", edge_id)
         try:
             header, response = self.vcns.delete_vdr_internal_interface(
-                edge_id, interface_index)
+                edge_id, interface_index, context=context)
         except exceptions.VcnsApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception("Failed to delete vdr interface on edge: "
                               "%s",
                               edge_id)
 
-    def delete_interface(self, router_id, edge_id, index):
+    def delete_interface(self, router_id, edge_id, index, context=None):
         LOG.debug("Deleting vnic %(vnic_index)s: on edge %(edge_id)s",
                   {'vnic_index': index, 'edge_id': edge_id})
         try:
-            self.vcns.delete_interface(edge_id, index)
+            self.vcns.delete_interface(edge_id, index, context=context)
         except exceptions.ResourceNotFound:
             LOG.error('Failed to delete vnic %(vnic_index)s on edge '
                       '%(edge_id)s: edge was not found',
@@ -408,7 +414,7 @@ class EdgeApplianceDriver(object):
 
         edge_id = None
         try:
-            header = self.vcns.deploy_edge(edge)[0]
+            header = self.vcns.deploy_edge(edge, context=context)[0]
             edge_id = header.get('location', '/').split('/')[-1]
 
             if edge_id:
@@ -476,7 +482,7 @@ class EdgeApplianceDriver(object):
             self._enable_loadbalancer(edge)
 
         try:
-            self.vcns.update_edge(edge_id, edge)
+            self.vcns.update_edge(edge_id, edge, context=context)
             self.callbacks.complete_edge_update(
                 context, edge_id, router_id, True, set_errors)
         except exceptions.VcnsApiException as e:
@@ -488,12 +494,12 @@ class EdgeApplianceDriver(object):
 
         return True
 
-    def rename_edge(self, edge_id, name):
+    def rename_edge(self, edge_id, name, context=None):
         """rename edge."""
         try:
             # First get the current edge structure
             # [0] is the status, [1] is the body
-            edge = self.vcns.get_edge(edge_id)[1]
+            edge = self.vcns.get_edge(edge_id, context=context)[1]
             if edge['name'] == name:
                 LOG.debug('Edge %s is already named %s', edge_id, name)
                 return
@@ -502,17 +508,17 @@ class EdgeApplianceDriver(object):
             # set the new name in the request
             edge['name'] = name
             # update the edge
-            self.vcns.update_edge(edge_id, edge)
+            self.vcns.update_edge(edge_id, edge, context=context)
         except exceptions.VcnsApiException as e:
             LOG.error("Failed to rename edge: %s",
                       e.response)
 
-    def resize_edge(self, edge_id, size):
+    def resize_edge(self, edge_id, size, context=None):
         """update the size of a router edge."""
         try:
             # First get the current edge structure
             # [0] is the status, [1] is the body
-            edge = self.vcns.get_edge(edge_id)[1]
+            edge = self.vcns.get_edge(edge_id, context=context)[1]
             if edge.get('appliances'):
                 if edge['appliances']['applianceSize'] == size:
                     LOG.debug('Edge %s is already with size %s',
@@ -526,7 +532,7 @@ class EdgeApplianceDriver(object):
             # set the new size in the request
             edge['appliances']['applianceSize'] = size
             # update the edge
-            self.vcns.update_edge(edge_id, edge)
+            self.vcns.update_edge(edge_id, edge, context=context)
         except exceptions.VcnsApiException as e:
             LOG.error("Failed to resize edge: %s", e.response)
 
@@ -545,7 +551,7 @@ class EdgeApplianceDriver(object):
 
         if edge_id:
             try:
-                self.vcns.delete_edge(edge_id)
+                self.vcns.delete_edge(edge_id, context=context)
                 return True
             except exceptions.ResourceNotFound:
                 return True
@@ -586,7 +592,8 @@ class EdgeApplianceDriver(object):
                           e.response)
             raise e
 
-    def update_nat_rules(self, edge_id, snats, dnats, indices=None):
+    def update_nat_rules(self, edge_id, snats, dnats, indices=None,
+                         context=None):
         LOG.debug("VCNS: update nat rule\n"
                   "SNAT:%(snat)s\n"
                   "DNAT:%(dnat)s\n"
@@ -646,14 +653,14 @@ class EdgeApplianceDriver(object):
         }
 
         try:
-            self.vcns.update_nat_config(edge_id, nat)
+            self.vcns.update_nat_config(edge_id, nat, context=context)
             return True
         except exceptions.VcnsApiException as e:
             LOG.exception("VCNS: Failed to create snat rule:\n%s",
                           e.response)
             return False
 
-    def update_routes(self, edge_id, gateway, routes):
+    def update_routes(self, edge_id, gateway, routes, context=None):
         if gateway:
             gateway = gateway.split('/')[0]
 
@@ -684,7 +691,7 @@ class EdgeApplianceDriver(object):
                 "gatewayAddress": gateway
             }
         try:
-            self.vcns.update_routes(edge_id, request)
+            self.vcns.update_routes(edge_id, request, context=context)
             return True
         except exceptions.VcnsApiException as e:
             LOG.exception("VCNS: Failed to update routes:\n%s",
@@ -692,7 +699,8 @@ class EdgeApplianceDriver(object):
             return False
 
     def create_lswitch(self, name, tz_config, tags=None,
-                       port_isolation=False, replication_mode="service"):
+                       port_isolation=False, replication_mode="service",
+                       context=None):
         lsconfig = {
             'display_name': utils.check_and_truncate(name),
             "tags": tags or [],
@@ -705,38 +713,40 @@ class EdgeApplianceDriver(object):
         if replication_mode:
             lsconfig["replication_mode"] = replication_mode
 
-        response = self.vcns.create_lswitch(lsconfig)[1]
+        response = self.vcns.create_lswitch(lsconfig, context=context)[1]
         return response
 
-    def delete_lswitch(self, lswitch_id):
-        self.vcns.delete_lswitch(lswitch_id)
+    def delete_lswitch(self, lswitch_id, context=None):
+        self.vcns.delete_lswitch(lswitch_id, context=context)
 
-    def get_loadbalancer_config(self, edge_id):
+    def get_loadbalancer_config(self, edge_id, context=None):
         try:
             header, response = self.vcns.get_loadbalancer_config(
-                edge_id)
+                edge_id, context=context)
         except exceptions.VcnsApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception("Failed to get service config")
         return response
 
-    def enable_service_loadbalancer(self, edge_id):
+    def enable_service_loadbalancer(self, edge_id, context=None):
         config = self.get_loadbalancer_config(
-            edge_id)
+            edge_id, context=context)
         if not config['enabled']:
             config['enabled'] = True
         try:
-            self.vcns.enable_service_loadbalancer(edge_id, config)
+            self.vcns.enable_service_loadbalancer(edge_id, config,
+                                                  context=context)
         except exceptions.VcnsApiException:
             with excutils.save_and_reraise_exception():
                 LOG.exception("Failed to enable loadbalancer "
                               "service config")
 
-    def _delete_port_group(self, task):
+    def _delete_port_group(self, task, context=None):
         try:
             self.vcns.delete_port_group(
                 task.userdata['dvs_id'],
-                task.userdata['port_group_id'])
+                task.userdata['port_group_id'],
+                context=context)
         except Exception as e:
             LOG.error('Unable to delete %(pg)s exception %(ex)s',
                       {'pg': task.userdata['port_group_id'],
@@ -782,11 +792,11 @@ class EdgeApplianceDriver(object):
                           userdata=userdata)
         self.task_manager.add(task)
 
-    def delete_virtual_wire(self, vw_id):
+    def delete_virtual_wire(self, vw_id, context=None):
         task_name = 'delete-virtualwire-%s' % vw_id
         userdata = {'retry_number': 1,
                     'retry_command': self.vcns.delete_virtual_wire,
-                    'args': [vw_id]}
+                    'args': [vw_id, context]}
         task = tasks.Task(task_name, vw_id,
                           self._retry_task,
                           status_callback=self._retry_task,
@@ -814,7 +824,8 @@ class EdgeApplianceDriver(object):
             'enabled': True}
         self.vcns.enable_ha(edge_id, ha_request)
 
-    def update_edge_syslog(self, edge_id, syslog_config, router_id):
+    def update_edge_syslog(self, edge_id, syslog_config, router_id,
+                           context=None):
         if 'server_ip' not in syslog_config:
             LOG.warning("Server IP missing in syslog config for %s",
                         router_id)
@@ -843,9 +854,10 @@ class EdgeApplianceDriver(object):
             request['serverAddresses']['ipAddress'].append(
                     syslog_config['server2_ip'])
 
-        self.vcns.update_edge_syslog(edge_id, request)
+        self.vcns.update_edge_syslog(edge_id, request, context=context)
 
         # update log level for routing in separate API call
         if loglevel:
             edge_utils.update_edge_loglevel(self.vcns, edge_id,
-                                            'routing', loglevel)
+                                            'routing', loglevel,
+                                            context=context)

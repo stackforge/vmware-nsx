@@ -309,7 +309,8 @@ class NsxVMetadataProxyHandler(object):
         # Read and validate DGW. If different, replace with new value
         try:
             # This may fail if the edge was deleted on backend
-            h, routes = self.nsxv_plugin.nsx_v.vcns.get_routes(edge_id)
+            h, routes = self.nsxv_plugin.nsx_v.vcns.get_routes(edge_id,
+                                                               context=context)
         except exceptions.ResourceNotFound as e:
             # log this error and return without the ip, but don't fail
             LOG.error("Failed to get routes for metadata proxy edge "
@@ -331,7 +332,7 @@ class NsxVMetadataProxyHandler(object):
 
         # Read and validate connectivity
         h, if_data = self.nsxv_plugin.nsx_v.get_interface(
-            edge_id, vcns_const.EXTERNAL_VNIC_INDEX)
+            edge_id, vcns_const.EXTERNAL_VNIC_INDEX, context=context)
         cur_ip = if_data.get('addressGroups', {}
                              ).get('addressGroups', {}
                                    )[0].get('primaryAddress')
@@ -346,7 +347,8 @@ class NsxVMetadataProxyHandler(object):
                     self.az.mgt_net_moid,
                     address=rtr_ext_ip,
                     netmask=self.az.mgt_net_proxy_netmask,
-                    secondary=[])
+                    secondary=[],
+                    context=context)
             else:
                 error = _('Metadata initialization is incomplete on '
                           'initializer node')
@@ -456,7 +458,8 @@ class NsxVMetadataProxyHandler(object):
                 self.az.mgt_net_moid,
                 address=rtr_ext_ip,
                 netmask=self.az.mgt_net_proxy_netmask,
-                secondary=[])
+                secondary=[],
+                context=context)
 
             port_data = {
                 'port': {

@@ -72,7 +72,8 @@ class FakeVcns(object):
         self._spoofguard_policies = []
         self._ipam_pools = {}
 
-    def do_request(self, method, uri, params=None, format='json', **kwargs):
+    def do_request(self, method, uri, params=None, format='json', context=None,
+                   **kwargs):
         pass
 
     def set_fake_nsx_api(self, fake_nsx_api):
@@ -84,7 +85,7 @@ class FakeVcns(object):
                 return False
         return True
 
-    def get_edge_jobs(self, edge_id):
+    def get_edge_jobs(self, edge_id, context=None):
         if edge_id not in self._edges:
             raise Exception(_("Edge %s does not exist") % edge_id)
         header = {
@@ -93,7 +94,7 @@ class FakeVcns(object):
         response = {"edgeJob": []}
         return (header, response)
 
-    def deploy_edge(self, request):
+    def deploy_edge(self, request, context=None):
         if (self._unique_router_name and
             not self._validate_edge_name(request['name'])):
             header = {
@@ -126,7 +127,7 @@ class FakeVcns(object):
         response = ''
         return (header, response)
 
-    def update_edge(self, edge_id, request):
+    def update_edge(self, edge_id, request, context=None):
         if edge_id not in self._edges:
             raise Exception(_("Edge %s does not exist") % edge_id)
         edge = self._edges[edge_id]
@@ -137,7 +138,7 @@ class FakeVcns(object):
         response = ''
         return (header, response)
 
-    def get_edge_id(self, job_id):
+    def get_edge_id(self, job_id, context=None):
         if job_id not in self._jobs:
             raise Exception(_("Job %s does not nexist") % job_id)
 
@@ -149,7 +150,7 @@ class FakeVcns(object):
         }
         return (header, response)
 
-    def get_edge_deploy_status(self, edge_id):
+    def get_edge_deploy_status(self, edge_id, context=None):
         if edge_id not in self._edges:
             raise Exception(_("Edge %s does not exist") % edge_id)
         header = {
@@ -160,7 +161,7 @@ class FakeVcns(object):
         }
         return (header, response)
 
-    def delete_edge(self, edge_id):
+    def delete_edge(self, edge_id, context=None):
         if edge_id not in self._edges:
             raise Exception(_("Edge %s does not exist") % edge_id)
         del self._edges[edge_id]
@@ -170,7 +171,7 @@ class FakeVcns(object):
         response = ''
         return (header, response)
 
-    def add_vdr_internal_interface(self, edge_id, interface):
+    def add_vdr_internal_interface(self, edge_id, interface, context=None):
         interface = interface['interfaces'][0]
         if not self._edges[edge_id].get('interfaces'):
             self._edges[edge_id]['interfaces'] = []
@@ -183,7 +184,7 @@ class FakeVcns(object):
         response = {"interfaces": [{"index": str(index)}]}
         return (header, response)
 
-    def get_edge_interfaces(self, edge_id):
+    def get_edge_interfaces(self, edge_id, context=None):
         if not self._edges[edge_id].get('interfaces'):
             self._edges[edge_id]['interfaces'] = []
         header = {
@@ -193,14 +194,15 @@ class FakeVcns(object):
         return (header, response)
 
     def update_vdr_internal_interface(
-        self, edge_id, interface_index, interface):
+        self, edge_id, interface_index, interface, context=None):
         header = {
             'status': 200
         }
         response = ''
         return (header, response)
 
-    def get_vdr_internal_interface(self, edge_id, interface_index):
+    def get_vdr_internal_interface(self, edge_id, interface_index,
+                                   context=None):
         response = {}
         header = {
             'status': 200
@@ -210,7 +212,8 @@ class FakeVcns(object):
                 response = interface
         return (header, response)
 
-    def delete_vdr_internal_interface(self, edge_id, interface_index):
+    def delete_vdr_internal_interface(self, edge_id, interface_index,
+                                      context=None):
         for interface in self._edges[edge_id].get('interfaces', []):
             if int(interface['index']) == int(interface_index):
                 header = {
@@ -221,28 +224,28 @@ class FakeVcns(object):
         response = ''
         return (header, response)
 
-    def get_interfaces(self, edge_id):
+    def get_interfaces(self, edge_id, context=None):
         header = {
             'status': 200
         }
         response = ''
         return (header, response)
 
-    def update_interface(self, edge_id, vnic):
+    def update_interface(self, edge_id, vnic, context=None):
         header = {
             'status': 200
         }
         response = ''
         return (header, response)
 
-    def delete_interface(self, edge_id, vnic_index):
+    def delete_interface(self, edge_id, vnic_index, context=None):
         header = {
             'status': 200
         }
         response = ''
         return (header, response)
 
-    def query_interface(self, edge_id, vnic_index):
+    def query_interface(self, edge_id, vnic_index, context=None):
         header = {
             'status': 200
         }
@@ -331,7 +334,7 @@ class FakeVcns(object):
         response = ''
         return (header, response)
 
-    def get_nat_config(self, edge_id):
+    def get_nat_config(self, edge_id, context=None):
         if edge_id not in self._edges:
             raise Exception(_("Edge %s does not exist") % edge_id)
         edge = self._edges[edge_id]
@@ -349,7 +352,7 @@ class FakeVcns(object):
         rules['version'] = 1
         return (header, rules)
 
-    def update_nat_config(self, edge_id, nat):
+    def update_nat_config(self, edge_id, nat, context=None):
         if edge_id not in self._edges:
             raise Exception(_("Edge %s does not exist") % edge_id)
         edge = self._edges[edge_id]
@@ -371,7 +374,7 @@ class FakeVcns(object):
         response = ''
         return (header, response)
 
-    def delete_nat_rule(self, edge_id, rule_id):
+    def delete_nat_rule(self, edge_id, rule_id, context=None):
         if edge_id not in self._edges:
             raise Exception(_("Edge %s does not exist") % edge_id)
 
@@ -393,7 +396,7 @@ class FakeVcns(object):
         response = ''
         return (header, response)
 
-    def get_edge_status(self, edge_id):
+    def get_edge_status(self, edge_id, context=None):
         if edge_id not in self._edges:
             raise Exception(_("Edge %s does not exist") % edge_id)
 
@@ -405,7 +408,7 @@ class FakeVcns(object):
         }
         return (header, response)
 
-    def get_edge(self, edge_id):
+    def get_edge(self, edge_id, context=None):
         if edge_id not in self._edges:
             raise exceptions.VcnsGeneralException(
                 _("Edge %s does not exist!") % edge_id)
@@ -419,7 +422,7 @@ class FakeVcns(object):
         }
         return (header, response)
 
-    def get_edges(self):
+    def get_edges(self, context=None):
         edges = []
         for edge_id in self._edges:
             edges.append({
@@ -429,7 +432,7 @@ class FakeVcns(object):
             })
         return edges
 
-    def get_vdn_switch(self, dvs_id):
+    def get_vdn_switch(self, dvs_id, context=None):
         header = {
             'status': 200
         }
@@ -440,21 +443,21 @@ class FakeVcns(object):
         }
         return (header, response)
 
-    def update_vdn_switch(self, switch):
+    def update_vdn_switch(self, switch, context=None):
         header = {
             'status': 200
         }
         response = ''
         return (header, response)
 
-    def update_routes(self, edge_id, routes):
+    def update_routes(self, edge_id, routes, context=None):
         header = {
             'status': 200
         }
         response = ''
         return (header, response)
 
-    def create_lswitch(self, lsconfig):
+    def create_lswitch(self, lsconfig, context=None):
         # The lswitch is created via VCNS API so the fake nsx_api will not
         # see it. Added to fake nsx_api here.
         if self._fake_nsx_api:
@@ -470,7 +473,7 @@ class FakeVcns(object):
         lswitch['_href'] = '/api/ws.v1/lswitch/%s' % lswitch['uuid']
         return (header, lswitch)
 
-    def delete_lswitch(self, id):
+    def delete_lswitch(self, id, context=None):
         if id not in self._lswitches:
             raise Exception(_("Lswitch %s does not exist") % id)
         del self._lswitches[id]
@@ -483,12 +486,12 @@ class FakeVcns(object):
         response = ''
         return (header, response)
 
-    def sync_firewall(self):
+    def sync_firewall(self, context=None):
         header = {'status': 204}
         response = ""
         return self.return_helper(header, response)
 
-    def update_firewall(self, edge_id, fw_req):
+    def update_firewall(self, edge_id, fw_req, context=None):
         self.fake_firewall_dict[edge_id] = fw_req
         rules = self.fake_firewall_dict[edge_id][
             'firewallRules']['firewallRules']
@@ -500,7 +503,7 @@ class FakeVcns(object):
         response = ""
         return self.return_helper(header, response)
 
-    def delete_firewall(self, edge_id):
+    def delete_firewall(self, edge_id, context=None):
         header = {'status': 404}
         if edge_id in self.fake_firewall_dict:
             header = {'status': 204}
@@ -508,7 +511,8 @@ class FakeVcns(object):
         response = ""
         return self.return_helper(header, response)
 
-    def update_firewall_rule(self, edge_id, vcns_rule_id, fwr_req):
+    def update_firewall_rule(self, edge_id, vcns_rule_id, fwr_req,
+                             context=None):
         if edge_id not in self.fake_firewall_dict:
             raise Exception(_("Edge %s does not exist") % edge_id)
         header = {'status': 404}
@@ -522,7 +526,7 @@ class FakeVcns(object):
         response = ""
         return self.return_helper(header, response)
 
-    def delete_firewall_rule(self, edge_id, vcns_rule_id):
+    def delete_firewall_rule(self, edge_id, vcns_rule_id, context=None):
         if edge_id not in self.fake_firewall_dict:
             raise Exception(_("Edge %s does not exist") % edge_id)
         header = {'status': 404}
@@ -536,7 +540,8 @@ class FakeVcns(object):
         response = ""
         return self.return_helper(header, response)
 
-    def add_firewall_rule_above(self, edge_id, ref_vcns_rule_id, fwr_req):
+    def add_firewall_rule_above(self, edge_id, ref_vcns_rule_id, fwr_req,
+                                context=None):
         if edge_id not in self.fake_firewall_dict:
             raise Exception(_("Edge %s does not exist") % edge_id)
         header = {'status': 404}
@@ -556,7 +561,7 @@ class FakeVcns(object):
         response = ""
         return self.return_helper(header, response)
 
-    def add_firewall_rule(self, edge_id, fwr_req):
+    def add_firewall_rule(self, edge_id, fwr_req, context=None):
         if edge_id not in self.fake_firewall_dict:
             self.fake_firewall_dict[edge_id] = self.temp_firewall
         rules = self.fake_firewall_dict[edge_id][
@@ -571,14 +576,14 @@ class FakeVcns(object):
         response = ""
         return self.return_helper(header, response)
 
-    def get_firewall(self, edge_id):
+    def get_firewall(self, edge_id, context=None):
         if edge_id not in self.fake_firewall_dict:
             self.fake_firewall_dict[edge_id] = self.temp_firewall
         header = {'status': 204}
         response = self.fake_firewall_dict[edge_id]
         return self.return_helper(header, response)
 
-    def get_firewall_rule(self, edge_id, vcns_rule_id):
+    def get_firewall_rule(self, edge_id, vcns_rule_id, context=None):
         if edge_id not in self.fake_firewall_dict:
             raise Exception(_("Edge %s does not exist") % edge_id)
         header = {'status': 404}
@@ -596,7 +601,7 @@ class FakeVcns(object):
         return name not in [obj_dict['name']
                             for obj_dict in objs_dict.values()]
 
-    def create_vip(self, edge_id, vip_new):
+    def create_vip(self, edge_id, vip_new, context=None):
         header = {'status': 403}
         response = ""
         if not self._fake_virtualservers_dict.get(edge_id):
@@ -612,7 +617,7 @@ class FakeVcns(object):
                         "/loadbalancer/config/%s" % vip_vseid}
         return self.return_helper(header, response)
 
-    def get_vip(self, edge_id, vip_vseid):
+    def get_vip(self, edge_id, vip_vseid, context=None):
         header = {'status': 404}
         response = ""
         if not self._fake_virtualservers_dict.get(edge_id) or (
@@ -622,7 +627,7 @@ class FakeVcns(object):
         response = self._fake_virtualservers_dict[edge_id][vip_vseid]
         return self.return_helper(header, response)
 
-    def update_vip(self, edge_id, vip_vseid, vip_new):
+    def update_vip(self, edge_id, vip_vseid, vip_new, context=None):
         header = {'status': 404}
         response = ""
         if not self._fake_virtualservers_dict.get(edge_id) or (
@@ -633,7 +638,7 @@ class FakeVcns(object):
             vip_new)
         return self.return_helper(header, response)
 
-    def delete_vip(self, edge_id, vip_vseid):
+    def delete_vip(self, edge_id, vip_vseid, context=None):
         header = {'status': 404}
         response = ""
         if not self._fake_virtualservers_dict.get(edge_id) or (
@@ -643,7 +648,7 @@ class FakeVcns(object):
         del self._fake_virtualservers_dict[edge_id][vip_vseid]
         return self.return_helper(header, response)
 
-    def create_pool(self, edge_id, pool_new):
+    def create_pool(self, edge_id, pool_new, context=None):
         header = {'status': 403}
         response = ""
         if not self._fake_pools_dict.get(edge_id):
@@ -659,7 +664,7 @@ class FakeVcns(object):
                         "/loadbalancer/config/%s" % pool_vseid}
         return self.return_helper(header, response)
 
-    def get_pool(self, edge_id, pool_vseid):
+    def get_pool(self, edge_id, pool_vseid, context=None):
         header = {'status': 404}
         response = ""
         if not self._fake_pools_dict.get(edge_id) or (
@@ -669,7 +674,7 @@ class FakeVcns(object):
         response = self._fake_pools_dict[edge_id][pool_vseid]
         return self.return_helper(header, response)
 
-    def update_pool(self, edge_id, pool_vseid, pool_new):
+    def update_pool(self, edge_id, pool_vseid, pool_new, context=None):
         header = {'status': 404}
         response = ""
         if not self._fake_pools_dict.get(edge_id) or (
@@ -680,7 +685,7 @@ class FakeVcns(object):
             pool_new)
         return self.return_helper(header, response)
 
-    def delete_pool(self, edge_id, pool_vseid):
+    def delete_pool(self, edge_id, pool_vseid, context=None):
         header = {'status': 404}
         response = ""
         if not self._fake_pools_dict.get(edge_id) or (
@@ -690,7 +695,7 @@ class FakeVcns(object):
         del self._fake_pools_dict[edge_id][pool_vseid]
         return self.return_helper(header, response)
 
-    def create_health_monitor(self, edge_id, monitor_new):
+    def create_health_monitor(self, edge_id, monitor_new, context=None):
         if not self._fake_monitors_dict.get(edge_id):
             self._fake_monitors_dict[edge_id] = {}
         monitor_vseid = uuidutils.generate_uuid()
@@ -702,7 +707,7 @@ class FakeVcns(object):
         response = ""
         return self.return_helper(header, response)
 
-    def get_health_monitor(self, edge_id, monitor_vseid):
+    def get_health_monitor(self, edge_id, monitor_vseid, context=None):
         header = {'status': 404}
         response = ""
         if not self._fake_monitors_dict.get(edge_id) or (
@@ -712,7 +717,8 @@ class FakeVcns(object):
         response = self._fake_monitors_dict[edge_id][monitor_vseid]
         return self.return_helper(header, response)
 
-    def update_health_monitor(self, edge_id, monitor_vseid, monitor_new):
+    def update_health_monitor(self, edge_id, monitor_vseid, monitor_new,
+                              context=None):
         header = {'status': 404}
         response = ""
         if not self._fake_monitors_dict.get(edge_id) or (
@@ -723,7 +729,7 @@ class FakeVcns(object):
             monitor_new)
         return self.return_helper(header, response)
 
-    def delete_health_monitor(self, edge_id, monitor_vseid):
+    def delete_health_monitor(self, edge_id, monitor_vseid, context=None):
         header = {'status': 404}
         response = ""
         if not self._fake_monitors_dict.get(edge_id) or (
@@ -733,7 +739,7 @@ class FakeVcns(object):
         del self._fake_monitors_dict[edge_id][monitor_vseid]
         return self.return_helper(header, response)
 
-    def create_app_profile(self, edge_id, app_profile):
+    def create_app_profile(self, edge_id, app_profile, context=None):
         if not self._fake_app_profiles_dict.get(edge_id):
             self._fake_app_profiles_dict[edge_id] = {}
         app_profileid = uuidutils.generate_uuid()
@@ -745,7 +751,8 @@ class FakeVcns(object):
         response = ""
         return self.return_helper(header, response)
 
-    def update_app_profile(self, edge_id, app_profileid, app_profile):
+    def update_app_profile(self, edge_id, app_profileid, app_profile,
+                           context=None):
         header = {'status': 404}
         response = ""
         if not self._fake_app_profiles_dict.get(edge_id) or (
@@ -756,7 +763,7 @@ class FakeVcns(object):
             app_profile)
         return self.return_helper(header, response)
 
-    def delete_app_profile(self, edge_id, app_profileid):
+    def delete_app_profile(self, edge_id, app_profileid, context=None):
         header = {'status': 404}
         response = ""
         if not self._fake_app_profiles_dict.get(edge_id) or (
@@ -766,7 +773,7 @@ class FakeVcns(object):
         del self._fake_app_profiles_dict[edge_id][app_profileid]
         return self.return_helper(header, response)
 
-    def create_app_rule(self, edge_id, app_rule):
+    def create_app_rule(self, edge_id, app_rule, context=None):
         app_ruleid = uuidutils.generate_uuid()
         header = {
             'status': 204,
@@ -775,20 +782,20 @@ class FakeVcns(object):
         response = ""
         return self.return_helper(header, response)
 
-    def update_app_rule(self, edge_id, app_ruleid, app_rule):
+    def update_app_rule(self, edge_id, app_ruleid, app_rule, context=None):
         pass
 
-    def delete_app_rule(self, edge_id, app_ruleid):
+    def delete_app_rule(self, edge_id, app_ruleid, context=None):
         pass
 
-    def get_loadbalancer_config(self, edge_id):
+    def get_loadbalancer_config(self, edge_id, context=None):
         header = {'status': 204}
         response = {'config': False}
         if self._fake_loadbalancer_config[edge_id]:
             response['config'] = self._fake_loadbalancer_config[edge_id]
         return self.return_helper(header, response)
 
-    def update_ipsec_config(self, edge_id, ipsec_config):
+    def update_ipsec_config(self, edge_id, ipsec_config, context=None):
         self.fake_ipsecvpn_dict[edge_id] = ipsec_config
         header = {'status': 204}
         response = ""
@@ -802,20 +809,20 @@ class FakeVcns(object):
         response = ""
         return self.return_helper(header, response)
 
-    def get_ipsec_config(self, edge_id):
+    def get_ipsec_config(self, edge_id, context=None):
         if edge_id not in self.fake_ipsecvpn_dict:
             self.fake_ipsecvpn_dict[edge_id] = self.temp_ipsecvpn
         header = {'status': 204}
         response = self.fake_ipsecvpn_dict[edge_id]
         return self.return_helper(header, response)
 
-    def enable_service_loadbalancer(self, edge_id, config):
+    def enable_service_loadbalancer(self, edge_id, config, context=None):
         header = {'status': 204}
         response = ""
         self._fake_loadbalancer_config[edge_id] = True
         return self.return_helper(header, response)
 
-    def create_virtual_wire(self, vdn_scope_id, request):
+    def create_virtual_wire(self, vdn_scope_id, request, context=None):
         self._virtual_wire_id += 1
         header = {'status': 200}
         virtual_wire = 'virtualwire-%s' % self._virtual_wire_id
@@ -824,7 +831,7 @@ class FakeVcns(object):
         self._fake_virtual_wires.update({virtual_wire: data})
         return (header, virtual_wire)
 
-    def delete_virtual_wire(self, virtualwire_id):
+    def delete_virtual_wire(self, virtualwire_id, context=None):
         del self._fake_virtual_wires[virtualwire_id]
         header = {
             'status': 200
@@ -832,7 +839,7 @@ class FakeVcns(object):
         response = ''
         return (header, response)
 
-    def create_port_group(self, dvs_id, request):
+    def create_port_group(self, dvs_id, request, context=None):
         self._portgroup_id += 1
         header = {'status': 200}
         portgroup = 'dvportgroup-%s' % self._portgroup_id
@@ -841,7 +848,7 @@ class FakeVcns(object):
         self._fake_portgroups.update({portgroup: data})
         return (header, portgroup)
 
-    def delete_port_group(self, dvs_id, portgroup_id):
+    def delete_port_group(self, dvs_id, portgroup_id, context=None):
         del self._fake_portgroups[portgroup_id]
         header = {
             'status': 200
@@ -1200,7 +1207,7 @@ class FakeVcns(object):
     def validate_dvs(self, object_id, dvs_list=None):
         return True
 
-    def edges_lock_operation(self):
+    def edges_lock_operation(self, context=None):
         pass
 
     def validate_inventory(self, moref):
@@ -1228,7 +1235,7 @@ class FakeVcns(object):
         response = ''
         return (header, response)
 
-    def get_edge_syslog(self, edge_id):
+    def get_edge_syslog(self, edge_id, context=None):
         if ('syslog' not in self._edges.get(edge_id)):
             header = {
                 'status': 400
@@ -1241,7 +1248,7 @@ class FakeVcns(object):
             response = self._edges.get(edge_id)['syslog']
         return (header, response)
 
-    def update_edge_syslog(self, edge_id, config):
+    def update_edge_syslog(self, edge_id, config, context=None):
         if edge_id not in self._edges:
             raise exceptions.VcnsGeneralException(
                 _("edge not found"))
@@ -1252,14 +1259,15 @@ class FakeVcns(object):
         response = ''
         return (header, response)
 
-    def delete_edge_syslog(self, edge_id):
+    def delete_edge_syslog(self, edge_id, context=None):
         header = {
             'status': 204
         }
         response = ''
         return (header, response)
 
-    def update_edge_config_with_modifier(self, edge_id, module, modifier):
+    def update_edge_config_with_modifier(self, edge_id, module, modifier,
+                                         context=None):
         header = {
             'status': 204
         }
@@ -1287,7 +1295,7 @@ class FakeVcns(object):
         response = {}
         return (header, response)
 
-    def get_routes(self, edge_id):
+    def get_routes(self, edge_id, context=None):
         header = {
             'status': 204
         }

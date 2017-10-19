@@ -843,10 +843,11 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             prefix = ('%s-%s' % (dvs_id, net_data['name']))[:43]
         return '%s-%s' % (prefix, net_data['id'])
 
-    def _update_network_teaming(self, dvs_id, net_id, net_moref):
+    def _update_network_teaming(self, dvs_id, net_id, net_moref, context=None):
         if self._vcm:
             try:
-                h, switch = self.nsx_v.vcns.get_vdn_switch(dvs_id)
+                h, switch = self.nsx_v.vcns.get_vdn_switch(dvs_id,
+                                                           context=context)
             except Exception as e:
                 LOG.warning('DVS %s not registered on NSX. Unable to '
                             'update teaming for network %s',
@@ -862,7 +863,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                           'net %(net_id)s. Error: %(e)s',
                           {'net_id': net_id, 'e': e})
 
-    def _create_vlan_network_at_backend(self, net_data, dvs_id):
+    def _create_vlan_network_at_backend(self, net_data, dvs_id, context=None):
         network_name = self._get_vlan_network_name(net_data, dvs_id)
         segment = net_data[mpnet.SEGMENTS][0]
         vlan_tag = 0
@@ -876,13 +877,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         config_spec = {'networkSpec': portgroup}
         try:
             h, c = self.nsx_v.vcns.create_port_group(dvs_id,
-                                                     config_spec)
+                                                     config_spec,
+                                                     context=context)
         except Exception as e:
             error = (_("Failed to create port group on DVS: %(dvs_id)s. "
                        "Reason: %(reason)s") % {'dvs_id': dvs_id,
                                                 'reason': e.response})
             raise nsx_exc.NsxPluginException(err_msg=error)
-        self._update_network_teaming(dvs_id, net_data['id'], c)
+        self._update_network_teaming(dvs_id, net_data['id'], c,
+                                     context=context)
         return c
 
     def _get_dvs_ids(self, physical_network, default_dvs):
@@ -1126,7 +1129,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                 res_name='vdn_scope_id',
                                 res_id=vdn_scope_id)
                 h, c = self.nsx_v.vcns.create_virtual_wire(vdn_scope_id,
-                                                           config_spec)
+                                                           config_spec,
+                                                           context=context)
                 net_morefs = [c]
                 dvs_net_ids = [net_data['id']]
             elif network_type == c_utils.NsxVNetworkTypes.PORTGROUP:
@@ -1152,7 +1156,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     try:
                         net_moref = self._create_vlan_network_at_backend(
                             dvs_id=dvs_id,
-                            net_data=net_data)
+                            net_data=net_data,
+                            context=context)
                     except nsx_exc.NsxPluginException:
                         with excutils.save_and_reraise_exception():
                             # Delete VLAN networks on other DVSes if it
@@ -1488,7 +1493,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         providernet._raise_if_updates_provider_attributes(attrs)
 
     def _update_vlan_network_dvs_ids(self, network, new_physical_network,
-                                     az_dvs):
+                                     az_dvs, context=None):
         """Update the dvs ids of a vlan provider network
 
         The new values will be added to the current ones.
@@ -1520,7 +1525,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 self._convert_to_transport_zones_dict(network)
                 net_moref = self._create_vlan_network_at_backend(
                     dvs_id=dvs_id,
-                    net_data=network)
+                    net_data=network,
+                    context=context)
             except nsx_exc.NsxPluginException:
                 with excutils.save_and_reraise_exception():
                     # Delete VLAN networks on other DVSes if it
@@ -1570,7 +1576,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
              new_dvs_pg_mappings) = self._update_vlan_network_dvs_ids(
                 orig_net,
                 net_attrs[pnet.PHYSICAL_NETWORK],
-                az_dvs)
+                az_dvs,
+                context=context)
             if updated_morefs:
                 new_dvs = list(new_dvs_pg_mappings.values())
                 net_morefs.extend(new_dvs)
@@ -1856,7 +1863,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 loose_ver = version.LooseVersion(self.nsx_v.vcns.get_version())
                 if loose_ver < version.LooseVersion('6.3.3'):
                     LOG.info("Syncing firewall")
-                    self.nsx_v.vcns.sync_firewall()
+                    self.nsx_v.vcns.sync_firewall(context=context)
 
     def _remove_vm_from_exclude_list(self, context, device_id, port_id,
                                      expected_count=0):
@@ -3717,7 +3724,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             if vpn_plugin:
                 vpn_driver = vpn_plugin.ipsec_driver
                 vpn_rules = (
-                    vpn_driver._generate_ipsecvpn_firewall_rules(edge_id))
+                    vpn_driver._generate_ipsecvpn_firewall_rules(
+                        edge_id, context=context))
                 fw_rules.extend(vpn_rules)
 
         # Get the load balancer rules in case they are refreshed
@@ -3726,7 +3734,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 context.session, edge_id)
         for rule in lb_rules:
             vsm_rule = self.nsx_v.vcns.get_firewall_rule(
-                    edge_id, rule['edge_fw_rule_id'])[1]
+                    edge_id, rule['edge_fw_rule_id'], context=context)[1]
             lb_fw_rule = {
                 'action': edge_firewall_driver.FWAAS_ALLOW,
                 'enabled': vsm_rule['enabled'],

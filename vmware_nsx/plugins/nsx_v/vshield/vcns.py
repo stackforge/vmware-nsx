@@ -123,10 +123,11 @@ class Vcns(object):
 
     @retry_upon_exception(exceptions.ServiceConflict)
     def _client_request(self, client, method, uri,
-                        params, headers, encodeParams):
-        return client(method, uri, params, headers, encodeParams)
+                        params, headers, encodeParams, request_id):
+        return client(method, uri, params, headers, encodeParams, request_id)
 
-    def do_request(self, method, uri, params=None, format='json', **kwargs):
+    def do_request(self, method, uri, params=None, format='json', context=None,
+                   **kwargs):
         msg = ("VcnsApiHelper('%(method)s', '%(uri)s', '%(body)s')" %
                {'method': method,
                 'uri': uri,
@@ -141,8 +142,9 @@ class Vcns(object):
             _client = self.xmlapi_client.request
 
         ts = time.time()
-        header, content = self._client_request(_client, method, uri, params,
-                                               headers, encodeParams)
+        request_id = context.request_id if context else None
+        header, content = self._client_request(
+            _client, method, uri, params, headers, encodeParams, request_id)
         te = time.time()
         elapsed_time = te - ts
 
@@ -162,96 +164,104 @@ class Vcns(object):
             content = jsonutils.loads(content)
         return header, content
 
-    def edges_lock_operation(self):
+    def edges_lock_operation(self, context=None):
         uri = URI_PREFIX + "?lockUpdatesOnEdge=true"
-        return self.do_request(HTTP_POST, uri, decode=False)
+        return self.do_request(HTTP_POST, uri, decode=False, context=context)
 
     @retry_upon_exception(exceptions.ResourceNotFound)
     @retry_upon_exception(exceptions.RequestBad)
-    def deploy_edge(self, request):
+    def deploy_edge(self, request, context=None):
         uri = URI_PREFIX
-        return self.do_request(HTTP_POST, uri, request, decode=False)
+        return self.do_request(HTTP_POST, uri, request, decode=False,
+                               context=context)
 
-    def update_edge(self, edge_id, request):
+    def update_edge(self, edge_id, request, context=None):
         uri = "%s/%s" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_PUT, uri, request, decode=False)
+        return self.do_request(HTTP_PUT, uri, request, decode=False,
+                               context=context)
 
-    def get_edge_id(self, job_id):
+    def get_edge_id(self, job_id, context=None):
         uri = URI_PREFIX + "/jobs/%s" % job_id
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def get_edge_jobs(self, edge_id):
+    def get_edge_jobs(self, edge_id, context=None):
         uri = URI_PREFIX + "/%s/jobs" % edge_id
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def get_edge_deploy_status(self, edge_id):
+    def get_edge_deploy_status(self, edge_id, context=None):
         uri = URI_PREFIX + "/%s/status?getlatest=false" % edge_id
-        return self.do_request(HTTP_GET, uri, decode="True")
+        return self.do_request(HTTP_GET, uri, decode="True", context=context)
 
-    def delete_edge(self, edge_id):
+    def delete_edge(self, edge_id, context=None):
         uri = "%s/%s" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_DELETE, uri)
+        return self.do_request(HTTP_DELETE, uri, context=context)
 
-    def add_vdr_internal_interface(self, edge_id, interface):
+    def add_vdr_internal_interface(self, edge_id, interface, context=None):
         uri = "%s/%s/interfaces?action=patch" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_POST, uri, interface, decode=True)
+        return self.do_request(HTTP_POST, uri, interface, decode=True,
+                               context=context)
 
-    def get_vdr_internal_interface(self, edge_id, interface_index):
+    def get_vdr_internal_interface(self, edge_id, interface_index,
+                                   context=None):
         uri = "%s/%s/interfaces/%s" % (URI_PREFIX, edge_id, interface_index)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
     def update_vdr_internal_interface(self, edge_id,
-                                      interface_index, interface):
+                                      interface_index, interface,
+                                      context=None):
         uri = "%s/%s/interfaces/%s" % (URI_PREFIX, edge_id, interface_index)
         return self.do_request(HTTP_PUT, uri, interface,
-                               format='xml', decode=True)
+                               format='xml', decode=True, context=context)
 
     @retry_upon_exception(exceptions.RequestBad)
-    def delete_vdr_internal_interface(self, edge_id, interface_index):
+    def delete_vdr_internal_interface(self, edge_id, interface_index,
+                                      context=None):
         uri = "%s/%s/interfaces/%d" % (URI_PREFIX, edge_id, interface_index)
-        return self.do_request(HTTP_DELETE, uri, decode=True)
+        return self.do_request(HTTP_DELETE, uri, decode=True, context=context)
 
-    def get_interfaces(self, edge_id):
+    def get_interfaces(self, edge_id, context=None):
         uri = "%s/%s/vnics" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
     @retry_upon_exception(exceptions.RequestBad)
-    def update_interface(self, edge_id, vnic):
+    def update_interface(self, edge_id, vnic, context=None):
         uri = "%s/%s/vnics/%d" % (URI_PREFIX, edge_id,
                                   vnic['index'])
-        return self.do_request(HTTP_PUT, uri, vnic, decode=True)
+        return self.do_request(HTTP_PUT, uri, vnic, decode=True,
+                               context=context)
 
-    def delete_interface(self, edge_id, vnic_index):
+    def delete_interface(self, edge_id, vnic_index, context=None):
         uri = "%s/%s/vnics/%d" % (URI_PREFIX, edge_id, vnic_index)
-        return self.do_request(HTTP_DELETE, uri, decode=True)
+        return self.do_request(HTTP_DELETE, uri, decode=True, context=context)
 
-    def get_nat_config(self, edge_id):
+    def get_nat_config(self, edge_id, context=None):
         uri = "%s/%s/nat/config" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def update_nat_config(self, edge_id, nat):
+    def update_nat_config(self, edge_id, nat, context=None):
         uri = "%s/%s/nat/config" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_PUT, uri, nat, decode=True)
+        return self.do_request(HTTP_PUT, uri, nat, decode=True,
+                               context=context)
 
-    def delete_nat_rule(self, edge_id, rule_id):
+    def delete_nat_rule(self, edge_id, rule_id, context=None):
         uri = "%s/%s/nat/config/rules/%s" % (URI_PREFIX, edge_id, rule_id)
-        return self.do_request(HTTP_DELETE, uri, decode=True)
+        return self.do_request(HTTP_DELETE, uri, decode=True, context=context)
 
-    def get_edge_status(self, edge_id):
+    def get_edge_status(self, edge_id, context=None):
         uri = "%s/%s/status?getlatest=false" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def get_edge(self, edge_id):
+    def get_edge(self, edge_id, context=None):
         uri = "%s/%s" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def _get_edges(self, startindex=0):
+    def _get_edges(self, startindex=0, context=None):
         uri = '%s?startIndex=%d' % (URI_PREFIX, startindex)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def get_edges(self):
+    def get_edges(self, context=None):
         edges = []
-        h, d = self._get_edges()
+        h, d = self._get_edges(context=context)
         edges.extend(d['edgePage']['data'])
         paging_info = d['edgePage']['pagingInfo']
         page_size = int(paging_info['pageSize'])
@@ -261,286 +271,293 @@ class Vcns(object):
         pages = count / page_size + 1
         for i in range(1, pages):
             start_index = page_size * i
-            h, d = self._get_edges(start_index)
+            h, d = self._get_edges(start_index, context=context)
             edges.extend(d['edgePage']['data'])
         return edges
 
-    def get_edge_syslog(self, edge_id):
+    def get_edge_syslog(self, edge_id, context=None):
         uri = "%s/%s/syslog/config" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def update_edge_syslog(self, edge_id, config):
+    def update_edge_syslog(self, edge_id, config, context=None):
         uri = "%s/%s/syslog/config" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_PUT, uri, config)
+        return self.do_request(HTTP_PUT, uri, config, context=context)
 
-    def delete_edge_syslog(self, edge_id):
+    def delete_edge_syslog(self, edge_id, context=None):
         uri = "%s/%s/syslog/config" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_DELETE, uri)
+        return self.do_request(HTTP_DELETE, uri, context=context)
 
-    def update_edge_config_with_modifier(self, edge_id, module, modifier):
+    def update_edge_config_with_modifier(self, edge_id, module, modifier,
+                                         context=None):
         uri = "%s/%s/%s/config" % (URI_PREFIX, edge_id, module)
-        config = self.do_request(HTTP_GET, uri)[1]
+        config = self.do_request(HTTP_GET, uri, context=context)[1]
         if modifier(config):
-            return self.do_request(HTTP_PUT, uri, config)
+            return self.do_request(HTTP_PUT, uri, config, context=context)
 
-    def get_edge_interfaces(self, edge_id):
+    def get_edge_interfaces(self, edge_id, context=None):
         uri = "%s/%s/interfaces" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def get_routes(self, edge_id):
+    def get_routes(self, edge_id, context=None):
         uri = "%s/%s/routing/config/static" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_GET, uri)
+        return self.do_request(HTTP_GET, uri, context=context)
 
-    def update_routes(self, edge_id, routes):
+    def update_routes(self, edge_id, routes, context=None):
         uri = "%s/%s/routing/config/static" % (URI_PREFIX, edge_id)
-        return self.do_request(HTTP_PUT, uri, routes)
+        return self.do_request(HTTP_PUT, uri, routes, context=context)
 
-    def create_lswitch(self, lsconfig):
+    def create_lswitch(self, lsconfig, context=None):
         uri = "/api/ws.v1/lswitch"
-        return self.do_request(HTTP_POST, uri, lsconfig, decode=True)
+        return self.do_request(HTTP_POST, uri, lsconfig, decode=True,
+                               context=context)
 
-    def delete_lswitch(self, lswitch_id):
+    def delete_lswitch(self, lswitch_id, context=None):
         uri = "/api/ws.v1/lswitch/%s" % lswitch_id
-        return self.do_request(HTTP_DELETE, uri)
+        return self.do_request(HTTP_DELETE, uri, context=context)
 
-    def get_loadbalancer_config(self, edge_id):
+    def get_loadbalancer_config(self, edge_id, context=None):
         uri = self._build_uri_path(edge_id, LOADBALANCER_SERVICE)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def get_loadbalancer_statistics(self, edge_id):
+    def get_loadbalancer_statistics(self, edge_id, context=None):
         uri = self._build_uri_path(edge_id, LOADBALANCER_STATS)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def enable_service_loadbalancer(self, edge_id, config):
+    def enable_service_loadbalancer(self, edge_id, config, context=None):
         uri = self._build_uri_path(edge_id, LOADBALANCER_SERVICE)
-        return self.do_request(HTTP_PUT, uri, config)
+        return self.do_request(HTTP_PUT, uri, config, context=context)
 
-    def sync_firewall(self):
+    def sync_firewall(self, context=None):
         for cluster_id in cfg.CONF.nsxv.cluster_moid:
             uri = '/api/4.0/firewall/forceSync/%s' % cluster_id
-            self.do_request(HTTP_POST, uri)
+            self.do_request(HTTP_POST, uri, context=context)
 
-    def update_firewall(self, edge_id, fw_req):
+    def update_firewall(self, edge_id, fw_req, context=None):
         uri = self._build_uri_path(
             edge_id, FIREWALL_SERVICE)
-        return self.do_request(HTTP_PUT, uri, fw_req)
+        return self.do_request(HTTP_PUT, uri, fw_req, context=context)
 
-    def delete_firewall(self, edge_id):
+    def delete_firewall(self, edge_id, context=None):
         uri = self._build_uri_path(
             edge_id, FIREWALL_SERVICE, None)
-        return self.do_request(HTTP_DELETE, uri)
+        return self.do_request(HTTP_DELETE, uri, context=context)
 
-    def update_firewall_rule(self, edge_id, vcns_rule_id, fwr_req):
+    def update_firewall_rule(self, edge_id, vcns_rule_id, fwr_req,
+                             context=None):
         uri = self._build_uri_path(
             edge_id, FIREWALL_SERVICE,
             FIREWALL_RULE_RESOURCE,
             vcns_rule_id)
-        return self.do_request(HTTP_PUT, uri, fwr_req)
+        return self.do_request(HTTP_PUT, uri, fwr_req, context=context)
 
-    def delete_firewall_rule(self, edge_id, vcns_rule_id):
+    def delete_firewall_rule(self, edge_id, vcns_rule_id, context=None):
         uri = self._build_uri_path(
             edge_id, FIREWALL_SERVICE,
             FIREWALL_RULE_RESOURCE,
             vcns_rule_id)
-        return self.do_request(HTTP_DELETE, uri)
+        return self.do_request(HTTP_DELETE, uri, context=context)
 
-    def add_firewall_rule_above(self, edge_id, ref_vcns_rule_id, fwr_req):
+    def add_firewall_rule_above(self, edge_id, ref_vcns_rule_id, fwr_req,
+                                context=None):
         uri = self._build_uri_path(
             edge_id, FIREWALL_SERVICE,
             FIREWALL_RULE_RESOURCE)
         uri += "?aboveRuleId=" + ref_vcns_rule_id
-        return self.do_request(HTTP_POST, uri, fwr_req)
+        return self.do_request(HTTP_POST, uri, fwr_req, context=context)
 
-    def add_firewall_rule(self, edge_id, fwr_req):
+    def add_firewall_rule(self, edge_id, fwr_req, context=None):
         uri = self._build_uri_path(
             edge_id, FIREWALL_SERVICE,
             FIREWALL_RULE_RESOURCE)
-        return self.do_request(HTTP_POST, uri, fwr_req)
+        return self.do_request(HTTP_POST, uri, fwr_req, context=context)
 
-    def update_firewall_default_policy(self, edge_id, fw_req):
+    def update_firewall_default_policy(self, edge_id, fw_req, context=None):
         uri = self._build_uri_path(
             edge_id, FIREWALL_SERVICE, 'defaultpolicy')
-        return self.do_request(HTTP_PUT, uri, fw_req)
+        return self.do_request(HTTP_PUT, uri, fw_req, context=context)
 
-    def get_firewall(self, edge_id):
+    def get_firewall(self, edge_id, context=None):
         uri = self._build_uri_path(edge_id, FIREWALL_SERVICE)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def get_firewall_rule(self, edge_id, vcns_rule_id):
+    def get_firewall_rule(self, edge_id, vcns_rule_id, context=None):
         uri = self._build_uri_path(
             edge_id, FIREWALL_SERVICE,
             FIREWALL_RULE_RESOURCE,
             vcns_rule_id)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
     #
     #Edge LBAAS call helper
     #
-    def create_vip(self, edge_id, vip_new):
+    def create_vip(self, edge_id, vip_new, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             VIP_RESOURCE)
-        return self.do_request(HTTP_POST, uri, vip_new)
+        return self.do_request(HTTP_POST, uri, vip_new, context=context)
 
-    def get_vip(self, edge_id, vip_vseid):
+    def get_vip(self, edge_id, vip_vseid, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             VIP_RESOURCE, vip_vseid)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def update_vip(self, edge_id, vip_vseid, vip_new):
+    def update_vip(self, edge_id, vip_vseid, vip_new, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             VIP_RESOURCE, vip_vseid)
-        return self.do_request(HTTP_PUT, uri, vip_new)
+        return self.do_request(HTTP_PUT, uri, vip_new, context=context)
 
-    def delete_vip(self, edge_id, vip_vseid):
+    def delete_vip(self, edge_id, vip_vseid, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             VIP_RESOURCE, vip_vseid)
-        return self.do_request(HTTP_DELETE, uri)
+        return self.do_request(HTTP_DELETE, uri, context=context)
 
-    def create_pool(self, edge_id, pool_new):
+    def create_pool(self, edge_id, pool_new, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             POOL_RESOURCE)
-        return self.do_request(HTTP_POST, uri, pool_new)
+        return self.do_request(HTTP_POST, uri, pool_new, context=context)
 
-    def get_pool(self, edge_id, pool_vseid):
+    def get_pool(self, edge_id, pool_vseid, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             POOL_RESOURCE, pool_vseid)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def update_pool(self, edge_id, pool_vseid, pool_new):
+    def update_pool(self, edge_id, pool_vseid, pool_new, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             POOL_RESOURCE, pool_vseid)
-        return self.do_request(HTTP_PUT, uri, pool_new)
+        return self.do_request(HTTP_PUT, uri, pool_new, context=context)
 
-    def delete_pool(self, edge_id, pool_vseid):
+    def delete_pool(self, edge_id, pool_vseid, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             POOL_RESOURCE, pool_vseid)
-        return self.do_request(HTTP_DELETE, uri)
+        return self.do_request(HTTP_DELETE, uri, context=context)
 
-    def create_health_monitor(self, edge_id, monitor_new):
+    def create_health_monitor(self, edge_id, monitor_new, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             MONITOR_RESOURCE)
-        return self.do_request(HTTP_POST, uri, monitor_new)
+        return self.do_request(HTTP_POST, uri, monitor_new, context=context)
 
-    def get_health_monitor(self, edge_id, monitor_vseid):
+    def get_health_monitor(self, edge_id, monitor_vseid, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             MONITOR_RESOURCE, monitor_vseid)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def update_health_monitor(self, edge_id, monitor_vseid, monitor_new):
+    def update_health_monitor(self, edge_id, monitor_vseid, monitor_new,
+                              context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             MONITOR_RESOURCE,
             monitor_vseid)
-        return self.do_request(HTTP_PUT, uri, monitor_new)
+        return self.do_request(HTTP_PUT, uri, monitor_new, context=context)
 
-    def delete_health_monitor(self, edge_id, monitor_vseid):
+    def delete_health_monitor(self, edge_id, monitor_vseid, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             MONITOR_RESOURCE,
             monitor_vseid)
-        return self.do_request(HTTP_DELETE, uri)
+        return self.do_request(HTTP_DELETE, uri, context=context)
 
-    def create_app_profile(self, edge_id, app_profile):
+    def create_app_profile(self, edge_id, app_profile, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             APP_PROFILE_RESOURCE)
-        return self.do_request(HTTP_POST, uri, app_profile)
+        return self.do_request(HTTP_POST, uri, app_profile, context=context)
 
-    def update_app_profile(self, edge_id, app_profileid, app_profile):
+    def update_app_profile(self, edge_id, app_profileid, app_profile,
+                           context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             APP_PROFILE_RESOURCE, app_profileid)
-        return self.do_request(HTTP_PUT, uri, app_profile)
+        return self.do_request(HTTP_PUT, uri, app_profile, context=context)
 
-    def delete_app_profile(self, edge_id, app_profileid):
+    def delete_app_profile(self, edge_id, app_profileid, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             APP_PROFILE_RESOURCE,
             app_profileid)
-        return self.do_request(HTTP_DELETE, uri)
+        return self.do_request(HTTP_DELETE, uri, context=context)
 
-    def create_app_rule(self, edge_id, app_rule):
+    def create_app_rule(self, edge_id, app_rule, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             APP_RULE_RESOURCE)
-        return self.do_request(HTTP_POST, uri, app_rule)
+        return self.do_request(HTTP_POST, uri, app_rule, context=context)
 
-    def update_app_rule(self, edge_id, app_ruleid, app_rule):
+    def update_app_rule(self, edge_id, app_ruleid, app_rule, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             APP_RULE_RESOURCE, app_ruleid)
-        return self.do_request(HTTP_PUT, uri, app_rule)
+        return self.do_request(HTTP_PUT, uri, app_rule, context=context)
 
-    def delete_app_rule(self, edge_id, app_ruleid):
+    def delete_app_rule(self, edge_id, app_ruleid, context=None):
         uri = self._build_uri_path(
             edge_id, LOADBALANCER_SERVICE,
             APP_RULE_RESOURCE,
             app_ruleid)
-        return self.do_request(HTTP_DELETE, uri)
+        return self.do_request(HTTP_DELETE, uri, context=context)
 
-    def update_ipsec_config(self, edge_id, ipsec_config):
+    def update_ipsec_config(self, edge_id, ipsec_config, context=None):
         uri = self._build_uri_path(edge_id, IPSEC_VPN_SERVICE)
-        return self.do_request(HTTP_PUT, uri, ipsec_config)
+        return self.do_request(HTTP_PUT, uri, ipsec_config, context=context)
 
-    def delete_ipsec_config(self, edge_id):
+    def delete_ipsec_config(self, edge_id, context=None):
         uri = self._build_uri_path(edge_id, IPSEC_VPN_SERVICE)
-        return self.do_request(HTTP_DELETE, uri)
+        return self.do_request(HTTP_DELETE, uri, context=context)
 
-    def get_ipsec_config(self, edge_id):
+    def get_ipsec_config(self, edge_id, context=None):
         uri = self._build_uri_path(edge_id, IPSEC_VPN_SERVICE)
-        return self.do_request(HTTP_GET, uri)
+        return self.do_request(HTTP_GET, uri, context=context)
 
     @retry_upon_exception(exceptions.RequestBad)
-    def create_virtual_wire(self, vdn_scope_id, request):
+    def create_virtual_wire(self, vdn_scope_id, request, context=None):
         """Creates a VXLAN virtual wire
 
         The method will return the virtual wire ID.
         """
         uri = '/api/2.0/vdn/scopes/%s/virtualwires' % vdn_scope_id
         return self.do_request(HTTP_POST, uri, request, format='xml',
-                               decode=False)
+                               decode=False, context=context)
 
-    def delete_virtual_wire(self, virtualwire_id):
+    def delete_virtual_wire(self, virtualwire_id, context=None):
         """Deletes a virtual wire."""
         uri = '/api/2.0/vdn/virtualwires/%s' % virtualwire_id
-        return self.do_request(HTTP_DELETE, uri, format='xml')
+        return self.do_request(HTTP_DELETE, uri, format='xml', context=context)
 
-    def create_port_group(self, dvs_id, request):
+    def create_port_group(self, dvs_id, request, context=None):
         """Creates a port group on a DVS
 
         The method will return the port group ID.
         """
         uri = '/api/2.0/xvs/switches/%s/networks' % dvs_id
         return self.do_request(HTTP_POST, uri, request, format='xml',
-                               decode=False)
+                               decode=False, context=context)
 
-    def delete_port_group(self, dvs_id, portgroup_id):
+    def delete_port_group(self, dvs_id, portgroup_id, context=None):
         """Deletes a portgroup."""
         uri = '/api/2.0/xvs/switches/%s/networks/%s' % (dvs_id,
                                                         portgroup_id)
-        return self.do_request(HTTP_DELETE, uri, format='xml', decode=False)
+        return self.do_request(HTTP_DELETE, uri, format='xml', decode=False,
+                               context=context)
 
-    def get_vdn_switch(self, dvs_id):
+    def get_vdn_switch(self, dvs_id, context=None):
         uri = '/api/2.0/vdn/switches/%s' % dvs_id
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
-    def update_vdn_switch(self, switch):
+    def update_vdn_switch(self, switch, context=None):
         uri = '/api/2.0/vdn/switches'
-        return self.do_request(HTTP_PUT, uri, switch)
+        return self.do_request(HTTP_PUT, uri, switch, context=context)
 
-    def query_interface(self, edge_id, vnic_index):
+    def query_interface(self, edge_id, vnic_index, context=None):
         uri = "%s/%s/vnics/%d" % (URI_PREFIX, edge_id, vnic_index)
-        return self.do_request(HTTP_GET, uri, decode=True)
+        return self.do_request(HTTP_GET, uri, decode=True, context=context)
 
     def reconfigure_dhcp_service(self, edge_id, request_config):
         """Reconfigure dhcp static bindings in the created Edge."""
