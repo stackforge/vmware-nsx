@@ -343,7 +343,7 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxVPluginV2TestCase):
         self.assertEqual(net_del_res.status_int, 204)
 
     def test_list_networks_with_shared(self):
-        with self.network(name='net1'):
+        with self.network(name='net111'):
             with self.network(name='net2', shared=True):
                 req = self.new_list_request('networks')
                 res = self.deserialize('json', req.get_response(self.api))
