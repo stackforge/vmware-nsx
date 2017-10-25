@@ -78,7 +78,7 @@ class NsxPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
         attrs = kwargs
         if providernet_args:
             attrs.update(providernet_args)
-        for arg in (('admin_state_up', 'tenant_id', 'shared') +
+        for arg in (('admin_state_up', 'tenant_id', 'shared', 'is_default') +
                     (arg_list or ())):
             # Arg must be present
             if arg in kwargs:
