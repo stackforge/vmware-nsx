@@ -228,11 +228,15 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
 
         if providernet_args:
             kwargs.update(providernet_args)
-        for arg in (('admin_state_up', 'tenant_id', 'shared',
+        for arg in (('admin_state_up', 'tenant_id', 'shared', 'is_default',
                      'availability_zone_hints') + (arg_list or ())):
             # Arg must be present
             if arg in kwargs:
                 data['network'][arg] = kwargs[arg]
+        # add mandatory args
+        if 'is_default' not in data:
+            data['network']['is_default'] = False
+
         network_req = self.new_create_request('networks', data, fmt)
         if set_context and tenant_id:
             # create a specific auth context for this request

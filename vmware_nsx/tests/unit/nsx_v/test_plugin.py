@@ -132,11 +132,14 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
         attrs = kwargs
         if providernet_args:
             attrs.update(providernet_args)
-        for arg in (('admin_state_up', 'tenant_id', 'shared') +
+        for arg in (('admin_state_up', 'tenant_id', 'shared', 'is_default') +
                     (arg_list or ())):
             # Arg must be present and not empty
             if arg in kwargs:
                 data['network'][arg] = kwargs[arg]
+        # add mandatory args
+        if 'is_default' not in data:
+            data['network']['is_default'] = False
         network_req = self.new_create_request('networks', data, fmt)
         if set_context and tenant_id:
             # create a specific auth context for this request
@@ -343,7 +346,7 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxVPluginV2TestCase):
         self.assertEqual(net_del_res.status_int, 204)
 
     def test_list_networks_with_shared(self):
-        with self.network(name='net1'):
+        with self.network(name='net'):
             with self.network(name='net2', shared=True):
                 req = self.new_list_request('networks')
                 res = self.deserialize('json', req.get_response(self.api))
