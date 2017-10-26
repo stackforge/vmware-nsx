@@ -52,6 +52,7 @@ from neutron_lib import exceptions as n_exc
 import vmware_nsx
 from vmware_nsx._i18n import _
 from vmware_nsx.common import config  # noqa
+from vmware_nsx.common import managers as nsx_managers
 from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils as c_utils
 from vmware_nsx.db import db as nsx_db
@@ -98,8 +99,12 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         security_group=securitygroup_model.SecurityGroup,
         security_group_rule=securitygroup_model.SecurityGroupRule)
     def __init__(self):
+        self._extension_manager = nsx_managers.ExtensionManager()
         super(NsxDvsV2, self).__init__()
         LOG.debug('Driver support: DVS: %s' % dvs_utils.dvs_is_enabled())
+        self._extension_manager.initialize()
+        self.supported_extension_aliases.extend(
+            self._extension_manager.extension_aliases())
         neutron_extensions.append_api_extensions_path(
             [vmware_nsx.NSX_EXT_PATH])
         self.cfg_group = 'dvs'  # group name for dvs section in nsx.ini
