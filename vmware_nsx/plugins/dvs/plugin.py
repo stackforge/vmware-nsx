@@ -59,6 +59,7 @@ from vmware_nsx.db import nsxv_db
 from vmware_nsx.dhcp_meta import modes as dhcpmeta_modes
 from vmware_nsx.dvs import dvs
 from vmware_nsx.dvs import dvs_utils
+from vmware_nsx.common import managers as nsx_managers
 
 LOG = logging.getLogger(__name__)
 
@@ -98,8 +99,12 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         security_group=securitygroup_model.SecurityGroup,
         security_group_rule=securitygroup_model.SecurityGroupRule)
     def __init__(self):
+        self._extension_manager = nsx_managers.ExtensionManager()
         super(NsxDvsV2, self).__init__()
         LOG.debug('Driver support: DVS: %s' % dvs_utils.dvs_is_enabled())
+        self._extension_manager.initialize()
+        self.supported_extension_aliases.extend(
+            self._extension_manager.extension_aliases())
         neutron_extensions.append_api_extensions_path(
             [vmware_nsx.NSX_EXT_PATH])
         self.cfg_group = 'dvs'  # group name for dvs section in nsx.ini
