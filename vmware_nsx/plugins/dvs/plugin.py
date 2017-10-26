@@ -28,6 +28,7 @@ from neutron.db import agentschedulers_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
 from neutron.db import api as db_api
 from neutron.db import db_base_plugin_v2
+from neutron.db import dns_db
 from neutron.db import external_net_db
 from neutron.db import l3_db
 from neutron.db.models import securitygroup as securitygroup_model  # noqa
@@ -41,6 +42,7 @@ from neutron.extensions import multiprovidernet as mpnet
 from neutron.extensions import providernet
 from neutron.extensions import securitygroup as ext_sg
 from neutron.extensions import vlantransparent as vlan_ext
+from vmware_nsx.plugins.common import plugin as nsx_plugin_common
 from neutron.plugins.common import utils
 from neutron.quota import resource_registry
 from neutron_lib.api.definitions import portbindings as pbin
@@ -52,6 +54,7 @@ from neutron_lib import exceptions as n_exc
 import vmware_nsx
 from vmware_nsx._i18n import _
 from vmware_nsx.common import config  # noqa
+from vmware_nsx.common import managers as nsx_managers
 from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import utils as c_utils
 from vmware_nsx.db import db as nsx_db
@@ -66,13 +69,14 @@ LOG = logging.getLogger(__name__)
 @resource_extend.has_resource_extenders
 class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
                agentschedulers_db.DhcpAgentSchedulerDbMixin,
-               db_base_plugin_v2.NeutronDbPluginV2,
+               nsx_plugin_common.NsxPluginBase,
                dhcpmeta_modes.DhcpMetadataAccess,
                external_net_db.External_net_db_mixin,
                l3_db.L3_NAT_dbonly_mixin,
                portbindings_db.PortBindingMixin,
                portsecurity_db.PortSecurityDbMixin,
                securitygroups_db.SecurityGroupDbMixin,
+               dns_db.DNSDbMixin,
                vlan_ext_db.Vlantransparent_db_mixin):
 
     supported_extension_aliases = ["allowed-address-pairs",
@@ -98,8 +102,12 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         security_group=securitygroup_model.SecurityGroup,
         security_group_rule=securitygroup_model.SecurityGroupRule)
     def __init__(self):
+        self._extension_manager = nsx_managers.ExtensionManager()
         super(NsxDvsV2, self).__init__()
         LOG.debug('Driver support: DVS: %s' % dvs_utils.dvs_is_enabled())
+        self._extension_manager.initialize()
+        self.supported_extension_aliases.extend(
+            self._extension_manager.extension_aliases())
         neutron_extensions.append_api_extensions_path(
             [vmware_nsx.NSX_EXT_PATH])
         self.cfg_group = 'dvs'  # group name for dvs section in nsx.ini
@@ -188,6 +196,8 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
             with db_api.context_manager.writer.using(context):
                 new_net = super(NsxDvsV2, self).create_network(context,
                                                                network)
+                self._extension_manager.process_create_network(
+                    context, net_data, new_net)
                 # Process port security extension
                 self._process_network_port_security_create(
                     context, net_data, new_net)
@@ -314,6 +324,8 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         with db_api.context_manager.writer.using(context):
             net_res = super(NsxDvsV2, self).update_network(context, id,
                                                            network)
+            self._extension_manager.process_update_network(context, net_attrs,
+                                                           net_res)
             # Process port security extension
             self._process_network_port_security_update(
                 context, net_attrs, net_res)
@@ -346,6 +358,8 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         with db_api.context_manager.writer.using(context):
             # First we allocate port in neutron database
             neutron_db = super(NsxDvsV2, self).create_port(context, port)
+            self._extension_manager.process_create_port(
+                context, port_data, neutron_db)
             port_security = self._get_network_security_binding(
                 context, neutron_db['network_id'])
             port_data[psec.PORTSECURITY] = port_security
@@ -441,6 +455,8 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
                     context, port['port'], ret_port)
             self._process_vnic_type(context, port['port'], id)
             LOG.debug("Updating port: %s", port)
+            self._extension_manager.process_update_port(
+                context, port['port'], ret_port)
             self._process_portbindings_create_and_update(context,
                                                          port['port'],
                                                          ret_port)
