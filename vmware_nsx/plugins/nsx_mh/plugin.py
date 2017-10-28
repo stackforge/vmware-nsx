@@ -17,13 +17,17 @@ import uuid
 
 from neutron_lib.api.definitions import allowedaddresspairs as addr_apidef
 from neutron_lib.api.definitions import external_net as extnet_apidef
+from neutron_lib.api.definitions import extra_dhcp_opt as edo_ext
 from neutron_lib.api.definitions import port_security as psec
+from neutron_lib.api.definitions import portbindings as pbin
+from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib.api import faults
 from neutron_lib.api import validators
 from neutron_lib import constants
 from neutron_lib import context as q_context
 from neutron_lib import exceptions as n_exc
 from neutron_lib.exceptions import allowedaddresspairs as addr_exc
+from neutron_lib.exceptions import l3 as l3_exc
 from neutron_lib.exceptions import port_security as psec_exc
 from oslo_concurrency import lockutils
 from oslo_config import cfg
@@ -60,15 +64,11 @@ from neutron.db import portsecurity_db
 from neutron.db import quota_db  # noqa
 from neutron.db import securitygroups_db
 from neutron.extensions import extraroute
-from neutron.extensions import l3
 from neutron.extensions import multiprovidernet as mpnet
 from neutron.extensions import providernet
 from neutron.extensions import securitygroup as ext_sg
 from neutron.plugins.common import utils
 from neutron.quota import resource_registry
-from neutron_lib.api.definitions import extra_dhcp_opt as edo_ext
-from neutron_lib.api.definitions import portbindings as pbin
-from neutron_lib.api.definitions import provider_net as pnet
 
 import vmware_nsx
 from vmware_nsx._i18n import _
@@ -1765,8 +1765,8 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 subnet_id = port['fixed_ips'][0]['subnet_id']
             if not (port['device_owner'] in constants.ROUTER_INTERFACE_OWNERS
                     and port['device_id'] == router_id):
-                raise l3.RouterInterfaceNotFound(router_id=router_id,
-                                                 port_id=port_id)
+                raise l3_exc.RouterInterfaceNotFound(
+                    router_id=router_id, port_id=port_id)
         elif 'subnet_id' in interface_info:
             subnet_id = interface_info['subnet_id']
             subnet = self._get_subnet(context, subnet_id)
@@ -1781,8 +1781,8 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     port_id = p['id']
                     break
             else:
-                raise l3.RouterInterfaceNotFoundForSubnet(router_id=router_id,
-                                                          subnet_id=subnet_id)
+                raise l3_exc.RouterInterfaceNotFoundForSubnet(
+                    router_id=router_id, subnet_id=subnet_id)
         # Finally remove the data from the Neutron DB
         # This will also destroy the port on the logical switch
         info = super(NsxPluginV2, self).remove_router_interface(
