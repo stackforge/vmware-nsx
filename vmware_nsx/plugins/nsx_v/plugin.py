@@ -2373,7 +2373,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             super(NsxVPluginV2, self).delete_subnet(context, subnet_id)
 
     def delete_subnet(self, context, id):
-        subnet = self._get_subnet(context, id)
+        subnet_db = self._get_subnet(context, id)
+        subnet = self._make_subnet_dict(subnet_db, context=context)
         filters = {'fixed_ips': {'subnet_id': [id]}}
         ports = self.get_ports(context, filters=filters)
 
@@ -2600,7 +2601,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
     def _safe_update_subnet(self, context, id, subnet):
         s = subnet['subnet']
-        orig = self._get_subnet(context, id)
+        subnet_db = self._get_subnet(context, id)
+        orig = self._make_subnet_dict(subnet_db, context=context)
         gateway_ip = orig['gateway_ip']
         enable_dhcp = orig['enable_dhcp']
         orig_host_routes = orig['routes']
