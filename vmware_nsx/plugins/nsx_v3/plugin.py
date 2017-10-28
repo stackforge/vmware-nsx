@@ -3679,7 +3679,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             subnet_id = interface_info['subnet_id']
             self._confirm_router_interface_not_in_use(
                 context, router_id, subnet_id)
-            subnet = self._get_subnet(context, subnet_id)
+            subnet_db = self._get_subnet(context, subnet_id)
+            subnet = self._make_subnet_dict(subnet_db, context=context)
             rport_qry = context.session.query(models_v2.Port)
             ports = rport_qry.filter_by(
                 device_id=router_id,
