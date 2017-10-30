@@ -52,7 +52,7 @@ class EdgeMemberManager(base_mgr.Nsxv3LoadbalancerBaseManager):
     def _create_lb_service(self, context, service_client, tenant_id,
                            router_id, nsx_router_id, lb_id, lb_size):
         router = self.core_plugin.get_router(context, router_id)
-        lb_name = utils.get_name_and_uuid(router['name'],
+        lb_name = utils.get_name_and_uuid(router['name'] or 'router',
                                           router_id)
         tags = lb_utils.get_tags(self.core_plugin, router_id,
                                  lb_const.LR_ROUTER_TYPE,
