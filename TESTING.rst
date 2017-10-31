@@ -1,4 +1,3 @@
-Testing VMware-NSX
 ==================
 
 Overview
