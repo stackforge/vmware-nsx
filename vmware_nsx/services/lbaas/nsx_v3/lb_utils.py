@@ -31,6 +31,19 @@ def get_tags(plugin, resource_id, resource_type, project_id, project_name):
     return tags
 
 
+def update_tag(tags, scope, tag):
+    """
+    :param tags: tags of a nsx resource
+    :param scope: scope of the tag to be updated
+    :param tag: tag value to be updated
+    :return: updated tags
+    """
+    for t in tags:
+        if t['scope'] == scope:
+            t['tag'] = tag
+    return tags
+
+
 def get_nsx_resource_binding(client, name, id):
     """
     :param client: nsx resource client
