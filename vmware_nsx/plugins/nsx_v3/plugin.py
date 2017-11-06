@@ -1953,7 +1953,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             (sgids, psgids) = self._get_port_security_groups_lists(
                 context, port)
         elif (self._check_update_has_security_groups({'port': port_data}) or
-              self._provider_sgs_specified(port_data)):
+              self._provider_sgs_specified(port_data) or
+              self._get_provider_security_groups_on_port(context, port)):
             raise psec_exc.PortSecurityAndIPRequiredForSecurityGroups()
         else:
             sgids = psgids = []
@@ -2411,6 +2412,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             (is_psec_on, has_ip, sgids, psgids) = (
                 self._create_port_preprocess_security(context, port,
                                                       port_data, neutron_db))
+            XXX MAMPARA
             self._process_portbindings_create_and_update(
                 context, port['port'], port_data)
             self._process_port_create_extra_dhcp_opts(
