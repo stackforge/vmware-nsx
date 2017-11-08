@@ -25,6 +25,8 @@ from neutron_lib.api.validators import availability_zone as az_validator
 from neutron_lib.exceptions import allowedaddresspairs as addr_exc
 from neutron_lib.exceptions import l3 as l3_exc
 from neutron_lib.exceptions import port_security as psec_exc
+from neutron_lib.plugins import constants as plugin_const
+from neutron_lib.plugins import directory
 from neutron_lib.services.qos import constants as qos_consts
 
 from neutron.api.rpc.agentnotifiers import dhcp_rpc_agent_api
@@ -3457,9 +3459,19 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         (but not both) and include the source/dest nsx logical port.
         """
         extra_rules = []
+
+        # if it is a single port, the source/dest is this logical port
+        if port_id:
+            _net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
+                context.session, port_id)
+            port_target = [{'target_type': 'LogicalPort',
+                            'target_id': nsx_port_id}]
+        else:
+            port_target = None
+        elv_ctx = context.elevated()
+
         # DHCP relay rules:
         # get the list of relevant relay servers
-        elv_ctx = context.elevated()
         if port_id:
             relay_servers = self._get_port_relay_servers(elv_ctx, port_id)
         else:
@@ -3475,14 +3487,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         # Add rules to allow dhcp traffic relay servers
         if relay_servers:
-            # if it is a single port, the source/dest is this logical port
-            if port_id:
-                _net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
-                    context.session, port_id)
-                port_target = [{'target_type': 'LogicalPort',
-                                'target_id': nsx_port_id}]
-            else:
-                port_target = None
             # translate the relay server ips to the firewall format
             relay_target = []
             if self.fwaas_callbacks:
@@ -3507,6 +3511,20 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 'sources': port_target,
                 'services': dhcp_services,
                 'direction': 'OUT'})
+
+        # VPN rules:
+        vpn_plugin = directory.get_plugin(plugin_const.VPN)
+        if vpn_plugin:
+            vpn_driver = vpn_plugin.ipsec_driver
+            vpn_rules = (
+                vpn_driver._generate_ipsecvpn_firewall_rules(router_id))
+            if vpn_rules:
+                # DEBUG ADIT - todo
+                if port_id:
+                    # add port to the rules
+                    pass
+                else:
+                    extra_rules.extend(vpn_rules)
 
         return extra_rules
 
