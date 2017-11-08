@@ -481,3 +481,11 @@ class NsxLbaasL7Policy(model_base.BASEV2, models.TimestampMixin):
                             primary_key=True)
     lb_rule_id = sa.Column(sa.String(36), nullable=False)
     lb_vs_id = sa.Column(sa.String(36), nullable=False)
+
+
+class NsxVpnConnectionMapping(model_base.BASEV2, models.TimestampMixin):
+    """Stores the mapping between VPNaaS connections and NSX peer endpoints"""
+    __tablename__ = 'neutron_nsx_vpn_mappings'
+    neutron_id = sa.Column(sa.String(36),
+                           primary_key=True)
+    nsx_id = sa.Column(sa.String(36), primary_key=True)
