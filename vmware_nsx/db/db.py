@@ -652,3 +652,32 @@ def get_nsx_lbaas_l7policy_binding(session, l7policy_id):
 def delete_nsx_lbaas_l7policy_binding(session, l7policy_id):
     return (session.query(nsx_models.NsxLbaasL7Policy).
             filter_by(l7policy_id=l7policy_id).delete())
+
+
+def add_nsx_vpn_connection_mapping(session, neutron_id, session_id,
+                                   dpd_profile_id, ike_profile_id,
+                                   ipsec_profile_id, peer_ep_id):
+    with session.begin(subtransactions=True):
+        mapping = nsx_models.NsxVpnConnectionMapping(
+            neutron_id=neutron_id,
+            session_id=session_id,
+            dpd_profile_id=dpd_profile_id,
+            ike_profile_id=ike_profile_id,
+            ipsec_profile_id=ipsec_profile_id,
+            peer_ep_id=peer_ep_id)
+        session.add(mapping)
+        return mapping
+
+
+def get_nsx_vpn_connection_mapping(session, neutron_id):
+    try:
+        mapping = (session.query(nsx_models.NsxVpnConnectionMapping).
+            filter_by(neutron_id=neutron_id).one())
+        return mapping
+    except exc.NoResultFound:
+        return
+
+
+def delete_nsx_vpn_connection_mapping(session, neutron_id):
+    return (session.query(nsx_models.NsxVpnConnectionMapping).
+            filter_by(neutron_id=neutron_id).delete())
