@@ -88,6 +88,7 @@ NETWORK_TYPES = ['Network', 'VirtualWire', 'DistributedVirtualPortgroup']
 ROUTING_CONFIG = "routing/config"
 BGP_ROUTING_CONFIG = "routing/config/bgp"
 ELAPSED_TIME_THRESHOLD = 30
+MAX_EDGE_DEPLOY_TIMEOUT = 1200
 
 
 def retry_upon_exception_exclude_error_codes(
@@ -170,7 +171,8 @@ class Vcns(object):
     @retry_upon_exception(exceptions.RequestBad)
     def deploy_edge(self, request):
         uri = URI_PREFIX
-        return self.do_request(HTTP_POST, uri, request, decode=False)
+        return self.do_request(HTTP_POST, uri, request, decode=False,
+                               timeout=MAX_EDGE_DEPLOY_TIMEOUT)
 
     def update_edge(self, edge_id, request):
         uri = "%s/%s" % (URI_PREFIX, edge_id)
