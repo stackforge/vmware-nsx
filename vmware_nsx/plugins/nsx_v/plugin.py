@@ -3046,8 +3046,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     allow_metadata=(allow_metadata and
                                     self.metadata_proxy_handler))
             if gw_info != constants.ATTR_NOT_SPECIFIED and gw_info is not None:
-                self._update_router_gw_info(
-                    context, lrouter['id'], gw_info)
+                with db_api.context_manager.writer.using(context):
+                    self._update_router_gw_info(
+                        context, lrouter['id'], gw_info)
         except Exception:
             LOG.exception("Failed to create router %s", router)
             with excutils.save_and_reraise_exception():
