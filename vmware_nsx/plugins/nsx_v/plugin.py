@@ -3028,8 +3028,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self._process_extra_attr_router_create(context, router_db, r)
             self._process_nsx_router_create(context, router_db, r)
             self._process_router_flavor_create(context, router_db, r)
-
-        with db_api.context_manager.reader.using(context):
             lrouter = super(NsxVPluginV2, self).get_router(context,
                                                            lrouter['id'])
         try:
