@@ -27,6 +27,8 @@ _C = _translators.contextual_form
 # The plural translation function using the name "_P"
 _P = _translators.plural_form
 
+# slaweq: DNM, it's only test :)
+
 
 def get_available_languages():
     return oslo_i18n.get_available_languages(DOMAIN)
