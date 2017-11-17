@@ -112,7 +112,9 @@ def get_nsxv_backend_edges():
             'name': edge.get('name'),
             'size': edge['appliancesSummary'].get(
                 'applianceSize') if edge.get('appliancesSummary') else None,
-            'type': edge.get('edgeType')
+            'type': edge.get('edgeType'),
+            'ha': 'Enabled' if edge['appliancesSummary'].get(
+                'numberOfDeployedVms') > 1 else 'Disabled'
         }
         backend_edges.append(edge_data)
     return backend_edges
