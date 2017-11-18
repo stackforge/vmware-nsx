@@ -383,6 +383,9 @@ nsx_v3_opts = [
                 default=False,
                 help=_("If true, DHCP and metadata proxy services will be "
                        "provided by NSX backend.")),
+    cfg.BoolOpt('native_metadata_interface',
+                default=True,
+                help=_("Use the interface for metadata request")),
     cfg.StrOpt('native_metadata_route',
                default="169.254.169.254/31",
                help=_("The metadata route used for native metadata proxy "
