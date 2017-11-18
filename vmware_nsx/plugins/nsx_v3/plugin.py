@@ -1803,9 +1803,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             hostname = 'host-%s' % ip.replace('.', '-')
             subnet = self.get_subnet(context, subnet_id)
             gateway_ip = subnet.get('gateway_ip')
+            if cfg.CONF.nsx_v3.native_metadata_interface:
+                next_hop = ip
+            else:
+                next_hop = '0.0.0.0'
             options = {'option121': {'static_routes': [
                 {'network': '%s' % cfg.CONF.nsx_v3.native_metadata_route,
-                 'next_hop': ip}]}}
+                 'next_hop': next_hop}]}}
             # update static routes
             for hr in subnet['host_routes']:
                 options['option121']['static_routes'].append(
@@ -1971,9 +1975,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             data = {'mac_address': mac, 'ip_address': ip}
             if ip != binding['ip_address']:
                 data['host_name'] = 'host-%s' % ip.replace('.', '-')
+                if cfg.CONF.nsx_v3.native_metadata_interface:
+                    next_hop = ip
+                else:
+                    next_hop = '0.0.0.0'
                 data['options'] = {'option121': {'static_routes': [
                     {'network': '%s' % cfg.CONF.nsx_v3.native_metadata_route,
-                     'next_hop': ip}]}}
+                     'next_hop': next_hop}]}}
             if gateway_ip is not False:
                 # Note that None is valid for gateway_ip, means deleting it.
                 data['gateway_ip'] = gateway_ip
