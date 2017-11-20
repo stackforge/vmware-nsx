@@ -116,6 +116,10 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         self.setup_dhcpmeta_access()
 
     @staticmethod
+    def plugin_type():
+        return "Dvs"
+
+    @staticmethod
     @resource_extend.extends([port_def.COLLECTION_NAME])
     def _extend_port_dict_binding(result, portdb):
         result[pbin.VIF_TYPE] = nsx_constants.VIF_TYPE_DVS
