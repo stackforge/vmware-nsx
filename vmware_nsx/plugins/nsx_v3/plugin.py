@@ -205,7 +205,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         security_group_rule=securitygroup_model.SecurityGroupRule,
         router=l3_db_models.Router,
         floatingip=l3_db_models.FloatingIP)
-    def __init__(self):
+    def __init__(self, sub_plugin=False):
+        # DEBUG ADIT - how can we know this?
+        self._is_sub_plugin = True
         nsxlib_utils.set_is_attr_callback(validators.is_attr_set)
         self._extend_fault_map()
         self._extension_manager = managers.ExtensionManager()
@@ -337,7 +339,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     "DHCP metadata")
             LOG.error(msg)
             raise n_exc.InvalidInput(error_message=msg)
-        self._availability_zones_data = nsx_az.NsxV3AvailabilityZones()
+        validate_default = not self._is_sub_plugin
+        self._availability_zones_data = nsx_az.NsxV3AvailabilityZones(
+            validate_default=validate_default)
 
     def _init_nsx_profiles(self):
         LOG.debug("Initializing NSX v3 port spoofguard switching profile")
