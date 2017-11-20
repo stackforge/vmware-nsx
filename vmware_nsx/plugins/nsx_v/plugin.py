@@ -126,6 +126,7 @@ from vmware_nsx.extensions import secgroup_rule_local_ip_prefix
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.extensions import securitygrouppolicy as sg_policy
 from vmware_nsx.plugins.common import plugin as nsx_plugin_common
+from vmware_nsx.plugins.nsx import plugin as kune_plugin
 from vmware_nsx.plugins.nsx_v import availability_zones as nsx_az
 from vmware_nsx.plugins.nsx_v import managers
 from vmware_nsx.plugins.nsx_v import md_proxy as nsx_v_md_proxy
@@ -219,6 +220,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def __init__(self):
         self._extension_manager = nsx_managers.ExtensionManager()
         super(NsxVPluginV2, self).__init__()
+        self._is_sub_plugin = kune_plugin.is_kune_core_plugin()
         # Bind the dummy L3 notifications
         self.l3_rpc_notifier = l3_rpc_agent_api.L3NotifyAPI()
         self.init_is_complete = False
@@ -935,7 +937,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if vnic_id is None or added_sgids is None:
             return
         for add_sg in added_sgids:
-            nsx_sg_id = nsx_db.get_nsx_security_group_id(session, add_sg)
+            nsx_sg_id = nsx_db.get_nsx_security_group_id(session, add_sg,
+                                                         moref=True)
             if nsx_sg_id is None:
                 LOG.warning("NSX security group not found for %s", add_sg)
             else:
@@ -958,7 +961,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             return
         # Remove vnic from delete security groups binding
         for del_sg in deleted_sgids:
-            nsx_sg_id = nsx_db.get_nsx_security_group_id(session, del_sg)
+            nsx_sg_id = nsx_db.get_nsx_security_group_id(session, del_sg,
+                                                         moref=True)
             if nsx_sg_id is None:
                 LOG.warning("NSX security group not found for %s", del_sg)
             else:
@@ -994,7 +998,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         return '%s.%03d' % (device_id, port_index)
 
     def init_availability_zones(self):
-        self._availability_zones_data = nsx_az.NsxVAvailabilityZones()
+        validate_default = not self._is_sub_plugin
+        self._availability_zones_data = nsx_az.NsxVAvailabilityZones(
+            validate_default=validate_default)
 
     def _list_availability_zones(self, context, filters=None):
         #TODO(asarfaty): We may need to use the filters arg, but now it
@@ -4077,7 +4083,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def update_security_group(self, context, id, security_group):
         s = security_group['security_group']
         self._validate_security_group(context, s, False, id=id)
-        nsx_sg_id = nsx_db.get_nsx_security_group_id(context.session, id)
+        nsx_sg_id = nsx_db.get_nsx_security_group_id(context.session, id,
+                                                     moref=True)
         section_uri = self._get_section_uri(context.session, id)
         section_needs_update = False
 
@@ -4130,7 +4137,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         return sg_data
 
-    def delete_security_group(self, context, id):
+    def delete_security_group(self, context, id, delete_base=True):
         """Delete a security group."""
         self._prevent_non_admin_delete_provider_sg(context, id)
         self._prevent_non_admin_delete_policy_sg(context, id)
@@ -4140,10 +4147,12 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             section_uri = self._get_section_uri(context.session, id)
 
             # Find nsx security group
-            nsx_sg_id = nsx_db.get_nsx_security_group_id(context.session, id)
+            nsx_sg_id = nsx_db.get_nsx_security_group_id(context.session, id,
+                                                         moref=True)
 
-            # Delete neutron security group
-            super(NsxVPluginV2, self).delete_security_group(context, id)
+            if delete_base:
+                # Delete neutron security group
+                super(NsxVPluginV2, self).delete_security_group(context, id)
 
             # Delete nsx rule sections
             self._delete_section(section_uri)
@@ -4168,7 +4177,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if nsx_sg_id is None:
             # Find nsx security group for neutron security group
             nsx_sg_id = nsx_db.get_nsx_security_group_id(
-                context.session, rule['security_group_id'])
+                context.session, rule['security_group_id'],
+                moref=True)
 
         # Find the remote nsx security group id, which might be the current
         # one. In case of the default security-group, the associated
@@ -4177,7 +4187,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             remote_nsx_sg_id = nsx_sg_id
         else:
             remote_nsx_sg_id = nsx_db.get_nsx_security_group_id(
-                context.session, rule['remote_group_id'])
+                context.session, rule['remote_group_id'], moref=True)
 
         # Get source and destination containers from rule
         if rule['direction'] == 'ingress':

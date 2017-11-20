@@ -99,6 +99,7 @@ from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.plugins.common import plugin as nsx_plugin_common
+from vmware_nsx.plugins.nsx import plugin as kune_plugin
 from vmware_nsx.plugins.nsx_v3 import availability_zones as nsx_az
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.services.fwaas.common import utils as fwaas_utils
@@ -206,6 +207,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         router=l3_db_models.Router,
         floatingip=l3_db_models.FloatingIP)
     def __init__(self):
+        self._is_sub_plugin = kune_plugin.is_kune_core_plugin()
         nsxlib_utils.set_is_attr_callback(validators.is_attr_set)
         self._extend_fault_map()
         self._extension_manager = managers.ExtensionManager()
@@ -337,7 +339,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     "DHCP metadata")
             LOG.error(msg)
             raise n_exc.InvalidInput(error_message=msg)
-        self._availability_zones_data = nsx_az.NsxV3AvailabilityZones()
+        validate_default = not self._is_sub_plugin
+        self._availability_zones_data = nsx_az.NsxV3AvailabilityZones(
+            validate_default=validate_default)
 
     def _init_nsx_profiles(self):
         LOG.debug("Initializing NSX v3 port spoofguard switching profile")
