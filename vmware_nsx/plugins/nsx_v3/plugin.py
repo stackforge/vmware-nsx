@@ -4255,7 +4255,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             if net_res[az_def.AZ_HINTS]:
                 az_name = net_res[az_def.AZ_HINTS][0]
             else:
-                az_name = nsx_az.DEFAULT_NAME
+                az_name = cfg.CONF.default_availability_zones[0]
             net_res[az_def.COLLECTION_NAME] = [az_name]
 
     def recalculate_snat_rules_for_router(self, context, router, subnets):
