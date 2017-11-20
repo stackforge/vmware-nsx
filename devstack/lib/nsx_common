@@ -37,7 +37,6 @@ function nsxv_configure_service {
     if [[ "$NSX_L2GW_DRIVER" != "" ]]; then
         iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_l2gw_driver $NSX_L2GW_DRIVER
     fi
-    iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_extension_drivers vmware_nsxv_dns
     _nsxv_ini_set password "$NSXV_PASSWORD"
     _nsxv_ini_set user "$NSXV_USER"
     _nsxv_ini_set vdn_scope_id "$NSXV_VDN_SCOPE_ID"
@@ -89,6 +88,17 @@ function _nsxv3_ini_set {
     fi
 }
 
+function nsxv3_configure_az {
+    iniset /$Q_PLUGIN_CONF_FILE az:az default_overlay_tz $DEFAULT_OVERLAY_TZ_UUID
+    iniset /$Q_PLUGIN_CONF_FILE az:az native_dhcp_metadata $NATIVE_DHCP_METADATA
+    if [[ "$NATIVE_DHCP_METADATA" == "True" ]]; then
+        iniset /$Q_PLUGIN_CONF_FILE az:az native_metadata_route $NATIVE_METADATA_ROUTE
+        iniset /$Q_PLUGIN_CONF_FILE az:az dhcp_profile $DHCP_PROFILE_UUID
+        iniset /$Q_PLUGIN_CONF_FILE az:az metadata_proxy $METADATA_PROXY_UUID
+        iniset /$Q_PLUGIN_CONF_FILE az:az dhcp_relay_service $DHCP_RELAY_SERVICE
+    fi
+}
+
 function nsxv3_configure_service {
     _nsxv3_ini_set default_overlay_tz $DEFAULT_OVERLAY_TZ_UUID "The VMware NSX plugin won't work without a default transport zone."
     _nsxv3_ini_set default_vlan_tz $DEFAULT_VLAN_TZ_UUID
@@ -108,7 +118,6 @@ function nsxv3_configure_service {
     if [[ "$NSX_L2GW_DRIVER" != "" ]]; then
         iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_l2gw_driver $NSX_L2GW_DRIVER
     fi
-    iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_extension_drivers vmware_nsxv3_dns
     _nsxv3_ini_set nsx_api_user $NSX_USER
     _nsxv3_ini_set nsx_api_password $NSX_PASSWORD
     _nsxv3_ini_set retries $NSX_RETRIES
