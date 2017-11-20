@@ -27,6 +27,7 @@ from sqlalchemy import sql
 from neutron.db import models_v2
 from oslo_db.sqlalchemy import models
 
+from vmware_nsx.extensions import projectpluginmap
 from vmware_nsxlib.v3 import nsx_constants
 
 
@@ -481,3 +482,10 @@ class NsxLbaasL7Policy(model_base.BASEV2, models.TimestampMixin):
                             primary_key=True)
     lb_rule_id = sa.Column(sa.String(36), nullable=False)
     lb_vs_id = sa.Column(sa.String(36), nullable=False)
+
+
+class NsxProjectPluginMapping(model_base.BASEV2):
+    """Stores the mapping between the neutron plugin and the project id"""
+    __tablename__ = 'nsx_project_plugin_mappings'
+    project = sa.Column(sa.String(36), primary_key=True)
+    plugin = sa.Column(sa.Enum(*projectpluginmap.VALID_TYPES))
