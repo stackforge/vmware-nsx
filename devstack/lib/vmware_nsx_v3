@@ -155,6 +155,7 @@ function neutron_plugin_configure_plugin_agent {
 
 function neutron_plugin_configure_service {
     nsxv3_configure_service
+    iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_extension_drivers vmware_nsxv3_dns
 }
 
 function neutron_plugin_setup_interface_driver {
