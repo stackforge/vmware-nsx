@@ -807,12 +807,26 @@ nsxv3_az_opts = [
                       "on router ports.")),
 ]
 
+nsx_tv_opts = [
+    cfg.ListOpt('nsx_v_extension_drivers',
+                default=[],
+                help=_("An ordered list of NSX-V extension driver "
+                       "entrypoints to be loaded from the "
+                       "vmware_nsx.extension_drivers namespace.")),
+    cfg.ListOpt('nsx_v3_extension_drivers',
+                default=[],
+                help=_("An ordered list of NSX-T extension driver "
+                       "entrypoints to be loaded from the "
+                       "vmware_nsx.extension_drivers namespace.")),
+]
+
 # Register the configuration options
 cfg.CONF.register_opts(connection_opts)
 cfg.CONF.register_opts(cluster_opts)
 cfg.CONF.register_opts(nsx_common_opts)
 cfg.CONF.register_opts(nsx_v3_opts, group="nsx_v3")
 cfg.CONF.register_opts(nsxv_opts, group="nsxv")
+cfg.CONF.register_opts(nsx_tv_opts, group="nsx_tv")
 cfg.CONF.register_opts(base_opts, group="NSX")
 cfg.CONF.register_opts(sync_opts, group="NSX_SYNC")
 
