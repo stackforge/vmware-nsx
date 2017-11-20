@@ -219,6 +219,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def __init__(self):
         self._extension_manager = nsx_managers.ExtensionManager()
         super(NsxVPluginV2, self).__init__()
+        # DEBUG ADIT - how can we know this?
+        self._is_sub_plugin = True
         # Bind the dummy L3 notifications
         self.l3_rpc_notifier = l3_rpc_agent_api.L3NotifyAPI()
         self.init_is_complete = False
@@ -994,7 +996,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         return '%s.%03d' % (device_id, port_index)
 
     def init_availability_zones(self):
-        self._availability_zones_data = nsx_az.NsxVAvailabilityZones()
+        validate_default = not self._is_sub_plugin
+        self._availability_zones_data = nsx_az.NsxVAvailabilityZones(
+            validate_default=validate_default)
 
     def _list_availability_zones(self, context, filters=None):
         #TODO(asarfaty): We may need to use the filters arg, but now it
