@@ -268,6 +268,15 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
 
 class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
 
+    def setUp(self, plugin=PLUGIN_NAME,
+              ext_mgr=None,
+              service_plugins=None):
+        # add vlan transparent to the configuration
+        # DEBUG ADIT
+        cfg.CONF.set_override('vlan_transparent', True)
+        super(TestNetworksV2, self).setUp(plugin=plugin,
+                                          ext_mgr=ext_mgr)
+
     @mock.patch.object(nsx_plugin.NsxV3Plugin, 'validate_availability_zones')
     def test_create_network_with_availability_zone(self, mock_validate_az):
         name = 'net-with-zone'
