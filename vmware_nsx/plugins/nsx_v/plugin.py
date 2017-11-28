@@ -261,7 +261,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         self._use_nsx_policies = False
         if cfg.CONF.nsxv.use_nsx_policies:
             if not c_utils.is_nsxv_version_6_2(self.nsx_v.vcns.get_version()):
-                error = (_("NSX policies are not supported for version "
+                error = (_("XXX NSX policies are not supported for version "
                            "%(ver)s.") %
                          {'ver': self.nsx_v.vcns.get_version()})
                 raise nsx_exc.NsxPluginException(err_msg=error)
