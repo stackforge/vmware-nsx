@@ -3792,14 +3792,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         vs_list = self.nsxlib.search_by_tags(
             tags=lb_tag, resource_type='LbVirtualServer')
         if vs_list['results']:
-            vs_id = vs_list['results'][0]['id']
             vs_client = self.nsxlib.load_balancer.virtual_server
-            vs_client.update_virtual_server_with_vip(vs_id, vip_address)
+            for vs in vs_list['results']:
+                vs_client.update_virtual_server_with_vip(vs['id'],
+                                                         vip_address)
         else:
-            msg = (_('Virtual server cannot be found with scope '
-                     '%(scope)s and tag %(tag)s') %
-                   {'scope': 'os-lbaas-lb-id', 'tag': device_id})
-            LOG.error(msg)
             raise nsx_exc.NsxResourceNotFound(res_name='virtual_server',
                                               res_id=device_id)
 
@@ -3835,10 +3832,15 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             if device_owner == const.DEVICE_OWNER_LOADBALANCERV2:
                 try:
                     self._update_lb_vip(port_data, fip_address)
-                except (nsx_lib_exc.ManagerError,
-                        nsx_exc.NsxResourceNotFound):
+                except nsx_lib_exc.ManagerError:
                     with excutils.save_and_reraise_exception():
                         self.delete_floatingip(context, new_fip['id'])
+                except nsx_exc.NsxResourceNotFound:
+                    LOG.warning('Virtual server cannot be found with scope '
+                                '%(scope)s and tag %(tag)s',
+                                {'scope': 'os-lbaas-lb-id',
+                                 'tag': port_data.get('device_id')})
+                    self.delete_floatingip(context, new_fip['id'])
                 return new_fip
         try:
             nsx_router_id = nsx_db.get_nsx_router_id(context.session,
