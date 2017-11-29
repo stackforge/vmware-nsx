@@ -142,6 +142,42 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
                 '', tenant_id)
         return network_req.get_response(self.api)
 
+    @contextlib.contextmanager
+    def subnet(self, network=None, **kwargs):
+        # Override the subnet method to automatically disable dhcp on external
+        # subnets, unless specified.
+        set_context = kwargs.get('set_context', False)
+        with test_plugin.optional_ctx(
+            network, self.network,
+            set_context=set_context,
+            tenant_id=kwargs.get('tenant_id')) as network_to_use:
+            if 'enable_dhcp' not in kwargs:
+                # Read the network itself, as the network in the args does not
+                # content this value
+                net = self._show('networks', network_to_use['network']['id'])
+                if net['network']['router:external']:
+                    kwargs['enable_dhcp'] = False
+            subnet = self._make_subnet(self.fmt,
+                                       network_to_use,
+                                       kwargs.get(
+                                           'gateway_ip',
+                                           constants.ATTR_NOT_SPECIFIED),
+                                       kwargs.get('cidr', '10.0.0.0/24'),
+                                       kwargs.get('subnetpool_id'),
+                                       kwargs.get('allocation_pools'),
+                                       kwargs.get('ip_version', 4),
+                                       kwargs.get('enable_dhcp', True),
+                                       kwargs.get('dns_nameservers'),
+                                       kwargs.get('host_routes'),
+                                       segment_id=kwargs.get('segment_id'),
+                                       shared=kwargs.get('shared'),
+                                       ipv6_ra_mode=kwargs.get('ipv6_ra_mode'),
+                                       ipv6_address_mode=kwargs.get(
+                                           'ipv6_address_mode'),
+                                       tenant_id=kwargs.get('tenant_id'),
+                                       set_context=set_context)
+            yield subnet
+
     @mock.patch.object(edge_utils.EdgeManager, '_deploy_edge')
     def setUp(self, mock_deploy_edge,
               plugin=PLUGIN_NAME,
@@ -938,22 +974,6 @@ class TestPortsV2(NsxVPluginV2TestCase,
     def test_create_port_anticipating_allocation(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
 
-    def test_update_port_mac_ip(self):
-        with self.subnet(enable_dhcp=False) as subnet:
-            updated_fixed_ips = [{'subnet_id': subnet['subnet']['id'],
-                              'ip_address': '10.0.0.3'}]
-            self.check_update_port_mac(subnet=subnet,
-                                       updated_fixed_ips=updated_fixed_ips)
-
-    def test_list_ports(self):
-        # for this test we need to enable overlapping ips
-        cfg.CONF.set_default('allow_overlapping_ips', True)
-        with self.subnet(enable_dhcp=False) as subnet,\
-                self.port(subnet) as port1,\
-                self.port(subnet) as port2,\
-                self.port(subnet) as port3:
-            self._test_list_resources('port', [port1, port2, port3])
-
     def test_list_ports_public_network(self):
         with self.network(shared=True) as network:
             with self.subnet(network, enable_dhcp=False) as subnet,\
@@ -1147,16 +1167,6 @@ class TestPortsV2(NsxVPluginV2TestCase,
                 update = {'port': {'device_owner'}}
                 self.new_update_request('ports',
                                         update, port['port']['id'])
-
-    def test_no_more_port_exception(self):
-        with self.subnet(enable_dhcp=False, cidr='10.0.0.0/31',
-                         gateway_ip=None) as subnet:
-            id = subnet['subnet']['network_id']
-            res = self._create_port(self.fmt, id)
-            data = self.deserialize(self.fmt, res)
-            msg = str(n_exc.IpAddressGenerationFailure(net_id=id))
-            self.assertEqual(data['NeutronError']['message'], msg)
-            self.assertEqual(res.status_int, webob.exc.HTTPConflict.code)
 
     def test_ports_vif_host(self):
         cfg.CONF.set_default('allow_overlapping_ips', True)
@@ -2348,40 +2358,6 @@ class L3NatTestCaseBase(test_l3_plugin.L3NatTestCaseMixin):
                     self.assertEqual(r1['router']['id'],
                                      fp['floatingip']['router_id'])
 
-    def test_create_floatingip_with_specific_ip_out_of_allocation(self):
-        with self.subnet(cidr='10.0.0.0/24',
-                         allocation_pools=[
-                             {'start': '10.0.0.10', 'end': '10.0.0.20'}],
-                         enable_dhcp=False) as s:
-            network_id = s['subnet']['network_id']
-            self._set_net_external(network_id)
-            fp = self._make_floatingip(self.fmt, network_id,
-                                       floating_ip='10.0.0.30')
-            self.assertEqual('10.0.0.30',
-                             fp['floatingip']['floating_ip_address'])
-
-    def test_create_floatingip_with_specific_ip_non_admin(self):
-        ctx = context.Context('user_id', 'tenant_id')
-
-        with self.subnet(cidr='10.0.0.0/24',
-                         enable_dhcp=False) as s:
-            network_id = s['subnet']['network_id']
-            self._set_net_external(network_id)
-            self._make_floatingip(self.fmt, network_id,
-                                  set_context=ctx,
-                                  floating_ip='10.0.0.10',
-                                  http_status=webob.exc.HTTPForbidden.code)
-
-    def test_create_floatingip_with_specific_ip_out_of_subnet(self):
-
-        with self.subnet(cidr='10.0.0.0/24',
-                         enable_dhcp=False) as s:
-            network_id = s['subnet']['network_id']
-            self._set_net_external(network_id)
-            self._make_floatingip(self.fmt, network_id,
-                                  floating_ip='10.0.1.10',
-                                  http_status=webob.exc.HTTPBadRequest.code)
-
     def test_floatingip_multi_external_one_internal(self):
         with self.subnet(cidr="10.0.0.0/24", enable_dhcp=False) as exs1,\
                 self.subnet(cidr="11.0.0.0/24", enable_dhcp=False) as exs2,\
@@ -2422,31 +2398,7 @@ class L3NatTestCaseBase(test_l3_plugin.L3NatTestCaseMixin):
                     self.assertEqual(fp2['floatingip']['router_id'],
                                      r2['router']['id'])
 
-    def test_create_floatingip_with_multisubnet_id(self):
-        with self.network() as network:
-            self._set_net_external(network['network']['id'])
-            with self.subnet(network,
-                             enable_dhcp=False,
-                             cidr='10.0.12.0/24') as subnet1:
-                with self.subnet(network,
-                                 enable_dhcp=False,
-                                 cidr='10.0.13.0/24') as subnet2:
-                    with self.router():
-                        res = self._create_floatingip(
-                            self.fmt,
-                            subnet1['subnet']['network_id'],
-                            subnet_id=subnet1['subnet']['id'])
-                        fip1 = self.deserialize(self.fmt, res)
-                        res = self._create_floatingip(
-                            self.fmt,
-                            subnet1['subnet']['network_id'],
-                            subnet_id=subnet2['subnet']['id'])
-                        fip2 = self.deserialize(self.fmt, res)
-        self.assertTrue(
-            fip1['floatingip']['floating_ip_address'].startswith('10.0.12'))
-        self.assertTrue(
-            fip2['floatingip']['floating_ip_address'].startswith('10.0.13'))
-
+    # DEBUG ADIT continue here
     def test_create_floatingip_with_wrong_subnet_id(self):
         with self.network() as network1:
             self._set_net_external(network1['network']['id'])
@@ -2844,7 +2796,7 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
         with self._create_l3_ext_network() as net:
             with testlib_api.ExpectedException(
                 webob.exc.HTTPClientError) as ctx_manager:
-                with self.subnet(network=net):
+                with self.subnet(network=net, enable_dhcp=True):
                     self.assertEqual(ctx_manager.exception.code, 400)
 
     def test_create_l3_ext_network_without_vlan(self):
