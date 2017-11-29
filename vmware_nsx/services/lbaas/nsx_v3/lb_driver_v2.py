@@ -83,8 +83,9 @@ class EdgeLoadbalancerDriverV2(object):
         service_client = nsxlib.load_balancer.service
         lb_service = service_client.get_router_lb_service(nsx_router_id)
         if lb_service:
-            msg = _('Cannot delete router as it still has lb service '
-                    'attachment')
+            msg = _('Cannot delete router %(rtr)s as it still has lb service '
+                    'attachment %(srv)s') % {'rtr': nsx_router_id,
+                                             'srv': lb_service}
             raise nc_exc.CallbackFailure(msg)
 
 
