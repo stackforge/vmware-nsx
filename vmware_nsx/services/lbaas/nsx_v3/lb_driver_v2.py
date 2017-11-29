@@ -76,15 +76,15 @@ class EdgeLoadbalancerDriverV2(object):
     def _check_lb_service_on_router(self, resource, event, trigger,
                                     **kwargs):
         """Check if there is any lb service on nsx router"""
-
         nsx_router_id = nsx_db.get_nsx_router_id(kwargs['context'].session,
                                                  kwargs['router_id'])
         nsxlib = self.loadbalancer.core_plugin.nsxlib
         service_client = nsxlib.load_balancer.service
         lb_service = service_client.get_router_lb_service(nsx_router_id)
         if lb_service:
-            msg = _('Cannot delete router as it still has lb service '
-                    'attachment')
+            msg = _('Cannot delete router %(rtr)s as it still has lb service '
+                    'attachment %(srv)s') % {'rtr': nsx_router_id,
+                                             'srv': lb_service}
             raise nc_exc.CallbackFailure(msg)
 
 
