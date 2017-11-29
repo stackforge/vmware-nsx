@@ -56,7 +56,7 @@ from vmware_nsxlib.v3 import exceptions as nsxlib_exc
 
 
 PLUGIN_NAME = 'vmware_nsx.plugin.NsxV3Plugin'
-NSX_TZ_NAME = 'default transport zone'
+NSX_TZ_NAME = 'default transport zone X'
 NSX_DHCP_PROFILE_ID = 'default dhcp profile'
 NSX_METADATA_PROXY_ID = 'default metadata proxy'
 NSX_SWITCH_PROFILE = 'dummy switch profile'
