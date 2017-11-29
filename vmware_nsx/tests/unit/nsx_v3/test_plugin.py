@@ -160,7 +160,7 @@ def _mock_nsx_backend_calls():
 
     mock.patch(
         "vmware_nsxlib.v3.NsxLib.get_version",
-        return_value='1.1.0').start()
+        return_value='2.1.0').start()
 
     mock.patch(
         "vmware_nsxlib.v3.load_balancer.Service.get_router_lb_service",
