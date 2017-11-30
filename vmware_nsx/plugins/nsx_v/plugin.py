@@ -1204,7 +1204,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             net_data[psec.PORTSECURITY] = net_data.get(psec.PORTSECURITY, True)
             # Create SpoofGuard policy for network anti-spoofing
             sg_policy_id = None
-            if cfg.CONF.nsxv.spoofguard_enabled and backend_network:
+            if (cfg.CONF.nsxv.spoofguard_enabled and backend_network and
+                network_type != c_utils.NsxVNetworkTypes.PORTGROUP):
                 # This variable is set as the method below may result in a
                 # exception and we may need to rollback
                 predefined = False
@@ -1284,7 +1285,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                             nsx_db.add_neutron_nsx_network_mapping(
                                 context.session, new_net['id'],
                                 net_moref)
-                    if cfg.CONF.nsxv.spoofguard_enabled and backend_network:
+                    if (cfg.CONF.nsxv.spoofguard_enabled and
+                        backend_network and
+                        network_type != c_utils.NsxVNetworkTypes.PORTGROUP):
                         nsxv_db.map_spoofguard_policy_for_network(
                             context.session, new_net['id'], sg_policy_id)
 
@@ -4356,6 +4359,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def _update_vnic_assigned_addresses(self, session, port, vnic_id):
         sg_policy_id = nsxv_db.get_spoofguard_policy_id(
             session, port['network_id'])
+        if not sg_policy_id:
+            LOG.warning("Spoofguard not defined for network %s",
+                        port['network_id'])
+            return
         mac_addr = port['mac_address']
         approved_addrs = [addr['ip_address'] for addr in port['fixed_ips']]
         # add in the address pair
