@@ -47,6 +47,7 @@ class EdgeLoadBalancerManager(base_mgr.Nsxv3LoadbalancerBaseManager):
                                        lb.vip_subnet_id):
             self.lbv2_driver.load_balancer.successful_completion(context, lb)
         else:
+            self.lbv2_driver.load_balancer.delete(context, lb)
             msg = _('Cannot create lb on subnet %(sub)s for '
                     'loadbalancer %(lb)s as it does not connect '
                     'to router') % {'sub': lb.vip_subnet_id,
