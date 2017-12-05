@@ -404,7 +404,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         self.fwaas_callbacks = fwaas_callbacks.NsxvFwaasCallbacks()
 
     def _create_security_group_container(self):
-        name = "OpenStack Security Group container"
+        name = ("OpenStack Security Group container (%s)" %
+                self.nsx_v.vcns.get_uuid())
         with locking.LockManager.get_lock('security-group-container-init'):
             container_id = self.nsx_v.vcns.get_security_group_id(name)
             if not container_id:
