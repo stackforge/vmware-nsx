@@ -404,7 +404,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         self.fwaas_callbacks = fwaas_callbacks.NsxvFwaasCallbacks()
 
     def _create_security_group_container(self):
-        name = "OpenStack Security Group container"
+        name = ("OpenStack Security Group container (%s)" %
+                self.nsx_v.vcns.get_vsm_uuid())
         with locking.LockManager.get_lock('security-group-container-init'):
             container_id = self.nsx_v.vcns.get_security_group_id(name)
             if not container_id:
@@ -461,7 +462,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             router_res, router_db, router_type_obj.nsx_attributes)
 
     def _create_cluster_default_fw_section(self):
-        section_name = 'OS Cluster Security Group section'
+        section_name = ('OS Cluster Security Group section (%s)' %
+                        self.nsx_v.vcns.get_vsm_uuid())
 
         # Default cluster rules
         rules = [{'name': 'Default DHCP rule for OS Security Groups',

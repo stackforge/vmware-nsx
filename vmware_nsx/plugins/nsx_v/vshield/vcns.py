@@ -120,6 +120,7 @@ class Vcns(object):
             address, user, password, format='xml', ca_file=ca_file,
             insecure=insecure, timeout=cfg.CONF.nsxv.nsx_transaction_timeout)
         self._nsx_version = None
+        self._nsx_uuid = None
         self._normalized_scoping_objects = None
 
     @retry_upon_exception(exceptions.ServiceConflict)
@@ -968,23 +969,38 @@ class Vcns(object):
         h, c = self.do_request(HTTP_GET, uri, decode=True)
         return c['name']
 
-    def _get_version(self):
+    def _get_vsm_config(self):
         uri = '/api/2.0/services/vsmconfig'
         h, c = self.do_request(HTTP_GET, uri, decode=True)
         version = c['version']
+        uuid = c['vsmUuid']
         LOG.debug("NSX Version: %s", version)
-        return version
+        return (version, uuid)
 
     def get_version(self):
         if self._nsx_version is None:
             try:
-                self._nsx_version = self._get_version()
+                (self._nsx_version,
+                 self._nsx_uuid) = self._get_vsm_config()
             except Exception as e:
                 # Versions prior to 6.2.0 do not support the above API
                 LOG.error("Unable to get NSX version. Exception: %s", e)
                 # Minimum supported version is 6.1
                 self._nsx_version = '6.1'
+                self._nsx_uuid = ''
         return self._nsx_version
+
+    def get_vsm_uuid(self):
+        if self._nsx_uuid is None:
+            try:
+                (self._nsx_version,
+                 self._nsx_uuid) = self._get_vsm_config()
+            except Exception as e:
+                # Versions prior to 6.2.0 do not support the above API
+                LOG.error("Unable to get NSX UUID. Exception: %s", e)
+                self._nsx_version = '6.1'
+                self._nsx_uuid = ''
+        return self._nsx_uuid
 
     def get_tuning_configration(self):
         uri = '/api/4.0/edgePublish/tuningConfiguration'
