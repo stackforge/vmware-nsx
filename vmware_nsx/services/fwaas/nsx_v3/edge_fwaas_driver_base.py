@@ -59,7 +59,7 @@ class CommonEdgeFwaasV3Driver(fwaas_base.FwaasDriverBase):
     def nsx_router(self):
         return self.nsxlib.logical_router
 
-    def check_backend_version(self, resource, event, trigger, **kwargs):
+    def check_backend_version(self, resource, event, trigger, payload=None):
         if not self.nsxlib.feature_supported(consts.FEATURE_ROUTER_FIREWALL):
             # router firewall is not supported
             LOG.warning("FWaaS is not supported by the NSX backend (version "
