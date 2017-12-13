@@ -1,0 +1,10 @@
+Code-Review+2: Anna Khmelnitsky <akhmelnitsky@vmware.com>
+Code-Review+2: garyk <gkotton@vmware.com>
+Workflow+1: garyk <gkotton@vmware.com>
+Code-Review+2: Tong Liu <tongl@vmware.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Wed, 13 Dec 2017 06:42:46 +0000
+Reviewed-on: https://review.openstack.org/526991
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/ocata
