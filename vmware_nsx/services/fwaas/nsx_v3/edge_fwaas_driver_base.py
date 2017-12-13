@@ -23,7 +23,7 @@ from neutron_lib.callbacks import resources
 from neutron_lib.plugins import directory
 from oslo_log import log as logging
 
-from vmware_nsx.db import db as nsx_db
+from vmware_nsx.extensions import projectpluginmap
 from vmware_nsxlib.v3 import nsx_constants as consts
 
 LOG = logging.getLogger(__name__)
@@ -42,10 +42,20 @@ class CommonEdgeFwaasV3Driver(fwaas_base.FwaasDriverBase):
         registry.subscribe(
             self.check_backend_version,
             resources.PROCESS, events.BEFORE_SPAWN)
+        self._core_plugin = None
 
     @property
     def core_plugin(self):
-        return directory.get_plugin()
+        """Get the NSX-V3 core plugin"""
+        if not self._core_plugin:
+            self._core_plugin = directory.get_plugin()
+            if self._core_plugin.is_tv_plugin():
+                self._core_plugin = self._core_plugin.get_plugin_by_type(
+                    projectpluginmap.NsxPlugins.NSX_T)
+            # make sure plugin init was completed
+            if not self._core_plugin.init_is_complete:
+                self._core_plugin.init_complete(None, None, {})
+        return self._core_plugin
 
     @property
     def nsxlib(self):
@@ -194,28 +204,6 @@ class CommonEdgeFwaasV3Driver(fwaas_base.FwaasDriverBase):
         if not self.backend_support:
             LOG.error("The NSX backend does not support router firewall")
             raise self.driver_exception(driver=self.driver_name)
-
-    def get_backend_router_and_fw_section(self, context, router_id):
-        # find the backend router id in the DB
-        nsx_router_id = nsx_db.get_nsx_router_id(context.session, router_id)
-        if nsx_router_id is None:
-            LOG.error("Didn't find nsx router for router %s", router_id)
-            raise self.driver_exception(driver=self.driver_name)
-
-        # get the FW section id of the backend router
-        try:
-            section_id = self.nsx_router.get_firewall_section_id(
-                nsx_router_id)
-        except Exception as e:
-            LOG.error("Failed to find router firewall section for router "
-                      "%(id)s: %(e)s", {'id': router_id, 'e': e})
-            raise self.driver_exception(driver=self.driver_name)
-        if section_id is None:
-            LOG.error("Failed to find router firewall section for router "
-                      "%(id)s.", {'id': router_id})
-            raise self.driver_exception(driver=self.driver_name)
-
-        return nsx_router_id, section_id
 
     def get_default_backend_rule(self, section_id, allow_all=True):
         # Add default allow all rule

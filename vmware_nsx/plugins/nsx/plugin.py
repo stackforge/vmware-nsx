@@ -57,6 +57,7 @@ from vmware_nsx.plugins.nsx_v import plugin as v
 from vmware_nsx.plugins.nsx_v3 import plugin as t
 
 LOG = logging.getLogger(__name__)
+TV_PLUGIN_TYPE = "Nsx-TV"
 
 
 @resource_extend.has_resource_extenders
@@ -105,7 +106,11 @@ class NsxTVPlugin(addr_pair_db.AllowedAddressPairsMixin,
 
     @staticmethod
     def plugin_type():
-        return "Nsx-TV"
+        return TV_PLUGIN_TYPE
+
+    @staticmethod
+    def is_tv_plugin():
+        return True
 
     def init_plugins(self):
         # initialize all supported plugins
@@ -137,6 +142,9 @@ class NsxTVPlugin(addr_pair_db.AllowedAddressPairsMixin,
             self.default_plugin = self.plugins[0].key
         LOG.info("NSX-TV plugin will use %s as the default plugin",
             self.default_plugin)
+
+    def get_plugin_by_type(self, plugin_type):
+        return self.plugins.get(plugin_type)
 
     def init_extensions(self):
         # Support all the extensions supported by any of the plugins
@@ -324,9 +332,9 @@ class NsxTVPlugin(addr_pair_db.AllowedAddressPairsMixin,
         if gw_info and gw_info.get('network_id'):
             net_plugin = self._get_plugin_from_net_id(
                 context, gw_info['network_id'])
-            if net_plugin.plugin_type != router_plugin.plugin_type:
+            if net_plugin.plugin_type() != router_plugin.plugin_type():
                 err_msg = (_('Router gateway should belong to the %s plugin '
-                             'as the router') % router_plugin.plugin_type)
+                             'as the router') % router_plugin.plugin_type())
                 raise n_exc.InvalidInput(error_message=err_msg)
 
     def _validate_router_interface_plugin(self, context, router_plugin,
@@ -339,9 +347,9 @@ class NsxTVPlugin(addr_pair_db.AllowedAddressPairsMixin,
             net_id = self.get_subnet(
                 context, interface_info['subnet_id'])['network_id']
         net_plugin = self._get_plugin_from_net_id(context, net_id)
-        if net_plugin.plugin_type != router_plugin.plugin_type:
+        if net_plugin.plugin_type() != router_plugin.plugin_type():
             err_msg = (_('Router interface should belong to the %s plugin '
-                         'as the router') % router_plugin.plugin_type)
+                         'as the router') % router_plugin.plugin_type())
             raise n_exc.InvalidInput(error_message=err_msg)
 
     def _get_plugin_from_router_id(self, context, router_id):
@@ -390,10 +398,10 @@ class NsxTVPlugin(addr_pair_db.AllowedAddressPairsMixin,
         if 'router_id' in fip_data:
             router_plugin = self._get_plugin_from_router_id(
                 context, fip_data['router_id'])
-            if router_plugin.plugin_type != fip_plugin.plugin_type:
+            if router_plugin.plugin_type() != fip_plugin.plugin_type():
                 err_msg = (_('Floatingip router should belong to the %s '
                              'plugin as the floatingip') %
-                           fip_plugin.plugin_type)
+                           fip_plugin.plugin_type())
                 raise n_exc.InvalidInput(error_message=err_msg)
 
     def create_floatingip(self, context, floatingip):

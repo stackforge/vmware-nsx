@@ -120,6 +120,7 @@ from vmware_nsx.extensions import dhcp_mtu as ext_dhcp_mtu
 from vmware_nsx.extensions import dns_search_domain as ext_dns_search_domain
 from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.extensions import nsxpolicy
+from vmware_nsx.extensions import projectpluginmap
 from vmware_nsx.extensions import providersecuritygroup as provider_sg
 from vmware_nsx.extensions import routersize
 from vmware_nsx.extensions import secgroup_rule_local_ip_prefix
@@ -320,7 +321,11 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
     @staticmethod
     def plugin_type():
-        return "Nsx-V"
+        return projectpluginmap.NsxPlugins.NSX_V
+
+    @staticmethod
+    def is_tv_plugin():
+        return False
 
     def init_complete(self, resource, event, trigger, payload=None):
         with locking.LockManager.get_lock('plugin-init-complete'):
