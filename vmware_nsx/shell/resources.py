@@ -207,8 +207,17 @@ nsxv_resources = {
                                        Operations.DELETE.value])
 }
 
+
+# Add supported NSX-V resources in this dictionary
+# TODO(asarfaty): add v+v3 resources here too
+nsxtv_resources = {
+    constants.PROJECTS: Resource(constants.PROJECTS,
+                                 [Operations.IMPORT.value]),
+}
+
 nsxv3_resources_names = list(nsxv3_resources.keys())
 nsxv_resources_names = list(nsxv_resources.keys())
+nsxtv_resources_names = list(nsxtv_resources.keys())
 
 
 def get_resources(plugin_dir):
@@ -224,6 +233,8 @@ def get_plugin():
         plugin_name = 'nsxv3'
     elif plugin in (constants.NSXV_PLUGIN, constants.VMWARE_NSXV):
         plugin_name = 'nsxv'
+    elif plugin in (constants.NSXTV_PLUGIN, constants.VMWARE_NSXTV):
+        plugin_name = 'nsxtv'
     return plugin_name
 
 
@@ -233,6 +244,8 @@ def _get_choices():
         return nsxv3_resources_names
     elif plugin == 'nsxv':
         return nsxv_resources_names
+    elif plugin == 'nsxtv':
+        return nsxtv_resources_names
 
 
 def _get_resources():
@@ -241,6 +254,8 @@ def _get_resources():
         return 'NSX-V3 resources: %s' % (', '.join(nsxv3_resources_names))
     elif plugin == 'nsxv':
         return 'NSX-V resources: %s' % (', '.join(nsxv_resources_names))
+    elif plugin == 'nsxtv':
+        return 'NSX-TVD resources: %s' % (', '.join(nsxtv_resources_names))
 
 
 cli_opts = [cfg.StrOpt('fmt',
