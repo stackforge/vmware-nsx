@@ -321,7 +321,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     "DHCP metadata")
             LOG.error(msg)
             raise n_exc.InvalidInput(error_message=msg)
-        self._availability_zones_data = nsx_az.NsxV3AvailabilityZones()
+        validate_default = not self._is_sub_plugin
+        self._availability_zones_data = nsx_az.NsxV3AvailabilityZones(
+            validate_default=validate_default)
 
     def _init_nsx_profiles(self):
         LOG.debug("Initializing NSX v3 port spoofguard switching profile")
