@@ -119,27 +119,34 @@ class NsxTVPlugin(addr_pair_db.AllowedAddressPairsMixin,
             self.plugins[projectpluginmap.NsxPlugins.NSX_T] = t.NsxV3Plugin()
         except Exception as e:
             LOG.info("NSX-T plugin will not be supported: %s", e)
+        else:
+            LOG.info("NSX-T plugin will be supported")
 
         try:
             self.plugins[projectpluginmap.NsxPlugins.NSX_V] = v.NsxVPluginV2()
         except Exception as e:
             LOG.info("NSX-V plugin will not be supported: %s", e)
+        else:
+            LOG.info("NSX-V plugin will be supported")
 
         try:
             self.plugins[projectpluginmap.NsxPlugins.DVS] = dvs.NsxDvsV2()
         except Exception as e:
             LOG.info("DVS plugin will not be supported: %s", e)
+        else:
+            LOG.info("DVS plugin will be supported")
 
         if not len(self.plugins):
             msg = _("No active plugins were found")
             raise nsx_exc.NsxPluginException(err_msg=msg)
 
-        # update the default plugin for new projects
+        # update the default plugin for new projects as the NSX-T
         # TODO(asarfaty): make the default configurable?
         if projectpluginmap.NsxPlugins.NSX_T in self.plugins:
             self.default_plugin = projectpluginmap.NsxPlugins.NSX_T
         else:
-            self.default_plugin = self.plugins[0].key
+            # If the NSX-T is not supported, use another one
+            self.default_plugin = self.plugins.keys()[0]
         LOG.info("NSX-TV plugin will use %s as the default plugin",
             self.default_plugin)
 
@@ -546,6 +553,9 @@ class NsxTVPlugin(addr_pair_db.AllowedAddressPairsMixin,
             context.session, data['project']):
             raise projectpluginmap.ProjectPluginAlreadyExists(
                 project_id=data['project'])
+        LOG.info("Adding mapping between project %(project)s and plugin"
+                 "%(plugin)s", {'project': data['project'],
+                                'plugin': data['plugin']})
         nsx_db.add_project_plugin_mapping(context.session,
                                           data['project'],
                                           data['plugin'])
