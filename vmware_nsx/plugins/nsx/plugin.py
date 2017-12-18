@@ -530,9 +530,15 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
             context.session, data['project']):
             raise projectpluginmap.ProjectPluginAlreadyExists(
                 project_id=data['project'])
-        nsx_db.add_project_plugin_mapping(context.session,
-                                          data['project'],
-                                          data['plugin'])
+        # Only create the DB entry if there is a valid project. There
+        # may be cases when a get_admin_context is invoked and there is
+        # no project set. This is generally when there is a get operation
+        # and we treat that properly. That is, per resource we know how to
+        # get the correct tenant
+        if data['project']:
+            nsx_db.add_project_plugin_mapping(context.session,
+                                              data['project'],
+                                              data['plugin'])
         return self._get_project_plugin_dict(data)
 
     def get_project_plugin_map(self, context, id, fields=None):
