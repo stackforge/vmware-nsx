@@ -169,15 +169,16 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
             self._unsupported_fields[plugin_type] = {'router': [],
                                                      'port': []}
 
-        # router size and type are supported only by the V plugin
-        self._unsupported_fields[t.NsxV3Plugin.plugin_type()]['router'] = [
-            'router_size', 'router_type']
-        self._unsupported_fields[dvs.NsxDvsV2.plugin_type()]['router'] = [
-            'router_size', 'router_type']
+            # router size and type are supported only by the V plugin
+            if plugin_type in [t.NsxV3Plugin.plugin_type(),
+                               dvs.NsxDvsV2.plugin_type()]:
+                self._unsupported_fields[plugin_type]['router'] = [
+                    'router_size', 'router_type']
 
-        # port mac learning is not supported by the dvs plugin
-        self._unsupported_fields[dvs.NsxDvsV2.plugin_type()]['port'] = [
-            'mac_learning_enabled']
+            # port mac learning is not supported by the dvs plugin
+            if plugin_type in [dvs.NsxDvsV2.plugin_type()]:
+                self._unsupported_fields[plugin_type]['port'] = [
+                    'mac_learning_enabled']
 
     def _validate_obj_extensions(self, data, plugin_type, obj_type):
         """prevent configuration of unsupported extensions"""
@@ -209,7 +210,7 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
     def _get_plugin_from_net_id(self, context, net_id):
         # get the network using the super plugin - here we use the
         # _get_network (so as not to call the make dict method)
-        network = super(NsxTVDPlugin, self)._get_network(context, net_id)
+        network = self._get_network(context, net_id)
         return self._get_plugin_from_project(context, network['tenant_id'])
 
     def get_network_availability_zones(self, net_db):
@@ -260,7 +261,6 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         new_port = p.create_port(context, port)
         self._cleanup_obj_fields(
             new_port, p.plugin_type(), 'port')
-        LOG.error("DEBUG ADIT created new_port %s", new_port)
         return new_port
 
     def update_port(self, context, id, port):
@@ -379,7 +379,7 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
     def _get_plugin_from_router_id(self, context, router_id):
         # get the router using the super plugin - here we use the
         # _get_router (so as not to call the make dict method)
-        router = super(NsxTVDPlugin, self)._get_router(context, router_id)
+        router = self._get_router(context, router_id)
         return self._get_plugin_from_project(context, router['tenant_id'])
 
     def create_router(self, context, router):
@@ -455,10 +455,9 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
     def _get_plugin_from_sg_id(self, context, sg_id):
         # get the router using the super plugin - here we use the
         # _get_router (so as not to call the make dict method)
-        sg = super(NsxTVDPlugin, self)._get_security_group(context, sg_id)
+        sg = self._get_security_group(context, sg_id)
         return self._get_plugin_from_project(context, sg['tenant_id'])
 
-    # TODO(asarfaty): no need to create on both any more?
     def create_security_group(self, context, security_group,
                               default_sg=False):
         if not default_sg:
