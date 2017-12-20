@@ -18,8 +18,6 @@ from neutron.db import api as db_api
 from neutron_lib import constants as n_consts
 from neutron_lib.plugins import constants as plugin_const
 
-from vmware_nsx._i18n import _
-from vmware_nsx.common import exceptions as nsxv_exc
 from vmware_nsx.common import locking
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.plugins.nsx_v.drivers import (
@@ -242,13 +240,6 @@ class RouterExclusiveDriver(router_driver.RouterBaseDriver):
                 fixed_ip['subnet_id'] for fixed_ip in port.get(
                     'fixed_ips', [])]
             subnet = port_subnets[0]
-
-        if subnet and self._check_lb_on_subnet(context, subnet):
-            error = _('Cannot delete router %(rtr)s interface while '
-                      'loadbalancers are provisioned on attached '
-                      'subnet %(subnet)s') % {'rtr': router_id,
-                                              'subnet': subnet}
-            raise nsxv_exc.NsxPluginException(err_msg=error)
 
         info = super(nsx_v.NsxVPluginV2, self.plugin).remove_router_interface(
             context, router_id, interface_info)
