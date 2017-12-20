@@ -36,6 +36,7 @@ from neutron_lib.plugins import directory
 from vmware_nsx._i18n import _
 from vmware_nsx.common import utils as nsx_utils
 from vmware_nsx.db import db as nsx_db
+from vmware_nsx.extensions import projectpluginmap
 from vmware_nsxlib.v3 import exceptions as nsxlib_exc
 from vmware_nsxlib.v3 import nsx_constants
 
@@ -56,10 +57,16 @@ class NsxV3Driver(l2gateway_db.L2GatewayMixin):
         self.subscribe_callback_notifications()
         LOG.debug("Initialization complete for NSXv3 driver for "
                   "L2 gateway service plugin.")
+        self.__core_plugin = None
 
     @property
     def _core_plugin(self):
-        return directory.get_plugin()
+        if not self.__core_plugin:
+            self.__core_plugin = directory.get_plugin()
+            if self.__core_plugin.is_tvd_plugin():
+                self.__core_plugin = self.__core_plugin.get_plugin_by_type(
+                    projectpluginmap.NsxPlugins.NSX_T)
+        return self.__core_plugin
 
     def subscribe_callback_notifications(self):
         registry.subscribe(self._prevent_l2gw_port_delete, resources.PORT,
