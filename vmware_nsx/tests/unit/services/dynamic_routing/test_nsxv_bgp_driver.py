@@ -50,6 +50,7 @@ class TestNSXvBgpPlugin(test_plugin.NsxVPluginV2TestCase,
         self.l3plugin = self.plugin
         self.plugin.init_is_complete = True
         self.context = context.get_admin_context()
+        self.project_id = 'dummy_project'
 
     @contextlib.contextmanager
     def gw_network(self, external=True, **kwargs):
@@ -85,18 +86,46 @@ class TestNSXvBgpPlugin(test_plugin.NsxVPluginV2TestCase,
                 'esg_id': esg_id,
                 'auth_type': 'none',
                 'password': '',
-                'tenant_id': ''}
+                'tenant_id': self.project_id}
         bgp_peer = self.bgp_plugin.create_bgp_peer(self.context,
                                                    {'bgp_peer': data})
         yield bgp_peer
         self.bgp_plugin.delete_bgp_peer(self.context, bgp_peer['id'])
+
+    @contextlib.contextmanager
+    def bgp_speaker(self, ip_version, local_as, name='my-speaker',
+                    advertise_fip_host_routes=True,
+                    advertise_tenant_networks=True,
+                    networks=None, peers=None):
+        data = {'ip_version': ip_version,
+                test_bgp_db.ADVERTISE_FIPS_KEY: advertise_fip_host_routes,
+                'advertise_tenant_networks': advertise_tenant_networks,
+                'local_as': local_as, 'name': name,
+                'tenant_id': self.project_id}
+        bgp_speaker = self.bgp_plugin.create_bgp_speaker(self.context,
+                                                        {'bgp_speaker': data})
+        bgp_speaker_id = bgp_speaker['id']
+
+        if networks:
+            for network_id in networks:
+                self.bgp_plugin.add_gateway_network(
+                                                   self.context,
+                                                   bgp_speaker_id,
+                                                   {'network_id': network_id})
+        if peers:
+            for peer_id in peers:
+                self.bgp_plugin.add_bgp_peer(self.context, bgp_speaker_id,
+                                             {'bgp_peer_id': peer_id})
+
+        yield self.bgp_plugin.get_bgp_speaker(self.context, bgp_speaker_id)
 
     def test_create_v6_bgp_speaker(self):
         fake_bgp_speaker = {
             "bgp_speaker": {
                 "ip_version": 6,
                 "local_as": "1000",
-                "name": "bgp-speaker"
+                "name": "bgp-speaker",
+                "tenant_id": self.project_id
             }
         }
         self.assertRaises(n_exc.InvalidInput,
@@ -109,7 +138,8 @@ class TestNSXvBgpPlugin(test_plugin.NsxVPluginV2TestCase,
                 "auth_type": "none",
                 "remote_as": "1000",
                 "name": "bgp-peer",
-                "peer_ip": "fc00::/7"
+                "peer_ip": "fc00::/7",
+                "tenant_id": self.project_id
             }
         }
         self.assertRaises(n_exc.InvalidInput,
@@ -128,7 +158,8 @@ class TestNSXvBgpPlugin(test_plugin.NsxVPluginV2TestCase,
     def test_create_bgp_peer_md5_auth_no_password(self):
         bgp_peer = {'bgp_peer':
                     {'auth_type': 'md5', 'password': None,
-                     'peer_ip': '10.0.0.3'}}
+                     'peer_ip': '10.0.0.3',
+                     'tenant_id': self.project_id}}
         self.assertRaises(ext_bgp.InvalidBgpPeerMd5Authentication,
                           self.bgp_plugin.create_bgp_peer,
                           self.context, bgp_peer)
@@ -246,3 +277,13 @@ class TestNSXvBgpPlugin(test_plugin.NsxVPluginV2TestCase,
     def test__get_routes_by_router_with_fip(self):
         # base class tests uses no-snat router with floating ips
         self.skipTest('No SNAT with floating ips not supported')
+
+    def test_add_bgp_peer_with_bad_id(self):
+            with self.subnetpool_with_address_scope(
+                4, prefixes=['8.0.0.0/8']) as sp:
+                with self.bgp_speaker(sp['ip_version'], 1234) as speaker:
+                    self.assertRaises(ext_bgp.BgpPeerNotFound,
+                                      self.bgp_plugin.add_bgp_peer,
+                                      self.context,
+                                      speaker['id'],
+                                      {'bgp_peer_id': 'aaa'})
