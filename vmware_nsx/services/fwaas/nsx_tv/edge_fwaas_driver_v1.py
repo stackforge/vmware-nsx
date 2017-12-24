@@ -41,10 +41,20 @@ class EdgeFwaasTVDriverV1(fwaas_base.FwaasDriverBase):
 
         # supported drivers:
         self.drivers = {}
-        self.drivers[projectpluginmap.NsxPlugins.NSX_T] = (
-            t_driver.EdgeFwaasV3DriverV1())
-        self.drivers[projectpluginmap.NsxPlugins.NSX_V] = (
-            v_driver.EdgeFwaasDriver())
+        try:
+            self.drivers[projectpluginmap.NsxPlugins.NSX_T] = (
+                t_driver.EdgeFwaasV3DriverV1())
+        except Exception:
+            LOG.warning("EdgeFwaasTVDriverV1 failed to initialize the NSX-T "
+                        "driver")
+            self.drivers[projectpluginmap.NsxPlugins.NSX_T] = None
+        try:
+            self.drivers[projectpluginmap.NsxPlugins.NSX_V] = (
+                v_driver.EdgeFwaasDriver())
+        except Exception:
+            LOG.warning("EdgeFwaasTVDriverV1 failed to initialize the NSX-V "
+                        "driver")
+            self.drivers[projectpluginmap.NsxPlugins.NSX_V] = None
 
     def get_T_driver(self):
         return self.drivers[projectpluginmap.NsxPlugins.NSX_T]
