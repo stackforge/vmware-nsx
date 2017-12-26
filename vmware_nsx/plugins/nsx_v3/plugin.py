@@ -475,6 +475,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             az.translate_configured_names_to_uuids(self.nsxlib)
 
     def _extend_nsx_port_dict_binding(self, context, port_data):
+        LOG.error("DEBUG ADIT v3 _extend_nsx_port_dict_binding (ovs)")
         # Not using the register api for this because we need the context
         port_data[pbin.VIF_TYPE] = pbin.VIF_TYPE_OVS
         port_data[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
