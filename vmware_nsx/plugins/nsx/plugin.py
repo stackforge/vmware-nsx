@@ -490,9 +490,9 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         p = self._get_plugin_from_sg_id(context, id)
         return p.update_security_group(context, id, security_group)
 
-    def get_security_group(self, context, id):
+    def get_security_group(self, context, id, **kwargs):
         p = self._get_plugin_from_sg_id(context, id)
-        return p.get_security_group(context, id)
+        return p.get_security_group(context, id, **kwargs)
 
     def create_security_group_rule_bulk(self, context, security_group_rules):
         p = self._get_plugin_from_project(context, context.project_id)
