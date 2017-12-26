@@ -454,11 +454,11 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         p = self._get_plugin_from_net_id(context, net_id)
         return p.delete_floatingip(context, id)
 
-    def get_floatingip(self, context, id):
+    def get_floatingip(self, context, id, fields=None):
         fip = self._get_floatingip(context, id)
         net_id = fip['floating_network_id']
         p = self._get_plugin_from_net_id(context, net_id)
-        return p.get_floatingip(context, id)
+        return p.get_floatingip(context, id, fields=fields)
 
     def disassociate_floatingips(self, context, port_id):
         db_port = self._get_port(context, port_id)
@@ -490,9 +490,9 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         p = self._get_plugin_from_sg_id(context, id)
         return p.update_security_group(context, id, security_group)
 
-    def get_security_group(self, context, id):
+    def get_security_group(self, context, id, fields=None):
         p = self._get_plugin_from_sg_id(context, id)
-        return p.get_security_group(context, id)
+        return p.get_security_group(context, id, fields=fields)
 
     def create_security_group_rule_bulk(self, context, security_group_rules):
         p = self._get_plugin_from_project(context, context.project_id)
