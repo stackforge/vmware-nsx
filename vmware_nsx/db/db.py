@@ -679,6 +679,7 @@ def add_project_plugin_mapping(session, project, plugin):
         binding = nsx_models.NsxProjectPluginMapping(
             project=project, plugin=plugin)
         session.add(binding)
+        session.commit()
     return binding
 
 

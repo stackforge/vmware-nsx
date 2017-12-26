@@ -16,7 +16,11 @@
 from neutron_lib.api.definitions import network as net_def
 from neutron_lib.api.definitions import port as port_def
 from neutron_lib.api.definitions import subnet as subnet_def
+from neutron_lib.callbacks import events
+from neutron_lib.callbacks import registry
+from neutron_lib.callbacks import resources
 from neutron_lib import context as n_context
+from neutron_lib.plugins import constants as plugin_constants
 from neutron_lib.plugins import directory
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -24,12 +28,14 @@ from oslo_log import log as logging
 from neutron.db import _resource_extend as resource_extend
 from neutron.db import _utils as db_utils
 from neutron.db import agents_db
+from neutron.db import agentschedulers_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
 from neutron.db import api as db_api
 from neutron.db.availability_zone import router as router_az_db
 from neutron.db import external_net_db
 from neutron.db import extradhcpopt_db
 from neutron.db import extraroute_db
+from neutron.db import l3_db
 from neutron.db import l3_gwmode_db
 from neutron.db.models import l3 as l3_db_models
 from neutron.db.models import securitygroup as securitygroup_model  # noqa
@@ -61,7 +67,8 @@ TVD_PLUGIN_TYPE = "Nsx-TVD"
 
 
 @resource_extend.has_resource_extenders
-class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
+class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
+                   addr_pair_db.AllowedAddressPairsMixin,
                    agents_db.AgentDbMixin,
                    nsx_plugin_common.NsxPluginBase,
                    rt_rtr.RouterType_mixin,
@@ -105,6 +112,8 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         # init the extensions supported by any of the plugins
         self.init_extensions()
         self.lbv2_driver = lb_driver_v2.EdgeLoadbalancerDriverV2()
+
+        self._unsubscribe_callback_events()
 
     @staticmethod
     def plugin_type():
@@ -182,6 +191,34 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
             if plugin_type in [dvs.NsxDvsV2.plugin_type()]:
                 self._unsupported_fields[plugin_type]['port'] = [
                     'mac_learning_enabled', 'provider_security_groups']
+
+    def _unsubscribe_callback_events(self):
+        # unsubscribe the callback that should be called on all plugins
+        # other that NSX-T.
+        # Instead we will subscribe our internal callback.
+        registry.unsubscribe_all(
+            l3_db.L3_NAT_dbonly_mixin._prevent_l3_port_delete_callback)
+
+    @staticmethod
+    @registry.receives(resources.PORT, [events.BEFORE_DELETE])
+    def _prevent_l3_port_delete_callback(resource, event, trigger, **kwargs):
+        """Register a callback to replace the default one
+
+        This callback will prevent port deleting only if the port plugin
+        is not NSX-T (in NSX-T plugin it was already handled)
+        """
+        context = kwargs['context']
+        port_id = kwargs['port_id']
+        port_check = kwargs['port_check']
+        l3plugin = directory.get_plugin(plugin_constants.L3)
+        if l3plugin and port_check:
+            # if not nsx-t - call super code
+            core_plugin = directory.get_plugin()
+            db_port = core_plugin._get_port(context, port_id)
+            p = core_plugin._get_plugin_from_net_id(
+                context, db_port['network_id'])
+            if p.plugin_type() != projectpluginmap.NsxPlugins.NSX_T:
+                l3plugin.prevent_l3_port_deletion(context, port_id)
 
     def _validate_obj_extensions(self, data, plugin_type, obj_type):
         """prevent configuration of unsupported extensions"""
@@ -454,11 +491,11 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         p = self._get_plugin_from_net_id(context, net_id)
         return p.delete_floatingip(context, id)
 
-    def get_floatingip(self, context, id):
+    def get_floatingip(self, context, id, fields=None):
         fip = self._get_floatingip(context, id)
         net_id = fip['floating_network_id']
         p = self._get_plugin_from_net_id(context, net_id)
-        return p.get_floatingip(context, id)
+        return p.get_floatingip(context, id, fields=fields)
 
     def disassociate_floatingips(self, context, port_id):
         db_port = self._get_port(context, port_id)
@@ -490,9 +527,9 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         p = self._get_plugin_from_sg_id(context, id)
         return p.update_security_group(context, id, security_group)
 
-    def get_security_group(self, context, id):
+    def get_security_group(self, context, id, fields=None):
         p = self._get_plugin_from_sg_id(context, id)
-        return p.get_security_group(context, id)
+        return p.get_security_group(context, id, fields=fields)
 
     def create_security_group_rule_bulk(self, context, security_group_rules):
         p = self._get_plugin_from_project(context, context.project_id)
@@ -504,7 +541,9 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         return p.create_security_group_rule(context, security_group_rule)
 
     def delete_security_group_rule(self, context, id):
-        p = self._get_plugin_from_sg_id(context, id)
+        rule_db = self._get_security_group_rule(context, id)
+        sg_id = rule_db['security_group_id']
+        p = self._get_plugin_from_sg_id(context, sg_id)
         p.delete_security_group_rule(context, id)
 
     @staticmethod
@@ -582,14 +621,26 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         If not there - add an entry with the default plugin
         """
         plugin_type = self.default_plugin
+        if not project_id:
+            # if the project_id is empty - return the default one and do not
+            # add to db (used by admin context to get actions)
+            return plugin_type
+
         mapping = nsx_db.get_project_plugin_mapping(
             context.session, project_id)
         if mapping:
             plugin_type = mapping['plugin']
-        elif project_id:
-            self.create_project_plugin_map(context,
-                {'project_plugin_map': {'plugin': plugin_type,
-                                        'project': project_id}})
+        else:
+            # add a new entry with the default plugin
+            try:
+                # TODO(asarfaty) we get timeout here when called under
+                # _ext_extend_network_dict of the first create_network
+                self.create_project_plugin_map(context,
+                    {'project_plugin_map': {'plugin': plugin_type,
+                                            'project': project_id}})
+            except projectpluginmap.ProjectPluginAlreadyExists:
+                # Maybe added by another thread
+                pass
         if not self.plugins.get(plugin_type):
             msg = (_("Cannot use unsupported plugin %(plugin)s for project "
                      "%(project)s") % {'plugin': plugin_type,
