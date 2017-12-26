@@ -44,6 +44,7 @@ from neutron_lib import exceptions as n_exc
 from vmware_nsx.common import availability_zones as nsx_com_az
 from vmware_nsx.common import config
 from vmware_nsx.common import exceptions as nsx_exc
+from vmware_nsx.common import locking
 from vmware_nsx.common import managers as nsx_managers
 from vmware_nsx.db import (
     routertype as rt_rtr)
@@ -454,11 +455,11 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         p = self._get_plugin_from_net_id(context, net_id)
         return p.delete_floatingip(context, id)
 
-    def get_floatingip(self, context, id):
+    def get_floatingip(self, context, id, fields=None):
         fip = self._get_floatingip(context, id)
         net_id = fip['floating_network_id']
         p = self._get_plugin_from_net_id(context, net_id)
-        return p.get_floatingip(context, id)
+        return p.get_floatingip(context, id, fields=fields)
 
     def disassociate_floatingips(self, context, port_id):
         db_port = self._get_port(context, port_id)
@@ -490,9 +491,9 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         p = self._get_plugin_from_sg_id(context, id)
         return p.update_security_group(context, id, security_group)
 
-    def get_security_group(self, context, id):
+    def get_security_group(self, context, id, fields=None):
         p = self._get_plugin_from_sg_id(context, id)
-        return p.get_security_group(context, id)
+        return p.get_security_group(context, id, fields=fields)
 
     def create_security_group_rule_bulk(self, context, security_group_rules):
         p = self._get_plugin_from_project(context, context.project_id)
@@ -582,14 +583,21 @@ class NsxTVDPlugin(addr_pair_db.AllowedAddressPairsMixin,
         If not there - add an entry with the default plugin
         """
         plugin_type = self.default_plugin
-        mapping = nsx_db.get_project_plugin_mapping(
-            context.session, project_id)
-        if mapping:
-            plugin_type = mapping['plugin']
-        elif project_id:
-            self.create_project_plugin_map(context,
-                {'project_plugin_map': {'plugin': plugin_type,
-                                        'project': project_id}})
+        if not project_id:
+            # if the project_id is empty - return the default one and do not
+            # add to db (used by admin context to get actions)
+            return plugin_type
+
+        with locking.LockManager.get_lock('plugin-project-%s' % project_id):
+            mapping = nsx_db.get_project_plugin_mapping(
+                context.session, project_id)
+            if mapping:
+                plugin_type = mapping['plugin']
+            else:
+                # add a new entry with the default plugin
+                self.create_project_plugin_map(context,
+                    {'project_plugin_map': {'plugin': plugin_type,
+                                            'project': project_id}})
         if not self.plugins.get(plugin_type):
             msg = (_("Cannot use unsupported plugin %(plugin)s for project "
                      "%(project)s") % {'plugin': plugin_type,
