@@ -1214,6 +1214,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self.nsxlib.logical_port.delete(port_id)
 
     def delete_network(self, context, network_id):
+        LOG.ertror("===> XXX")
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
             lock = 'nsxv3_network_' + network_id
             with locking.LockManager.get_lock(lock):
@@ -1432,7 +1433,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         if dhcp_service['port_id']:
             try:
-                self.delete_port(context, dhcp_service['port_id'])
+                self.delete_port(context, dhcp_service['port_id'],
+                                 force_delete_dhcp=True)
             except Exception:
                 # This could happen when the port has been manually deleted.
                 LOG.error("Failed to delete DHCP port %(port)s for "
@@ -1615,6 +1617,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return created_subnet
 
     def delete_subnet(self, context, subnet_id):
+        LOG.error("===> YYYpoes")
         # TODO(berlin): cancel public external subnet announcement
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
             # Ensure that subnet is not deleted if attached to router.
@@ -1624,12 +1627,15 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             if subnet['enable_dhcp']:
                 lock = 'nsxv3_network_' + subnet['network_id']
                 with locking.LockManager.get_lock(lock):
+                    print "GOOT"
                     # Check if it is the last DHCP-enabled subnet to delete.
                     network = self._get_network(context, subnet['network_id'])
                     if self._has_single_dhcp_enabled_subnet(context, network):
                         try:
+                            print "even gooter"
                             self._disable_native_dhcp(context, network['id'])
                         except Exception as e:
+                            print "bad"
                             LOG.error("Failed to disable native DHCP for"
                                       "network %(id)s. Exception: %(e)s",
                                       {'id': network['id'], 'e': e})
@@ -2606,7 +2612,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self._add_dhcp_binding(context, port_data)
             except nsx_lib_exc.ManagerError:
                 # Rollback create port
-                self.delete_port(context, port_data['id'])
+                self.delete_port(context, port_data['id'],
+                                 force_delete_dhcp=True)
                 msg = _('Unable to create port. Please contact admin')
                 LOG.exception(msg)
                 raise nsx_exc.NsxPluginException(err_msg=msg)
@@ -2632,7 +2639,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             raise n_exc.ServicePortInUse(port_id=port_id, reason=e)
 
     def delete_port(self, context, port_id,
-                    l3_port_check=True, l2gw_port_check=True):
+                    l3_port_check=True, l2gw_port_check=True,
+                    force_delete_dhcp=False):
         # if needed, check to see if this is a port owned by
         # a l2 gateway.  If so, we should prevent deletion here
         self._pre_delete_port_check(context, port_id, l2gw_port_check)
@@ -2640,6 +2648,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # a l3 router.  If so, we should prevent deletion here
         if l3_port_check:
             self.prevent_l3_port_deletion(context, port_id)
+        port = self.get_port(context, port_id)
+        # Prevent DHCP port deletion if native support is enabled
+        if (cfg.CONF.nsx_v3.native_dhcp_metadata and
+            not force_delete_dhcp and
+            port['device_owner'] in [const.DEVICE_OWNER_DHCP]):
+            msg = (_('Can not delete DHCP port %s') % port['id'])
+            raise n_exc.BadRequest(resource='port', msg=msg)
         port = self.get_port(context, port_id)
         if not self._network_is_external(context, port['network_id']):
             _net_id, nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
