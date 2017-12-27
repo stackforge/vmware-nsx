@@ -512,7 +512,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
             port_model = self._get_port(context, port['id'])
             resource_extend.apply_funcs('ports', port, port_model)
             self._extend_port_dict_binding(port, port_model)
-        self._extend_get_port_dict_qos_and_binding(context, port)
+        self._extend_port_dict_binding(context, port)
         self._remove_provider_security_groups_from_list(port)
         return db_utils.resource_fields(port, fields)
 
