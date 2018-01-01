@@ -223,7 +223,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         super(NsxV3Plugin, self).__init__()
         # Bind the dummy L3 notifications
         self.l3_rpc_notifier = l3_rpc_agent_api.L3NotifyAPI()
-        LOG.info("Starting NsxV3Plugin")
+        LOG.info("Starting NsxV3Plugin..")
         self._extension_manager.initialize()
         self.supported_extension_aliases.extend(
             self._extension_manager.extension_aliases())
