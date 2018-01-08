@@ -23,6 +23,7 @@ from neutron_fwaas.services.firewall.agents.l3reference \
     import firewall_l3_agent_v2
 from neutron_lib import constants as nl_constants
 from neutron_lib import context as n_context
+from neutron_lib.exceptions import firewall_v2 as exceptions
 from neutron_lib.plugins import directory
 
 LOG = logging.getLogger(__name__)
@@ -83,9 +84,19 @@ class NsxFwaasCallbacksV2(firewall_l3_agent_v2.L3WithFWaaS):
                             router.internal_ports])
 
         # Return in-namespace port objects.
-        return self._get_in_ns_ports(fwg_port_ids)
+        ports = self._get_in_ns_ports(fwg_port_ids, ignore_errors=to_delete)
 
-    def _get_in_ns_ports(self, port_ids):
+        # On illegal ports - change FW status to Error
+        if ports is None:
+            self.fwplugin_rpc.set_firewall_group_status(
+                context,
+                firewall_group['id'],
+                nl_constants.ERROR)
+            raise exceptions.FirewallInternalDriverError(
+                driver=self.fwaas_driver.driver_name)
+        return ports
+
+    def _get_in_ns_ports(self, port_ids, ignore_errors=False):
         """Returns port objects in the local namespace, along with their
            router_info.
         """
@@ -94,14 +105,21 @@ class NsxFwaasCallbacksV2(firewall_l3_agent_v2.L3WithFWaaS):
         for port_id in port_ids:
             # find the router of this port:
             port = self.core_plugin.get_port(context, port_id)
-            router_id = port['device_id']
-            router = self.core_plugin.get_router(context, router_id)
-            router_info = self._router_dict_to_obj(router)
-            if router_info:
-                if router_info in in_ns_ports:
-                    in_ns_ports[router_info].append(port_id)
-                else:
-                    in_ns_ports[router_info] = [port_id]
+            # verify that this is a router interface port
+            if port['device_owner'] != nl_constants.DEVICE_OWNER_ROUTER_INTF:
+                if not ignore_errors:
+                    LOG.error("NSX-V3 FWaaS V2 plugin does not support %s "
+                              "ports", port['device_owner'])
+                    return None
+            else:
+                router_id = port['device_id']
+                router = self.core_plugin.get_router(context, router_id)
+                router_info = self._router_dict_to_obj(router)
+                if router_info:
+                    if router_info in in_ns_ports:
+                        in_ns_ports[router_info].append(port_id)
+                    else:
+                        in_ns_ports[router_info] = [port_id]
         return list(in_ns_ports.items())
 
     def _get_routers_in_project(self, context, project_id):
@@ -153,6 +171,7 @@ class NsxFwaasCallbacksV2(firewall_l3_agent_v2.L3WithFWaaS):
                 return fwg
 
     # TODO(asarfaty): add this api to fwaas firewall_db_v2
+    # DEBUG ADIT to use self.fwplugin_rpc.get_firewall_group_for_port?
     def _get_port_firewall_group_id(self, context, port_id):
         entry = context.session.query(
             firewall_db_v2.FirewallGroupPortAssociation).filter_by(
