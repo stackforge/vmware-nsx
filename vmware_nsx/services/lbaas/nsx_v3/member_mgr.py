@@ -136,7 +136,7 @@ class EdgeMemberManager(base_mgr.Nsxv3LoadbalancerBaseManager):
             lb_pool_id = binding.get('lb_pool_id')
             lb_binding = nsx_db.get_nsx_lbaas_loadbalancer_binding(
                 context.session, lb_id)
-            if not lb_binding and len(pool_members) == 1:
+            if not lb_binding:
                 nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                          router_id)
                 lb_service = service_client.get_router_lb_service(
