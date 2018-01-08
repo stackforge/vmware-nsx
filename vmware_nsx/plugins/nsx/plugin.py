@@ -25,6 +25,7 @@ from neutron_lib.plugins import directory
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import excutils
+from oslo_utils import uuidutils
 
 from neutron.db import _resource_extend as resource_extend
 from neutron.db import _utils as db_utils
@@ -692,13 +693,26 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 'plugin': data['plugin'],
                 'tenant_id': data['project']}
 
-    def create_project_plugin_map(self, context, project_plugin_map):
-        # TODO(asarfaty): Validate project id exists
+    def create_project_plugin_map(self, context, project_plugin_map,
+                                  internal=False):
         data = project_plugin_map['project_plugin_map']
+
+        # validations:
+        # 1. validate it doesn't already exist
         if nsx_db.get_project_plugin_mapping(
             context.session, data['project']):
             raise projectpluginmap.ProjectPluginAlreadyExists(
                 project_id=data['project'])
+        # 2. only admin user is allowed
+        if not context.is_admin:
+            raise projectpluginmap.ProjectPluginAdminOnly()
+        # 3. Validate the project id
+        # TODO(asarfaty): Validate project id exists in keystone
+        if not internal and not uuidutils.is_uuid_like(data['project']):
+            raise projectpluginmap.ProjectPluginIllegalId(
+                project_id=data['project'])
+
+        # Add the entry to the DB and return it
         LOG.info("Adding mapping between project %(project)s and plugin "
                  "%(plugin)s", {'project': data['project'],
                                 'plugin': data['plugin']})
