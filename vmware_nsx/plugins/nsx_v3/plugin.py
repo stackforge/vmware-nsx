@@ -269,11 +269,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # init profiles on nsx backend
         self._init_nsx_profiles()
 
-        self.init_is_complete = False
-        registry.subscribe(self.init_complete,
-                           resources.PROCESS,
-                           events.AFTER_INIT)
-
         # Include exclude NSGroup
         LOG.debug("Initializing NSX v3 Excluded Port NSGroup")
         self._excluded_port_nsgroup = None
@@ -304,6 +299,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         # Register NSXv3 trunk driver to support trunk extensions
         self.trunk_driver = trunk_driver.NsxV3TrunkDriver.create(self)
+
+        # subscribe the init complete method last, so it will be called only
+        # if init was successful
+        self.init_is_complete = False
+        registry.subscribe(self.init_complete,
+                           resources.PROCESS,
+                           events.AFTER_INIT)
 
     @staticmethod
     def plugin_type():
