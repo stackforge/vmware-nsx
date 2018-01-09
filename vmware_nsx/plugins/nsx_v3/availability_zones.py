@@ -48,7 +48,8 @@ class NsxV3AvailabilityZone(common_az.ConfiguredAvailabilityZone):
                           "must be defined") % az_name))
 
         self.dhcp_profile = az_info.get('dhcp_profile')
-        if not self.dhcp_profile:
+        if (cfg.CONF.nsx_v3.native_dhcp_metadata and
+            not self.dhcp_profile):
             raise nsx_exc.NsxInvalidConfiguration(
                 opt_name="dhcp_profile",
                 opt_value='None',
