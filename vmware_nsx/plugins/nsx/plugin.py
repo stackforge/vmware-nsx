@@ -240,7 +240,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 del data[field]
 
     def _list_availability_zones(self, context, filters=None):
-        p = self._get_plugin_from_project(context, context.project_id)
+        p = self._get_plugin_for_request(context, filters)
         return p._list_availability_zones(context, filters=filters)
 
     def validate_availability_zones(self, context, resource_type,
@@ -299,12 +299,21 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         p = self._get_plugin_from_net_id(context, id)
         return p.get_network(context, id, fields=fields)
 
+    def _get_plugin_for_request(self, context, filters):
+        project_id = context.project_id
+        if filters:
+            if filters.get('tenant_id'):
+                project_id = filters.get('tenant_id')
+            elif filters.get('project__id'):
+                project_id = filters.get('project_id')
+        return self._get_plugin_from_project(context, project_id)
+
     def get_networks(self, context, filters=None, fields=None,
                      sorts=None, limit=None, marker=None,
                      page_reverse=False):
         # Read project plugin to filter relevant projects according to
         # plugin
-        req_p = self._get_plugin_from_project(context, context.project_id)
+        req_p = self._get_plugin_for_request(context, filters)
         filters = filters or {}
         with db_api.context_manager.reader.using(context):
             networks = (
@@ -360,7 +369,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                   page_reverse=False):
         # Read project plugin to filter relevant projects according to
         # plugin
-        req_p = self._get_plugin_from_project(context, context.project_id)
+        req_p = self._get_plugin_for_request(context, filters)
         filters = filters or {}
         with db_api.context_manager.reader.using(context):
             ports = (
@@ -409,7 +418,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         else:
             # Read project plugin to filter relevant projects according to
             # plugin
-            req_p = self._get_plugin_from_project(context, context.project_id)
+            req_p = self._get_plugin_for_request(context, filters)
             filters = filters or {}
             subnets = super(NsxTVDPlugin, self).get_subnets(
                 context, filters=filters, fields=fields, sorts=sorts,
@@ -533,7 +542,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     page_reverse=False):
         # Read project plugin to filter relevant projects according to
         # plugin
-        req_p = self._get_plugin_from_project(context, context.project_id)
+        req_p = self._get_plugin_for_request(context, filters)
         routers = super(NsxTVDPlugin, self).get_routers(
             context, filters=filters, fields=fields, sorts=sorts,
             limit=limit, marker=marker, page_reverse=page_reverse)
@@ -573,7 +582,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         page_reverse=False):
         # Read project plugin to filter relevant projects according to
         # plugin
-        req_p = self._get_plugin_from_project(context, context.project_id)
+        req_p = self._get_plugin_for_request(context, filters)
         fips = super(NsxTVDPlugin, self).get_floatingips(
             context, filters=filters, fields=fields, sorts=sorts,
             limit=limit, marker=marker, page_reverse=page_reverse)
@@ -621,7 +630,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                             marker=None, page_reverse=False, default_sg=False):
         # Read project plugin to filter relevant projects according to
         # plugin
-        req_p = self._get_plugin_from_project(context, context.project_id)
+        req_p = self._get_plugin_for_request(context, filters)
         sgs = super(NsxTVDPlugin, self).get_security_groups(
             context, filters=filters, fields=fields, sorts=sorts,
             limit=limit, marker=marker, page_reverse=page_reverse,
@@ -652,7 +661,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                  page_reverse=False):
         # Read project plugin to filter relevant projects according to
         # plugin
-        req_p = self._get_plugin_from_project(context, context.project_id)
+        req_p = self._get_plugin_for_request(context, filters)
         rules = super(NsxTVDPlugin, self).get_security_group_rules(
             context, filters=filters, fields=fields, sorts=sorts,
             limit=limit, marker=marker, page_reverse=page_reverse)
@@ -798,7 +807,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def get_housekeepers(self, context, filters=None, fields=None, sorts=None,
                          limit=None, marker=None, page_reverse=False):
-        p = self._get_plugin_from_project(context, context.project_id)
+        p = self._get_plugin_for_request(context, filters)
         if hasattr(p, 'housekeeper'):
             return p.housekeeper.list()
         return []
@@ -814,7 +823,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                            page_reverse=False):
         # Read project plugin to filter relevant projects according to
         # plugin
-        req_p = self._get_plugin_from_project(context, context.project_id)
+        req_p = self._get_plugin_for_request(context, filters)
         address_scopes = super(NsxTVDPlugin, self).get_address_scopes(
             context, filters=filters, fields=fields, sorts=sorts,
             limit=limit, marker=marker, page_reverse=page_reverse)
@@ -830,7 +839,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         page_reverse=False):
         # Read project plugin to filter relevant projects according to
         # plugin
-        req_p = self._get_plugin_from_project(context, context.project_id)
+        req_p = self._get_plugin_for_request(context, filters)
         pools = super(NsxTVDPlugin, self).get_subnetpools(
             context, filters=filters, fields=fields, sorts=sorts,
             limit=limit, marker=marker, page_reverse=page_reverse)
