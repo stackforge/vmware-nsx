@@ -22,8 +22,10 @@ from neutron_lib import context as neutron_context
 from neutron_lib.plugins import directory
 
 from vmware_nsx.common import config
+from vmware_nsx.extensions import projectpluginmap
 from vmware_nsx import plugin
 from vmware_nsx.plugins.nsx_v.vshield import vcns
+from vmware_nsx.shell.admin.plugins.common import utils as admin_utils
 
 LOG = logging.getLogger(__name__)
 
@@ -140,3 +142,8 @@ def get_edge_syslog_info(edge_id):
             output += "\n" + server_address
 
     return output
+
+
+def get_plugin_filters(context):
+    return admin_utils.get_plugin_filters(
+        context, projectpluginmap.NsxPlugins.NSX_V)
