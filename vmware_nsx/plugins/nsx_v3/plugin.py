@@ -18,6 +18,8 @@ from neutron_lib.api.definitions import allowedaddresspairs as addr_apidef
 from neutron_lib.api.definitions import availability_zone as az_def
 from neutron_lib.api.definitions import external_net as extnet_apidef
 from neutron_lib.api.definitions import l3 as l3_apidef
+from neutron_lib.api.definitions import port as port_def
+from neutron_lib.api.definitions import portbindings
 from neutron_lib.api.definitions import port_security as psec
 from neutron_lib.api import faults
 from neutron_lib.api.validators import availability_zone as az_validator
@@ -2611,6 +2613,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         if not cfg.CONF.nsx_v3.native_dhcp_metadata:
             nsx_rpc.handle_port_metadata_access(self, context, neutron_db)
+        kwargs = {'context': context, 'port': neutron_db}
+        registry.notify(resources.PORT, events.AFTER_CREATE, self, **kwargs)
         return port_data
 
     def _pre_delete_port_check(self, context, port_id, l2gw_port_check):
@@ -2639,6 +2643,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # a l3 router.  If so, we should prevent deletion here
         if l3_port_check:
             self.prevent_l3_port_deletion(context, port_id)
+        kwargs = {
+            'context': context,
+            'port_id': port_id,
+            'port_check': l3_port_check
+        }
+        registry.notify(
+            resources.PORT, events.BEFORE_DELETE, self, **kwargs)
         port = self.get_port(context, port_id)
         # Prevent DHCP port deletion if native support is enabled
         if (cfg.CONF.nsx_v3.native_dhcp_metadata and
@@ -3057,7 +3068,34 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
             self._update_dhcp_binding(context, original_port, updated_port)
 
+        # Notifications must be sent after the above transaction is complete
+        port_db = self._get_port(context, id)
+        attrs = port[port_def.RESOURCE_NAME]
+        binding = port_db.port_binding
+        mac_address_updated = self._check_mac_update_allowed(
+            port_db, attrs, binding)
+        kwargs = {
+            'context': context,
+            'port': updated_port,
+            'mac_address_updated': mac_address_updated,
+            'original_port': original_port,
+        }
+
+        registry.notify(resources.PORT, events.AFTER_UPDATE, self, **kwargs)
         return updated_port
+
+    def _check_mac_update_allowed(self, orig_port, port, binding):
+        unplugged_types = (portbindings.VIF_TYPE_BINDING_FAILED,
+                           portbindings.VIF_TYPE_UNBOUND)
+        new_mac = port.get('mac_address')
+        mac_change = (new_mac is not None and
+                      orig_port['mac_address'] != new_mac)
+        if (mac_change and binding.vif_type not in unplugged_types):
+            raise exc.PortBound(port_id=orig_port['id'],
+                                vif_type=binding.vif_type,
+                                old_mac=orig_port['mac_address'],
+                                new_mac=port['mac_address'])
+        return mac_change
 
     def _extend_get_port_dict_qos_and_binding(self, context, port):
         # Not using the register api for this because we need the context
