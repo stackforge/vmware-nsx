@@ -69,8 +69,13 @@ class NsxV3Driver(l2gateway_db.L2GatewayMixin):
         return self.__core_plugin
 
     def subscribe_callback_notifications(self):
-        registry.subscribe(self._prevent_l2gw_port_delete, resources.PORT,
-                           events.BEFORE_DELETE)
+        # TODO(kobis): This callback was never triggered as the plugin was
+        # missing the code - which was added while adding designate support.
+        # As this callback causes breakage in UTs, I've commented this until
+        # we understand why this is needed and fix the code or the UT.
+
+        # registry.subscribe(self._prevent_l2gw_port_delete, resources.PORT,
+        #                    events.BEFORE_DELETE)
         registry.subscribe(self._ensure_default_l2_gateway, resources.PROCESS,
                            events.BEFORE_SPAWN)
 
