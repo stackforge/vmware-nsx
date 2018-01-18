@@ -246,7 +246,7 @@ Add neutron-fwaas repo as an external repository and configure following flags i
     [[local|localrc]]
     enable_plugin neutron-fwaas https://git.openstack.org/openstack/neutron-fwaas
     ENABLED_SERVICES+=,q-fwaas
-    Q_SERVICE_PLUGIN_CLASSES=neutron_fwaas.services.firewall.fwaas_plugin.FirewallPlugin
+    Q_SERVICE_PLUGIN_CLASSES=vmware_nsx.services.fwaas.nsx_tv.plugin_v1.FwaasTVPluginV1
 
     [[post-config|$NEUTRON_CONF]]
     [fwaas]
@@ -262,7 +262,7 @@ Add neutron-fwaas repo as an external repository and configure following flags i
     [[local|localrc]]
     enable_plugin neutron-fwaas https://git.openstack.org/openstack/neutron-fwaas
     ENABLED_SERVICES+=,q-fwaas-v2
-    Q_SERVICE_PLUGIN_CLASSES=neutron_fwaas.services.firewall.fwaas_plugin_v2.FirewallPluginV2
+    Q_SERVICE_PLUGIN_CLASSES=vmware_nsx.services.fwaas.nsx_tv.plugin_v2.FwaasTVPluginV2
 
     [[post-config|$NEUTRON_CONF]]
     [fwaas]
