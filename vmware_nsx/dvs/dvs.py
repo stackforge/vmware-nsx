@@ -429,16 +429,24 @@ class DvsManager(VCManagerBase):
         policy.policy.inherited = False
         policy.policy.value = mapping[teaming_data['teamingPolicy']]
         policy.uplinkPortOrder.inherited = False
-        ports = teaming_data['failoverUplinkPortNames']
-        policy.uplinkPortOrder.activeUplinkPort = ports
-        # The standby port will be those not configure as active ones
-        uplinks = self._session.invoke_api(vim_util,
-                                           "get_object_property",
-                                           self._session.vim,
-                                           dvs_moref,
-                                           "config.uplinkPortPolicy")
-        standby = list(set(uplinks.uplinkPortName) - set(ports))
-        policy.uplinkPortOrder.standbyUplinkPort = standby
+        failover_uplinks = teaming_data.get('failover_uplinks', {})
+        if dvs_moref.value in failover_uplinks:
+            uplinks = failover_uplinks[dvs_moref.value]
+            if 'active' in uplinks:
+                policy.uplinkPortOrder.activeUplinkPort = uplinks['active']
+            if 'standby' in uplinks:
+                policy.uplinkPortOrder.standbyUplinkPort = uplinks['standby']
+        else:
+            ports = teaming_data['failoverUplinkPortNames']
+            policy.uplinkPortOrder.activeUplinkPort = ports
+            # The standby port will be those not configure as active ones
+            uplinks = self._session.invoke_api(vim_util,
+                                               "get_object_property",
+                                               self._session.vim,
+                                               dvs_moref,
+                                               "config.uplinkPortPolicy")
+            standby = list(set(uplinks.uplinkPortName) - set(ports))
+            policy.uplinkPortOrder.standbyUplinkPort = standby
 
     def update_port_group_spec_name(self, pg_spec, name):
         pg_spec.name = name
