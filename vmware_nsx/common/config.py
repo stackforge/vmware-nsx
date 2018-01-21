@@ -716,6 +716,10 @@ nsxv_opts = [
     cfg.BoolOpt('housekeeping_readonly',
                 default=True,
                 help=_("Housekeeping will only warn about breakage.")),
+    cfg.ListOpt('failover_uplinks',
+                default=[],
+                help=_("List of <DVS MoRef ID>:<Order>:<Uplink Name> "
+                       "Where the order is: active, standby or unused")),
 ]
 
 # define the configuration of each NSX-V availability zone.
@@ -927,6 +931,24 @@ def get_nsxv3_az_opts(az):
     return _get_nsx_az_opts(az, nsxv3_az_opts)
 
 
+def get_nsxv_failover_uplinks():
+    failover_uplinks = {}
+    for entry in cfg.CONF.nsxv.failover_uplinks:
+        if entry.count(':') != 2:
+            error = _("Invalid failover uplink configured")
+            raise nsx_exc.NsxPluginException(err_msg=error)
+        dvs_id, order, uplink = entry.split(':')
+        if dvs_id not in failover_uplinks:
+            failover_uplinks[dvs_id] = {}
+        if order not in ('active', 'standby'):
+            error = _("Invalid failover order - %s") % order
+            raise nsx_exc.NsxPluginException(err_msg=error)
+        if order not in failover_uplinks[dvs_id]:
+            failover_uplinks[dvs_id][order] = []
+        failover_uplinks[dvs_id][order].append(uplink)
+    return failover_uplinks
+
+        
 def validate_nsxv_config_options():
     if (cfg.CONF.nsxv.manager_uri is None or
         cfg.CONF.nsxv.user is None or

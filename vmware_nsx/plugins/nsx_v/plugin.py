@@ -240,6 +240,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self._extension_manager.extension_aliases())
         self.metadata_proxy_handler = None
         config.validate_nsxv_config_options()
+        self._failover_uplinks = config.get_nsxv_failover_uplinks()
         self._network_vlans = utils.parse_network_vlan_ranges(
             cfg.CONF.nsxv.network_vlan_ranges)
         neutron_extensions.append_api_extensions_path(
@@ -897,6 +898,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                             'update teaming for network %s',
                             dvs_id, net_id)
                 return
+            switch['failover_uplinks'] = self._failover_uplinks
             try:
                 self._vcm.update_port_groups_config(
                     dvs_id, net_id, net_moref,
