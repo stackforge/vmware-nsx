@@ -1,0 +1,10 @@
+---
+prelude: >
+    Add a new configuration variable to the ``nsxv`` section that will
+    enable an admin to configure the ``failover_uplinks`` for a a DVS.
+features:
+  - |
+    An admin can configure the DVS failover uplink order. This is done by
+    configuring ``failover_uplinks''. The configuration is a list of
+    <DVS MoRef ID>:<Order>:<Uplink Name> that are comma separated. The order
+    can be ``active`` or ``standby``.
