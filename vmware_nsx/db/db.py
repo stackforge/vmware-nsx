@@ -725,3 +725,32 @@ def get_nsx_vpn_connection_mapping(session, neutron_id):
 def delete_nsx_vpn_connection_mapping(session, neutron_id):
     return (session.query(nsx_models.NsxVpnConnectionMapping).
             filter_by(neutron_id=neutron_id).delete())
+
+
+def add_nsx_vpn_local_endpoint_mapping(session, neutron_id, ep_id, ep_ip):
+    with session.begin(subtransactions=True):
+        mapping = nsx_models.NsxVpnServiceLocalEndpointMapping(
+            neutron_id=neutron_id,
+            local_endpoint_id=ep_id,
+            local_endpoint_ip=ep_ip)
+        session.add(mapping)
+        return mapping
+
+
+def get_nsx_vpn_get_local_endpoint_id(session, neutron_id):
+    try:
+        mapping = (session.query(nsx_models.NsxVpnServiceLocalEndpointMapping).
+            filter_by(neutron_id=neutron_id).one())
+        return mapping.local_endpoint_id
+    except exc.NoResultFound:
+        return
+
+
+def delete_nsx_vpn_local_endpoint_mapping(session, neutron_id):
+    return (session.query(nsx_models.NsxVpnServiceLocalEndpointMapping).
+            filter_by(neutron_id=neutron_id).delete())
+
+
+def get_nsx_vpn_local_endpoint_ips(session):
+    maps = session.query(nsx_models.NsxVpnServiceLocalEndpointMapping).all()
+    return [m.local_endpoint_ip for m in maps]

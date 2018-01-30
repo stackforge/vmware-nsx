@@ -184,7 +184,7 @@ class IPsecV3Validator(vpn_validator.VpnReferenceValidator):
                              "as connection %(id)s") % {'local': local_cidrs,
                                                         'peer': peer_cidrs,
                                                         'id': conn['id']})
-                raise nsx_exc.NsxVpnValidationError(details=msg)
+                    raise nsx_exc.NsxVpnValidationError(details=msg)
 
     def _check_unique_addresses(self, context, ipsec_site_conn):
         """Validate no repeating local & peer addresses (of all tenants)
