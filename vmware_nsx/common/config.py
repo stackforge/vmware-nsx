@@ -438,6 +438,10 @@ nsx_v3_opts = [
                 default=False,
                 help=_("(Optional) Indicates whether ENS transport zones can "
                        "be used")),
+    cfg.StrOpt('vpn_local_endpoints',
+               help=_("Mandatory when using VPNaaS. Cidr representing the "
+                      "valid range for local endpoints used by the VPN "
+                      "sessions.")),
 ]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
