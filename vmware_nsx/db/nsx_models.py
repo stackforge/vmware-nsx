@@ -499,3 +499,12 @@ class NsxVpnConnectionMapping(model_base.BASEV2, models.TimestampMixin):
     ike_profile_id = sa.Column(sa.String(36), nullable=False)
     ipsec_profile_id = sa.Column(sa.String(36), nullable=False)
     peer_ep_id = sa.Column(sa.String(36), nullable=False)
+
+
+class NsxVpnServiceLocalEndpointMapping(model_base.BASEV2,
+                                        models.TimestampMixin):
+    """Stores the mapping between VPNaaS service and NSX objects"""
+    __tablename__ = 'neutron_nsx_vpn_local_endpoint_mappings'
+    neutron_id = sa.Column(sa.String(36), primary_key=True)
+    local_endpoint_id = sa.Column(sa.String(36), nullable=False)
+    local_endpoint_ip = sa.Column(sa.String(36), nullable=False)

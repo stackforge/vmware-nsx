@@ -18,9 +18,6 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import excutils
 
-from neutron_lib.callbacks import events
-from neutron_lib.callbacks import registry
-from neutron_lib.callbacks import resources
 from neutron_lib import constants
 from neutron_lib import exceptions as nexception
 from neutron_lib.plugins import directory
@@ -57,9 +54,8 @@ class NSXv3IPsecVpnDriver(service_drivers.VpnDriver):
         validator = ipsec_validator.IPsecV3Validator(service_plugin)
         super(NSXv3IPsecVpnDriver, self).__init__(service_plugin, validator)
 
-        registry.subscribe(
-            self._delete_local_endpoint, resources.ROUTER_GATEWAY,
-            events.AFTER_DELETE)
+        # create/get internal vpn network to be used for local endpoints
+        self.local_network = self._get_local_network()
 
     @property
     def l3_plugin(self):
@@ -68,6 +64,33 @@ class NSXv3IPsecVpnDriver(service_drivers.VpnDriver):
     @property
     def service_type(self):
         return IPSEC
+
+    def _get_local_network(self):
+        """Create or retrieve the internal network
+        to be used for assigning local endpoints ips
+        """
+        cidr = cfg.CONF.nsx_v3.vpn_local_endpoints
+        try:
+            local_net = netaddr.IPNetwork(cidr)
+        except Exception:
+            raise nsx_exc.NsxInvalidConfiguration(
+                opt_name="vpn_local_endpoints",
+                opt_value=cidr,
+                reason=_("Cannot enable VPNaaS without endpoints cidr"))
+        return local_net
+
+    def _get_local_endpoint_free_ip(self, context):
+        """Get a free IP in the defined internal subnet or raise"""
+        used_ips = db.get_nsx_vpn_local_endpoint_ips(context.session)
+        unused_ips = (netaddr.IPSet(self.local_network) -
+                      netaddr.IPSet(used_ips))
+        if not unused_ips.size:
+            msg = (_("No unused local endpoint IPs found in %s") %
+                   cfg.CONF.nsx_v3.vpn_local_endpoints)
+            raise nsx_exc.NsxVpnValidationError(details=msg)
+        # get a free IP to use as a local endpoint
+        ip = str(next(unused_ips.__iter__()))
+        return ip
 
     def _translate_cidr(self, cidr):
         return self._nsxlib.firewall_section.get_ip_cidr_reference(
@@ -302,77 +325,29 @@ class NSXv3IPsecVpnDriver(service_drivers.VpnDriver):
             peer_ep['dpd_profile_id'])
 
     def _create_local_endpoint(self, context, local_addr, nsx_service_id,
-                               router_id):
-        """Creating an NSX local endpoint for a logical router
-
-        This endpoint can be reused by other connections, and will be deleted
-        when the router is deleted or gateway is removed
-        """
-        # Add the neutron router-id to the tags to help search later
+                               vpnservice):
+        """Creating an NSX local endpoint for a logical router"""
+        router_id = vpnservice['router_id']
+        LOG.info("Using %(ip)s as a local endpoint for service %(srv)s "
+                 "router %(rtr)s",
+                 {'ip': local_addr, 'srv': nsx_service_id, 'rtr': router_id})
         tags = self._nsxlib.build_v3_tags_payload(
-            {'id': router_id}, resource_type='os-neutron-router-id',
+            {'id': router_id, 'tenant_id': vpnservice['tenant_id']},
+            resource_type='os-neutron-router-id',
             project_name=context.tenant_name)
 
         try:
             local_endpoint = self._nsx_vpn.local_endpoint.create(
-                'Local endpoint for OS VPNaaS',
+                'Local endpoint for neutron router %s' % router_id,
                 local_addr,
                 nsx_service_id,
+                description='Local endpoint for OS VPNaaS',
                 tags=tags)
         except nsx_lib_exc.ManagerError as e:
             msg = _("Failed to create a local endpoint: %s") % e
             raise nsx_exc.NsxPluginException(err_msg=msg)
 
         return local_endpoint['id']
-
-    def _search_local_endpint(self, router_id):
-        tags = [{'scope': 'os-neutron-router-id', 'tag': router_id}]
-        ep_list = self._nsxlib.search_by_tags(
-            tags=tags,
-            resource_type=self._nsx_vpn.local_endpoint.resource_type)
-        if ep_list['results']:
-            return ep_list['results'][0]['id']
-
-    def _get_local_endpoint(self, context, connection, vpnservice):
-        """Get the id of the local endpoint for a service
-
-        The NSX allows only one local endpoint per local address
-        This method will create it if there is not matching endpoint
-        """
-        # use the router GW as the local ip
-        router_id = vpnservice['router']['id']
-
-        # check if we already have this endpoint on the NSX
-        local_ep_id = self._search_local_endpint(router_id)
-        if local_ep_id:
-            return local_ep_id
-
-        # create a new one
-        local_addr = self._get_router_ext_gw(context, router_id)
-        nsx_service_id = self._get_nsx_vpn_service(context, vpnservice)
-        local_ep_id = self._create_local_endpoint(
-            context, local_addr, nsx_service_id, router_id)
-        return local_ep_id
-
-    def _delete_local_endpoint(self, resource, event, trigger, **kwargs):
-        """Upon router deletion / gw removal delete the matching endpoint"""
-        router_id = kwargs.get('router_id')
-        local_ep_id = self._search_local_endpint(router_id)
-        if local_ep_id:
-            self._nsx_vpn.local_endpoint.delete(local_ep_id)
-
-    def validate_router_gw_info(self, context, router_id, gw_info):
-        """Upon router gw update - verify no-snat"""
-        # ckeck if this router has a vpn service
-        filters = {'router_id': [router_id],
-                   'status': [constants.ACTIVE]}
-        services = self.vpn_plugin.get_vpnservices(
-            context.elevated(), filters=filters)
-        if services:
-            # do not allow enable-snat
-            if (gw_info and
-                gw_info.get('enable_snat', cfg.CONF.enable_snat_by_default)):
-                raise RouterWithSNAT(router_id=router_id)
 
     def _get_session_rules(self, context, connection, vpnservice):
         # TODO(asarfaty): support vpn-endpoint-groups too
@@ -443,8 +418,8 @@ class NSXv3IPsecVpnDriver(service_drivers.VpnDriver):
             LOG.debug("Created NSX peer endpoint %s", peer_ep_id)
 
             # create or reuse a local endpoint using the vpn service
-            local_ep_id = self._get_local_endpoint(
-                context, ipsec_site_conn, vpnservice)
+            local_ep_id = db.get_nsx_vpn_get_local_endpoint_id(
+                context.session, vpnservice['id'])
 
             # Finally: create the session with policy rules
             rules = self._get_session_rules(
@@ -587,7 +562,7 @@ class NSXv3IPsecVpnDriver(service_drivers.VpnDriver):
     def _create_vpn_service(self, tier0_uuid):
         try:
             service = self._nsx_vpn.service.create(
-                'Neutron VPN service for router ' + tier0_uuid,
+                'Neutron VPN service for TIER0 router ' + tier0_uuid,
                 tier0_uuid,
                 enabled=True,
                 ike_log_level=ipsec_utils.DEFAULT_LOG_LEVEL,
@@ -643,6 +618,8 @@ class NSXv3IPsecVpnDriver(service_drivers.VpnDriver):
 
         try:
             self.validator.validate_vpnservice(context, vpnservice)
+            # get an ip for the local endpoint of this router
+            local_ep_ip = self._get_local_endpoint_free_ip(context)
         except Exception:
             with excutils.save_and_reraise_exception():
                 # Rolling back change on the neutron
@@ -650,15 +627,21 @@ class NSXv3IPsecVpnDriver(service_drivers.VpnDriver):
 
         vpnservice = self.service_plugin._get_vpnservice(context,
                                                          vpnservice_id)
-        v4_ip, v6_ip = self._get_gateway_ips(vpnservice.router)
-        if v4_ip:
-            vpnservice['external_v4_ip'] = v4_ip
-        if v6_ip:
-            vpnservice['external_v6_ip'] = v6_ip
+        vpnservice['external_v4_ip'] = local_ep_ip
         self.service_plugin.set_external_tunnel_ips(context,
                                                     vpnservice_id,
-                                                    v4_ip=v4_ip, v6_ip=v6_ip)
+                                                    v4_ip=local_ep_ip)
         self._create_vpn_service_if_needed(context, vpnservice)
+
+        # create the local endpoint
+        nsx_service_id = self._get_nsx_vpn_service(context, vpnservice)
+        local_ep_id = self._create_local_endpoint(
+            context, local_ep_ip, nsx_service_id, vpnservice)
+
+        # Add it to the DB
+        db.add_nsx_vpn_local_endpoint_mapping(
+            context.session, vpnservice_id,
+            local_ep_id, local_ep_ip)
 
     def update_vpnservice(self, context, old_vpnservice, vpnservice):
         # No meaningful field can change here
@@ -666,4 +649,10 @@ class NSXv3IPsecVpnDriver(service_drivers.VpnDriver):
 
     def delete_vpnservice(self, context, vpnservice):
         # Do not delete the NSX service or DB entry as those will be reused.
-        pass
+        # just delete the local endpoint
+        ep_id = db.get_nsx_vpn_get_local_endpoint_id(
+            context.session, vpnservice['id'])
+        if ep_id:
+            self._nsx_vpn.local_endpoint.delete(ep_id)
+        db.delete_nsx_vpn_local_endpoint_mapping(
+            context.session, vpnservice['id'])
