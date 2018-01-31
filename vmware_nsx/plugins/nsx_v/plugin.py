@@ -26,6 +26,7 @@ from neutron_lib.api.definitions import l3 as l3_apidef
 from neutron_lib.api.definitions import multiprovidernet as mpnet_apidef
 from neutron_lib.api.definitions import port as port_def
 from neutron_lib.api.definitions import port_security as psec
+from neutron_lib.api.definitions import portbindings as pbin
 from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib.api.definitions import subnet as subnet_def
 from neutron_lib.api.definitions import vlantransparent as vlan_apidef
@@ -1937,6 +1938,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         port_model = self._get_port(context, port_data['id'])
         resource_extend.apply_funcs('ports', port_data, port_model)
         self._remove_provider_security_groups_from_list(port_data)
+
+        kwargs = {'context': context, 'port': neutron_db}
+        registry.notify(resources.PORT, events.AFTER_CREATE, self, **kwargs)
         return port_data
 
     def _make_port_dict(self, port, fields=None,
@@ -2076,6 +2080,18 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 dvs_id, net_id, mapping.nsx_id,
                 port['device_id'], port['mac_address'],
                 port[mac_ext.MAC_LEARNING])
+
+    def _check_mac_update_allowed(self, orig_port, port, binding):
+        unplugged_types = (pbin.VIF_TYPE_BINDING_FAILED, pbin.VIF_TYPE_UNBOUND)
+        new_mac = port.get('mac_address')
+        mac_change = (new_mac is not None and
+                      orig_port['mac_address'] != new_mac)
+        if mac_change and binding.vif_type not in unplugged_types:
+            raise n_exc.PortBound(port_id=orig_port['id'],
+                                  vif_type=binding.vif_type,
+                                  old_mac=orig_port['mac_address'],
+                                  new_mac=port['mac_address'])
+        return mac_change
 
     def _update_port(self, context, id, port, original_port, is_compute_port,
                      device_id):
@@ -2225,6 +2241,12 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 old_mac_learning_state != new_mac_learning_state):
                 self._update_mac_learning_state(context, id,
                                                 new_mac_learning_state)
+
+            port_db = self._get_port(context, id)
+            attrs = port[port_def.RESOURCE_NAME]
+            binding = port_db.port_binding
+            mac_address_updated = self._check_mac_update_allowed(
+                original_port, attrs, binding)
 
             # update port security in DB if changed
             if psec.PORTSECURITY in port['port']:
@@ -2382,6 +2404,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 except Exception as e:
                     LOG.error("Unable to update mac learning for port %s, "
                               "reason: %s", id, e)
+
+        kwargs = {
+            'context': context,
+            'port': ret_port,
+            'mac_address_updated': mac_address_updated,
+            'original_port': original_port,
+        }
+        registry.notify(resources.PORT, events.AFTER_UPDATE, self, **kwargs)
         return ret_port
 
     def _extend_get_port_dict_qos(self, context, port):
@@ -2397,6 +2427,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def delete_port(self, context, id, l3_port_check=True,
                     nw_gw_port_check=True, force_delete_dhcp=False,
                     allow_delete_internal=False):
+        kwargs = {
+            'context': context,
+            'port_check': l3_port_check,
+            'port_id': id,
+        }
+        # Send delete port notification to any interested service plugin
+        registry.notify(resources.PORT, events.BEFORE_DELETE, self, **kwargs)
+
         neutron_db_port = self.get_port(context, id)
         device_id = neutron_db_port['device_id']
         is_compute_port = self._is_compute_port(neutron_db_port)
