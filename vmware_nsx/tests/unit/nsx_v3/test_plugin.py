@@ -545,8 +545,7 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
                                               pnet.SEGMENTATION_ID,
                                               vlan_apidef.VLANTRANSPARENT))
             data = self.deserialize('json', result)
-            # should fail
-            self.assertIn('NotImplementedError', data)
+            self.assertEqual('vlan', data['network'].get(pnet.NETWORK_TYPE))
 
 
 class TestSubnetsV2(test_plugin.TestSubnetsV2, NsxV3PluginTestCaseMixin):
