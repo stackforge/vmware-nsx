@@ -526,6 +526,20 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 logged=cfg.CONF.nsxv.log_security_groups_allowed_traffic)
             rule_list.append(rule_config)
 
+        igmp_application_services = [
+            self._get_appservice_id('IGMP Membership Query'),
+            self._get_appservice_id('IGMP V2 Membership Report'),
+            self._get_appservice_id('IGMP V3 Membership Report')]
+        rules = [{'name': 'Default IGMP rule for OS Security Groups',
+                  'action': 'allow',
+                  'services_ids': igmp_application_services]}]
+        for rule in rules:
+            rule_config = self.nsx_sg_utils.get_rule_config(
+                applied_to_ids, rule['name'], rule['action'],
+                applied_to_type, application_services=rule['service_ids'],
+                logged=cfg.CONF.nsxv.log_security_groups_allowed_traffic)
+            rule_list.append(rule_config)
+
         # Default security-group rules
         block_rule = self.nsx_sg_utils.get_rule_config(
             [self.sg_container_id], 'Block All', 'deny',
@@ -4674,3 +4688,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def update_housekeeper(self, context, name, housekeeper):
         self.housekeeper.run(context, name)
         return self.housekeeper.get(name)
+
+    def _get_appservice_id(self, service_name):
+        return self.nsx_v.vcns.get_application_id(name)
