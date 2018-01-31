@@ -509,7 +509,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                  {'name': 'Default DHCPv6 rule for OS Security Groups',
                   'action': 'allow',
                   'services': [('17', '546', None, None),
-                               ('17', '547', None, None)]}]
+                               ('17', '547', None, None)]},
+                 {'name': 'Default IGMP rule for OS Security Groups',
+                  'action': 'allow',
+                  'services': [('2', None, None, None)]}]
 
         if cfg.CONF.nsxv.cluster_moid:
             applied_to_ids = cfg.CONF.nsxv.cluster_moid
