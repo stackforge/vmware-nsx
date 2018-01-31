@@ -1054,9 +1054,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         nsx_net_id = None
         if validators.is_attr_set(external) and external:
-            if vlt:
-                raise NotImplementedError(_(
-                    "Transparent support only for internal overlay networks"))
             self._assert_on_external_net_with_qos(net_data)
             is_provider_net, net_type, physical_net, vlan_id = (
                 self._validate_external_net_create(net_data))
