@@ -1,0 +1,9 @@
+- job:
+    name: vmware-nsx-docs
+    parent: build-sphinx-docs
+
+- project:
+    check:
+      jobs:
+        - vmware-nsx-docs
+
