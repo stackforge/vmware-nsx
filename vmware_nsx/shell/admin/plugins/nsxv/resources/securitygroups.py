@@ -371,6 +371,12 @@ def migrate_sg_to_policy(resource, event, trigger, **kwargs):
             LOG.error("NSX policy %s was not found", policy_id)
             return
 
+        # get the nsx id from the backend
+        nsx_sg_id = nsx_db.get_nsx_security_group_id(context_.session, sg_id, moref=True)
+        if not nsx_sg_id:
+            LOG.error("Did not find security groups %s neutron ID", sg_id)
+            return
+
         # Delete the rules from the security group
         LOG.info("Deleting the rules of security group: %s", sg_id)
         for rule in secgroup.get('security_group_rules', []):
@@ -396,7 +402,6 @@ def migrate_sg_to_policy(resource, event, trigger, **kwargs):
             # continue anyway
 
         # bind this security group to the policy in the backend and DB
-        nsx_sg_id = nsx_db.get_nsx_security_group_id(context_.session, sg_id)
         LOG.info("Binding the NSX security group %(nsx)s to policy "
                  "%(pol)s",
                  {'nsx': nsx_sg_id, 'pol': policy_id})
