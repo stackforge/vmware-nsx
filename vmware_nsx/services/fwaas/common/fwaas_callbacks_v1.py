@@ -77,8 +77,6 @@ class NsxFwaasCallbacks(firewall_l3_agent.L3WithFWaaS):
                     context,
                     fw['id'],
                     nl_constants.ERROR)
-                raise exceptions.FirewallInternalDriverError(
-                    driver=self.fwaas_driver.driver_name)
             return ids
         else:
             return [router['id'] for router in routers_in_proj]
