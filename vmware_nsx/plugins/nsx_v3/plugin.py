@@ -1105,10 +1105,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         neutron_net_id,
                         nsx_net_id)
 
-                if vlt:
-                    super(NsxV3Plugin, self).update_network(context,
-                        created_net['id'],
-                        {'network': {'vlan_transparent': vlt}})
+                super(NsxV3Plugin, self).update_network(context,
+                    created_net['id'],
+                    {'network': {'vlan_transparent': vlt}})
 
             rollback_network = True
 
