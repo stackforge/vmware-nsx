@@ -58,7 +58,6 @@ from neutron.db import securitygroups_db
 from neutron.db import vlantransparent_db
 from neutron.extensions import providernet
 from neutron.extensions import securitygroup as ext_sg
-from neutron.plugins.common import utils as n_utils
 from neutron.quota import resource_registry
 from neutron_lib.api.definitions import extra_dhcp_opt as ext_edo
 from neutron_lib.api.definitions import portbindings as pbin
@@ -72,6 +71,7 @@ from neutron_lib.callbacks import resources
 from neutron_lib import constants as const
 from neutron_lib import context as q_context
 from neutron_lib import exceptions as n_exc
+from neutron_lib.plugins import utils as n_utils
 from neutron_lib.utils import helpers
 from neutron_lib.utils import net as nlib_net
 from oslo_config import cfg
