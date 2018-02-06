@@ -37,6 +37,8 @@ from neutron_lib.callbacks import resources
 from neutron_lib import constants
 from neutron_lib import context as n_context
 from neutron_lib.db import constants as db_const
+from neutron_lib.db import api as db_api
+from neutron_lib.db import resource_extend
 from neutron_lib.db import utils as db_utils
 from neutron_lib import exceptions as n_exc
 from neutron_lib.exceptions import allowedaddresspairs as addr_exc
@@ -62,10 +64,8 @@ from neutron.common import ipv6_utils
 from neutron.common import rpc as n_rpc
 from neutron.common import topics
 from neutron.common import utils as n_utils
-from neutron.db import _resource_extend as resource_extend
 from neutron.db import agents_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
-from neutron.db import api as db_api
 from neutron.db.availability_zone import router as router_az_db
 from neutron.db import dns_db
 from neutron.db import external_net_db
@@ -1250,7 +1250,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 predefined = False
                 sg_policy_id, predefined = self._prepare_spoofguard_policy(
                     network_type, net_data, net_morefs)
-            with db_api.context_manager.writer.using(context):
+            with db_api.get_context_manager().writer.using(context):
                 new_net = super(NsxVPluginV2, self).create_network(context,
                                                                    network)
                 self._extension_manager.process_create_network(
@@ -1474,7 +1474,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                 'Reason: %(e)s',
                                 {'port_id': port_id, 'e': e})
 
-        with db_api.context_manager.writer.using(context):
+        with db_api.get_context_manager().writer.using(context):
             self._process_l3_delete(context, id)
             # We would first delete subnet db if the backend dhcp service is
             # deleted in case of entering delete_subnet logic and retrying
@@ -1513,7 +1513,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             context, net['id'])
 
     def get_network(self, context, id, fields=None):
-        with db_api.context_manager.reader.using(context):
+        with db_api.get_context_manager().reader.using(context):
             # goto to the plugin DB and fetch the network
             network = self._get_network(context, id)
             # Don't do field selection here otherwise we won't be able
@@ -1527,7 +1527,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                      sorts=None, limit=None, marker=None,
                      page_reverse=False):
         filters = filters or {}
-        with db_api.context_manager.reader.using(context):
+        with db_api.get_context_manager().reader.using(context):
             networks = (
                 super(NsxVPluginV2, self).get_networks(
                     context, filters, fields, sorts,
@@ -1669,7 +1669,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             if updated_morefs:
                 net_morefs = list(new_dvs_pg_mappings.values())
 
-        with db_api.context_manager.writer.using(context):
+        with db_api.get_context_manager().writer.using(context):
             net_res = super(NsxVPluginV2, self).update_network(context, id,
                                                                network)
             self._extension_manager.process_update_network(context, net_attrs,
@@ -1831,7 +1831,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         direct_vnic_type = self._validate_port_vnic_type(
             context, port_data, port_data['network_id'])
 
-        with db_api.context_manager.writer.using(context):
+        with db_api.get_context_manager().writer.using(context):
             # First we allocate port in neutron database
             neutron_db = super(NsxVPluginV2, self).create_port(context, port)
             self._extension_manager.process_create_port(
@@ -2179,7 +2179,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             raise n_exc.InvalidInput(error_message=err_msg)
         old_mac_learning_state = original_port.get(mac_ext.MAC_LEARNING)
 
-        with db_api.context_manager.writer.using(context):
+        with db_api.get_context_manager().writer.using(context):
             ret_port = super(NsxVPluginV2, self).update_port(
                 context, id, port)
             self._extension_manager.process_update_port(
@@ -2475,7 +2475,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                                   expected_count=1)
 
         self.disassociate_floatingips(context, id)
-        with db_api.context_manager.writer.using(context):
+        with db_api.get_context_manager().writer.using(context):
             super(NsxVPluginV2, self).delete_port(context, id)
 
         self._delete_dhcp_static_binding(context, neutron_db_port)
@@ -2499,7 +2499,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         self._validate_internal_network(context, network_id)
 
         with locking.LockManager.get_lock(network_id):
-            with db_api.context_manager.writer.using(context):
+            with db_api.get_context_manager().writer.using(context):
                 self.base_delete_subnet(context, id)
 
             with locking.LockManager.get_lock('nsx-dhcp-edge-pool'):
@@ -3138,13 +3138,13 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         gw_info = self._extract_external_gw(context, router)
         lrouter = super(NsxVPluginV2, self).create_router(context, router)
 
-        with db_api.context_manager.writer.using(context):
+        with db_api.get_context_manager().writer.using(context):
             router_db = self._get_router(context, lrouter['id'])
             self._process_extra_attr_router_create(context, router_db, r)
             self._process_nsx_router_create(context, router_db, r)
             self._process_router_flavor_create(context, router_db, r)
 
-        with db_api.context_manager.reader.using(context):
+        with db_api.get_context_manager().reader.using(context):
             lrouter = super(NsxVPluginV2, self).get_router(context,
                                                            lrouter['id'])
         try:
@@ -3169,7 +3169,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 self.delete_router(context, lrouter['id'])
 
         # re-read the router with the updated data, and return it
-        with db_api.context_manager.reader.using(context):
+        with db_api.get_context_manager().reader.using(context):
             return self.get_router(context, lrouter['id'])
 
     def _validate_router_migration(self, context, router_id,
@@ -3221,7 +3221,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     old_router_driver.detach_router(context, router_id, router)
 
                     # update the router-type
-                    with db_api.context_manager.writer.using(context):
+                    with db_api.get_context_manager().writer.using(context):
                         router_db = self._get_router(context, router_id)
                         self._process_nsx_router_create(
                             context, router_db, router['router'])
@@ -3257,7 +3257,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         return router_driver.update_router(context, router_id, router)
 
     def _check_router_in_use(self, context, router_id):
-        with db_api.context_manager.reader.using(context):
+        with db_api.get_context_manager().reader.using(context):
             # Ensure that the router is not used
             router_filter = {'router_id': [router_id]}
             fips = self.get_floatingips_count(context.elevated(),
@@ -4117,7 +4117,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         sg_id = sg_data["id"] = str(uuid.uuid4())
         self._validate_security_group(context, sg_data, default_sg)
 
-        with db_api.context_manager.writer.using(context):
+        with db_api.get_context_manager().writer.using(context):
             is_provider = True if sg_data.get(provider_sg.PROVIDER) else False
             is_policy = True if sg_data.get(sg_policy.POLICY) else False
             if is_provider or is_policy:
@@ -4392,7 +4392,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         try:
             # Save new rules in Database, including mappings between Nsx rules
             # and Neutron security-groups rules
-            with db_api.context_manager.writer.using(context):
+            with db_api.get_context_manager().writer.using(context):
                 if create_base:
                     new_rule_list = super(
                         NsxVPluginV2,
