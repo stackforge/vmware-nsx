@@ -210,3 +210,7 @@ class NsxIPsecVpnMappingNotFound(n_exc.NotFound):
 
 class NsxENSPortSecurity(n_exc.BadRequest):
     message = _("Port security is not supported on ENS Transport zones")
+
+
+class NsxLockFailed(n_exc.NeutronException):
+    message = _("Failed to obtain lock %(name)s in non-blocking mode")
