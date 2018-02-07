@@ -499,3 +499,10 @@ class NsxVpnConnectionMapping(model_base.BASEV2, models.TimestampMixin):
     ike_profile_id = sa.Column(sa.String(36), nullable=False)
     ipsec_profile_id = sa.Column(sa.String(36), nullable=False)
     peer_ep_id = sa.Column(sa.String(36), nullable=False)
+
+
+class NsxDistributedLock(model_base.BASEV2, models.TimestampMixin):
+    """Stores the mapping between VPNaaS connections and NSX objects"""
+    __tablename__ = 'nsx_distributed_locks'
+    name = sa.Column(sa.String(36), primary_key=True)
+    owner = sa.Column(sa.String(36), nullable=False)
