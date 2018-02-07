@@ -13,13 +13,19 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import atexit
 import os
 import traceback
 
 from oslo_concurrency import lockutils
 from oslo_config import cfg
+from oslo_db import exception as db_exc
 from oslo_log import log
+from neutron_lib import context as n_context
 from tooz import coordination
+
+from vmware_nsx.common import exceptions as nsx_exc
+from vmware_nsx.db import db
 
 LOG = log.getLogger(__name__)
 
@@ -67,3 +73,43 @@ class LockManager(object):
 
         LOG.debug('Retrieved lock for %s', name)
         return LockManager._coordinator.get_lock(name)
+
+
+class DistLock(object):
+    def __init__(self, name, blocking=True):
+        self.name = name
+        self.blocking = blocking
+
+    def __enter__(self):
+        self.lock()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.unlock()
+
+    def lock(self):
+        taken = False
+        while not taken:
+            try:
+                context = n_context.get_admin_context()
+                owner = os.uname()[1]
+                db.add_nsx_distributed_lock(context.session, self.name, owner)
+            except db_exc.DBDuplicateEntry:
+                if self.blocking:
+                    raise nsx_exc.NsxLockFailed(name=self.name)
+            taken = True
+
+    def unlock(self):
+        try:
+            context = n_context.get_admin_context()
+            db.delete_nsx_distributed_lock(context.session, self.name)
+        except Exception as e:
+            LOG.error('DistLock: failed to take lock with exception %s', e)
+
+    @classmethod
+    def cleanup(cls):
+        context = n_context.get_admin_context()
+        owner = os.uname()[1]
+        db.delete_nsx_distributed_lock_by_owner(context.session, owner)
+
+
+atexit.register(DistLock.cleanup())

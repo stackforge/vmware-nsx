@@ -725,3 +725,20 @@ def get_nsx_vpn_connection_mapping(session, neutron_id):
 def delete_nsx_vpn_connection_mapping(session, neutron_id):
     return (session.query(nsx_models.NsxVpnConnectionMapping).
             filter_by(neutron_id=neutron_id).delete())
+
+
+def add_nsx_distributed_lock(session, name, owner):
+    with session.begin(subtransactions=True):
+        lock = nsx_models.NsxDistributedLock(name=name, owner=owner)
+        session.add(lock)
+        return lock
+
+
+def delete_nsx_distributed_lock(session, name):
+    return (session.query(nsx_models.NsxDistributedLock).filter_by(
+        name=name).delete())
+
+
+def delete_nsx_distributed_lock_by_owner(session, owner):
+    return (session.query(nsx_models.NsxDistributedLock).filter_by(
+        owner=owner).delete())
