@@ -61,7 +61,7 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
         plugin = directory.get_plugin()
         with db_api.context_manager.writer.using(ctx):
             plugin._extension_manager.extend_network_dict(
-                ctx.session, netdb, result)
+               
 
     @staticmethod
     @resource_extend.extends([port_def.COLLECTION_NAME])
@@ -336,6 +336,13 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
     def _extend_availability_zone_hints(net_res, net_db):
         net_res[az_def.AZ_HINTS] = az_validator.convert_az_string_to_list(
             net_db[az_def.AZ_HINTS])
+
+    def _validate_external_subnet(self, network_id):
+        filters = {'id': [network_id], 'router:external': [True]}
+        nets = self.get_networks(context, filters=filters)
+        if len(nets) > 0:
+            err_msg = _("Can not enable DHCP on external network")
+            raise n_exc.InvalidInput(error_message=err_msg)
 
 
 # Register the callback
