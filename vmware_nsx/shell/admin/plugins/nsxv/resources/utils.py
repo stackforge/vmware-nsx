@@ -17,7 +17,6 @@ import time
 from oslo_config import cfg
 from oslo_log import log as logging
 
-from neutron.db import common_db_mixin as common_db
 from neutron_lib import context as neutron_context
 from neutron_lib.plugins import directory
 
@@ -44,7 +43,7 @@ def get_plugin_filters(context):
         context, projectpluginmap.NsxPlugins.NSX_V)
 
 
-class NeutronDbClient(common_db.CommonDbMixin):
+class NeutronDbClient(object):
     def __init__(self):
         super(NeutronDbClient, self)
         self.context = neutron_context.get_admin_context()

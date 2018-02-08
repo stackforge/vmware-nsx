@@ -19,6 +19,7 @@ import neutron.db.api as db
 import decorator
 from neutron_lib.api.definitions import portbindings as pbin
 from neutron_lib import constants as lib_const
+from neutron_lib.db import model_query
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
 from oslo_utils import excutils
@@ -106,8 +107,8 @@ def get_nsxv_router_bindings(session, filters=None,
                              like_filters=None):
     session = db.get_reader_session()
     query = session.query(nsxv_models.NsxvRouterBinding)
-    return nsx_db._apply_filters_to_query(query, nsxv_models.NsxvRouterBinding,
-                                          filters, like_filters).all()
+    return model_query.apply_filters(query, nsxv_models.NsxvRouterBinding,
+                                     filters, like_filters).all()
 
 
 def update_nsxv_router_binding(session, router_id, **kwargs):
@@ -668,7 +669,7 @@ def get_nsxv_spoofguard_policy_network_mappings(session, filters=None,
                                                 like_filters=None):
     session = db.get_reader_session()
     query = session.query(nsxv_models.NsxvSpoofGuardPolicyNetworkMapping)
-    return nsx_db._apply_filters_to_query(
+    return model_query.apply_filters(
                query, nsxv_models.NsxvSpoofGuardPolicyNetworkMapping,
                filters, like_filters).all()
 

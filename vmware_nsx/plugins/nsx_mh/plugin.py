@@ -14,6 +14,7 @@
 #    under the License.
 
 import uuid
+import weakref
 
 from neutron_lib.api.definitions import allowedaddresspairs as addr_apidef
 from neutron_lib.api.definitions import external_net as extnet_apidef
@@ -213,7 +214,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         self._is_default_net_gw_in_sync = False
         # Create a synchronizer instance for backend sync
         self._synchronizer = sync.NsxSynchronizer(
-            self.safe_reference, self.cluster,
+            weakref.proxy(self), self.cluster,
             self.nsx_sync_opts.state_sync_interval,
             self.nsx_sync_opts.min_sync_req_delay,
             self.nsx_sync_opts.min_chunk_size,

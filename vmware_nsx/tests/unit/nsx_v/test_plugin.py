@@ -48,6 +48,7 @@ from neutron_lib.api.definitions import router_availability_zone as raz_apidef
 from neutron_lib.api import validators
 from neutron_lib import constants
 from neutron_lib import context
+from neutron_lib.db import resource_extend
 from neutron_lib import exceptions as n_exc
 from neutron_lib.plugins import constants as plugin_const
 from neutron_lib.plugins import directory
@@ -5500,8 +5501,8 @@ class TestRouterFlavorTestCase(extension.ExtensionTestCase,
         self.plugin._flv_plugin = directory.get_plugin(plugin_const.FLAVORS)
         self.plugin._process_router_flavor_create = mock.Mock()
 
-        self.plugin.register_dict_extend_funcs(
-                l3_apidef.ROUTERS, [self._mock_add_flavor_id])
+        resource_extend.register_funcs(
+            l3_apidef.ROUTERS, [self._mock_add_flavor_id])
 
         # init the availability zones
         self.az_name = 'az7'
