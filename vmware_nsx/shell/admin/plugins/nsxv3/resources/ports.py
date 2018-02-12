@@ -226,10 +226,16 @@ def migrate_compute_ports_vms(resource, event, trigger, **kwargs):
                   "section in the nsx.ini file: %s", e)
         return
 
+    port_filters = {}
+    port_filters['device_owner'] = ['compute:None']
+    if kwargs.get('property'):
+        properties = admin_utils.parse_multi_keyval_opt(kwargs['property'])
+        project = properties.get('project-id')
+        if project:
+            port_filters['project_id'] = [project]
+
     # Go over all the compute ports from the plugin
     admin_cxt = neutron_context.get_admin_context()
-    port_filters = v3_utils.get_plugin_filters(admin_cxt)
-    port_filters['device_owner'] = ['compute:None']
     with PortsPlugin() as plugin:
         neutron_ports = plugin.get_ports(admin_cxt, filters=port_filters)
 
