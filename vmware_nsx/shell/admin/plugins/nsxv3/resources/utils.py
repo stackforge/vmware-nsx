@@ -171,8 +171,8 @@ class NsxV3PluginWrapper(plugin.NsxV3Plugin):
     def _process_security_group_logging(self):
         pass
 
-    def _init_port_security_profile(self):
-        return True
+    #def _init_port_security_profile(self):
+    #    return True
 
     def _extend_get_network_dict_provider(self, context, net):
         self._extend_network_dict_provider(context, net)
