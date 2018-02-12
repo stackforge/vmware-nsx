@@ -31,8 +31,10 @@ from vmware_nsxlib.v3 import resources as nsx_v3_resources
 
 from vmware_nsx._i18n import _
 from vmware_nsx.common import config  # noqa
+from vmware_nsx.db import db
 from vmware_nsx.db import nsxv_db
 from vmware_nsx.dvs import dvs_utils
+from vmware_nsx.extensions import projectpluginmap
 from vmware_nsx.shell.admin.plugins.nsxv.resources import utils as nsxv_utils
 from vmware_nsx.shell.admin.plugins.nsxv3.resources import utils as nsxv3_utils
 from vmware_nsx.shell import resources
@@ -308,3 +310,23 @@ class TestNsxtvdAdminUtils(AbstractTestAdminUtils):
 
     def test_nsxtv_resources(self):
         self._test_resources(resources.nsxtvd_resources)
+
+    def test_v2t_migration(self):
+        edgeapi = nsxv_utils.NeutronDbClient()
+
+        # create a v tenant
+        project = 'v_tenant'
+        args = {'property': ["project=%s" % project,
+                             "plugin=nsx-v"]}
+        self._test_resource('projects', 'import', **args)
+
+        # migrate it to t
+        ext_net = 'bbb'
+        args = {'property': ["project-id=%s" % project,
+                             "external-net=%s" % ext_net]}
+        self._test_resource('projects', 'nsx-migrate-v-v3', **args)
+
+        # check that it was migrated
+        mapping = db.get_project_plugin_mapping(
+            edgeapi.context.session, project)
+        self.assertEqual(projectpluginmap.NsxPlugins.NSX_T, mapping.plugin)
