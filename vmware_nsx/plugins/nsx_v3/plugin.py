@@ -117,6 +117,7 @@ from vmware_nsx.services.trunk.nsx_v3 import driver as trunk_driver
 from vmware_nsxlib.v3 import core_resources as nsx_resources
 from vmware_nsxlib.v3 import exceptions as nsx_lib_exc
 from vmware_nsxlib.v3 import nsx_constants as nsxlib_consts
+from vmware_nsxlib.v3 import router as nsxlib_router
 from vmware_nsxlib.v3 import security
 from vmware_nsxlib.v3 import utils as nsxlib_utils
 
@@ -3994,12 +3995,31 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     if floatingip['floatingip']['port_id']
                     else const.FLOATINGIP_STATUS_DOWN))
 
+    def _add_no_nat_rule(self, context, net_id, nsx_router_id, fixed_ip):
+        # For vlan backend networks, a no-dnat rule should be added
+        # together with the NAT rules
+        if not self._is_overlay_network(context, net_id):
+            self.nsxlib.logical_router.add_nat_rule(
+                nsx_router_id, "NO_DNAT", None,
+                dest_net=fixed_ip,
+                rule_priority=nsxlib_router.FIP_NAT_PRI)
+
+    def _del_no_nat_rule(self, context, net_id, nsx_router_id, fixed_ip):
+        # For vlan backend networks, a no-dnat rule was added together with
+        # the NAT rules
+        if not self._is_overlay_network(context, net_id):
+            self.nsxlib.logical_router.delete_nat_rule_by_values(
+                nsx_router_id,
+                action="NO_DNAT",
+                match_destination_network=fixed_ip)
+
     def create_floatingip(self, context, floatingip):
         new_fip = self._create_floating_ip_wrapper(context, floatingip)
         router_id = new_fip['router_id']
         if not router_id:
             return new_fip
         port_id = floatingip['floatingip']['port_id']
+        port_data = None
         if port_id:
             port_data = self.get_port(context, port_id)
             device_owner = port_data.get('device_owner')
@@ -4019,6 +4039,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 nsx_router_id, new_fip['floating_ip_address'],
                 new_fip['fixed_ip_address'],
                 bypass_firewall=False)
+            if port_data:
+                self._add_no_nat_rule(context, port_data['network_id'],
+                                      nsx_router_id,
+                                      new_fip['fixed_ip_address'])
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 self.delete_floatingip(context, new_fip['id'])
@@ -4029,6 +4053,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         router_id = fip['router_id']
         port_id = fip['port_id']
         is_lb_port = False
+        port_data = None
         if port_id:
             port_data = self.get_port(context, port_id)
             device_owner = port_data.get('device_owner')
@@ -4051,6 +4076,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self.nsxlib.router.delete_fip_nat_rules(
                     nsx_router_id, fip['floating_ip_address'],
                     fip['fixed_ip_address'])
+                if port_data:
+                    self._del_no_nat_rule(context, port_data['network_id'],
+                                          nsx_router_id,
+                                          fip['fixed_ip_address'])
             except nsx_lib_exc.ResourceNotFound:
                 LOG.warning("Backend NAT rules for fip: %(fip_id)s "
                             "(ext_ip: %(ext_ip)s int_ip: %(int_ip)s) "
@@ -4070,15 +4099,16 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             context, fip_id, floatingip)
         router_id = new_fip['router_id']
         new_port_id = new_fip['port_id']
+        port_data = None
         try:
             is_lb_port = False
             if old_port_id:
-                old_port_data = self.get_port(context, old_port_id)
-                old_device_owner = old_port_data['device_owner']
+                port_data = self.get_port(context, old_port_id)
+                old_device_owner = port_data['device_owner']
                 old_fixed_ip = old_fip['fixed_ip_address']
                 if old_device_owner == const.DEVICE_OWNER_LOADBALANCERV2:
                     is_lb_port = True
-                    self._update_lb_vip(old_port_data, old_fixed_ip)
+                    self._update_lb_vip(port_data, old_fixed_ip)
 
             # Delete old router's fip rules if old_router_id is not None.
             if old_fip['router_id'] and not is_lb_port:
@@ -4089,6 +4119,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     self.nsxlib.router.delete_fip_nat_rules(
                         old_nsx_router_id, old_fip['floating_ip_address'],
                         old_fip['fixed_ip_address'])
+                    if port_data:
+                        self._del_no_nat_rule(context, port_data['network_id'],
+                                              old_nsx_router_id,
+                                              old_fip['fixed_ip_address'])
                 except nsx_lib_exc.ResourceNotFound:
                     LOG.warning("Backend NAT rules for fip: %(fip_id)s "
                                 "(ext_ip: %(ext_ip)s int_ip: %(int_ip)s) "
@@ -4100,12 +4134,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # Update LB VIP if the new port is LB port
             is_lb_port = False
             if new_port_id:
-                new_port_data = self.get_port(context, new_port_id)
-                new_device_owner = new_port_data['device_owner']
+                port_data = self.get_port(context, new_port_id)
+                new_device_owner = port_data['device_owner']
                 new_fip_address = new_fip['floating_ip_address']
                 if new_device_owner == const.DEVICE_OWNER_LOADBALANCERV2:
                     is_lb_port = True
-                    self._update_lb_vip(new_port_data, new_fip_address)
+                    self._update_lb_vip(port_data, new_fip_address)
 
             # TODO(berlin): Associating same FIP to different internal IPs
             # would lead to creating multiple times of FIP nat rules at the
@@ -4119,6 +4153,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     nsx_router_id, new_fip['floating_ip_address'],
                     new_fip['fixed_ip_address'],
                     bypass_firewall=False)
+                if port_data:
+                    self._add_no_nat_rule(context, port_data['network_id'],
+                                          nsx_router_id,
+                                          new_fip['fixed_ip_address'])
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 super(NsxV3Plugin, self).update_floatingip(
@@ -4133,6 +4171,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def disassociate_floatingips(self, context, port_id):
         fip_qry = context.session.query(l3_db_models.FloatingIP)
         fip_dbs = fip_qry.filter_by(fixed_port_id=port_id)
+        port_data = self.get_port(context, port_id)
 
         for fip_db in fip_dbs:
             if not fip_db.router_id:
@@ -4143,6 +4182,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self.nsxlib.router.delete_fip_nat_rules(
                     nsx_router_id, fip_db.floating_ip_address,
                     fip_db.fixed_ip_address)
+                if port_data:
+                    self._del_no_nat_rule(context, port_data['network_id'],
+                                          nsx_router_id,
+                                          fip_db.fixed_ip_address)
             except nsx_lib_exc.ResourceNotFound:
                 LOG.warning("Backend NAT rules for fip: %(fip_id)s "
                             "(ext_ip: %(ext_ip)s int_ip: %(int_ip)s) "
