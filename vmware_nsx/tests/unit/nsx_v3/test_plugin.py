@@ -16,6 +16,7 @@
 import mock
 import netaddr
 from neutron.db import models_v2
+from neutron.plugins.common import utils as n_utils
 from neutron.extensions import address_scope
 from neutron.extensions import l3
 from neutron.extensions import securitygroup as secgrp
@@ -545,6 +546,45 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
                                               vlan_apidef.VLANTRANSPARENT))
             data = self.deserialize('json', result)
             self.assertEqual('vlan', data['network'].get(pnet.NETWORK_TYPE))
+
+    def _test_generate_tag(self, vlan_id):
+        net_type = 'vlan'
+        name = 'phys_net'
+        plugin = directory.get_plugin()
+        plugin._network_vlans = n_utils.parse_network_vlan_ranges(
+                       cfg.CONF.nsx_v3.network_vlan_ranges)
+        expected = [('subnets', []), ('name', name),
+                    ('admin_state_up', True),
+                    ('status', 'ACTIVE'),
+                    ('shared', False),
+                    (pnet.NETWORK_TYPE, net_type),
+                    (pnet.PHYSICAL_NETWORK,
+                     'fb69d878-958e-4f32-84e4-50286f26226b'),
+                    (pnet.SEGMENTATION_ID, vlan_id)]
+        providernet_args = {pnet.NETWORK_TYPE: net_type,
+                            pnet.PHYSICAL_NETWORK:
+                                'fb69d878-958e-4f32-84e4-50286f26226b'}
+
+        with mock.patch('vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
+                        'get_transport_type', return_value='VLAN'):
+            with self.network(name=name, providernet_args=providernet_args,
+                              arg_list=(pnet.NETWORK_TYPE,
+                                        pnet.PHYSICAL_NETWORK)) as net:
+                for k, v in expected:
+                    self.assertEqual(net['network'][k], v)
+
+    def test_create_phys_vlan_generate(self):
+        cfg.CONF.set_override('network_vlan_ranges',
+                              'fb69d878-958e-4f32-84e4-50286f26226b',
+                              'nsx_v3')
+        self._test_generate_tag(1)
+
+    def test_create_phys_vlan_generate_range(self):
+        cfg.CONF.set_override('network_vlan_ranges',
+                              'fb69d878-958e-4f32-84e4-'
+                              '50286f26226b:100:110',
+                              'nsx_v3')
+        self._test_generate_tag(100)
 
 
 class TestSubnetsV2(test_plugin.TestSubnetsV2, NsxV3PluginTestCaseMixin):
