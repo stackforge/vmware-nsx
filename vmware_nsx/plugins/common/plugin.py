@@ -91,6 +91,12 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
 
         return self.get_network_az(network)
 
+    def _get_network_az_from_net_data(self, net_data):
+        if az_def.AZ_HINTS in net_data and net_data[az_def.AZ_HINTS]:
+            return self._availability_zones_data.get_availability_zone(
+                net_data[az_def.AZ_HINTS][0])
+        return self.get_default_az()
+
     def _get_router_interface_ports_by_network(
         self, context, router_id, network_id):
         port_filters = {'device_id': [router_id],
