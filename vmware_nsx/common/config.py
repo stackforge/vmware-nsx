@@ -339,6 +339,12 @@ nsx_v3_opts = [
                help=_("The amount of time in seconds to wait before ensuring "
                       "connectivity to the NSX manager if no manager "
                       "connection has been used.")),
+    cfg.ListOpt('network_vlan_ranges',
+                default=[],
+                help=_("List of <TZ UUID>:<vlan_min>:<vlan_max> "
+                       "specifying Transport Zone UUID usable for VLAN "
+                       "provider networks, as well as ranges of VLAN "
+                       "tags on each available for allocation to networks.")),
     cfg.IntOpt('redirects',
                default=2,
                help=_('Number of times a HTTP redirect should be followed.')),
@@ -438,6 +444,13 @@ nsx_v3_opts = [
                 default=False,
                 help=_("(Optional) Indicates whether ENS transport zones can "
                        "be used")),
+    cfg.ListOpt('network_v3_vlan_ranges',
+                default=[],
+                help=_("List of <TZ UUID>:<vlan_min>:<vlan_max> "
+                       "specifying Transport Zone UUID usable for "
+                       "VLAN provider networks, as well as ranges of"
+                       " VLAN tags on each available for allocation "
+                       "to networks.")),
 ]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
