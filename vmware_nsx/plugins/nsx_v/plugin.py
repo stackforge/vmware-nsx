@@ -2536,7 +2536,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         with db_api.context_manager.writer.using(context):
             super(NsxVPluginV2, self).delete_port(context, id)
 
-        self._delete_dhcp_static_binding(context, neutron_db_port)
+        if self._is_compute_port(neutron_db_port):
+            self._delete_dhcp_static_binding(context, neutron_db_port)
 
     def base_delete_subnet(self, context, subnet_id):
         with locking.LockManager.get_lock('neutron-base-subnet'):
