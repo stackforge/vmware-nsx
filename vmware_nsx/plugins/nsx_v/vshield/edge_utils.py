@@ -1857,11 +1857,13 @@ class EdgeManager(object):
                     nsxv_db.delete_edge_dhcp_static_binding(
                         context.session, edge_id, mac_address)
             else:
+                import traceback
                 LOG.warning("Failed to find dhcp binding on edge "
                             "%(edge_id)s to DELETE for port "
-                            "%(port_id)s",
+                            "%(port_id)s: %(trace)s",
                             {'edge_id': edge_id,
-                             'port_id': port_id})
+                             'port_id': port_id,
+                             'trace': traceback.extract_stack()})
         else:
             # This happens during network/subnet deletion
             LOG.info("Didn't delete dhcp binding for port %(port_id)s: "
