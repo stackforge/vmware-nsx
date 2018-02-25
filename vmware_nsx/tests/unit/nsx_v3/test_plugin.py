@@ -16,6 +16,7 @@
 import mock
 import netaddr
 from neutron.db import models_v2
+from neutron.plugins.common import utils as n_utils
 from neutron.extensions import address_scope
 from neutron.extensions import l3
 from neutron.extensions import securitygroup as secgrp
@@ -54,7 +55,6 @@ from vmware_nsx.tests.unit.extensions import test_metadata
 from vmware_nsxlib.tests.unit.v3 import mocks as nsx_v3_mocks
 from vmware_nsxlib.tests.unit.v3 import nsxlib_testcase
 from vmware_nsxlib.v3 import exceptions as nsxlib_exc
-
 
 PLUGIN_NAME = 'vmware_nsx.plugin.NsxV3Plugin'
 NSX_TZ_NAME = 'default transport zone'
@@ -223,7 +223,7 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
         # a double underscore instead
         kwargs = dict((k.replace('__', ':'), v) for k, v in kwargs.items())
         if extnet_apidef.EXTERNAL in kwargs:
-            arg_list = (extnet_apidef.EXTERNAL, ) + (arg_list or ())
+            arg_list = (extnet_apidef.EXTERNAL,) + (arg_list or ())
 
         if providernet_args:
             kwargs.update(providernet_args)
@@ -240,7 +240,7 @@ class NsxV3PluginTestCaseMixin(test_plugin.NeutronDbPluginV2TestCase,
         return network_req.get_response(self.api)
 
     def _create_l3_ext_network(
-        self, physical_network=nsx_v3_mocks.DEFAULT_TIER0_ROUTER_UUID):
+            self, physical_network=nsx_v3_mocks.DEFAULT_TIER0_ROUTER_UUID):
         name = 'l3_ext_net'
         net_type = utils.NetworkTypes.L3_EXT
         providernet_args = {pnet.NETWORK_TYPE: net_type,
@@ -307,13 +307,15 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
         providernet_args = {pnet.NETWORK_TYPE: 'flat'}
         with mock.patch('vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
                         'create', side_effect=_return_id_key) as nsx_create, \
-            mock.patch('vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
-                       'delete') as nsx_delete, \
-            mock.patch('vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
-                       'get_transport_type', return_value='VLAN'),\
-            self.network(name='flat_net',
-                         providernet_args=providernet_args,
-                         arg_list=(pnet.NETWORK_TYPE, )) as net:
+                mock.patch(
+                    'vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
+                    'delete') as nsx_delete, \
+                mock.patch(
+                    'vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
+                    'get_transport_type', return_value='VLAN'), \
+                self.network(name='flat_net',
+                             providernet_args=providernet_args,
+                             arg_list=(pnet.NETWORK_TYPE,)) as net:
             self.assertEqual('flat', net['network'].get(pnet.NETWORK_TYPE))
             # make sure the network is created at the backend
             nsx_create.assert_called_once()
@@ -329,12 +331,12 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
         providernet_args = {pnet.NETWORK_TYPE: 'flat',
                             pnet.PHYSICAL_NETWORK: physical_network}
         with mock.patch(
-            'vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
-            'get_transport_type', return_value='VLAN'),\
-            self.network(name='flat_net',
-                         providernet_args=providernet_args,
-                         arg_list=(pnet.NETWORK_TYPE,
-                                   pnet.PHYSICAL_NETWORK)) as net:
+                'vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
+                'get_transport_type', return_value='VLAN'), \
+             self.network(name='flat_net',
+                          providernet_args=providernet_args,
+                          arg_list=(pnet.NETWORK_TYPE,
+                                    pnet.PHYSICAL_NETWORK)) as net:
             self.assertEqual('flat', net['network'].get(pnet.NETWORK_TYPE))
 
     def test_create_provider_flat_network_with_vlan(self):
@@ -355,13 +357,15 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
         providernet_args = {pnet.NETWORK_TYPE: 'geneve'}
         with mock.patch('vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
                         'create', side_effect=_return_id_key) as nsx_create, \
-            mock.patch('vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
-                       'delete') as nsx_delete, \
-            mock.patch('vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
-                       'get_transport_type', return_value='OVERLAY'),\
-            self.network(name='geneve_net',
-                         providernet_args=providernet_args,
-                         arg_list=(pnet.NETWORK_TYPE, )) as net:
+                mock.patch(
+                    'vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
+                    'delete') as nsx_delete, \
+                mock.patch(
+                    'vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
+                    'get_transport_type', return_value='OVERLAY'), \
+                self.network(name='geneve_net',
+                             providernet_args=providernet_args,
+                             arg_list=(pnet.NETWORK_TYPE,)) as net:
             self.assertEqual('geneve', net['network'].get(pnet.NETWORK_TYPE))
             # make sure the network is created at the backend
             nsx_create.assert_called_once()
@@ -377,19 +381,19 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
         providernet_args = {pnet.NETWORK_TYPE: 'geneve',
                             pnet.PHYSICAL_NETWORK: physical_network}
         with mock.patch(
-            'vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
-            'get_transport_type', return_value='OVERLAY'),\
-            self.network(name='geneve_net',
-                         providernet_args=providernet_args,
-                         arg_list=(pnet.NETWORK_TYPE, )) as net:
+                'vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
+                'get_transport_type', return_value='OVERLAY'), \
+             self.network(name='geneve_net',
+                          providernet_args=providernet_args,
+                          arg_list=(pnet.NETWORK_TYPE,)) as net:
             self.assertEqual('geneve', net['network'].get(pnet.NETWORK_TYPE))
 
     def test_create_provider_geneve_network_with_vlan(self):
         providernet_args = {pnet.NETWORK_TYPE: 'geneve',
                             pnet.SEGMENTATION_ID: 11}
         with mock.patch(
-            'vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
-            'get_transport_type', return_value='OVERLAY'):
+                'vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
+                'get_transport_type', return_value='OVERLAY'):
             result = self._create_network(fmt='json', name='bad_geneve_net',
                                           admin_state_up=True,
                                           providernet_args=providernet_args,
@@ -404,14 +408,16 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
                             pnet.SEGMENTATION_ID: 11}
         with mock.patch('vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
                         'create', side_effect=_return_id_key) as nsx_create, \
-            mock.patch('vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
-                       'delete') as nsx_delete, \
-            mock.patch('vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
-                       'get_transport_type', return_value='VLAN'),\
-            self.network(name='vlan_net',
-                         providernet_args=providernet_args,
-                         arg_list=(pnet.NETWORK_TYPE,
-                                   pnet.SEGMENTATION_ID)) as net:
+                mock.patch(
+                    'vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
+                    'delete') as nsx_delete, \
+                mock.patch(
+                    'vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
+                    'get_transport_type', return_value='VLAN'), \
+                self.network(name='vlan_net',
+                             providernet_args=providernet_args,
+                             arg_list=(pnet.NETWORK_TYPE,
+                                       pnet.SEGMENTATION_ID)) as net:
             self.assertEqual('vlan', net['network'].get(pnet.NETWORK_TYPE))
             # make sure the network is created at the backend
             nsx_create.assert_called_once()
@@ -428,14 +434,15 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
                             pnet.PHYSICAL_NETWORK: physical_network}
 
         with mock.patch(
-            'vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.create',
-            side_effect=nsxlib_exc.ResourceNotFound) as nsx_create, \
-            mock.patch('vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
-                       'delete') as nsx_delete, \
-            self.network(name='nsx_net',
-                         providernet_args=providernet_args,
-                         arg_list=(pnet.NETWORK_TYPE,
-                                   pnet.PHYSICAL_NETWORK)) as net:
+                'vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.create',
+                side_effect=nsxlib_exc.ResourceNotFound) as nsx_create, \
+                mock.patch(
+                    'vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
+                    'delete') as nsx_delete, \
+                self.network(name='nsx_net',
+                             providernet_args=providernet_args,
+                             arg_list=(pnet.NETWORK_TYPE,
+                                       pnet.PHYSICAL_NETWORK)) as net:
             self.assertEqual('nsx-net', net['network'].get(pnet.NETWORK_TYPE))
             self.assertEqual(physical_network,
                              net['network'].get(pnet.PHYSICAL_NETWORK))
@@ -453,8 +460,8 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
         providernet_args = {pnet.NETWORK_TYPE: 'nsx-net',
                             pnet.PHYSICAL_NETWORK: physical_network}
         with mock.patch(
-            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
-            side_effect=nsxlib_exc.ResourceNotFound):
+                "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+                side_effect=nsxlib_exc.ResourceNotFound):
             result = self._create_network(fmt='json', name='bad_nsx_net',
                                           admin_state_up=True,
                                           providernet_args=providernet_args,
@@ -468,11 +475,10 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
         cfg.CONF.set_override('ens_support', True, 'nsx_v3')
         providernet_args = {psec.PORTSECURITY: False}
         with mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
-                        "get_host_switch_mode", return_value="ENS"),\
-            mock.patch(
-            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
-            return_value={'transport_zone_id': 'xxx'}):
-
+                        "get_host_switch_mode", return_value="ENS"), \
+             mock.patch(
+                 "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+                 return_value={'transport_zone_id': 'xxx'}):
             result = self._create_network(fmt='json', name='ens_net',
                                           admin_state_up=True,
                                           providernet_args=providernet_args,
@@ -485,10 +491,10 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
         cfg.CONF.set_override('ens_support', True, 'nsx_v3')
         providernet_args = {psec.PORTSECURITY: True}
         with mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
-                        "get_host_switch_mode", return_value="ENS"),\
-            mock.patch(
-            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
-            return_value={'transport_zone_id': 'xxx'}):
+                        "get_host_switch_mode", return_value="ENS"), \
+             mock.patch(
+                 "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+                 return_value={'transport_zone_id': 'xxx'}):
             result = self._create_network(fmt='json', name='ens_net',
                                           admin_state_up=True,
                                           providernet_args=providernet_args,
@@ -502,11 +508,10 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
         cfg.CONF.set_override('ens_support', True, 'nsx_v3')
         providernet_args = {psec.PORTSECURITY: False}
         with mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
-                        "get_host_switch_mode", return_value="ENS"),\
-            mock.patch(
-            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
-            return_value={'transport_zone_id': 'xxx'}):
-
+                        "get_host_switch_mode", return_value="ENS"), \
+             mock.patch(
+                 "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+                 return_value={'transport_zone_id': 'xxx'}):
             result = self._create_network(fmt='json', name='ens_net',
                                           admin_state_up=True,
                                           providernet_args=providernet_args,
@@ -524,18 +529,18 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
     def test_create_transparent_vlan_network(self):
         providernet_args = {vlan_apidef.VLANTRANSPARENT: True}
         with mock.patch(
-            'vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
-            'get_transport_type', return_value='OVERLAY'),\
-            self.network(name='vt_net',
-                         providernet_args=providernet_args,
-                         arg_list=(vlan_apidef.VLANTRANSPARENT, )) as net:
+                'vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
+                'get_transport_type', return_value='OVERLAY'), \
+             self.network(name='vt_net',
+                          providernet_args=providernet_args,
+                          arg_list=(vlan_apidef.VLANTRANSPARENT,)) as net:
             self.assertTrue(net['network'].get(vlan_apidef.VLANTRANSPARENT))
 
     def test_create_provider_vlan_network_with_transparent(self):
         providernet_args = {pnet.NETWORK_TYPE: 'vlan',
                             vlan_apidef.VLANTRANSPARENT: True}
         with mock.patch('vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
-                       'get_transport_type', return_value='VLAN'):
+                        'get_transport_type', return_value='VLAN'):
             result = self._create_network(fmt='json', name='badvlan_net',
                                           admin_state_up=True,
                                           providernet_args=providernet_args,
@@ -545,6 +550,43 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
                                               vlan_apidef.VLANTRANSPARENT))
             data = self.deserialize('json', result)
             self.assertEqual('vlan', data['network'].get(pnet.NETWORK_TYPE))
+
+    def _test_generate_tag(self, vlan_id):
+        net_type = 'vlan'
+        name = 'phys_net'
+        plugin = directory.get_plugin()
+        plugin._network_vlans = n_utils.parse_network_vlan_ranges(
+                       cfg.CONF.nsx_v3.network_vlan_ranges)
+        expected = [('subnets', []), ('name', name),
+                    ('admin_state_up', True),
+                    ('status', 'ACTIVE'),
+                    ('shared', False),
+                    (pnet.NETWORK_TYPE, net_type),
+                    (pnet.PHYSICAL_NETWORK,
+                     'fb69d878-958e-4f32-84e4-50286f26226b'),
+                    (pnet.SEGMENTATION_ID, vlan_id)]
+        providernet_args = {pnet.NETWORK_TYPE: net_type,
+                            pnet.PHYSICAL_NETWORK:
+                                'fb69d878-958e-4f32-84e4-50286f26226b'}
+
+        with self.network(name=name, providernet_args=providernet_args,
+                          arg_list=(pnet.NETWORK_TYPE,
+                                    pnet.PHYSICAL_NETWORK)) as net:
+            for k, v in expected:
+                self.assertEqual(net['network'][k], v)
+
+    def test_create_phys_vlan_generate(self):
+        cfg.CONF.set_override('network_vlan_ranges',
+                              'fb69d878-958e-4f32-84e4-50286f26226b',
+                              'nsx_v3')
+        self._test_generate_tag(1)
+
+    def test_create_phys_vlan_generate_range(self):
+        cfg.CONF.set_override('network_vlan_ranges',
+                              'fb69d878-958e-4f32-84e4-'
+                              '50286f26226b:100:110',
+                              'nsx_v3')
+        self._test_generate_tag(100)
 
 
 class TestSubnetsV2(test_plugin.TestSubnetsV2, NsxV3PluginTestCaseMixin):
@@ -567,8 +609,8 @@ class TestSubnetsV2(test_plugin.TestSubnetsV2, NsxV3PluginTestCaseMixin):
         cfg.CONF.set_override('native_dhcp_metadata', True, 'nsx_v3')
         with self.network() as network:
             with mock.patch.object(self.plugin,
-                                   '_enable_native_dhcp') as enable_dhcp,\
-                self.subnet(network=network, enable_dhcp=True):
+                                   '_enable_native_dhcp') as enable_dhcp, \
+                    self.subnet(network=network, enable_dhcp=True):
                 # Native dhcp should be set for this subnet
                 self.assertTrue(enable_dhcp.called)
 
@@ -576,8 +618,8 @@ class TestSubnetsV2(test_plugin.TestSubnetsV2, NsxV3PluginTestCaseMixin):
         cfg.CONF.set_override('native_dhcp_metadata', True, 'nsx_v3')
         with self.network() as network:
             with mock.patch.object(self.plugin,
-                                   '_enable_native_dhcp') as enable_dhcp,\
-                self.subnet(network=network, enable_dhcp=False):
+                                   '_enable_native_dhcp') as enable_dhcp, \
+                    self.subnet(network=network, enable_dhcp=False):
                 # Native dhcp should be set for this subnet
                 self.assertFalse(enable_dhcp.called)
 
@@ -586,8 +628,8 @@ class TestSubnetsV2(test_plugin.TestSubnetsV2, NsxV3PluginTestCaseMixin):
         self._enable_dhcp_relay()
         with self.network() as network:
             with mock.patch.object(self.plugin,
-                                  '_enable_native_dhcp') as enable_dhcp,\
-                self.subnet(network=network, enable_dhcp=True):
+                                   '_enable_native_dhcp') as enable_dhcp, \
+                    self.subnet(network=network, enable_dhcp=True):
                 # Native dhcp should not be set for this subnet
                 self.assertFalse(enable_dhcp.called)
 
@@ -596,7 +638,6 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
                   test_bindings.PortBindingsTestCase,
                   test_bindings.PortBindingsHostTestCaseMixin,
                   test_bindings.PortBindingsVnicTestCaseMixin):
-
     VIF_TYPE = portbindings.VIF_TYPE_OVS
     HAS_PORT_FILTER = True
 
@@ -665,16 +706,16 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
         with self.network() as network:
             policy_id = uuidutils.generate_uuid()
             data = {'port': {
-                        'network_id': network['network']['id'],
-                        'tenant_id': self._tenant_id,
-                        'qos_policy_id': policy_id,
-                        'name': 'qos_port',
-                        'admin_state_up': True,
-                        'device_id': 'fake_device',
-                        'device_owner': 'fake_owner',
-                        'fixed_ips': [],
-                        'mac_address': '00:00:00:00:00:01'}
-                    }
+                'network_id': network['network']['id'],
+                'tenant_id': self._tenant_id,
+                'qos_policy_id': policy_id,
+                'name': 'qos_port',
+                'admin_state_up': True,
+                'device_id': 'fake_device',
+                'device_owner': 'fake_owner',
+                'fixed_ips': [],
+                'mac_address': '00:00:00:00:00:01'}
+            }
             with mock.patch.object(self.plugin, '_get_qos_profile_id'):
                 port = self.plugin.create_port(self.ctx, data)
                 self.assertEqual(policy_id, port['qos_policy_id'])
@@ -688,15 +729,15 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
     def test_update_port_with_qos(self):
         with self.network() as network:
             data = {'port': {
-                        'network_id': network['network']['id'],
-                        'tenant_id': self._tenant_id,
-                        'name': 'qos_port',
-                        'admin_state_up': True,
-                        'device_id': 'fake_device',
-                        'device_owner': 'fake_owner',
-                        'fixed_ips': [],
-                        'mac_address': '00:00:00:00:00:01'}
-                    }
+                'network_id': network['network']['id'],
+                'tenant_id': self._tenant_id,
+                'name': 'qos_port',
+                'admin_state_up': True,
+                'device_id': 'fake_device',
+                'device_owner': 'fake_owner',
+                'fixed_ips': [],
+                'mac_address': '00:00:00:00:00:01'}
+            }
             port = self.plugin.create_port(self.ctx, data)
             policy_id = uuidutils.generate_uuid()
             data['port']['qos_policy_id'] = policy_id
@@ -715,11 +756,11 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
             with self.subnet(network=network, cidr='10.0.0.0/24'):
                 policy_id = uuidutils.generate_uuid()
                 data = {'port': {'network_id': network['network']['id'],
-                        'tenant_id': self._tenant_id,
-                        'qos_policy_id': policy_id}}
+                                 'tenant_id': self._tenant_id,
+                                 'qos_policy_id': policy_id}}
                 # Cannot add qos policy to a router port
                 self.assertRaises(n_exc.InvalidInput,
-                          self.plugin.create_port, self.ctx, data)
+                                  self.plugin.create_port, self.ctx, data)
 
     def _test_create_illegal_port_with_qos_fail(self, device_owner):
         with self.network() as network:
@@ -731,7 +772,7 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
                                  'qos_policy_id': policy_id}}
                 # Cannot add qos policy to this type of port
                 self.assertRaises(n_exc.InvalidInput,
-                          self.plugin.create_port, self.ctx, data)
+                                  self.plugin.create_port, self.ctx, data)
 
     def test_create_router_port_with_qos_fail(self):
         self._test_create_illegal_port_with_qos_fail(
@@ -758,7 +799,8 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
                                 'device_owner': device_owner}
                 # Cannot add qos policy to a router interface port
                 self.assertRaises(n_exc.InvalidInput,
-                          self.plugin.update_port, self.ctx, port['id'], data)
+                                  self.plugin.update_port, self.ctx,
+                                  port['id'], data)
 
     def test_update_router_port_with_qos_fail(self):
         self._test_update_illegal_port_with_qos_fail(
@@ -772,42 +814,44 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
             policy_id = uuidutils.generate_uuid()
             device_owner = constants.DEVICE_OWNER_COMPUTE_PREFIX + 'X'
             data = {'port': {
-                        'network_id': network['network']['id'],
-                        'tenant_id': self._tenant_id,
-                        'name': 'qos_port',
-                        'admin_state_up': True,
-                        'device_id': 'fake_device',
-                        'device_owner': device_owner,
-                        'fixed_ips': [],
-                        'mac_address': '00:00:00:00:00:01'}
-                    }
+                'network_id': network['network']['id'],
+                'tenant_id': self._tenant_id,
+                'name': 'qos_port',
+                'admin_state_up': True,
+                'device_id': 'fake_device',
+                'device_owner': device_owner,
+                'fixed_ips': [],
+                'mac_address': '00:00:00:00:00:01'}
+            }
             with mock.patch.object(self.plugin,
-                '_get_qos_profile_id') as get_profile:
+                                   '_get_qos_profile_id') as get_profile:
                 with mock.patch('vmware_nsx.services.qos.common.utils.'
-                    'get_network_policy_id', return_value=policy_id):
+                                'get_network_policy_id',
+                                return_value=policy_id):
                     self.plugin.create_port(self.ctx, data)
                     get_profile.assert_called_once_with(self.ctx, policy_id)
 
     def test_update_port_with_qos_on_net(self):
         with self.network() as network:
             data = {'port': {
-                        'network_id': network['network']['id'],
-                        'tenant_id': self._tenant_id,
-                        'name': 'qos_port',
-                        'admin_state_up': True,
-                        'device_id': 'fake_device',
-                        'device_owner': 'fake_owner',
-                        'fixed_ips': [],
-                        'mac_address': '00:00:00:00:00:01'}
-                    }
+                'network_id': network['network']['id'],
+                'tenant_id': self._tenant_id,
+                'name': 'qos_port',
+                'admin_state_up': True,
+                'device_id': 'fake_device',
+                'device_owner': 'fake_owner',
+                'fixed_ips': [],
+                'mac_address': '00:00:00:00:00:01'}
+            }
             port = self.plugin.create_port(self.ctx, data)
             policy_id = uuidutils.generate_uuid()
             device_owner = constants.DEVICE_OWNER_COMPUTE_PREFIX + 'X'
             data['port']['device_owner'] = device_owner
             with mock.patch.object(self.plugin,
-                '_get_qos_profile_id') as get_profile:
+                                   '_get_qos_profile_id') as get_profile:
                 with mock.patch('vmware_nsx.services.qos.common.utils.'
-                    'get_network_policy_id', return_value=policy_id):
+                                'get_network_policy_id',
+                                return_value=policy_id):
                     self.plugin.update_port(self.ctx, port['id'], data)
                     get_profile.assert_called_once_with(self.ctx, policy_id)
 
@@ -845,9 +889,9 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
             with self.port(subnet=subnet) as port:
                 data = {'port': {'admin_state_up': False,
                                  'fixed_ips': [{'subnet_id':
-                                                subnet['subnet']['id']},
+                                                    subnet['subnet']['id']},
                                                {'subnet_id':
-                                                subnet['subnet']['id']}]}}
+                                                    subnet['subnet']['id']}]}}
                 req = self.new_update_request('ports', data,
                                               port['port']['id'])
                 res = req.get_response(self.api)
@@ -860,9 +904,9 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
             data = {'port': {'network_id': subnet['subnet']['network_id'],
                              'tenant_id': subnet['subnet']['tenant_id'],
                              'fixed_ips': [{'subnet_id':
-                                            subnet['subnet']['id']},
+                                                subnet['subnet']['id']},
                                            {'subnet_id':
-                                            subnet['subnet']['id']}]}}
+                                                subnet['subnet']['id']}]}}
             port_req = self.new_create_request('ports', data)
             res = port_req.get_response(self.api)
             self.assertEqual(exc.HTTPBadRequest.code,
@@ -873,19 +917,19 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
         self.plugin = directory.get_plugin()
         with self.network() as network:
             data = {'port': {
-                        'network_id': network['network']['id'],
-                        'tenant_id': self._tenant_id,
-                        'name': 'p1',
-                        'admin_state_up': True,
-                        'device_id': 'fake_device',
-                        'device_owner': 'fake_owner',
-                        'fixed_ips': [],
-                        'mac_address': '00:00:00:00:00:01'}
-                    }
+                'network_id': network['network']['id'],
+                'tenant_id': self._tenant_id,
+                'name': 'p1',
+                'admin_state_up': True,
+                'device_id': 'fake_device',
+                'device_owner': 'fake_owner',
+                'fixed_ips': [],
+                'mac_address': '00:00:00:00:00:01'}
+            }
             with mock.patch.object(self.plugin.nsxlib.logical_port, 'create',
                                    return_value={'id': 'fake'}) as nsx_create:
                 self.plugin.create_port(self.ctx, data)
-                expected_prof = self.plugin.get_default_az().\
+                expected_prof = self.plugin.get_default_az(). \
                     switching_profiles_objs[0]
                 actual_profs = nsx_create.call_args[1]['switch_profile_ids']
                 # the ports switching profiles should start with the
@@ -893,32 +937,34 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
                 self.assertEqual(expected_prof, actual_profs[0])
 
     def test_create_ens_port_with_no_port_sec(self):
-        with self.subnet() as subnet,\
-            mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
-                       "get_host_switch_mode", return_value="ENS"),\
-            mock.patch(
-            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
-            return_value={'transport_zone_id': 'xxx'}):
+        with self.subnet() as subnet, \
+                mock.patch(
+                    "vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
+                    "get_host_switch_mode", return_value="ENS"), \
+                mock.patch(
+                    "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+                    return_value={'transport_zone_id': 'xxx'}):
             args = {'port': {'network_id': subnet['subnet']['network_id'],
                              'tenant_id': subnet['subnet']['tenant_id'],
                              'fixed_ips': [{'subnet_id':
-                                            subnet['subnet']['id']}],
+                                                subnet['subnet']['id']}],
                              psec.PORTSECURITY: False}}
             port_req = self.new_create_request('ports', args)
             port = self.deserialize(self.fmt, port_req.get_response(self.api))
             self.assertFalse(port['port']['port_security_enabled'])
 
     def test_create_ens_port_with_port_sec(self):
-        with self.subnet() as subnet,\
-            mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
-                       "get_host_switch_mode", return_value="ENS"),\
-            mock.patch(
-            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
-            return_value={'transport_zone_id': 'xxx'}):
+        with self.subnet() as subnet, \
+                mock.patch(
+                    "vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
+                    "get_host_switch_mode", return_value="ENS"), \
+                mock.patch(
+                    "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+                    return_value={'transport_zone_id': 'xxx'}):
             args = {'port': {'network_id': subnet['subnet']['network_id'],
                              'tenant_id': subnet['subnet']['tenant_id'],
                              'fixed_ips': [{'subnet_id':
-                                            subnet['subnet']['id']}],
+                                                subnet['subnet']['id']}],
                              psec.PORTSECURITY: True}}
             port_req = self.new_create_request('ports', args)
             res = self.deserialize('json', port_req.get_response(self.api))
@@ -927,16 +973,17 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
                              res['NeutronError']['type'])
 
     def test_update_ens_port(self):
-        with self.subnet() as subnet,\
-            mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
-                       "get_host_switch_mode", return_value="ENS"),\
-            mock.patch(
-            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
-            return_value={'transport_zone_id': 'xxx'}):
+        with self.subnet() as subnet, \
+                mock.patch(
+                    "vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
+                    "get_host_switch_mode", return_value="ENS"), \
+                mock.patch(
+                    "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+                    return_value={'transport_zone_id': 'xxx'}):
             args = {'port': {'network_id': subnet['subnet']['network_id'],
                              'tenant_id': subnet['subnet']['tenant_id'],
                              'fixed_ips': [{'subnet_id':
-                                            subnet['subnet']['id']}],
+                                                subnet['subnet']['id']}],
                              psec.PORTSECURITY: False}}
             port_req = self.new_create_request('ports', args)
             port = self.deserialize(self.fmt, port_req.get_response(self.api))
@@ -979,18 +1026,18 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
         """
         self._enable_dhcp_relay()
         with self.network() as network, \
-            self.subnet(network=network, enable_dhcp=True) as s1:
+                self.subnet(network=network, enable_dhcp=True) as s1:
             device_owner = constants.DEVICE_OWNER_COMPUTE_PREFIX + 'X'
             data = {'port': {
-                        'network_id': network['network']['id'],
-                        'tenant_id': self._tenant_id,
-                        'name': 'port',
-                        'admin_state_up': True,
-                        'device_id': 'fake_device',
-                        'device_owner': device_owner,
-                        'fixed_ips': [{'subnet_id': s1['subnet']['id']}],
-                        'mac_address': '00:00:00:00:00:01'}
-                    }
+                'network_id': network['network']['id'],
+                'tenant_id': self._tenant_id,
+                'name': 'port',
+                'admin_state_up': True,
+                'device_id': 'fake_device',
+                'device_owner': device_owner,
+                'fixed_ips': [{'subnet_id': s1['subnet']['id']}],
+                'mac_address': '00:00:00:00:00:01'}
+            }
             self.assertRaises(n_exc.InvalidInput,
                               self.plugin.create_port,
                               self.ctx, data)
@@ -1005,8 +1052,8 @@ class DHCPOptsTestCase(test_dhcpopts.TestExtraDhcpOpt,
 
 
 class NSXv3DHCPAgentAZAwareWeightSchedulerTestCase(
-        test_dhcpagent.DHCPAgentAZAwareWeightSchedulerTestCase,
-        NsxV3PluginTestCaseMixin):
+    test_dhcpagent.DHCPAgentAZAwareWeightSchedulerTestCase,
+    NsxV3PluginTestCaseMixin):
 
     def setUp(self):
         super(NSXv3DHCPAgentAZAwareWeightSchedulerTestCase, self).setUp()
@@ -1084,7 +1131,6 @@ class TestL3NatTestCase(L3NatTest,
                         test_l3_plugin.L3NatDBIntTestCase,
                         test_ext_route.ExtraRouteDBTestCaseBase,
                         test_metadata.MetaDataTestCase):
-
     block_dhcp_notifier = False
 
     def setUp(self, plugin=PLUGIN_NAME,
@@ -1155,10 +1201,10 @@ class TestL3NatTestCase(L3NatTest,
 
     def test_multiple_subnets_on_different_routers(self):
         with self.network() as network:
-            with self.subnet(network=network) as s1,\
+            with self.subnet(network=network) as s1, \
                     self.subnet(network=network,
-                                cidr='11.0.0.0/24') as s2,\
-                    self.router() as r1,\
+                                cidr='11.0.0.0/24') as s2, \
+                    self.router() as r1, \
                     self.router() as r2:
                 self._router_interface_action('add', r1['router']['id'],
                                               s1['subnet']['id'], None)
@@ -1176,9 +1222,9 @@ class TestL3NatTestCase(L3NatTest,
 
     def test_multiple_subnets_on_same_router(self):
         with self.network() as network:
-            with self.subnet(network=network) as s1,\
+            with self.subnet(network=network) as s1, \
                     self.subnet(network=network,
-                                cidr='11.0.0.0/24') as s2,\
+                                cidr='11.0.0.0/24') as s2, \
                     self.router() as r1:
                 self._router_interface_action('add', r1['router']['id'],
                                               s1['subnet']['id'], None)
@@ -1191,8 +1237,8 @@ class TestL3NatTestCase(L3NatTest,
                                               s1['subnet']['id'], None)
 
     def test_router_remove_interface_inuse_return_409(self):
-        with self.router() as r1,\
-                self.subnet() as ext_subnet,\
+        with self.router() as r1, \
+                self.subnet() as ext_subnet, \
                 self.subnet(cidr='11.0.0.0/24') as s1:
             self._set_net_external(ext_subnet['subnet']['network_id'])
             self._router_interface_action(
@@ -1201,7 +1247,7 @@ class TestL3NatTestCase(L3NatTest,
             self._add_external_gateway_to_router(
                 r1['router']['id'],
                 ext_subnet['subnet']['network_id'])
-            with self.port(subnet=s1,) as p:
+            with self.port(subnet=s1, ) as p:
                 fip_res = self._create_floatingip(
                     self.fmt,
                     ext_subnet['subnet']['network_id'],
@@ -1250,7 +1296,7 @@ class TestL3NatTestCase(L3NatTest,
                                   context.get_admin_context(),
                                   r['router']['id'],
                                   {'router': {'routes':
-                                              routes}})
+                                                  routes}})
 
                 updates = {'admin_state_up': False}
                 self.assertRaises(n_exc.InvalidInput,
@@ -1294,8 +1340,8 @@ class TestL3NatTestCase(L3NatTest,
     def _update_router_enable_snat(self, router_id, network_id, enable_snat):
         return self._update('routers', router_id,
                             {'router': {'external_gateway_info':
-                                        {'network_id': network_id,
-                                         'enable_snat': enable_snat}}})
+                                            {'network_id': network_id,
+                                             'enable_snat': enable_snat}}})
 
     def test_router_no_snat_with_different_address_scope(self):
         """Test that if the router has no snat, you cannot add an interface
@@ -1303,7 +1349,7 @@ class TestL3NatTestCase(L3NatTest,
         """
         # create an external network on one address scope
         with self.address_scope(name='as1') as addr_scope, \
-            self.network() as ext_net:
+                self.network() as ext_net:
             self._set_net_external(ext_net['network']['id'])
             as_id = addr_scope['address_scope']['id']
             subnet = netaddr.IPNetwork('10.10.10.0/24')
@@ -1312,17 +1358,17 @@ class TestL3NatTestCase(L3NatTest,
                 min_prefixlen='24', address_scope_id=as_id)
             subnetpool_id = subnetpool['subnetpool']['id']
             data = {'subnet': {
-                    'network_id': ext_net['network']['id'],
-                    'subnetpool_id': subnetpool_id,
-                    'ip_version': 4,
-                    'enable_dhcp': False,
-                    'tenant_id': ext_net['network']['tenant_id']}}
+                'network_id': ext_net['network']['id'],
+                'subnetpool_id': subnetpool_id,
+                'ip_version': 4,
+                'enable_dhcp': False,
+                'tenant_id': ext_net['network']['tenant_id']}}
             req = self.new_create_request('subnets', data)
             ext_subnet = self.deserialize(self.fmt, req.get_response(self.api))
 
             # create a regular network on another address scope
             with self.address_scope(name='as2') as addr_scope2, \
-                self.network() as net:
+                    self.network() as net:
                 as_id2 = addr_scope2['address_scope']['id']
                 subnet2 = netaddr.IPNetwork('20.10.10.0/24')
                 subnetpool2 = self._test_create_subnetpool(
@@ -1330,10 +1376,10 @@ class TestL3NatTestCase(L3NatTest,
                     min_prefixlen='24', address_scope_id=as_id2)
                 subnetpool_id2 = subnetpool2['subnetpool']['id']
                 data = {'subnet': {
-                        'network_id': net['network']['id'],
-                        'subnetpool_id': subnetpool_id2,
-                        'ip_version': 4,
-                        'tenant_id': net['network']['tenant_id']}}
+                    'network_id': net['network']['id'],
+                    'subnetpool_id': subnetpool_id2,
+                    'ip_version': 4,
+                    'tenant_id': net['network']['tenant_id']}}
                 req = self.new_create_request('subnets', data)
                 int_subnet = self.deserialize(
                     self.fmt, req.get_response(self.api))
@@ -1362,7 +1408,7 @@ class TestL3NatTestCase(L3NatTest,
         """
         # create an external network on one address scope
         with self.address_scope(name='as1') as addr_scope, \
-            self.network() as ext_net:
+                self.network() as ext_net:
             self._set_net_external(ext_net['network']['id'])
             as_id = addr_scope['address_scope']['id']
             subnet = netaddr.IPNetwork('10.10.10.0/21')
@@ -1371,21 +1417,21 @@ class TestL3NatTestCase(L3NatTest,
                 min_prefixlen='24', address_scope_id=as_id)
             subnetpool_id = subnetpool['subnetpool']['id']
             data = {'subnet': {
-                    'network_id': ext_net['network']['id'],
-                    'subnetpool_id': subnetpool_id,
-                    'ip_version': 4,
-                    'enable_dhcp': False,
-                    'tenant_id': ext_net['network']['tenant_id']}}
+                'network_id': ext_net['network']['id'],
+                'subnetpool_id': subnetpool_id,
+                'ip_version': 4,
+                'enable_dhcp': False,
+                'tenant_id': ext_net['network']['tenant_id']}}
             req = self.new_create_request('subnets', data)
             ext_subnet = self.deserialize(self.fmt, req.get_response(self.api))
 
             # create a regular network on the same address scope
             with self.network() as net:
                 data = {'subnet': {
-                        'network_id': net['network']['id'],
-                        'subnetpool_id': subnetpool_id,
-                        'ip_version': 4,
-                        'tenant_id': net['network']['tenant_id']}}
+                    'network_id': net['network']['id'],
+                    'subnetpool_id': subnetpool_id,
+                    'ip_version': 4,
+                    'tenant_id': net['network']['tenant_id']}}
                 req = self.new_create_request('subnets', data)
                 int_subnet = self.deserialize(
                     self.fmt, req.get_response(self.api))
@@ -1426,11 +1472,11 @@ class TestL3NatTestCase(L3NatTest,
             min_prefixlen='24', address_scope_id=as_id)
         subnetpool_id = subnetpool['subnetpool']['id']
         data = {'subnet': {
-                'network_id': ext_net['network']['id'],
-                'subnetpool_id': subnetpool_id,
-                'ip_version': 4,
-                'enable_dhcp': False,
-                'tenant_id': ext_net['network']['tenant_id']}}
+            'network_id': ext_net['network']['id'],
+            'subnetpool_id': subnetpool_id,
+            'ip_version': 4,
+            'enable_dhcp': False,
+            'tenant_id': ext_net['network']['tenant_id']}}
         req = self.new_create_request('subnets', data)
         ext_subnet = self.deserialize(self.fmt, req.get_response(self.api))
         return ext_subnet['subnet']
@@ -1442,16 +1488,16 @@ class TestL3NatTestCase(L3NatTest,
         # create a regular network on the given subnet pool
         with self.network() as net:
             data = {'subnet': {
-                    'network_id': net['network']['id'],
-                    'subnetpool_id': subnetpool_id,
-                    'ip_version': 4,
-                    'tenant_id': net['network']['tenant_id']}}
+                'network_id': net['network']['id'],
+                'subnetpool_id': subnetpool_id,
+                'ip_version': 4,
+                'tenant_id': net['network']['tenant_id']}}
             req = self.new_create_request('subnets', data)
             int_subnet = self.deserialize(
                 self.fmt, req.get_response(self.api))
 
-            with self._mock_add_snat_rule() as add_nat,\
-                self._mock_del_snat_rule() as delete_nat:
+            with self._mock_add_snat_rule() as add_nat, \
+                    self._mock_del_snat_rule() as delete_nat:
                 # Add the interface
                 self._router_interface_action(
                     'add',
@@ -1475,7 +1521,7 @@ class TestL3NatTestCase(L3NatTest,
         """
         # create an external network on one address scope
         with self.address_scope(name='as1') as addr_scope, \
-            self.network() as ext_net:
+                self.network() as ext_net:
             ext_subnet = self._prepare_external_subnet_on_address_scope(
                 ext_net, addr_scope)
 
@@ -1518,7 +1564,7 @@ class TestL3NatTestCase(L3NatTest,
         """
         # create an external network on one address scope
         with self.address_scope(name='as1') as addr_scope, \
-            self.network() as ext_net:
+                self.network() as ext_net:
             ext_subnet = self._prepare_external_subnet_on_address_scope(
                 ext_net, addr_scope)
 
@@ -1541,12 +1587,12 @@ class TestL3NatTestCase(L3NatTest,
                 subnetpool2_id, r['router']['id'])
 
             # change address scope of the first subnetpool
-            with self.address_scope(name='as2') as addr_scope2,\
-                self._mock_add_snat_rule() as add_nat:
+            with self.address_scope(name='as2') as addr_scope2, \
+                    self._mock_add_snat_rule() as add_nat:
 
                 as2_id = addr_scope2['address_scope']['id']
                 data = {'subnetpool': {
-                        'address_scope_id': as2_id}}
+                    'address_scope_id': as2_id}}
 
                 if change_gw:
                     subnetpool_to_update = ext_subnet['subnetpool_id']
@@ -1572,9 +1618,9 @@ class TestL3NatTestCase(L3NatTest,
         """
         # create an external network on one address scope
         with self.address_scope(name='as1') as as1, \
-            self.address_scope(name='as2') as as2, \
-            self.address_scope(name='as3') as as3, \
-            self.network() as ext_net:
+                self.address_scope(name='as2') as as2, \
+                self.address_scope(name='as3') as as3, \
+                self.network() as ext_net:
             ext_subnet = self._prepare_external_subnet_on_address_scope(
                 ext_net, as1)
             as1_id = as1['address_scope']['id']
@@ -1608,7 +1654,7 @@ class TestL3NatTestCase(L3NatTest,
                 subnetpool3_id, r['router']['id'], assert_snat_added=True)
 
             with self._mock_add_snat_rule() as add_nat, \
-                self._mock_del_snat_rule() as del_nat:
+                    self._mock_del_snat_rule() as del_nat:
 
                 if change_gw:
                     # change address scope of GW subnet
@@ -1623,7 +1669,7 @@ class TestL3NatTestCase(L3NatTest,
                     target_as = as3_id
 
                 data = {'subnetpool': {
-                        'address_scope_id': target_as}}
+                    'address_scope_id': target_as}}
 
                 req = self.new_update_request('subnetpools', data,
                                               subnetpool_to_update)
@@ -1664,7 +1710,7 @@ class TestL3NatTestCase(L3NatTest,
         """
         # create an external network on one address scope
         with self.address_scope(name='as1') as addr_scope, \
-            self.network() as ext_net:
+                self.network() as ext_net:
             ext_subnet = self._prepare_external_subnet_on_address_scope(
                 ext_net, addr_scope)
 
@@ -1679,14 +1725,13 @@ class TestL3NatTestCase(L3NatTest,
             self._create_subnet_and_assert_snat_rules(
                 ext_subnet['subnetpool_id'], r['router']['id'])
 
-            with self.address_scope(name='as2') as addr_scope2,\
-                self._mock_add_snat_rule() as add_nat,\
-                self._mock_del_snat_rule() as delete_nat:
-
+            with self.address_scope(name='as2') as addr_scope2, \
+                    self._mock_add_snat_rule() as add_nat, \
+                    self._mock_del_snat_rule() as delete_nat:
                 as2_id = addr_scope2['address_scope']['id']
                 # change address scope of the subnetpool
                 data = {'subnetpool': {
-                        'address_scope_id': as2_id}}
+                    'address_scope_id': as2_id}}
                 req = self.new_update_request('subnetpools', data,
                                               ext_subnet['subnetpool_id'])
                 req.get_response(self.api)
@@ -1706,11 +1751,11 @@ class TestL3NatTestCase(L3NatTest,
         self._enable_dhcp_relay()
         with self.network() as network:
             with mock.patch.object(self.plugin,
-                                  'validate_router_dhcp_relay'),\
-                self.subnet(network=network, enable_dhcp=True) as s1,\
-                self.router() as r1,\
-                mock.patch.object(self.plugin.nsxlib.logical_router_port,
-                                  'update') as mock_update_port:
+                                   'validate_router_dhcp_relay'), \
+                 self.subnet(network=network, enable_dhcp=True) as s1, \
+                    self.router() as r1, \
+                    mock.patch.object(self.plugin.nsxlib.logical_router_port,
+                                      'update') as mock_update_port:
                 self._router_interface_action('add', r1['router']['id'],
                                               s1['subnet']['id'], None)
                 mock_update_port.assert_called_once_with(
@@ -1726,11 +1771,11 @@ class TestL3NatTestCase(L3NatTest,
         self._enable_dhcp_relay()
         with self.network() as network:
             with mock.patch.object(self.plugin,
-                                  'validate_router_dhcp_relay'),\
-                self.subnet(network=network, enable_dhcp=False) as s1,\
-                self.router() as r1,\
-                mock.patch.object(self.plugin.nsxlib.logical_router_port,
-                                  'update') as mock_update_port:
+                                   'validate_router_dhcp_relay'), \
+                 self.subnet(network=network, enable_dhcp=False) as s1, \
+                    self.router() as r1, \
+                    mock.patch.object(self.plugin.nsxlib.logical_router_port,
+                                      'update') as mock_update_port:
                 self._router_interface_action('add', r1['router']['id'],
                                               s1['subnet']['id'], None)
                 mock_update_port.assert_called_once_with(
