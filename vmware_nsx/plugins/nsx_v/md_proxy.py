@@ -27,6 +27,7 @@ from oslo_log import log as logging
 from vmware_nsx._i18n import _
 from vmware_nsx.common import exceptions as nsxv_exc
 from vmware_nsx.common import locking
+from vmware_nsx.common import nsx_constants
 from vmware_nsx.common import nsxv_constants
 from vmware_nsx.common import utils
 from vmware_nsx.db import nsxv_db
@@ -128,7 +129,7 @@ class NsxVMetadataProxyHandler(object):
                         context,
                         {'project_plugin_map':
                             {'plugin': projectpluginmap.NsxPlugins.NSX_V,
-                             'project': nsxv_constants.INTERNAL_TENANT_ID}},
+                             'project': nsx_constants.INTERNAL_TENANT_ID}},
                         internal=True)
                 except projectpluginmap.ProjectPluginAlreadyExists:
                     pass
@@ -139,7 +140,7 @@ class NsxVMetadataProxyHandler(object):
 
     def _create_metadata_internal_network(self, context, cidr):
         # Neutron requires a network to have some tenant_id
-        tenant_id = nsxv_constants.INTERNAL_TENANT_ID
+        tenant_id = nsx_constants.INTERNAL_TENANT_ID
         net_name = 'inter-edge-net'
         if not self.az.is_default():
             net_name = '%s-%s' % (net_name, self.az.name)
@@ -449,7 +450,7 @@ class NsxVMetadataProxyHandler(object):
                     'admin_state_up': True,
                     'router_type': 'exclusive',
                     'availability_zone_hints': [self.az.name],
-                    'tenant_id': nsxv_constants.INTERNAL_TENANT_ID}}
+                    'tenant_id': nsx_constants.INTERNAL_TENANT_ID}}
 
             rtr = self.nsxv_plugin.create_router(
                 context,
@@ -484,7 +485,7 @@ class NsxVMetadataProxyHandler(object):
                     'fixed_ips': constants.ATTR_NOT_SPECIFIED,
                     'mac_address': constants.ATTR_NOT_SPECIFIED,
                     'port_security_enabled': False,
-                    'tenant_id': nsxv_constants.INTERNAL_TENANT_ID}}
+                    'tenant_id': nsx_constants.INTERNAL_TENANT_ID}}
 
             port = self.nsxv_plugin.base_create_port(context, port_data)
 
@@ -714,7 +715,7 @@ class NsxVMetadataProxyHandler(object):
                 'fixed_ips': constants.ATTR_NOT_SPECIFIED,
                 'mac_address': constants.ATTR_NOT_SPECIFIED,
                 'port_security_enabled': False,
-                'tenant_id': nsxv_constants.INTERNAL_TENANT_ID}}
+                'tenant_id': nsx_constants.INTERNAL_TENANT_ID}}
 
         self.nsxv_plugin.base_create_port(ctx, port_data)
 

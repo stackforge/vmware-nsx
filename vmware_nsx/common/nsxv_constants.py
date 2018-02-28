@@ -30,9 +30,6 @@ VDR_EDGE = 'vdr'
 # Internal element purpose
 INTER_EDGE_PURPOSE = 'inter_edge_net'
 
-# etc
-INTERNAL_TENANT_ID = 'metadata_internal_project'
-
 # L2 gateway edge name prefix
 L2_GATEWAY_EDGE = 'L2 bridging'
 

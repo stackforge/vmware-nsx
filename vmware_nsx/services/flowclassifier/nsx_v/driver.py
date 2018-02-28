@@ -32,7 +32,7 @@ from vmware_nsx._i18n import _
 from vmware_nsx.common import config  # noqa
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import locking
-from vmware_nsx.common import nsxv_constants
+from vmware_nsx.common import nsx_constants
 from vmware_nsx.plugins.nsx_v.vshield import vcns as nsxv_api
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
 from vmware_nsx.services.flowclassifier.nsx_v import utils as fc_utils
@@ -146,7 +146,7 @@ class NsxvFlowClassifierDriver(fc_driver.FlowClassifierDriverBase):
         # Create any->any rule
         fc = {'name': 'redirect_all',
               'description': 'Redirect all traffic',
-              'tenant_id': nsxv_constants.INTERNAL_TENANT_ID,
+              'tenant_id': nsx_constants.INTERNAL_TENANT_ID,
               'l7_parameters': {},
               'ethertype': 'IPv4',
               'protocol': None,
