@@ -18,3 +18,5 @@ VIF_TYPE_DVS = 'dvs'
 
 # NSXv3 CORE PLUGIN PATH
 VMWARE_NSX_V3_PLUGIN_NAME = 'vmware_nsxv3'
+
+INTERNAL_TENANT_ID = 'metadata_internal_project'
