@@ -32,7 +32,7 @@ from vmware_nsx._i18n import _
 from vmware_nsx.common import config  # noqa
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import locking
-from vmware_nsx.common import nsxv_constants
+from vmware_nsx.common import nsx_constants
 from vmware_nsx.plugins.nsx_v.vshield import vcns as nsxv_api
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
 from vmware_nsx.services.flowclassifier.nsx_v import utils as fc_utils
