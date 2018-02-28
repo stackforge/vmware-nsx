@@ -133,6 +133,8 @@ NSX_V3_EXCLUDED_PORT_NSGROUP_NAME = 'neutron_excluded_port_nsgroup'
 NSX_V3_NON_VIF_PROFILE = 'nsx-default-switch-security-non-vif-profile'
 NSX_V3_SERVER_SSL_PROFILE = 'nsx-default-server-ssl-profile'
 NSX_V3_CLIENT_SSL_PROFILE = 'nsx-default-client-ssl-profile'
+# Default UUID for the global OS rule
+NSX_V3_OS_DFW_UUID = '00000000-def0-0000-0fed-000000000000'
 
 
 def inject_headers():
@@ -258,16 +260,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._translate_configured_names_to_uuids()
         self._init_dhcp_metadata()
 
-        # Include default section NSGroup
-        LOG.debug("Initializing NSX v3 default section NSGroup")
-        self._default_section_nsgroup = None
-        self._default_section_nsgroup = self._init_default_section_nsgroup()
-        if not self._default_section_nsgroup:
-            msg = _("Unable to initialize NSX v3 default section NSGroup %s"
-                    ) % NSX_V3_FW_DEFAULT_NS_GROUP
-            raise nsx_exc.NsxPluginException(err_msg=msg)
-
-        self.default_section = self._init_default_section_rules()
+        self._prepare_default_rules()
         self._process_security_group_logging()
 
         # init profiles on nsx backend
@@ -309,6 +302,58 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         registry.subscribe(self.init_complete,
                            resources.PROCESS,
                            events.AFTER_INIT)
+
+    def _ensure_default_rules(self):
+        # Include default section NSGroup
+        LOG.debug("Initializing NSX v3 default section NSGroup")
+        self._default_section_nsgroup = None
+        self._default_section_nsgroup = self._init_default_section_nsgroup()
+        if not self._default_section_nsgroup:
+            msg = _("Unable to initialize NSX v3 default section NSGroup %s"
+                    ) % NSX_V3_FW_DEFAULT_NS_GROUP
+            raise nsx_exc.NsxPluginException(err_msg=msg)
+        self.default_section = self._init_default_section_rules()
+
+    def _ensure_global_sg_placeholder(self, context):
+        try:
+            super(NsxV3Plugin, self).get_security_group(
+                context, NSX_V3_OS_DFW_UUID, fields=['id'])
+        except ext_sg.SecurityGroupNotFound:
+            sec_group = {'security_group': {'id': NSX_V3_OS_DFW_UUID,
+                                            'tenant_id': '',
+                                            'name': 'V3 Default',
+                                            'description': ''}}
+            try:
+                # ensure that the global default is created
+                super(NsxV3Plugin, self).create_security_group(
+                    context, sec_group, False)
+            except Exception:
+                # Treat a race of multiple processing creating the seg group
+                LOG.warning('Unable to create global security group')
+
+    def _prepare_default_rules(self):
+        ctx = q_context.get_admin_context()
+        # Need a global placeholder as the DB below has a forign key to
+        # this security group
+        self._ensure_global_sg_placeholder(ctx)
+        self._ensure_default_rules()
+        # Validate if there is a race between processes
+        nsgroup_id, section_id = nsx_db.get_sg_mappings(
+            ctx.session, NSX_V3_OS_DFW_UUID)
+        if nsgroup_id is None or section_id is None:
+            default_ns_group_id = self._default_section_nsgroup.get('id')
+            try:
+                nsx_db.save_sg_mappings(ctx,
+                                        NSX_V3_OS_DFW_UUID,
+                                        default_ns_group_id,
+                                        self.default_section)
+            except Exception:
+                LOG.warning("Duplicate rules created. Cleaning up!")
+                # Delete duplicates created
+                self.nsxlib.firewall_section.delete(self.default_section)
+                self.nsxlib.ns_group.delete(default_ns_group_id)
+                # Ensure global variables are updated
+                self._ensure_default_rules()
 
     @staticmethod
     def plugin_type():
