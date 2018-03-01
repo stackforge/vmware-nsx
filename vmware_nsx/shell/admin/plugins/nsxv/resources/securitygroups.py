@@ -294,7 +294,6 @@ def list_missing_firewall_sections(resource, event, trigger, **kwargs):
     return bool(missing_sections_info)
 
 
-@admin_utils.list_mismatches_handler(constants.FIREWALL_SECTIONS)
 @admin_utils.output_header
 def reorder_firewall_sections(resource, event, trigger, **kwargs):
     nsxv_firewall.reorder_fw_sections()
