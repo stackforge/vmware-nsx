@@ -24,6 +24,7 @@ from vmware_nsx.shell.admin.plugins.common import formatters
 from vmware_nsx.shell.admin.plugins.common import utils as admin_utils
 from vmware_nsx.shell.admin.plugins.nsxv3.resources import utils
 import vmware_nsx.shell.resources as shell
+import vmware_nsxlib.v3.resources as lp_resources
 from vmware_nsxlib.v3 import nsx_constants
 
 LOG = logging.getLogger(__name__)
@@ -140,11 +141,8 @@ def nsx_clean_orphaned_dhcp_servers(resource, event, trigger, **kwargs):
 
     for server in orphaned_servers:
         try:
-            # TODO(asarfaty): should add this as api to nsxlib instead of
-            # abusing it
-            resource = ('?attachment_type=DHCP_SERVICE&attachment_id=%s' %
-                        server['id'])
-            response = nsxlib.logical_port.get(resource)
+            response = (nsxlib.logical_port.get_by_attachment
+                        ('DHCP_SERVICE', server['id']))
             if response and response['result_count'] > 0:
                 nsxlib.logical_port.delete(response['results'][0]['id'])
             nsxlib.dhcp_server.delete(server['id'])
