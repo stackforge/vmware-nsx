@@ -332,10 +332,12 @@ class RouterSharedDriver(router_driver.RouterBaseDriver):
         edge_id = edge_utils.get_router_edge_id(context, router_id)
         if edge_id:
             router_db = self.plugin._get_router(context, router_id)
-            available_router_ids, conflict_router_ids = (
-                self._get_available_and_conflicting_ids(context, router_id))
-            is_conflict = self.edge_manager.is_router_conflict_on_edge(
-                context, router_id, conflict_router_ids, [], 0)
+            with locking.LockManager.get_lock('nsx-shared-router-pool'):
+                available_router_ids, conflict_router_ids = (
+                    self._get_available_and_conflicting_ids(context,
+                                                            router_id))
+                is_conflict = self.edge_manager.is_router_conflict_on_edge(
+                    context, router_id, conflict_router_ids, [], 0)
             if is_conflict:
                 self._notify_before_router_edge_association(context, router_db)
                 with locking.LockManager.get_lock(str(edge_id)):
