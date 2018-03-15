@@ -2716,6 +2716,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                             'disabled')
                     LOG.error(msg)
                     raise n_exc.InvalidInput(error_message=msg)
+                if self._is_ens_tz_port(context, port_data):
+                    msg = _('Mac learning not supported with ENS TZ')
+                    LOG.error(msg)
+                    raise n_exc.InvalidInput(error_message=msg)
                 self._create_mac_learning_state(context, port_data)
             elif mac_ext.MAC_LEARNING in port_data:
                 # This is due to the fact that the default is
@@ -3177,6 +3181,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._extend_nsx_port_dict_binding(context, updated_port)
             mac_learning_state = updated_port.get(mac_ext.MAC_LEARNING)
             if mac_learning_state is not None:
+                if (mac_learning_state and
+                    self._is_ens_tz_port(context, updated_port)):
+                    msg = _('Mac learning not supported with ENS TZ')
+                    LOG.error(msg)
+                    raise n_exc.InvalidInput(error_message=msg)
                 if port_security and mac_learning_state:
                     msg = _('Mac learning requires that port security be '
                             'disabled')
