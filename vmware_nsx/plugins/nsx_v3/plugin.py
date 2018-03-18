@@ -3181,6 +3181,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                   sorts=None, limit=None, marker=None,
                   page_reverse=False):
         filters = filters or {}
+        self._get_ports_by_sec_group(context, filters)
         with db_api.context_manager.reader.using(context):
             ports = (
                 super(NsxV3Plugin, self).get_ports(
