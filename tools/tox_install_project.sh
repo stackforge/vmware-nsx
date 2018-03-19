@@ -34,7 +34,7 @@ fi
 
 if [ -d "$PROJ_DIR" ]; then
     echo "FOUND code at $PROJ_DIR - using"
-    $install_cmd -U -e ${PROJ_DIR}
+    $install_cmd -e ${PROJ_DIR}
 elif [ $neutron_installed -eq 0 ]; then
     echo "ALREADY INSTALLED" > /tmp/tox_install-${PROJ}.txt
     echo "${PROJ} already installed; using existing package"
@@ -54,5 +54,5 @@ elif [ -x "$ZUUL_CLONER" ]; then
 else
     echo "${PROJ} not installed; using egg"
     echo "PIP HARDCODE" > /tmp/tox_install-${PROJ}.txt
-    $install_cmd -U -egit+https://git.openstack.org/openstack/${PROJ}@${BRANCH_NAME}#egg=${PROJ}
+    $install_cmd -egit+https://git.openstack.org/openstack/${PROJ}@${BRANCH_NAME}#egg=${PROJ}
 fi
