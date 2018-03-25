@@ -1,0 +1,9 @@
+- project:
+    check:
+      jobs:
+        - openstack-tox-lower-constraints:
+          timeout: 5400
+    gate:
+      jobs:
+        - openstack-tox-lower-constraints:
+          timeout: 5400
