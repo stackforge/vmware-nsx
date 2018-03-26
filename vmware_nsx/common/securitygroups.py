@@ -88,7 +88,7 @@ def get_security_group_rules_nsx_format(session, cluster,
     ingress_rules = []
     egress_rules = []
     for rule in security_group_rules:
-        if rule.get('souce_group_id'):
+        if rule.get('source_group_id'):
             rule['remote_group_id'] = nsx_utils.get_nsx_security_group_id(
                 session, cluster, rule['remote_group_id'])
 
