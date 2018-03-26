@@ -1142,6 +1142,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                                     vlt))
             is_backend_network = True
 
+        self._verify_ens_not_qos(physical_net, net_data)
+
         try:
             rollback_network = False
             with db_api.context_manager.writer.using(context):
@@ -1233,6 +1235,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             context, net_data, created_net)
 
         return created_net
+
+    def _verify_ens_not_qos(self, tz_id, net_data):
+        if (self._is_ens_tz(tz_id) and validators.is_attr_set
+                (net_data.get(qos_consts.QOS_POLICY_ID))):
+            err_msg = _("Cannot configure QOS on ENS networks")
+            raise n_exc.InvalidInput(error_message=err_msg)
 
     def _has_active_port(self, context, network_id):
         ports_in_use = context.session.query(models_v2.Port).filter_by(
@@ -1343,12 +1351,15 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # do not allow to enable port security on ENS networks
             if (net_data[psec.PORTSECURITY] and
                 not original_net[psec.PORTSECURITY] and
+                #knows if the net is ENS
                 self._is_ens_tz_net(context, id)):
                 raise nsx_exc.NsxENSPortSecurity()
             self._process_network_port_security_update(
                 context, net_data, updated_net)
         self._process_l3_update(context, updated_net, network['network'])
         self._extend_network_dict_provider(context, updated_net)
+
+        self._verify_ens_not_qos(self._get_net_tz(context, id), net_data)
 
         if (not extern_net and not is_nsx_net and
             ('name' in net_data or 'admin_state_up' in net_data or
@@ -2188,10 +2199,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         tz_id = self._get_net_tz(context, net_id)
         if tz_id:
             # Check the mode of this TZ
-            mode = self.nsxlib.transport_zone.get_host_switch_mode(tz_id)
-            return (mode ==
-                    self.nsxlib.transport_zone.HOST_SWITCH_MODE_ENS)
+            self._is_ens_tz(tz_id)
         return False
+
+    def _is_ens_tz(self, tz_id):
+        mode = self.nsxlib.transport_zone.get_host_switch_mode(tz_id)
+        return mode == self.nsxlib.transport_zone.HOST_SWITCH_MODE_ENS
 
     def _is_ens_tz_port(self, context, port_data):
         # Check the host-switch-mode of the TZ connected to the ports network
@@ -2690,6 +2703,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._assert_on_port_admin_state(
                 port_data, port_data.get('device_owner'))
 
+            self._verify_ens_not_qos(self._get_net_tz(context,
+                                                      port_data['network_id']),
+                                     port_data)
             neutron_db = self.base_create_port(context, port)
             port["port"].update(neutron_db)
 
@@ -3150,6 +3166,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._assert_on_dhcp_relay_without_router(context, port_data,
                                                       original_port)
 
+            self._verify_ens_not_qos(
+                self._get_net_tz(context, original_port['network_id']),
+                port_data)
             dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS)
             self._validate_extra_dhcp_options(dhcp_opts)
 
