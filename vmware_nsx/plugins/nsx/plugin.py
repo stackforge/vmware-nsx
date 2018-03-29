@@ -20,6 +20,7 @@ from neutron_lib.callbacks import events
 from neutron_lib.callbacks import registry
 from neutron_lib.callbacks import resources
 from neutron_lib import context as n_context
+from neutron_lib.db import api as db_api
 from neutron_lib.plugins import constants as plugin_constants
 from neutron_lib.plugins import directory
 from oslo_config import cfg
@@ -32,7 +33,6 @@ from neutron.db import _utils as db_utils
 from neutron.db import agents_db
 from neutron.db import agentschedulers_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
-from neutron.db import api as db_api
 from neutron.db.availability_zone import router as router_az_db
 from neutron.db import external_net_db
 from neutron.db import extradhcpopt_db
@@ -306,7 +306,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         # create all networks one by one
         try:
-            with db_api.context_manager.writer.using(context):
+            with db_api.CONTEXT_WRITER.using(context):
                 for item in items:
                     objects.append(p.create_network(context, item))
         except Exception:
@@ -354,7 +354,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         req_p = self._get_plugin_for_request(context, filters,
                                              keys=['shared'])
         filters = filters or {}
-        with db_api.context_manager.reader.using(context):
+        with db_api.CONTEXT_READER.using(context):
             networks = (
                 super(NsxTVDPlugin, self).get_networks(
                     context, filters, fields, sorts,
@@ -411,7 +411,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         req_p = self._get_plugin_for_request(context, filters,
                                              keys=['device_id'])
         filters = filters or {}
-        with db_api.context_manager.reader.using(context):
+        with db_api.CONTEXT_READER.using(context):
             ports = (
                 super(NsxTVDPlugin, self).get_ports(
                     context, filters, fields, sorts,
@@ -749,7 +749,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # get the core plugin as this is a static method with no 'self'
         plugin = directory.get_plugin()
         p = plugin._get_plugin_from_project(ctx, netdb['tenant_id'])
-        with db_api.context_manager.writer.using(ctx):
+        with db_api.CONTEXT_WRITER.using(ctx):
             p._extension_manager.extend_network_dict(
                 ctx.session, netdb, result)
 
@@ -760,7 +760,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # get the core plugin as this is a static method with no 'self'
         plugin = directory.get_plugin()
         p = plugin._get_plugin_from_project(ctx, portdb['tenant_id'])
-        with db_api.context_manager.writer.using(ctx):
+        with db_api.CONTEXT_WRITER.using(ctx):
             p._extension_manager.extend_port_dict(
                 ctx.session, portdb, result)
 
@@ -771,7 +771,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # get the core plugin as this is a static method with no 'self'
         plugin = directory.get_plugin()
         p = plugin._get_plugin_from_project(ctx, subnetdb['tenant_id'])
-        with db_api.context_manager.writer.using(ctx):
+        with db_api.CONTEXT_WRITER.using(ctx):
             p._extension_manager.extend_subnet_dict(
                 ctx.session, subnetdb, result)
 
