@@ -22,7 +22,6 @@ import hashlib
 import xml.etree.ElementTree as et
 
 import eventlet
-import six
 import tenacity
 from tenacity import _utils as tenacity_utils
 
@@ -107,7 +106,7 @@ def is_nsxv_dhcp_binding_supported(nsx_version):
 
 def get_tags(**kwargs):
     tags = ([dict(tag=value, scope=key)
-            for key, value in six.iteritems(kwargs)])
+            for key, value in kwargs.items()])
     tags.append({"tag": NEUTRON_VERSION, "scope": "quantum"})
     return sorted(tags, key=lambda x: x['tag'])
 

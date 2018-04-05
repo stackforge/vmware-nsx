@@ -22,7 +22,6 @@ from neutron_lib import constants as lib_const
 from oslo_db import exception as db_exc
 from oslo_log import log as logging
 from oslo_utils import excutils
-import six
 from sqlalchemy import func
 from sqlalchemy.orm import exc
 from sqlalchemy.sql import expression as expr
@@ -114,7 +113,7 @@ def update_nsxv_router_binding(session, router_id, **kwargs):
     with session.begin(subtransactions=True):
         binding = (session.query(nsxv_models.NsxvRouterBinding).
                    filter_by(router_id=router_id).one())
-        for key, value in six.iteritems(kwargs):
+        for key, value in kwargs.items():
             binding[key] = value
     return binding
 

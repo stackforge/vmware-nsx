@@ -54,7 +54,6 @@ from oslo_serialization import jsonutils
 from oslo_utils import excutils
 from oslo_utils import netutils
 from oslo_utils import uuidutils
-import six
 from six import moves
 from sqlalchemy.orm import exc as sa_exc
 
@@ -1241,8 +1240,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                             # Delete VLAN networks on other DVSes if it
                             # fails to be created on one DVS and reraise
                             # the original exception.
-                            for dvsmoref, netmoref in six.iteritems(
-                                dvs_pg_mappings):
+                            for dvsmoref, netmoref in dvs_pg_mappings.items():
                                 self._delete_backend_network(
                                     netmoref, dvsmoref)
                     dvs_pg_mappings[dvs_id] = net_moref
@@ -1260,8 +1258,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                                 # Delete VLAN networks on other DVSes if it
                                 # fails to be created on one DVS and reraise
                                 # the original exception.
-                                for dvsmoref, netmoref in six.iteritems(
-                                    dvs_pg_mappings):
+                                for dvsmoref, netmoref in
+                                    dvs_pg_mappings.items():
                                     self._delete_backend_network(
                                         netmoref, dvsmoref)
         try:
@@ -1341,7 +1339,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                         network_type == c_utils.NsxVNetworkTypes.FLAT):
                         # Save netmoref to dvs id mappings for VLAN network
                         # type for future access.
-                        for dvs_id, netmoref in six.iteritems(dvs_pg_mappings):
+                        for dvs_id, netmoref in dvs_pg_mappings.items():
                             nsx_db.add_neutron_nsx_network_mapping(
                                 session=context.session,
                                 neutron_id=new_net['id'],
@@ -1370,7 +1368,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                             self._delete_backend_network(net_moref)
                     elif (network_type and
                           network_type != c_utils.NsxVNetworkTypes.PORTGROUP):
-                        for dvsmrf, netmrf in six.iteritems(dvs_pg_mappings):
+                        for dvsmrf, netmrf in dvs_pg_mappings.items():
                             self._delete_backend_network(netmrf, dvsmrf)
                 LOG.exception('Failed to create network')
 
@@ -1640,7 +1638,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     # Delete VLAN networks on other DVSes if it
                     # fails to be created on one DVS and reraise
                     # the original exception.
-                    for dvsmoref, netmoref in six.iteritems(dvs_pg_mappings):
+                    for dvsmoref, netmoref in dvs_pg_mappings.items():
                         self._delete_backend_network(netmoref, dvsmoref)
             dvs_pg_mappings[dvs_id] = net_moref
 
@@ -1714,7 +1712,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 # Save netmoref to dvs id mappings for VLAN network
                 # type for future access.
                 dvs_ids = []
-                for dvs_id, netmoref in six.iteritems(new_dvs_pg_mappings):
+                for dvs_id, netmoref in new_dvs_pg_mappings.items():
                     nsx_db.add_neutron_nsx_network_mapping(
                         session=context.session,
                         neutron_id=id,

@@ -15,7 +15,6 @@
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 from oslo_utils import uuidutils
-import six
 import six.moves.urllib.parse as urlparse
 
 from vmware_nsx.api_client import exception as api_exc
@@ -389,7 +388,7 @@ class FakeClient(object):
                 if not attr_filter:
                     return True
                 item = res_dict[res_uuid]
-                for (attr, value) in six.iteritems(attr_filter):
+                for (attr, value) in attr_filter.items():
                     if item.get(attr) != value:
                         return False
                 return True

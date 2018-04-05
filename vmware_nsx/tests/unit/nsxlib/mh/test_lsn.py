@@ -17,7 +17,6 @@ import mock
 from neutron.tests import base
 from neutron_lib import exceptions
 from oslo_serialization import jsonutils
-import six
 
 from vmware_nsx.api_client import exception as api_exc
 from vmware_nsx.common import exceptions as nsx_exc
@@ -252,7 +251,7 @@ class LSNTestCase(base.BaseTestCase):
             self.cluster, lsn_id, lsn_port_id, is_enabled, opts)
         opt_array = [
             {"name": key, "value": val}
-            for key, val in six.iteritems(opts)
+            for key, val in opts.items()
         ]
         self.mock_request.assert_has_calls([
             mock.call("PUT", "/ws.v1/lservices-node/%s/dhcp" % lsn_id,

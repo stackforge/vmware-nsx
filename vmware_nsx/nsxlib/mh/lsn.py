@@ -16,7 +16,6 @@
 from neutron_lib import exceptions as exception
 from oslo_log import log
 from oslo_serialization import jsonutils
-import six
 
 from vmware_nsx._i18n import _
 from vmware_nsx.api_client import exception as api_exc
@@ -216,7 +215,7 @@ def _get_opts(name, value):
 def lsn_port_dhcp_configure(
         cluster, lsn_id, lsn_port_id, is_enabled=True, dhcp_options=None):
     dhcp_options = dhcp_options or {}
-    opts = [_get_opts(key, val) for key, val in six.iteritems(dhcp_options)]
+    opts = [_get_opts(key, val) for key, val in dhcp_options.items()]
     dhcp_obj = {'options': opts}
     _lsn_port_configure_action(
         cluster, lsn_id, lsn_port_id, 'dhcp', is_enabled, dhcp_obj)

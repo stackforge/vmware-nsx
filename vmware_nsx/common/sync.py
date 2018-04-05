@@ -24,7 +24,6 @@ from oslo_log import log
 from oslo_serialization import jsonutils
 from oslo_service import loopingcall
 from oslo_utils import timeutils
-import six
 
 from neutron.db import _model_query as model_query
 from neutron.db import api as db_api
@@ -124,7 +123,7 @@ class NsxCache(object):
     def _delete_resources(self, resources):
         # Mark for removal all the elements which have not been visited.
         # And clear the 'hit' attribute.
-        for to_delete in [k for (k, v) in six.iteritems(resources)
+        for to_delete in [k for (k, v) in resources.items()
                           if not v.pop('hit', False)]:
             resources[to_delete]['changed'] = True
             resources[to_delete]['data_bk'] = (
@@ -132,7 +131,7 @@ class NsxCache(object):
 
     def _get_resource_ids(self, resources, changed_only):
         if changed_only:
-            return [k for (k, v) in six.iteritems(resources)
+            return [k for (k, v) in resources.items()
                     if v.get('changed')]
         return resources.keys()
 

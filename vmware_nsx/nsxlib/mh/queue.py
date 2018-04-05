@@ -18,7 +18,6 @@ from neutron_lib import exceptions as exception
 from oslo_log import log
 from oslo_serialization import jsonutils
 from oslo_utils import excutils
-import six
 
 from vmware_nsx.api_client import exception as api_exc
 from vmware_nsx.common import utils
@@ -42,7 +41,7 @@ def create_lqueue(cluster, queue_data):
     }
     queue_obj = dict(
         (nsx_name, queue_data.get(api_name))
-        for api_name, nsx_name in six.iteritems(params)
+        for api_name, nsx_name in params.items()
         if validators.is_attr_set(queue_data.get(api_name))
     )
     if 'display_name' in queue_obj:

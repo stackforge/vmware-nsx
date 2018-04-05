@@ -18,7 +18,6 @@ import xml.etree.ElementTree as ET
 import netaddr
 from oslo_serialization import jsonutils
 from oslo_utils import uuidutils
-import six
 
 from vmware_nsx._i18n import _
 from vmware_nsx.plugins.nsx_v.vshield.common import constants
@@ -79,7 +78,7 @@ class FakeVcns(object):
         self._fake_nsx_api = fake_nsx_api
 
     def _validate_edge_name(self, name):
-        for edge_id, edge in six.iteritems(self._edges):
+        for edge_id, edge in self._edges.items():
             if edge['name'] == name:
                 return False
         return True
