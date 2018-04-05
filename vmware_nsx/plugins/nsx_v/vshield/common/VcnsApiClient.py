@@ -38,7 +38,7 @@ def _xmldump(obj):
     config = ""
     attr = ""
     if isinstance(obj, dict):
-        for key, value in six.iteritems(obj):
+        for key, value in obj.items():
             if key.startswith('__'):
                 # Skip the key and evaluate it's value.
                 a, x = _xmldump(value)

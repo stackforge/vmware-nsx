@@ -19,7 +19,6 @@ from neutron_lib.api import validators
 from neutron_lib import constants
 from neutron_lib import exceptions as n_exc
 from oslo_log import log
-import six
 
 from vmware_nsx.api_client import client
 from vmware_nsx.api_client import exception as api_exc
@@ -244,7 +243,7 @@ def get_nsx_device_statuses(cluster, tenant_id):
         return dict((nsx_device_id,
                      networkgw_db.STATUS_ACTIVE if connected
                      else networkgw_db.STATUS_DOWN) for
-                    (nsx_device_id, connected) in six.iteritems(status_dict))
+                    (nsx_device_id, connected) in status_dict.items())
     except api_exc.NsxApiException:
         # Do not make a NSX API exception fatal
         if tenant_id:

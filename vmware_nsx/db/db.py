@@ -14,7 +14,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import six
 from sqlalchemy.orm import exc
 
 from oslo_db import exception as db_exc
@@ -32,12 +31,12 @@ LOG = logging.getLogger(__name__)
 
 def _apply_filters_to_query(query, model, filters, like_filters=None):
     if filters:
-        for key, value in six.iteritems(filters):
+        for key, value in filters.items():
             column = getattr(model, key, None)
             if column:
                 query = query.filter(column.in_(value))
     if like_filters:
-        for key, search_term in six.iteritems(like_filters):
+        for key, search_term in like_filters.items():
             column = getattr(model, key, None)
             if column:
                 query = query.filter(column.like(search_term))

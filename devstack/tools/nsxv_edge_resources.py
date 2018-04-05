@@ -29,7 +29,6 @@ import xml.etree.ElementTree as et
 
 from oslo_serialization import jsonutils
 import requests
-import six
 
 requests.packages.urllib3.disable_warnings()
 
@@ -76,7 +75,7 @@ class NSXClient(object):
         config = self._get_tuning_configration()
         # NSX only receive XML format for the resource allocation update
         tuning = et.Element('tuningConfiguration')
-        for opt, val in six.iteritems(config):
+        for opt, val in config.items():
             child = et.Element(opt)
             if (opt == 'edgeVCpuReservationPercentage' or
                 opt == 'edgeMemoryReservationPercentage'):

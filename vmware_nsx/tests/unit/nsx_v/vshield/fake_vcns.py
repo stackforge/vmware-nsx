@@ -79,7 +79,7 @@ class FakeVcns(object):
         self._fake_nsx_api = fake_nsx_api
 
     def _validate_edge_name(self, name):
-        for edge_id, edge in six.iteritems(self._edges):
+        for edge_id, edge in self._edges.items():
             if edge['name'] == name:
                 return False
         return True

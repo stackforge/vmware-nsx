@@ -19,7 +19,6 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 from oslo_utils import strutils
-import six
 
 from vmware_nsx.common import nsxv_constants
 from vmware_nsx.common import utils
@@ -1006,7 +1005,7 @@ class Vcns(object):
         config = self.get_tuning_configration()
         LOG.debug("Tuning configuration: %s", config)
         tuning = et.Element('tuningConfiguration')
-        for opt, val in six.iteritems(config):
+        for opt, val in config.items():
             child = et.Element(opt)
             if opt == 'aggregatePublishing':
                 child.text = 'true'
@@ -1020,7 +1019,7 @@ class Vcns(object):
         uri = "/api/4.0/edgePublish/tuningConfiguration"
         config = self.get_tuning_configration()
         tuning = et.Element('tuningConfiguration')
-        for opt, val in six.iteritems(config):
+        for opt, val in config.items():
             child = et.Element(opt)
             if (opt == 'edgeVCpuReservationPercentage' or
                 opt == 'edgeMemoryReservationPercentage'):

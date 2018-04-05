@@ -18,7 +18,6 @@ from oslo_config import cfg
 from oslo_log import log
 from oslo_serialization import jsonutils
 from oslo_utils import excutils
-import six
 
 from vmware_nsx._i18n import _
 from vmware_nsx.api_client import exception as api_exc
@@ -566,7 +565,7 @@ def delete_nat_rules_by_match(cluster, router_id, rule_type,
         if (r['type'] != rule_type):
             continue
 
-        for key, value in six.iteritems(kwargs):
+        for key, value in kwargs.items():
             if not (key in r['match'] and r['match'][key] == value):
                 break
         else:

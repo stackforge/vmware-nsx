@@ -30,7 +30,6 @@ from oslo_db import exception as db_exc
 from oslo_log import log as logging
 from oslo_utils import excutils
 from oslo_utils import uuidutils
-import six
 from sqlalchemy import exc as sql_exc
 from sqlalchemy.orm import exc as sa_exc
 import webob.exc
@@ -940,7 +939,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         provider_type = self._convert_to_transport_zones_dict(net_data)
         self._validate_provider_create(context, net_data)
         # Replace ATTR_NOT_SPECIFIED with None before sending to NSX
-        for key, value in six.iteritems(network['network']):
+        for key, value in network['network'].items():
             if value is constants.ATTR_NOT_SPECIFIED:
                 net_data[key] = None
         # FIXME(arosen) implement admin_state_up = False in NSX

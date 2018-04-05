@@ -52,14 +52,14 @@ class NSXClusterTest(base.BaseTestCase):
 
     def test_create_cluster(self):
         cluster = nsx_cluster.NSXCluster(**self.cluster_opts)
-        for (k, v) in six.iteritems(self.cluster_opts):
+        for (k, v) in self.cluster_opts.items():
             self.assertEqual(v, getattr(cluster, k))
 
     def test_create_cluster_default_port(self):
         opts = self.cluster_opts.copy()
         opts['nsx_controllers'] = ['1.1.1.1']
         cluster = nsx_cluster.NSXCluster(**opts)
-        for (k, v) in six.iteritems(self.cluster_opts):
+        for (k, v) in self.cluster_opts.items():
             self.assertEqual(v, getattr(cluster, k))
 
     def test_create_cluster_missing_required_attribute_raises(self):

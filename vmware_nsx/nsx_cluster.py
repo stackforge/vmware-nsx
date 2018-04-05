@@ -47,7 +47,7 @@ class NSXCluster(object):
         self._deprecated_attributes = {}
         self._sanity_check(kwargs)
 
-        for opt, val in six.iteritems(self._deprecated_attributes):
+        for opt, val in self._deprecated_attributes.items():
             LOG.deprecated(_("Attribute '%s' has been deprecated or moved "
                              "to a new section. See new configuration file "
                              "for details."), opt)

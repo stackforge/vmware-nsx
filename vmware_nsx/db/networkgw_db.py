@@ -22,7 +22,6 @@ from neutron_lib import exceptions
 from neutron_lib.plugins import utils
 from oslo_log import log as logging
 from oslo_utils import uuidutils
-import six
 
 from vmware_nsx._i18n import _
 from vmware_nsx.db import nsx_models
@@ -171,7 +170,7 @@ class NetworkGatewayMixin(networkgw.NetworkGatewayPluginBase):
                                       mapping_info=None, only_one=False):
         mapping_info = mapping_info or {}
         filters = {'network_gateway_id': [gateway_id]}
-        for k, v in six.iteritems(mapping_info):
+        for k, v in mapping_info.items():
             if v and k != NETWORK_ID:
                 filters[k] = [v]
         query = model_query.get_collection_query(context,

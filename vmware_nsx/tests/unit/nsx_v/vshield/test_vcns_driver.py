@@ -19,7 +19,6 @@ import mock
 from neutron.tests import base
 from neutron_lib import context as neutron_context
 from oslo_config import cfg
-import six
 
 from vmware_nsx.common import exceptions as nsxv_exc
 from vmware_nsx.plugins.nsx_v import availability_zones as nsx_az
@@ -247,7 +246,7 @@ class VcnsDriverTaskManagerTestCase(base.BaseTestCase):
         # if _thread is None it means it was killed in stop()
         self.assertIsNone(manager._thread)
 
-        for res, tasks in six.iteritems(alltasks):
+        for res, tasks in alltasks.items():
             for task in tasks:
                 self.assertEqual(ts_const.TaskStatus.ABORT, task.status)
 
