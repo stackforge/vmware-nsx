@@ -22,6 +22,7 @@ from neutron_lib import constants as nl_constants
 from neutron_lib import context as n_context
 from neutron_lib.plugins import directory
 
+# DEBUG test
 LOG = logging.getLogger(__name__)
 
 try:
