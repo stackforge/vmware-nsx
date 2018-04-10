@@ -3143,8 +3143,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         mac_learning_profile_set = (
             validators.is_attr_set(address_pairs) and address_pairs and
             psec_is_on)
+        is_ens_tz_port = self._is_ens_tz_port(context, original_port)
         # Add mac_learning profile if it exists and is configured
-        if (self._mac_learning_profile and
+        if (not is_ens_tz_port and self._mac_learning_profile and
             (mac_learning_profile_set or
              updated_port.get(mac_ext.MAC_LEARNING) is True)):
             switch_profile_ids.append(self._mac_learning_profile)
