@@ -968,6 +968,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         physical_net = provider_data['physical_net']
         self._assert_on_ens_with_qos(physical_net, net_data)
+        self._assert_or_override_ens_with_portsecurity(physical_net, net_data)
         if (provider_data['switch_mode'] ==
             self.nsxlib.transport_zone.HOST_SWITCH_MODE_ENS):
             if not cfg.CONF.nsx_v3.ens_support:
@@ -1265,6 +1266,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             err_msg = _("Cannot configure QOS on ENS networks")
             raise n_exc.InvalidInput(error_message=err_msg)
 
+    def _assert_or_override_ens_with_portsecurity(self, tz_id, net_data):
+        if tz_id and self._is_ens_tz(tz_id):
+            if cfg.CONF.nsx_v3.disable_port_security_for_ens:
+                net_data[psec.PORTSECURITY] = False
+
     def _has_active_port(self, context, network_id):
         ports_in_use = context.session.query(models_v2.Port).filter_by(
             network_id=network_id).all()
@@ -1369,6 +1375,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         else:
             self._assert_on_ens_with_qos(self._get_net_tz(context, id),
                                          net_data)
+            self._assert_or_override_ens_with_portsecurity(
+                self._get_net_tz(context, id), net_data)
         updated_net = super(NsxV3Plugin, self).update_network(context, id,
                                                               network)
         self._extension_manager.process_update_network(context, net_data,
