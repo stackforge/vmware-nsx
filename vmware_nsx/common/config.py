@@ -444,6 +444,11 @@ nsx_v3_opts = [
                        "specifying Transport Zone UUID usable for VLAN "
                        "provider networks, as well as ranges of VLAN "
                        "tags on each available for allocation to networks.")),
+    cfg.BoolOpt('disable_port_security_for_ens',
+                default=False,
+                help=_("The variable sets the state of port security "
+                       "for ENS networks")),
+
 ]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
