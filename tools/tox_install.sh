@@ -20,4 +20,7 @@ if [ $CONSTRAINTS_FILE != "unconstrained" ]; then
     install_cmd="$install_cmd -c$CONSTRAINTS_FILE"
 fi
 
+echo "INSTALL CMD: $install_cmd"
+echo "ARGS: $*"
+
 $install_cmd -U $*
