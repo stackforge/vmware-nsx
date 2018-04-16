@@ -5,6 +5,8 @@ Below are the options for configuring the NSX plugin with DevStack. Prior
 to doing this DevStack needs to be downloaded. After updating the relevant
 configuration file(s) run ./stack.sh
 
+Dummy change
+
 NSXv
 ----
 
