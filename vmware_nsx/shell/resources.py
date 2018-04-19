@@ -41,6 +41,7 @@ class Operations(enum.Enum):
 
     NEUTRON_LIST = 'neutron-list'
     NEUTRON_CLEAN = 'neutron-clean'
+    NEUTRON_CLEAN_ALL = 'neutron-clean-all'
     NEUTRON_UPDATE = 'neutron-update'
 
     NSX_LIST = 'nsx-list'
@@ -150,7 +151,8 @@ nsxv_resources = {
                                       Operations.CLEAN_ALL.value,
                                       Operations.LIST_MISMATCHES.value,
                                       Operations.FIX_MISMATCH.value,
-                                      Operations.NEUTRON_CLEAN.value]),
+                                      Operations.NEUTRON_CLEAN.value,
+                                      Operations.NEUTRON_CLEAN_ALL.value]),
     constants.ORPHANED_EDGES: Resource(constants.ORPHANED_EDGES,
                                        [Operations.LIST.value,
                                         Operations.CLEAN.value]),
