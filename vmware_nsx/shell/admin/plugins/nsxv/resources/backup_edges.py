@@ -194,6 +194,35 @@ def neutron_clean_backup_edge(resource, event, trigger, **kwargs):
 
 
 @admin_utils.output_header
+def neutron_clean_all_backup_edge(resource, event, trigger, **kwargs):
+    """Delete all backup edges from the neutron and backend"""
+    edgeapi = utils.NeutronDbClient()
+    # filter all backup edges
+    like_filters = {'router_id': vcns_const.BACKUP_ROUTER_PREFIX + "%"}
+    rtr_bindings = nsxv_db.get_nsxv_router_bindings(edgeapi.context.session,
+                                                    like_filters=like_filters)
+
+    if not kwargs.get('force'):
+        #ask for the user confirmation
+        confirm = admin_utils.query_yes_no(
+            "Do you want to delete %s neutron backup edges?" %
+            len(rtr_bindings), default="no")
+        if not confirm:
+            LOG.info("Neutron backup edges deletion aborted by user")
+            return
+
+    for rtr_binding in rtr_bindings:
+        edge_id = rtr_binding['edge_id']
+        if edge_id:
+            # delete from backend too
+            _delete_edge_from_nsx_and_neutron(edge_id,
+                                              rtr_binding['router_id'])
+        else:
+            # delete only from DB
+            _delete_backup_from_neutron_db(None, router_id)
+
+
+@admin_utils.output_header
 def nsx_list_name_mismatches(resource, event, trigger, **kwargs):
     edges = utils.get_nsxv_backend_edges()
     plugin_nsx_mismatch = []
