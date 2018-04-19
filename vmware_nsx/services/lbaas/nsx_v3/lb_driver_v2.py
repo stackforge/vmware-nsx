@@ -74,11 +74,11 @@ class EdgeLoadbalancerDriverV2(object):
                              resources.ROUTER, events.BEFORE_DELETE)
 
     def _check_lb_service_on_router(self, resource, event, trigger,
-                                    **kwargs):
+                                    payload=None):
         """Check if there is any lb service on nsx router"""
 
-        nsx_router_id = nsx_db.get_nsx_router_id(kwargs['context'].session,
-                                                 kwargs['router_id'])
+        nsx_router_id = nsx_db.get_nsx_router_id(payload.context.session,
+                                                 payload.resource_id)
         if not nsx_router_id:
             return
         nsxlib = self.loadbalancer.core_plugin.nsxlib
