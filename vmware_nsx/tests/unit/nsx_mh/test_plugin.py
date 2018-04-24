@@ -17,6 +17,7 @@ import copy
 import mock
 from neutron.extensions import l3
 from neutron.extensions import securitygroup as secgrp
+from neutron.tests.unit.extensions import test_securitygroup as test_sg
 from neutron.tests.unit import _test_extension_portbindings as test_bindings
 import neutron.tests.unit.db.test_db_base_plugin_v2 as test_plugin
 from neutron.tests.unit.extensions import test_extra_dhcp_opt as test_dhcpopts
@@ -482,7 +483,7 @@ class TestL3SecGrpExtensionManager(TestL3ExtensionManager):
     def get_resources(self):
         resources = super(TestL3SecGrpExtensionManager,
                           self).get_resources()
-        resources.extend(secgrp.Securitygroup.get_resources())
+        resources.extend(test_sg.SecurityGroupTestExtensionManager().get_resources())
         return resources
 
 
