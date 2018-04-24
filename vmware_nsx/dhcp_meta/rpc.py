@@ -153,7 +153,8 @@ def _find_metadata_port(plugin, context, ports):
 def _find_dhcp_disabled_subnet_by_port(plugin, context, ports):
     for port in ports:
         for fixed_ip in port['fixed_ips']:
-            subnet = plugin.get_subnet(context, fixed_ip['subnet_id'])
+            with db_api.context_manager.reader.using(context):
+                subnet = plugin.get_subnet(context, fixed_ip['subnet_id'])
             if not subnet['enable_dhcp']:
                 return subnet
 
