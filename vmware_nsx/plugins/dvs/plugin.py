@@ -112,7 +112,7 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
             extension_drivers = cfg.CONF.nsx_extension_drivers
         self._extension_manager = nsx_managers.ExtensionManager(
              extension_drivers=extension_drivers)
-        LOG.debug('Driver support: DVS: %s' % dvs_utils.dvs_is_enabled())
+        LOG.debug('Driver supported: DVS: %s' % dvs_utils.dvs_is_enabled())
         self._extension_manager.initialize()
         self.supported_extension_aliases.extend(
             self._extension_manager.extension_aliases())
