@@ -3217,6 +3217,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         with db_api.context_manager.writer.using(context):
             router_db = self._get_router(context, lrouter['id'])
+            router_driver = self._get_router_driver(context, router_db)
             self._process_extra_attr_router_create(context, router_db, r)
             self._process_nsx_router_create(context, router_db, r)
             self._process_router_flavor_create(context, router_db, r)
@@ -3225,7 +3226,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             lrouter = super(NsxVPluginV2, self).get_router(context,
                                                            lrouter['id'])
         try:
-            router_driver = self._get_router_driver(context, router_db)
             if router_driver.get_type() == nsxv_constants.EXCLUSIVE:
                 router_driver.create_router(
                     context, lrouter,
