@@ -19,6 +19,7 @@ from neutron_lib.api.definitions import subnet as subnet_def
 from neutron_lib.callbacks import events
 from neutron_lib.callbacks import registry
 from neutron_lib.callbacks import resources
+from neutron_lib import constants as const
 from neutron_lib import context as n_context
 from neutron_lib.plugins import constants as plugin_constants
 from neutron_lib.plugins import directory
@@ -116,6 +117,7 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self.lbv2_driver = lb_driver_v2.EdgeLoadbalancerDriverV2()
 
         self._unsubscribe_callback_events()
+        self._init_dhcp_notifications()
 
     @staticmethod
     def plugin_type():
@@ -168,6 +170,68 @@ class NsxTVDPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         # validate the availability zones configuration
         self.init_availability_zones()
+
+    def _get_dhcp_notifier_agent(self):
+        dvs_plugin = self.plugins.get(projectpluginmap.NsxPlugins.DVS)
+        if dvs_plugin:
+            return dvs_plugin.agent_notifiers.get(const.AGENT_TYPE_DHCP)
+
+    def _init_dhcp_notifications(self):
+        # the DHCP notifications should be on only for some of the plugins
+        # (currently only dvs). if so - unregister the current callbacks,
+        # and replace them with callbacks based on plugin type.
+        if not self.plugins.get(projectpluginmap.NsxPlugins.DVS):
+            if cfg.CONF.dhcp_agent_notification:
+                LOG.error("TVD plugin without DVS requires the dhcp_agent_"
+                          "notification to be set to False")
+            LOG.info("DVS plugin is not used - not changing the dhcp "
+                     "notifications")
+            return
+        # dhcp_agent_notification should be set to True
+        if not cfg.CONF.dhcp_agent_notification:
+            LOG.error("DVS plugin under TVD requires the dhcp_agent_"
+                      "notification to be set to True")
+            return
+
+        notify_api = self._get_dhcp_notifier_agent()
+        if not notify_api:
+            LOG.error("DVS plugin under TVD does not have the dhcp notifier")
+            return
+
+        subscribed_resources = [resources.NETWORK,
+                                resources.PORT,
+                                resources.SUBNET]
+        subscribed_events = [events.AFTER_CREATE,
+                             events.AFTER_UPDATE,
+                             events.AFTER_DELETE]
+        for resource in subscribed_resources:
+            registry.unsubscribe_by_resource(
+                notify_api._native_event_send_dhcp_notification, resource)
+            for event in subscribed_events:
+                registry.subscribe(
+                    self._native_event_send_dhcp_notification,
+                    resource, event)
+
+    def _native_event_send_dhcp_notification(self, resource, event, trigger,
+                                             context, **kwargs):
+        # Call the dhcp agent notifier only for DVS plugin events
+        core_plugin = directory.get_plugin()
+        project_id = kwargs[resource].get('project_id')
+        if project_id:
+            p = core_plugin._get_plugin_from_project(context, project_id)
+            if p.plugin_type() != projectpluginmap.NsxPlugins.DVS:
+                LOG.info("Skipping TVD %(plugin)s notification for "
+                         "%(event)s %(resource)s",
+                         {'plugin': p.plugin_type(), 'event': event,
+                          'resource': resource})
+                return
+
+            notify_api = self._get_dhcp_notifier_agent()
+            if notify_api:
+                LOG.info("TVD DVS notifier called for %(event)s %(resource)s",
+                         {'event': event, 'resource': resource})
+                return notify_api._native_event_send_dhcp_notification(
+                    resource, event, trigger, context, **kwargs)
 
     def get_plugin_by_type(self, plugin_type):
         return self.plugins.get(plugin_type)

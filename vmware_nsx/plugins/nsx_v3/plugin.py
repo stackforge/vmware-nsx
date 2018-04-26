@@ -738,7 +738,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def _init_dhcp_metadata(self):
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
-            if cfg.CONF.dhcp_agent_notification:
+            if cfg.CONF.dhcp_agent_notification and not self._is_sub_plugin:
                 msg = _("Need to disable dhcp_agent_notification when "
                         "native_dhcp_metadata is enabled")
                 raise nsx_exc.NsxPluginException(err_msg=msg)
