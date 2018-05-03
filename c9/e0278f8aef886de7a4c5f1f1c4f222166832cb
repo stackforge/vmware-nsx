@@ -1,0 +1,10 @@
+Code-Review+2: Adit Sarfaty <asarfaty@vmware.com>
+Code-Review+2: garyk <gkotton@vmware.com>
+Workflow+1: garyk <gkotton@vmware.com>
+Verified+1: VMware NSX CI
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Thu, 03 May 2018 08:16:24 +0000
+Reviewed-on: https://review.openstack.org/565972
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/pike
