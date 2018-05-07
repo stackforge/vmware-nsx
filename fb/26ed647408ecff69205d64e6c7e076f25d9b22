@@ -1,0 +1,10 @@
+Code-Review+2: garyk <gkotton@vmware.com>
+Verified+1: VMware NSX CI
+Code-Review+2: Adit Sarfaty <asarfaty@vmware.com>
+Workflow+1: Adit Sarfaty <asarfaty@vmware.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Mon, 07 May 2018 10:22:51 +0000
+Reviewed-on: https://review.openstack.org/566512
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/queens
