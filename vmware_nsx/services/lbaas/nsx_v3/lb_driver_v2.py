@@ -17,6 +17,9 @@ from neutron_lib.callbacks import events
 from neutron_lib.callbacks import exceptions as nc_exc
 from neutron_lib.callbacks import registry
 from neutron_lib.callbacks import resources
+from neutron_lib import exceptions as n_exc
+from neutron_lib.plugins import constants as plugin_const
+from neutron_lib.plugins import directory
 from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
 
@@ -64,30 +67,79 @@ class EdgeLoadbalancerDriverV2(object):
 
     def _subscribe_router_delete_callback(self):
         # Check if there is any LB attachment for the NSX router.
-        # This callback is subscribed here to prevent router deletion
-        # if it still has LB service attached to it.
+        # This callback is subscribed here to prevent router/GW/interface
+        # deletion if it still has LB service attached to it.
         registry.subscribe(self._check_lb_service_on_router,
                            resources.ROUTER, events.BEFORE_DELETE)
+        registry.subscribe(self._check_lb_service_on_router,
+                           resources.ROUTER_GATEWAY, events.BEFORE_DELETE)
+        registry.subscribe(self._check_lb_service_on_router_interface,
+                           resources.ROUTER_INTERFACE, events.BEFORE_DELETE)
 
     def _unsubscribe_router_delete_callback(self):
         registry.unsubscribe(self._check_lb_service_on_router,
                              resources.ROUTER, events.BEFORE_DELETE)
+        registry.unsubscribe(self._check_lb_service_on_router,
+                             resources.ROUTER_GATEWAY, events.BEFORE_DELETE)
+        registry.unsubscribe(self._check_lb_service_on_router_interface,
+                             resources.ROUTER_INTERFACE, events.BEFORE_DELETE)
 
     def _check_lb_service_on_router(self, resource, event, trigger,
                                     **kwargs):
-        """Check if there is any lb service on nsx router"""
+        """Prevent removing a router GW or deleting a router used by LB"""
+        router_id = kwargs.get('router_id')
+        context = kwargs['context']
+        nsx_router_id = nsx_db.get_nsx_router_id(kwargs['context'].session,
+                                                 router_id)
+        if not nsx_router_id:
+            # Skip non-v3 routers (could be a V router in case of TVD plugin)
+            return
+        nsxlib = self.loadbalancer.core_plugin.nsxlib
+        service_client = nsxlib.load_balancer.service
+        # Check if there is any lb service on nsx router
+        lb_service = service_client.get_router_lb_service(nsx_router_id)
+        if lb_service:
+            msg = _('Cannot delete a %s as it still has lb service '
+                    'attachment') % resource
+            raise nc_exc.CallbackFailure(msg)
+
+        # Also check if there are any loadbalancers attached to this router
+        # subnets
+        lb_plugin = directory.get_plugin(plugin_const.LOADBALANCERV2)
+        if not lb_plugin:
+            return
+        router_subnets = self.loadbalancer.core_plugin._find_router_subnets(
+            context.elevated(), router_id)
+        subnet_ids = [subnet['id'] for subnet in router_subnets]
+        filters = {'vip_subnet_id': subnet_ids}
+        if lb_plugin.get_loadbalancers(context.elevated(), filters=filters):
+            msg = (_('Cannot delete a %s as it used by a loadbalancer') %
+                   resource)
+            raise n_exc.BadRequest(resource='lbaas-lb', msg=msg)
+
+    def _check_lb_service_on_router_interface(self, *args, **kwargs):
+        # Prevent removing the interface of an LB subnet from a router
+        router_id = kwargs.get('router_id')
+        subnet_id = kwargs.get('subnet_id')
+        if not router_id or not subnet_id:
+            return
 
         nsx_router_id = nsx_db.get_nsx_router_id(kwargs['context'].session,
                                                  kwargs['router_id'])
         if not nsx_router_id:
+            # Skip non-v3 routers (could be a V router in case of TVD plugin)
             return
-        nsxlib = self.loadbalancer.core_plugin.nsxlib
-        service_client = nsxlib.load_balancer.service
-        lb_service = service_client.get_router_lb_service(nsx_router_id)
-        if lb_service:
-            msg = _('Cannot delete router as it still has lb service '
-                    'attachment')
-            raise nc_exc.CallbackFailure(msg)
+
+        # get the LB plugin and check if any loadbalancer is using this subnet
+        lb_plugin = directory.get_plugin(plugin_const.LOADBALANCERV2)
+        if not lb_plugin:
+            return
+        filters = {'vip_subnet_id': [subnet_id]}
+        if lb_plugin.get_loadbalancers(kwargs['context'].elevated(),
+                                       filters=filters):
+            msg = _('Cannot delete a router interface as it used by a '
+                    'loadbalancer')
+            raise n_exc.BadRequest(resource='lbaas-lb', msg=msg)
 
 
 class DummyLoadbalancerDriverV2(object):
