@@ -1410,6 +1410,10 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxV3PluginTestCaseMixin,
             "vmware_nsx.services.lbaas.nsx_v3.lb_driver_v2."
             "EdgeLoadbalancerDriverV2._check_lb_service_on_router")
         self.lb_mock.start()
+        self.lb_mock = mock.patch(
+            "vmware_nsx.services.lbaas.nsx_v3.lb_driver_v2."
+            "EdgeLoadbalancerDriverV2._check_lb_service_on_router_interface")
+        self.lb_mock.start()
 
         super(L3NatTest, self).setUp(
             plugin=plugin, ext_mgr=ext_mgr, service_plugins=service_plugins)
