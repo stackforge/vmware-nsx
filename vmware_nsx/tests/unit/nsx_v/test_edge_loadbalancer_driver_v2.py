@@ -991,8 +991,9 @@ class TestEdgeLbaasV2L7Rule(BaseTestEdgeLbaasV2):
 
             mock_successful_completion = (
                 self.lbv2_driver.l7rule.successful_completion)
-            mock_successful_completion.assert_called_with(
-                self.context, self.l7rule1, delete=False)
+            mock_successful_completion.assert_called_with(self.context,
+                                                          self.l7rule1,
+                                                          delete=False)
 
             # Create the 2nd rule
             self.l7rule2.policy.rules = [self.l7rule1, self.l7rule2]
@@ -1010,8 +1011,9 @@ class TestEdgeLbaasV2L7Rule(BaseTestEdgeLbaasV2):
 
             mock_successful_completion = (
                 self.lbv2_driver.l7rule.successful_completion)
-            mock_successful_completion.assert_called_with(
-                self.context, self.l7rule2, delete=False)
+            mock_successful_completion.assert_called_with(self.context,
+                                                          self.l7rule2,
+                                                          delete=False)
 
     def test_update(self):
         new_rule = lb_models.L7Rule(L7RULE_ID1, LB_TENANT_ID,
