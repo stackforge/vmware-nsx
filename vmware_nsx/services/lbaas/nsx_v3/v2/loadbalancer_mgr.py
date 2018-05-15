@@ -17,13 +17,13 @@ from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
 
 from vmware_nsx.services.lbaas import lb_translators
-from vmware_nsx.services.lbaas.nsx_v.common import loadbalancer_mgr as lb_mgr
+from vmware_nsx.services.lbaas.nsx_v3.common import loadbalancer_mgr as lb_mgr
 
 LOG = logging.getLogger(__name__)
 
 
 class EdgeLoadBalancerManager(lb_mgr.EdgeLoadBalancerManagerFromDict):
-    """Wrapper class for NSX-V LBaaS V2
+    """Wrapper class for NSX-V3 LBaaS V2
 
     This class will call the actual NSX-V LBaaS logic after translating
     the LB object into a dictionary, and will also handle success/failure cases

@@ -23,13 +23,13 @@ from oslo_log import log as logging
 
 from vmware_nsx._i18n import _
 from vmware_nsx.db import db as nsx_db
-from vmware_nsx.services.lbaas.nsx_v3 import healthmonitor_mgr as hm_mgr
-from vmware_nsx.services.lbaas.nsx_v3 import l7policy_mgr
-from vmware_nsx.services.lbaas.nsx_v3 import l7rule_mgr
-from vmware_nsx.services.lbaas.nsx_v3 import listener_mgr
-from vmware_nsx.services.lbaas.nsx_v3 import loadbalancer_mgr as lb_mgr
-from vmware_nsx.services.lbaas.nsx_v3 import member_mgr
-from vmware_nsx.services.lbaas.nsx_v3 import pool_mgr
+from vmware_nsx.services.lbaas.nsx_v3.v2 import healthmonitor_mgr as hm_mgr
+from vmware_nsx.services.lbaas.nsx_v3.v2 import l7policy_mgr
+from vmware_nsx.services.lbaas.nsx_v3.v2 import l7rule_mgr
+from vmware_nsx.services.lbaas.nsx_v3.v2 import listener_mgr
+from vmware_nsx.services.lbaas.nsx_v3.v2 import loadbalancer_mgr as lb_mgr
+from vmware_nsx.services.lbaas.nsx_v3.v2 import member_mgr
+from vmware_nsx.services.lbaas.nsx_v3.v2 import pool_mgr
 
 LOG = logging.getLogger(__name__)
 

@@ -51,7 +51,7 @@ from webob import exc
 from vmware_nsx.api_client import exception as api_exc
 from vmware_nsx.common import utils
 from vmware_nsx.plugins.nsx_v3 import plugin as nsx_plugin
-from vmware_nsx.services.lbaas.nsx_v3 import lb_driver_v2
+from vmware_nsx.services.lbaas.nsx_v3.v2 import lb_driver_v2
 from vmware_nsx.tests import unit as vmware
 from vmware_nsx.tests.unit.extensions import test_metadata
 from vmware_nsxlib.tests.unit.v3 import mocks as nsx_v3_mocks
