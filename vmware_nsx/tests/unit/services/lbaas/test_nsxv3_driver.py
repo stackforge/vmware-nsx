@@ -21,8 +21,8 @@ from neutron_lib import exceptions as n_exc
 
 from vmware_nsx.db import db as nsx_db
 from vmware_nsx.services.lbaas import base_mgr
-from vmware_nsx.services.lbaas.nsx_v3 import lb_driver_v2
-from vmware_nsx.services.lbaas.nsx_v3 import lb_utils
+from vmware_nsx.services.lbaas.nsx_v3.implementation import lb_utils
+from vmware_nsx.services.lbaas.nsx_v3.v2 import lb_driver_v2
 
 
 LB_VIP = '10.0.0.10'
