@@ -15,52 +15,42 @@
 
 from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
-from oslo_utils import excutils
 
-from vmware_nsx.common import locking
-from vmware_nsx.services.lbaas import base_mgr
-from vmware_nsx.services.lbaas.nsx_v.v2 import l7policy_mgr
+from vmware_nsx.services.lbaas import lb_translators
+from vmware_nsx.services.lbaas.nsx_v.common import l7rule_mgr
 
 LOG = logging.getLogger(__name__)
 
 
-class EdgeL7RuleManager(base_mgr.EdgeLoadbalancerBaseManager):
-    @log_helpers.log_method_call
-    def __init__(self, vcns_driver):
-        super(EdgeL7RuleManager, self).__init__(vcns_driver)
+class EdgeL7RuleManager(l7rule_mgr.EdgeL7RuleManagerFromDict):
+    """Wrapper class for NSX-V LBaaS V2
 
-    def _handle_l7policy_rules_change(self, context, rule, delete=False):
-        # Get the nsx application rule id and edge id
-        edge_id, app_rule_id = l7policy_mgr.policy_to_edge_and_rule_id(
-            context, rule.l7policy_id)
-
-        # Create the script for the new policy data.
-        # The policy obj on the rule is already updated with the
-        # created/updated/deleted rule.
-        app_rule = l7policy_mgr.policy_to_application_rule(rule.policy)
-        try:
-            with locking.LockManager.get_lock(edge_id):
-                # update the backend application rule for the updated policy
-                self.vcns.update_app_rule(edge_id, app_rule_id, app_rule)
-        except Exception as e:
-            with excutils.save_and_reraise_exception():
-                self.lbv2_driver.l7rule.failed_completion(context, rule)
-                LOG.error('Failed to update L7rules on edge %(edge)s: '
-                          '%(err)s',
-                          {'edge': edge_id, 'err': e})
-
-        # complete the transaction
-        self.lbv2_driver.l7rule.successful_completion(context, rule,
-                                                      delete=delete)
-
+    This class will call the actual NSX-V LBaaS logic after translating
+    the LB object into a dictionary, and will also handle success/failure cases
+    """
     @log_helpers.log_method_call
     def create(self, context, rule):
-        self._handle_l7policy_rules_change(context, rule)
+        rule_dict = lb_translators.lb_l7rule_obj_to_dict(rule)
+        super(EdgeL7RuleManager, self).create(
+            context, rule_dict, rule_obj=rule)
 
     @log_helpers.log_method_call
     def update(self, context, old_rule, new_rule):
-        self._handle_l7policy_rules_change(context, new_rule)
+        old_rule_dict = lb_translators.lb_l7rule_obj_to_dict(old_rule)
+        new_rule_dict = lb_translators.lb_l7rule_obj_to_dict(new_rule)
+        super(EdgeL7RuleManager, self).update(
+            context, old_rule_dict, new_rule_dict, rule_obj=new_rule)
 
     @log_helpers.log_method_call
     def delete(self, context, rule):
-        self._handle_l7policy_rules_change(context, rule, delete=True)
+        rule_dict = lb_translators.lb_l7rule_obj_to_dict(rule)
+        super(EdgeL7RuleManager, self).delete(
+            context, rule_dict, rule_obj=rule)
+
+    def successful_completion(self, context, rule_obj, delete=False,
+                              lb_create=False):
+        self.lbv2_driver.l7rule.successful_completion(
+            context, rule_obj, delete=delete, lb_create=lb_create)
+
+    def failed_completion(self, context, rule_obj):
+        self.lbv2_driver.l7rule.failed_completion(context, rule_obj)
