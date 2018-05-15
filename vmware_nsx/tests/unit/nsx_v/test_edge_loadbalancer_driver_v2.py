@@ -281,9 +281,8 @@ class TestEdgeLbaasV2LoadbalancerOnRtr(BaseTestEdgeLbaasV2):
                 self.edge_driver.vcns, LB_EDGE_ID, 'deny')
             mock_successful_completion = (
                 self.lbv2_driver.load_balancer.successful_completion)
-            mock_successful_completion.assert_called_with(self.context,
-                                                          self.lb,
-                                                          delete=True)
+            mock_successful_completion.assert_called_with(
+                self.context, self.lb, delete=True)
 
     def test_delete_new(self):
         with mock.patch.object(nsxv_db, 'get_nsxv_lbaas_loadbalancer_binding'
@@ -312,9 +311,8 @@ class TestEdgeLbaasV2LoadbalancerOnRtr(BaseTestEdgeLbaasV2):
                 mock.ANY, 'lbaas-' + LB_ID, dist=False)
             mock_successful_completion = (
                 self.lbv2_driver.load_balancer.successful_completion)
-            mock_successful_completion.assert_called_with(self.context,
-                                                          self.lb,
-                                                          delete=True)
+            mock_successful_completion.assert_called_with(
+                self.context, self.lb, delete=True)
 
     def test_stats(self):
         pass
@@ -500,9 +498,8 @@ class TestEdgeLbaasV2Listener(BaseTestEdgeLbaasV2):
                                                 LB_ID, LISTENER_ID)
             mock_successful_completion = (
                 self.lbv2_driver.listener.successful_completion)
-            mock_successful_completion.assert_called_with(self.context,
-                                                          self.listener,
-                                                          delete=True)
+            mock_successful_completion.assert_called_with(
+                self.context, self.listener, delete=True)
 
 
 class TestEdgeLbaasV2Pool(BaseTestEdgeLbaasV2):
@@ -616,9 +613,8 @@ class TestEdgeLbaasV2Pool(BaseTestEdgeLbaasV2):
                 self.context.session, LB_ID, POOL_ID)
             mock_successful_completion = (
                 self.lbv2_driver.pool.successful_completion)
-            mock_successful_completion.assert_called_with(self.context,
-                                                          self.pool,
-                                                          delete=True)
+            mock_successful_completion.assert_called_with(
+                self.context, self.pool, delete=True)
 
 
 class TestEdgeLbaasV2Member(BaseTestEdgeLbaasV2):
@@ -716,9 +712,8 @@ class TestEdgeLbaasV2Member(BaseTestEdgeLbaasV2):
                 self.context, self.core_plugin, LB_ID, None)
             mock_successful_completion = (
                 self.lbv2_driver.member.successful_completion)
-            mock_successful_completion.assert_called_with(self.context,
-                                                          self.member,
-                                                          delete=True)
+            mock_successful_completion.assert_called_with(
+                self.context, self.member, delete=True)
 
 
 class TestEdgeLbaasV2HealthMonitor(BaseTestEdgeLbaasV2):
@@ -790,8 +785,7 @@ class TestEdgeLbaasV2HealthMonitor(BaseTestEdgeLbaasV2):
             mock_upd_hm.assert_called_with(LB_EDGE_ID, EDGE_HM_ID, edge_hm_def)
             mock_successful_completion = (
                 self.lbv2_driver.health_monitor.successful_completion)
-            mock_successful_completion.assert_called_with(self.context,
-                                                          new_hm)
+            mock_successful_completion.assert_called_with(self.context, new_hm)
 
     def test_delete(self):
         with mock.patch.object(nsxv_db, 'get_nsxv_lbaas_loadbalancer_binding'
@@ -827,9 +821,8 @@ class TestEdgeLbaasV2HealthMonitor(BaseTestEdgeLbaasV2):
                                                 POOL_ID, HM_ID, LB_EDGE_ID)
             mock_successful_completion = (
                 self.lbv2_driver.health_monitor.successful_completion)
-            mock_successful_completion.assert_called_with(self.context,
-                                                          self.hm,
-                                                          delete=True)
+            mock_successful_completion.assert_called_with(
+                self.context, self.hm, delete=True)
 
 
 class TestEdgeLbaasV2L7Policy(BaseTestEdgeLbaasV2):
@@ -918,8 +911,8 @@ class TestEdgeLbaasV2L7Policy(BaseTestEdgeLbaasV2):
             mock_upd_vip.assert_called()
             mock_successful_completion = (
                 self.lbv2_driver.l7policy.successful_completion)
-            mock_successful_completion.assert_called_with(self.context,
-                                                          new_pol)
+            mock_successful_completion.assert_called_with(
+                self.context, new_pol)
 
     def test_delete(self):
         with mock.patch.object(nsxv_db, 'get_nsxv_lbaas_l7policy_binding'
@@ -957,9 +950,8 @@ class TestEdgeLbaasV2L7Policy(BaseTestEdgeLbaasV2):
                 self.context.session, L7POL_ID)
             mock_successful_completion = (
                 self.lbv2_driver.l7policy.successful_completion)
-            mock_successful_completion.assert_called_with(self.context,
-                                                          self.l7policy,
-                                                          delete=True)
+            mock_successful_completion.assert_called_with(
+                self.context, self.l7policy, delete=True)
 
 
 class TestEdgeLbaasV2L7Rule(BaseTestEdgeLbaasV2):
@@ -991,8 +983,9 @@ class TestEdgeLbaasV2L7Rule(BaseTestEdgeLbaasV2):
 
             mock_successful_completion = (
                 self.lbv2_driver.l7rule.successful_completion)
-            mock_successful_completion.assert_called_with(
-                self.context, self.l7rule1, delete=False)
+            mock_successful_completion.assert_called_with(self.context,
+                                                          self.l7rule1,
+                                                          delete=False)
 
             # Create the 2nd rule
             self.l7rule2.policy.rules = [self.l7rule1, self.l7rule2]
