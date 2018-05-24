@@ -113,7 +113,15 @@ from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.services.fwaas.common import utils as fwaas_utils
 from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks_v1
 from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks_v2
+from vmware_nsx.services.lbaas.nsx_v3.implementation import healthmon_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import l7policy_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import l7rule_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import listener_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import loadbalancer_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import member_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import pool_mgr
 from vmware_nsx.services.lbaas.nsx_v3.v2 import lb_driver_v2
+from vmware_nsx.services.lbaas.octavia import octavia_listener
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
 from vmware_nsx.services.trunk.nsx_v3 import driver as trunk_driver
@@ -224,6 +232,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self.fwaas_callbacks = None
         self._is_sub_plugin = tvd_utils.is_tvd_core_plugin()
         self.init_is_complete = False
+        self.octavia_listener = None
         nsxlib_utils.set_is_attr_callback(validators.is_attr_set)
         self._extend_fault_map()
         if self._is_sub_plugin:
@@ -411,7 +420,20 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # Init the FWaaS support
             self._init_fwaas()
 
+            # Init octavia listener and endpoints
+            self._init_octavia()
+
             self.init_is_complete = True
+
+    def _init_octavia(self):
+        self.octavia_listener = octavia_listener.NSXOctaviaListener(
+            loadbalancer=loadbalancer_mgr.EdgeLoadBalancerManagerFromDict(),
+            listener=listener_mgr.EdgeListenerManagerFromDict(),
+            pool=pool_mgr.EdgePoolManagerFromDict(),
+            member=member_mgr.EdgeMemberManagerFromDict(),
+            healthmonitor=healthmon_mgr.EdgeHealthMonitorManagerFromDict(),
+            l7policy=l7policy_mgr.EdgeL7PolicyManagerFromDict(),
+            l7rule=l7rule_mgr.EdgeL7RuleManagerFromDict())
 
     def _extend_fault_map(self):
         """Extends the Neutron Fault Map.
