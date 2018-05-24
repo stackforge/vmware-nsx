@@ -684,6 +684,15 @@ def add_nsxv_lbaas_loadbalancer_binding(
     return binding
 
 
+def get_nsxv_lbaas_loadbalancer_bindings(session, filters=None,
+                                         like_filters=None):
+    session = db_api.get_reader_session()
+    query = session.query(nsxv_models.NsxvRouterBinding)
+    return nsx_db._apply_filters_to_query(
+        query, nsxv_models.NsxvLbaasLoadbalancerBinding, filters,
+        like_filters).all()
+
+
 def get_nsxv_lbaas_loadbalancer_binding(session, loadbalancer_id):
     try:
         return session.query(

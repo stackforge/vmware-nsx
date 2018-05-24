@@ -281,3 +281,7 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                 context.session, lb_id, listener['id'])
 
         completor(success=True)
+
+
+def stats_getter(context):
+    return []
