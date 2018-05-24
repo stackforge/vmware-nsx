@@ -101,7 +101,7 @@ class EdgeHealthMonitorManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
         completor(success=True)
 
     def update(self, context, old_hm, new_hm, completor):
-        # TODO(asarfaty): Shouldn't this be implemented?
+        # TODO(asarfaty): implement this
         completor(success=True)
 
     def delete(self, context, hm, completor):
