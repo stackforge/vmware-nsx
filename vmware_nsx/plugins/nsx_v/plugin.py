@@ -144,6 +144,14 @@ from vmware_nsx.plugins.nsx_v.vshield import securitygroup_utils
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
 from vmware_nsx.services.flowclassifier.nsx_v import utils as fc_utils
 from vmware_nsx.services.fwaas.nsx_v import fwaas_callbacks
+from vmware_nsx.services.lbaas.nsx_v.implementation import healthmon_mgr
+from vmware_nsx.services.lbaas.nsx_v.implementation import l7policy_mgr
+from vmware_nsx.services.lbaas.nsx_v.implementation import l7rule_mgr
+from vmware_nsx.services.lbaas.nsx_v.implementation import listener_mgr
+from vmware_nsx.services.lbaas.nsx_v.implementation import loadbalancer_mgr
+from vmware_nsx.services.lbaas.nsx_v.implementation import member_mgr
+from vmware_nsx.services.lbaas.nsx_v.implementation import pool_mgr
+from vmware_nsx.services.lbaas.octavia import octavia_listener
 
 LOG = logging.getLogger(__name__)
 PORTGROUP_PREFIX = 'dvportgroup'
@@ -227,6 +235,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def __init__(self):
         self._is_sub_plugin = tvd_utils.is_tvd_core_plugin()
         self.init_is_complete = False
+        self.octavia_listener = None
+        self.octavia_stats_collector = None
         self.housekeeper = None
         super(NsxVPluginV2, self).__init__()
         if self._is_sub_plugin:
@@ -323,6 +333,10 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # Bind QoS notifications
         qos_driver.register(self)
 
+        registry.subscribe(self.spawn_complete,
+                           resources.PROCESS,
+                           events.AFTER_SPAWN)
+
         # subscribe the init complete method last, so it will be called only
         # if init was successful
         registry.subscribe(self.init_complete,
@@ -336,6 +350,13 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     @staticmethod
     def is_tvd_plugin():
         return False
+
+    def spawn_complete(self, resource, event, trigger, payload=None):
+        self.octavia_stats_collector = (
+            octavia_listener.NSXOctaviaStatisticsCollector(
+                self,
+                loadbalancer_mgr.stats_getter,
+                listener_mgr.stats_getter))
 
     def init_complete(self, resource, event, trigger, payload=None):
         with locking.LockManager.get_lock('plugin-init-complete'):
@@ -363,6 +384,18 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 hk_jobs=cfg.CONF.nsxv.housekeeping_jobs,
                 hk_readonly=cfg.CONF.nsxv.housekeeping_readonly,
                 hk_readonly_jobs=cfg.CONF.nsxv.housekeeping_readonly_jobs)
+
+            # Init octavia listener and endpoints
+            self.octavia_listener = octavia_listener.NSXOctaviaListener(
+                loadbalancer=loadbalancer_mgr.EdgeLoadBalancerManagerFromDict(
+                    self.nsx_v),
+                listener=listener_mgr.EdgeListenerManagerFromDict(self.nsx_v),
+                pool=pool_mgr.EdgePoolManagerFromDict(self.nsx_v),
+                member=member_mgr.EdgeMemberManagerFromDict(self.nsx_v),
+                healthmonitor=healthmon_mgr.EdgeHealthMonitorManagerFromDict(
+                    self.nsx_v),
+                l7policy=l7policy_mgr.EdgeL7PolicyManagerFromDict(self.nsx_v),
+                l7rule=l7rule_mgr.EdgeL7RuleManagerFromDict(self.nsx_v))
 
             self.init_is_complete = True
 

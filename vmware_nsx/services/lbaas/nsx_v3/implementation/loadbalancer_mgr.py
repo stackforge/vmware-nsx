@@ -152,3 +152,7 @@ class EdgeLoadBalancerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
             if vs_binding:
                 vs_list.append(vs_binding.get('lb_vs_id'))
         return vs_list
+
+
+def stats_getter(context, core_plugin):
+    return []

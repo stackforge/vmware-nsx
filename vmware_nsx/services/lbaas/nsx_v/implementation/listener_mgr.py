@@ -297,3 +297,7 @@ class EdgeListenerManagerFromDict(base_mgr.EdgeLoadbalancerBaseManager):
                                                     listener['id'])
 
         completor(success=True)
+
+
+def stats_getter(context):
+    return []
