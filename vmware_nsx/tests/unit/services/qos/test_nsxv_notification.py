@@ -44,8 +44,15 @@ class TestQosNsxVNotification(test_plugin.NsxVPluginV2TestCase,
         self._init_dvs_config()
         # Reset the drive to re-create it
         qos_driver.DRIVER = None
-        super(TestQosNsxVNotification, self).setUp(plugin=CORE_PLUGIN,
-                                                   ext_mgr=None)
+        # Skip Octavia init because of RPC conflicts
+        with mock.patch("vmware_nsx.services.lbaas.octavia.octavia_listener."
+                        "NSXOctaviaListener.__init__", return_value=None),\
+            mock.patch("vmware_nsx.services.lbaas.octavia.octavia_listener."
+                       "NSXOctaviaStatisticsCollector.__init__",
+                       return_value=None):
+            super(TestQosNsxVNotification, self).setUp(plugin=CORE_PLUGIN,
+                                                       ext_mgr=None,
+                                                       with_md_proxy=False)
         self.setup_coreplugin(CORE_PLUGIN)
 
         plugin_instance = directory.get_plugin()
@@ -126,7 +133,6 @@ class TestQosNsxVNotification(test_plugin.NsxVPluginV2TestCase,
     def _create_net(self, net_data=None):
         if net_data is None:
             net_data = self._net_data
-            net_data['tenant_id'] = self.test_tenant_id
         with mock.patch('vmware_nsx.services.qos.common.utils.'
                         'get_network_policy_id',
                         return_value=self.policy.id):
