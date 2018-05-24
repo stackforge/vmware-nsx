@@ -128,7 +128,8 @@ class TestQosNsxVNotification(test_plugin.NsxVPluginV2TestCase,
 
     def _create_net(self, net_data=None):
         if net_data is None:
-            net_data = self._net_data
+            net_data = copy.deepcopy(self._net_data)
+            net_data['tenant_id'] = 'fake_tenant'
         with mock.patch('vmware_nsx.services.qos.common.utils.'
                         'get_network_policy_id',
                         return_value=self.policy.id):
@@ -181,6 +182,7 @@ class TestQosNsxVNotification(test_plugin.NsxVPluginV2TestCase,
                        'get_object', return_value=default_policy):
             # create the network (with no specific qos policy)
             net_data = copy.deepcopy(self._net_data)
+            net_data['tenant_id'] = 'fake_tenant'
             del net_data['network']['qos_policy_id']
             net = self._create_net(net_data=net_data)
 
