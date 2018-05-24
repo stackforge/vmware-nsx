@@ -93,7 +93,7 @@ def listener_to_edge_vse(context, listener, vip_address, default_pool,
         'applicationProfileId': app_profile_id}
 
     # Add the L7 policies
-    if listener['l7_policies']:
+    if listener.get('l7_policies'):
         app_rule_ids = []
         for pol in listener['l7_policies']:
             binding = nsxv_db.get_nsxv_lbaas_l7policy_binding(
