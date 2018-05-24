@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import copy
+
 from neutron_lib import exceptions as n_exc
 from oslo_log import helpers as log_helpers
 from oslo_log import log as logging
@@ -281,3 +283,41 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                 context.session, lb_id, listener['id'])
 
         completor(success=True)
+
+
+def stats_getter(context, core_plugin):
+    """Update Octavia statistics for each listener (virtual server)"""
+    stat_list = []
+    lb_service_client = core_plugin.nsxlib.load_balancer.service
+    # Go over all the loadbalancers
+    lb_bindings = nsx_db.get_nsx_lbaas_loadbalancer_bindings(
+        context.session)
+    for lb_binding in lb_bindings:
+        lb_service_id = lb_binding.get('lb_service_id')
+        try:
+            rsp = lb_service_client.get_stats(lb_service_id)
+            if rsp and 'virtual_servers' in rsp:
+                for vs in rsp['virtual_servers']:
+                    # look up the virtual server in the DB
+                    vs_bind = nsx_db.get_nsx_lbaas_listener_binding_by_vs_id(
+                        context.session, vs['virtual_server_id'])
+                    if vs_bind:
+                        vs_stats = vs['statistics']
+                        stats = copy.copy(lb_const.LB_EMPTY_STATS)
+                        stats['id'] = vs_bind.listener_id
+                        stats['request_errors'] = 0  # currently unsupported
+                        for stat in lb_const.LB_STATS_MAP:
+                            lb_stat = lb_const.LB_STATS_MAP[stat]
+                            stats[stat] += vs_stats[lb_stat]
+                        stat_list.append(stats)
+
+        except nsxlib_exc.ManagerError:
+            pass
+
+    # DEBUG ADIT for debugging
+    # debug_stats = copy.copy(lb_const.LB_EMPTY_STATS)
+    # debug_stats['bytes_out'] = 88
+    # debug_stats['request_errors'] = 0
+    # debug_stats['id'] = '5db536ae-3acc-4ff6-8aa9-c581c4778199'
+    # stat_list.append(debug_stats) # DEBUG ADIT
+    return stat_list
