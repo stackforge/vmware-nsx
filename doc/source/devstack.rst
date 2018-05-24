@@ -223,6 +223,30 @@ Add neutron-vpnaas repo as an external repository and configure following flags 
     enable_plugin neutron-vpnaas https://git.openstack.org/openstack/neutron-vpnaas
     NEUTRON_VPNAAS_SERVICE_PROVIDER=VPN:vmware:vmware_nsx.services.vpnaas.nsxv3.ipsec_driver.NSXv3IPsecVpnDriver:default
 
+Octavia
+~~~~~~~
+
+Add octavia repo as an external repository and configure following flags in ``local.conf``::
+
+    [[local|localrc]]
+    OCTAVIA_NODE=api
+    DISABLE_AMP_IMAGE_BUILD=True
+    enable_plugin octavia $GIT_BASE/openstack/octavia.git
+    enable_plugin octavia-dashboard $GIT_BASE/openstack/octavia-dashboard
+    enable_service octavia
+    enable_service o-api
+
+    [[post-config|$OCTAVIA_CONF]]
+    [DEFAULT]
+    verbose = True
+    debug = True
+
+    [api_settings]
+    default_provider_driver=octavia_nsx_driver
+    enabled_provider_drivers=octavia_nsx_driver:NSX
+
+    [oslo_messaging]
+    topic=vmwarensxv_edge_lb
 
 NSX-TVD
 -------
