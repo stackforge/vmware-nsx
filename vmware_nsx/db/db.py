@@ -559,6 +559,10 @@ def get_nsx_lbaas_loadbalancer_binding(session, loadbalancer_id):
         return
 
 
+def get_nsx_lbaas_loadbalancer_bindings(session):
+    return session.query(nsx_models.NsxLbaasLoadbalancer).all()
+
+
 def get_nsx_lbaas_loadbalancer_binding_by_service(session, lb_service_id):
     return session.query(
         nsx_models.NsxLbaasLoadbalancer).filter_by(
@@ -587,6 +591,15 @@ def get_nsx_lbaas_listener_binding(session, loadbalancer_id, listener_id):
             nsx_models.NsxLbaasListener).filter_by(
                 loadbalancer_id=loadbalancer_id,
                 listener_id=listener_id).one()
+    except exc.NoResultFound:
+        return
+
+
+def get_nsx_lbaas_listener_binding_by_vs_id(session, lb_vs_id):
+    try:
+        return session.query(
+            nsx_models.NsxLbaasListener).filter_by(
+                lb_vs_id=lb_vs_id).one()
     except exc.NoResultFound:
         return
 
