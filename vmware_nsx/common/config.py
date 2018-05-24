@@ -262,7 +262,11 @@ nsx_common_opts = [
                 default=[],
                 help=_("(Optional) List of email addresses for "
                        "notifications.")),
+    cfg.IntOpt('octavia_stats_interval',
+               default=0,
+               help=_("Interval in seconds for Octavia statistics reporting")),
 ]
+
 nsx_v3_opts = [
     cfg.ListOpt('nsx_api_user',
                 default=['admin'],
