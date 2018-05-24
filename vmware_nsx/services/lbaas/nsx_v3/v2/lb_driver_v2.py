@@ -104,6 +104,7 @@ class EdgeLoadbalancerDriverV2(base_mgr.LoadbalancerBaseManager):
 
         self._subscribe_router_delete_callback()
 
+    #TODO(asarfaty): Need those for Octavia as well
     def _subscribe_router_delete_callback(self):
         # Check if there is any LB attachment for the NSX router.
         # This callback is subscribed here to prevent router/GW/interface
