@@ -107,7 +107,7 @@ class EdgeLoadBalancerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
         completor(success=True)
 
     def refresh(self, context, lb):
-        # TODO(tongl): implememnt
+        # TODO(tongl): implement
         pass
 
     def stats(self, context, lb):
