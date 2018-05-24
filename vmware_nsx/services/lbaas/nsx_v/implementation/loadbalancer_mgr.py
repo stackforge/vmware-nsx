@@ -31,6 +31,7 @@ from vmware_nsx.plugins.nsx_v.vshield.common import (
 from vmware_nsx.plugins.nsx_v.vshield.common import exceptions as nsxv_exc
 from vmware_nsx.services.lbaas import base_mgr
 from vmware_nsx.services.lbaas.nsx_v import lbaas_common as lb_common
+from vmware_nsx.services.lbaas.octavia import constants as oct_const
 
 LOG = logging.getLogger(__name__)
 
@@ -203,12 +204,15 @@ class EdgeLoadBalancerManagerFromDict(base_mgr.EdgeLoadbalancerBaseManager):
         subnet = self.core_plugin.get_subnet(context.elevated(), subnet_id)
 
         filters = {'fixed_ips': {'subnet_id': [subnet_id]},
-                   'device_owner': [constants.DEVICE_OWNER_LOADBALANCERV2]}
+                   'device_owner': [constants.DEVICE_OWNER_LOADBALANCERV2,
+                                    oct_const.DEVICE_OWNER_OCTAVIA]}
         lb_ports = self.core_plugin.get_ports(context.elevated(),
                                               filters=filters)
 
         if lb_ports:
             for lb_port in lb_ports:
+                # TODO(asarfaty): for Octavia this code might need to change
+                # as the device_id is different
                 if lb_port['device_id']:
                     edge_bind = nsxv_db.get_nsxv_lbaas_loadbalancer_binding(
                         context.session, lb_port['device_id'])
