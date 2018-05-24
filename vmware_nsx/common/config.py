@@ -229,7 +229,6 @@ cluster_opts = [
                       "network connection")),
 ]
 
-
 nsx_common_opts = [
     cfg.StrOpt('nsx_l2gw_driver',
                help=_("Specify the class path for the Layer 2 gateway "
@@ -262,7 +261,11 @@ nsx_common_opts = [
                 default=[],
                 help=_("(Optional) List of email addresses for "
                        "notifications.")),
+    cfg.IntOpt('octavia_stats_interval',
+               default=0,
+               help=_("Interval in seconds for Octavia statistics reporting")),
 ]
+
 nsx_v3_opts = [
     cfg.ListOpt('nsx_api_user',
                 default=['admin'],
