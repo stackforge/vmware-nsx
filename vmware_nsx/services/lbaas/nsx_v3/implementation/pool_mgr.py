@@ -37,6 +37,7 @@ class EdgePoolManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
 
     def _get_pool_kwargs(self, name=None, tags=None, algorithm=None,
                          session_persistence=None):
+        # TODO(asarfaty): Add description to backend parameters
         kwargs = {}
         if name:
             kwargs['display_name'] = name
@@ -117,7 +118,7 @@ class EdgePoolManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
             context.session, old_pool['loadbalancer_id'], old_pool['id'])
         if not binding:
             msg = (_('Cannot find pool %(pool)s binding on NSX db '
-                     'mapping'), {'pool': old_pool['id']})
+                     'mapping') % {'pool': old_pool['id']})
             raise n_exc.BadRequest(resource='lbaas-pool', msg=msg)
         try:
             lb_pool_id = binding['lb_pool_id']

@@ -37,6 +37,7 @@ class EdgeHealthMonitorManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
 
     @log_helpers.log_method_call
     def _build_monitor_args(self, hm):
+        # TODO(asarfaty): Add description to backend parameters
         if hm['type'] in lb_const.NSXV3_MONITOR_MAP:
             monitor_type = lb_const.NSXV3_MONITOR_MAP.get(hm['type'])
         else:
@@ -103,6 +104,7 @@ class EdgeHealthMonitorManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
             completor.successful_completion(context, obj)
 
     def update(self, context, old_hm, new_hm, obj=None, completor=None):
+        #TODO(asarfaty): should we implement this?
         if completor:
             completor.successful_completion(context, obj)
 
