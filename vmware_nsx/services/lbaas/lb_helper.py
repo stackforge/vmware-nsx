@@ -104,4 +104,4 @@ class LBaaSNSXObjectManagerWrapper(object):
                    self.object_type)
             raise n_exc.BadRequest(resource='edge', msg=msg)
         obj_dict = self.translator(obj)
-        self.implementor.stats(context, obj_dict)
+        return self.implementor.stats(context, obj_dict)
