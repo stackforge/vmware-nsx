@@ -115,7 +115,16 @@ from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.services.fwaas.common import utils as fwaas_utils
 from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks_v1
 from vmware_nsx.services.fwaas.nsx_v3 import fwaas_callbacks_v2
+from vmware_nsx.services.lbaas.nsx_v3.implementation import healthmonitor_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import l7policy_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import l7rule_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import listener_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import loadbalancer_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import member_mgr
+from vmware_nsx.services.lbaas.nsx_v3.implementation import pool_mgr
 from vmware_nsx.services.lbaas.nsx_v3.v2 import lb_driver_v2
+from vmware_nsx.services.lbaas.octavia import constants as oct_const
+from vmware_nsx.services.lbaas.octavia import octavia_listener
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
 from vmware_nsx.services.trunk.nsx_v3 import driver as trunk_driver
@@ -226,6 +235,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self.fwaas_callbacks = None
         self._is_sub_plugin = tvd_utils.is_tvd_core_plugin()
         self.init_is_complete = False
+        self.octavia_listener = None
         nsxlib_utils.set_is_attr_callback(validators.is_attr_set)
         self._extend_fault_map()
         if self._is_sub_plugin:
@@ -457,7 +467,24 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # Init the FWaaS support
             self._init_fwaas()
 
+            # Init octavia listener and endpoints
+            self._init_octavia()
+
             self.init_is_complete = True
+
+    def _init_octavia(self):
+        if not self.nsxlib.feature_supported(
+            nsxlib_consts.FEATURE_LOAD_BALANCER):
+            return
+
+        self.octavia_listener = octavia_listener.NSXOctaviaListener(
+            loadbalancer=loadbalancer_mgr.EdgeLoadBalancerManagerFromDict(),
+            listener=listener_mgr.EdgeListenerManagerFromDict(),
+            pool=pool_mgr.EdgePoolManagerFromDict(),
+            member=member_mgr.EdgeMemberManagerFromDict(),
+            healthmonitor=healthmonitor_mgr.EdgeHealthMonitorManagerFromDict(),
+            l7policy=l7policy_mgr.EdgeL7PolicyManagerFromDict(),
+            l7rule=l7rule_mgr.EdgeL7RuleManagerFromDict())
 
     def _extend_fault_map(self):
         """Extends the Neutron Fault Map.
@@ -4485,7 +4512,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             port_data = self.get_port(context, port_id)
             device_owner = port_data.get('device_owner')
             fip_address = new_fip['floating_ip_address']
-            if device_owner == const.DEVICE_OWNER_LOADBALANCERV2:
+            if (device_owner == const.DEVICE_OWNER_LOADBALANCERV2 or
+                device_owner == oct_const.DEVICE_OWNER_OCTAVIA):
                 try:
                     self._update_lb_vip(port_data, fip_address)
                 except nsx_lib_exc.ManagerError:
@@ -4514,7 +4542,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             port_data = self.get_port(context, port_id)
             device_owner = port_data.get('device_owner')
             fixed_ip_address = fip['fixed_ip_address']
-            if device_owner == const.DEVICE_OWNER_LOADBALANCERV2:
+            if (device_owner == const.DEVICE_OWNER_LOADBALANCERV2 or
+                device_owner == oct_const.DEVICE_OWNER_OCTAVIA):
                 # If the port is LB VIP port, after deleting the FIP,
                 # update the virtual server VIP back to fixed IP.
                 is_lb_port = True
@@ -4557,7 +4586,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 old_port_data = self.get_port(context, old_port_id)
                 old_device_owner = old_port_data['device_owner']
                 old_fixed_ip = old_fip['fixed_ip_address']
-                if old_device_owner == const.DEVICE_OWNER_LOADBALANCERV2:
+                if (old_device_owner == const.DEVICE_OWNER_LOADBALANCERV2 or
+                    old_device_owner == oct_const.DEVICE_OWNER_OCTAVIA):
                     is_lb_port = True
                     self._update_lb_vip(old_port_data, old_fixed_ip)
 
