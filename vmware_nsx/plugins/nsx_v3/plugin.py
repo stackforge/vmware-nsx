@@ -330,12 +330,17 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     ) % NSX_V3_FW_DEFAULT_NS_GROUP
             raise nsx_exc.NsxPluginException(err_msg=msg)
         self.default_section = self._init_default_section_rules()
+        LOG.info("Initializing NSX v3 default section %(section)s "
+                 "and NSGroup %(nsgroup)s",
+                 {'section': self.default_section,
+                  'nsgroup': self._default_section_nsgroup})
 
     def _ensure_global_sg_placeholder(self, context):
         try:
             super(NsxV3Plugin, self).get_security_group(
                 context, NSX_V3_OS_DFW_UUID, fields=['id'])
         except ext_sg.SecurityGroupNotFound:
+            LOG.warning('Creating a global security group')
             sec_group = {'security_group':
                          {'id': NSX_V3_OS_DFW_UUID,
                           'tenant_id': nsx_constants.INTERNAL_V3_TENANT_ID,
@@ -348,9 +353,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             except Exception:
                 # Treat a race of multiple processing creating the seg group
                 LOG.warning('Unable to create global security group')
+        else:
+            LOG.warning('Found a global security group')
 
     def _cleanup_duplicates(self, default_ns_group_id):
-        LOG.warning("Duplicate rules created. Cleaning up!")
+        LOG.warning("Duplicate rules created! Deleting NS groups %(nsgroup)s "
+                    "and section %(section)s",
+                    {'nsgroup': default_ns_group_id,
+                     'section': self.default_section})
         # Delete duplicates created
         self.nsxlib.firewall_section.delete(self.default_section)
         self.nsxlib.ns_group.delete(default_ns_group_id)
@@ -370,6 +380,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         default_ns_group_id = self._default_section_nsgroup.get('id')
         duplicates = False
         if nsgroup_id is None or section_id is None:
+            # This means that the DB was not updated with the NSX IDs
             try:
                 LOG.debug("Updating NSGroup - %s, Section %s",
                           default_ns_group_id, self.default_section)
@@ -378,14 +389,21 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                         default_ns_group_id,
                                         self.default_section)
             except Exception:
+                # Another process must have update the DB at the same time
                 LOG.debug("Concurrent update! Duplicates exist")
                 duplicates = True
-        elif (section_id != self.default_section or
-              nsgroup_id != default_ns_group_id):
-            LOG.debug("NSGroup and Section don't match those in the DB. "
-                      "Duplicates exist")
+        elif (section_id != self.default_section):
+            LOG.debug("Section %(nsx)s don't match those in the DB %(db)s. "
+                      "Duplicates exist", {'nsx': self.default_section,
+                                           'db': section_id})
+            duplicates = True
+        elif (nsgroup_id != default_ns_group_id):
+            LOG.debug("NSGroup %(nsx)s don't match those in the DB %(db)s. "
+                      "Duplicates exist", {'nsx': default_ns_group_id,
+                                           'db': nsgroup_id})
             duplicates = True
         if duplicates:
+            # deleting the default NS group & section found on the NSX backend
             self._cleanup_duplicates(default_ns_group_id)
 
     @staticmethod
