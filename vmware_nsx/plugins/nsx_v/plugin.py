@@ -141,6 +141,7 @@ from vmware_nsx.plugins.nsx_v.vshield import edge_firewall_driver
 from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 from vmware_nsx.plugins.nsx_v.vshield import securitygroup_utils
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
+from vmware_nsx.services.lbaas.octavia import octavia_listener
 from vmware_nsx.services.flowclassifier.nsx_v import utils as fc_utils
 from vmware_nsx.services.fwaas.nsx_v import fwaas_callbacks
 
@@ -226,6 +227,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def __init__(self):
         self._is_sub_plugin = tvd_utils.is_tvd_core_plugin()
         self.init_is_complete = False
+        self.octavia_listener = None
         self.housekeeper = None
         super(NsxVPluginV2, self).__init__()
         if self._is_sub_plugin:
@@ -361,6 +363,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 hk_ns='vmware_nsx.neutron.nsxv.housekeeper.jobs',
                 hk_jobs=cfg.CONF.nsxv.housekeeping_jobs)
 
+            self.octavia_listener = octavia_listener.NSXOctaviaListener()
             self.init_is_complete = True
 
     def _validate_nsx_version(self):
