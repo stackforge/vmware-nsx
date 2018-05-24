@@ -68,7 +68,7 @@ class EdgeLoadBalancerManagerFromDict(base_mgr.EdgeLoadbalancerBaseManager):
                 msg = _('No suitable Edge found for subnet %s') % sub_id
                 raise n_exc.BadRequest(resource='edge-lbaas', msg=msg)
         else:
-            lb_size = self._get_lb_flavor_size(context, lb['flavor_id'])
+            lb_size = self._get_lb_flavor_size(context, lb.get('flavor_id'))
             edge_id = lb_common.get_lbaas_edge_id(
                 context, self.core_plugin, lb['id'], lb['vip_address'],
                 sub_id, lb['tenant_id'], lb_size)

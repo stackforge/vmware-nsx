@@ -398,6 +398,7 @@ class NsxLbaasLoadbalancer(model_base.BASEV2, models.TimestampMixin):
     This stores the mapping between LBaaS loadbalancer and NSX LB service id
     and NSX logical router id.
     """
+    #TODO(asarfaty) Octavia remove ForeignKey
     __tablename__ = 'nsxv3_lbaas_loadbalancers'
     fk_name = 'fk_nsxv3_lbaas_loadbalancers_id'
     loadbalancer_id = sa.Column(sa.String(36),
@@ -412,6 +413,7 @@ class NsxLbaasLoadbalancer(model_base.BASEV2, models.TimestampMixin):
 
 class NsxLbaasListener(model_base.BASEV2, models.TimestampMixin):
     """Stores the mapping between LBaaS listener and NSX LB virtual server"""
+    #TODO(asarfaty) Octavia remove ForeignKey
     __tablename__ = 'nsxv3_lbaas_listeners'
     loadbalancer_id = sa.Column(sa.String(36), primary_key=True)
     listener_id = sa.Column(sa.String(36),
@@ -425,6 +427,7 @@ class NsxLbaasListener(model_base.BASEV2, models.TimestampMixin):
 
 class NsxLbaasPool(model_base.BASEV2, models.TimestampMixin):
     """Stores the mapping between LBaaS pool and NSX LB Pool"""
+    #TODO(asarfaty) Octavia remove ForeignKey
     __tablename__ = 'nsxv3_lbaas_pools'
     loadbalancer_id = sa.Column(sa.String(36), primary_key=True)
     pool_id = sa.Column(sa.String(36),
@@ -438,6 +441,7 @@ class NsxLbaasPool(model_base.BASEV2, models.TimestampMixin):
 
 class NsxLbaasMonitor(model_base.BASEV2, models.TimestampMixin):
     """Stores the mapping between LBaaS monitor and NSX LB monitor"""
+    #TODO(asarfaty) Octavia remove ForeignKey
     __tablename__ = 'nsxv3_lbaas_monitors'
     loadbalancer_id = sa.Column(sa.String(36), primary_key=True)
     pool_id = sa.Column(sa.String(36), primary_key=True)
@@ -459,6 +463,7 @@ class NsxLbaasL7Rule(model_base.BASEV2, models.TimestampMixin):
     DB migration script there, but instead we update the table with
     a new db migration script in Queen.
     """
+    #TODO(asarfaty) Octavia remove ForeignKey
     __tablename__ = 'nsxv3_lbaas_l7rules'
     loadbalancer_id = sa.Column(sa.String(36), primary_key=True)
     l7policy_id = sa.Column(sa.String(36), primary_key=True)
@@ -473,6 +478,7 @@ class NsxLbaasL7Rule(model_base.BASEV2, models.TimestampMixin):
 
 class NsxLbaasL7Policy(model_base.BASEV2, models.TimestampMixin):
     """Stores the mapping between LBaaS l7policy and NSX LB rule"""
+    #TODO(asarfaty) Octavia remove ForeignKey
     __tablename__ = 'nsxv3_lbaas_l7policies'
     l7policy_id = sa.Column(sa.String(36),
                             sa.ForeignKey('lbaas_l7policies.id',

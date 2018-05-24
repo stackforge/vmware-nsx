@@ -249,7 +249,7 @@ class NsxvSpoofGuardPolicyNetworkMapping(model_base.BASEV2,
 
 class NsxvLbaasLoadbalancerBinding(model_base.BASEV2, models.TimestampMixin):
     """Mapping between Edge LB and LBaaSv2"""
-
+    #TODO(asarfaty) Octavia remove ForeignKey
     __tablename__ = 'nsxv_lbaas_loadbalancer_bindings'
 
     loadbalancer_id = sa.Column(sa.String(36),
@@ -264,6 +264,7 @@ class NsxvLbaasLoadbalancerBinding(model_base.BASEV2, models.TimestampMixin):
 
 class NsxvLbaasListenerBinding(model_base.BASEV2, models.TimestampMixin):
     """Mapping between Edge VSE and LBaaSv2"""
+    #TODO(asarfaty) Octavia remove ForeignKey
 
     __tablename__ = 'nsxv_lbaas_listener_bindings'
 
@@ -279,6 +280,7 @@ class NsxvLbaasListenerBinding(model_base.BASEV2, models.TimestampMixin):
 
 class NsxvLbaasPoolBinding(model_base.BASEV2, models.TimestampMixin):
     """Mapping between Edge Pool and LBaaSv2"""
+    #TODO(asarfaty) Octavia remove ForeignKey
 
     __tablename__ = 'nsxv_lbaas_pool_bindings'
 
@@ -293,6 +295,7 @@ class NsxvLbaasPoolBinding(model_base.BASEV2, models.TimestampMixin):
 
 class NsxvLbaasMonitorBinding(model_base.BASEV2, models.TimestampMixin):
     """Mapping between Edge Monitor and LBaaSv2"""
+    #TODO(asarfaty) Octavia remove ForeignKey
 
     __tablename__ = 'nsxv_lbaas_monitor_bindings'
 
@@ -321,6 +324,7 @@ class NsxvLbaasL7PolicyBinding(model_base.BASEV2, models.TimestampMixin):
     """Mapping between NSX Edge and LBaaSv2 L7 policy """
 
     __tablename__ = 'nsxv_lbaas_l7policy_bindings'
+    #TODO(asarfaty) Octavia remove ForeignKey
 
     policy_id = sa.Column(sa.String(36),
                           sa.ForeignKey('lbaas_l7policies.id',
