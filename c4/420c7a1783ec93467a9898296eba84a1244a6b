@@ -1,0 +1,10 @@
+Verified+1: VMware NSX CI
+Code-Review+1: Salvatore Orlando <salv.orlando@gmail.com>
+Code-Review+2: garyk <gkotton@vmware.com>
+Workflow+1: Salvatore Orlando <salv.orlando@gmail.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Fri, 25 May 2018 13:46:27 +0000
+Reviewed-on: https://review.openstack.org/570359
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
