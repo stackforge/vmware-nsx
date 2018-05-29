@@ -1,0 +1,11 @@
+Verified+1: VMware NSX CI
+Code-Review+2: Anna Khmelnitsky <akhmelnitsky@vmware.com>
+Code-Review+1: kaka <huang.zhiping@99cloud.net>
+Code-Review+2: Kobi Samoray <ksamoray@vmware.com>
+Workflow+1: Kobi Samoray <ksamoray@vmware.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Tue, 29 May 2018 21:46:17 +0000
+Reviewed-on: https://review.openstack.org/570731
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
