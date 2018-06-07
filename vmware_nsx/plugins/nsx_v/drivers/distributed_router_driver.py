@@ -236,7 +236,7 @@ class RouterDistributedDriver(router_driver.RouterBaseDriver):
                 raise n_exc.InvalidInput(error_message=err_msg)
             else:
                 # attach to multiple routers
-                raise n_exc.Conflict(error_message=err_msg)
+                raise n_exc.InvalidInput(error_message=err_msg)
         # Validate that the subnet is not a v6 one
         subnet = self.plugin.get_subnet(context.elevated(), subnet_id)
         if (subnet.get('ip_version') == 6 or
