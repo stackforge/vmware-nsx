@@ -88,7 +88,7 @@ class VcnsApiHelper(object):
 
     def __init__(self, address, user, password, format='json', ca_file=None,
                  insecure=True, timeout=None):
-        self.authToken = base64.encodestring(six.b("%s:%s" % (user, password)))
+        self.authToken = base64.encodebytes(six.b("%s:%s" % (user, password)))
         self.user = user
         self.passwd = password
         self.address = address

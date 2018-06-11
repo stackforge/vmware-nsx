@@ -160,7 +160,10 @@ def _log_before_retry(func, trial_number):
 
 
 def _get_args_from_frame(frames, frame_num):
+    # TODO(asarfaty) find a way to replace the deprecated inspect method that
+    # will work for both python 2 & 3
     if len(frames) > frame_num and frames[frame_num] and frames[frame_num][0]:
+        # pylint: disable=deprecated-method
         argvalues = inspect.getargvalues(frames[frame_num][0])
         formated_args = inspect.formatargvalues(*argvalues)
         # remove the first 'self' arg from the log as it adds no information

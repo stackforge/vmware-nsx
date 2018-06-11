@@ -30,6 +30,7 @@ def versioned(func_table):
             # Call the wrapper function, in case we need to
             # run validation checks regarding versions. It
             # should return the NSX version
+            # pylint: disable=deprecated-method
             v = (wrapped_func(cluster, *args, **kwargs) or
                  cluster.api_client.get_version())
             func = get_function_by_version(func_table, func_name, v)
