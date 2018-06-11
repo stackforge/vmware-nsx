@@ -88,6 +88,9 @@ class VcnsApiHelper(object):
 
     def __init__(self, address, user, password, format='json', ca_file=None,
                  insecure=True, timeout=None):
+        # TODO(asarfaty) find a way to replace the deprecated inspect method that
+        # will work for both python 2 & 3
+        # pylint: disable=deprecated-method        
         self.authToken = base64.encodestring(six.b("%s:%s" % (user, password)))
         self.user = user
         self.passwd = password
