@@ -26,7 +26,7 @@ LOG = logging.getLogger(__name__)
 
 try:
     from neutron_fwaas.db.firewall.v2 import firewall_db_v2
-    from neutron_fwaas.services.firewall.agents.l3reference \
+    from neutron_fwaas.services.firewall.service_drivers.agents.l3reference \
         import firewall_l3_agent_v2
 except ImportError:
     # FWaaS project no found
@@ -42,6 +42,7 @@ class DummyAgentApi(object):
 class NsxFwaasCallbacksV2(firewall_l3_agent_v2.L3WithFWaaS):
     """Common NSX RPC callbacks for Firewall As A Service - V2."""
     def __init__(self):
+        LOG.error("DEBUG ADIT NsxFwaasCallbacksV2 init")
         # The super code needs a configuration object with the neutron host
         # and an agent_mode, which our driver doesn't use.
         neutron_conf = cfg.CONF
