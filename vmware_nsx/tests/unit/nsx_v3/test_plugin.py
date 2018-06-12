@@ -1304,14 +1304,10 @@ class L3NatTest(test_l3_plugin.L3BaseForIntTests, NsxV3PluginTestCaseMixin,
                                              new=lambda v: True)
         mock_nsx_version.start()
         # Make sure the LB callback is not called on router deletion
-        self.lb_mock1 = mock.patch(
+        self.lb_mock = mock.patch(
             "vmware_nsx.services.lbaas.nsx_v3.lb_driver_v2."
             "EdgeLoadbalancerDriverV2._check_lb_service_on_router")
-        self.lb_mock1.start()
-        self.lb_mock2 = mock.patch(
-            "vmware_nsx.services.lbaas.nsx_v3.lb_driver_v2."
-            "EdgeLoadbalancerDriverV2._check_lb_service_on_router_interface")
-        self.lb_mock2.start()
+        self.lb_mock.start()
 
         super(L3NatTest, self).setUp(
             plugin=plugin, ext_mgr=ext_mgr, service_plugins=service_plugins)
@@ -1397,23 +1393,19 @@ class TestL3NatTestCase(L3NatTest,
         self.skipTest('not supported')
 
     def test_router_delete_with_lb_service(self):
-        self.lb_mock1.stop()
-        self.lb_mock2.stop()
+        self.lb_mock.stop()
         # Create the LB object - here the delete callback is registered
         lb_driver = lb_driver_v2.EdgeLoadbalancerDriverV2()
         with self.router() as router:
             with mock.patch('vmware_nsxlib.v3.load_balancer.Service.'
-                            'get_router_lb_service'),\
-                mock.patch('vmware_nsx.db.db.get_nsx_router_id',
-                           return_value=1):
+                            'get_router_lb_service'):
                 self.assertRaises(nc_exc.CallbackFailure,
                                   self.plugin_instance.delete_router,
                                   context.get_admin_context(),
                                   router['router']['id'])
         # Unregister callback
         lb_driver._unsubscribe_router_delete_callback()
-        self.lb_mock1.start()
-        self.lb_mock2.start()
+        self.lb_mock.start()
 
     def test_multiple_subnets_on_different_routers(self):
         with self.network() as network:
