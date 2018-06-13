@@ -1853,6 +1853,17 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             err_msg = (_("Cannot configure QOS directly on ports"))
             raise n_exc.InvalidInput(error_message=err_msg)
 
+    def _assert_on_lb_port_admin_state(self, port_data, original_port,
+                                       device_owner):
+        """Do not allow changing the admin state of some ports"""
+        if device_owner == constants.DEVICE_OWNER_LOADBALANCERV2:
+            if port_data.get("admin_state_up") is False and original_port.get(
+                    "admin_state_up") is True:
+                err_msg = _("admin_state_up=Changing admin_state for "
+                            "loadbalancer's internal port is not supported.")
+                LOG.warning(err_msg)
+                raise n_exc.InvalidInput(error_message=err_msg)
+
     def create_port(self, context, port):
         port_data = port['port']
         dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS)
@@ -2128,6 +2139,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             port_data.get('device_owner', original_port['device_owner']))
         orig_has_port_security = (cfg.CONF.nsxv.spoofguard_enabled and
                                   original_port[psec.PORTSECURITY])
+        orig_device_owner = original_port.get('device_owner')
+        self._assert_on_lb_port_admin_state(port_data, original_port,
+                                            orig_device_owner)
         port_mac_change = port_data.get('mac_address') is not None
         port_ip_change = port_data.get('fixed_ips') is not None
         device_owner_change = port_data.get('device_owner') is not None
