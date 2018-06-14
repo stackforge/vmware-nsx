@@ -2,11 +2,20 @@
     name: vmware-tox-lower-constraints
     parent: openstack-tox-lower-constraints
     timeout: 5400
-
+    required-projects:
+              - openstack/neutron
+              - openstack/networking-l2gw
+              - openstack/networking-sfc
+              - openstack/neutron-lbaas
+              - openstack/vmware-nsxlib
+              - openstack/neutron-fwaas
+              - openstack/neutron-dynamic-routing
+              - openstack/neutron-vpnaas
+              - openstack/tap-as-a-service
 - project:
     check:
       jobs:
-        - vmware-tox-lower-constraints
+        - vmware-tox-lower-constraints:
     gate:
       jobs:
-        - vmware-tox-lower-constraints
+        - vmware-tox-lower-constraints:
