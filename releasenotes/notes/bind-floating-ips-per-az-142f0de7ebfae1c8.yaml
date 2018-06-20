@@ -1,7 +1,7 @@
 ---
 prelude: >
     Enable 'bind_floatingip_to_all_interfaces' to be configured per
-    availability zone.
+    availability zone.test
 features:
   - |
     Enable 'bind_floatingip_to_all_interfaces' to be configured per
