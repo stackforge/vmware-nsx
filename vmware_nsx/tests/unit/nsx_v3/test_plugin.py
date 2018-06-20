@@ -90,7 +90,7 @@ def _mock_nsx_backend_calls():
     mock.patch("vmware_nsxlib.v3.client.NSX3Client").start()
 
     fake_profile = {'key': 'FakeKey',
-                    'resource_type': 'FakeResource',
+                    'resource_type': 'FakeResourceXXX',
                     'id': uuidutils.generate_uuid()}
 
     def _return_id(*args, **kwargs):
