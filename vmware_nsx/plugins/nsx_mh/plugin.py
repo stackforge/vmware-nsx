@@ -1009,7 +1009,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         # this extra lookup is necessary to get the
         # latest db model for the extension functions
-        net_model = self._get_network(context, new_net['id'])
+        net_model = self._get_network_db(context, new_net['id'])
         resource_extend.apply_funcs('networks', new_net, net_model)
         self.handle_network_dhcp_access(context, new_net,
                                         action='create_network')
@@ -1039,7 +1039,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def get_network(self, context, id, fields=None):
         with db_api.context_manager.writer.using(context):
             # goto to the plugin DB and fetch the network
-            network = self._get_network(context, id)
+            network = self._get_network_db(context, id)
             if (self.nsx_sync_opts.always_read_status or
                 fields and 'status' in fields):
                 # External networks are not backed by nsx lswitches
