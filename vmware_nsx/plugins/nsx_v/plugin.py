@@ -31,7 +31,6 @@ from neutron_lib.api.definitions import subnet as subnet_def
 from neutron_lib.api.definitions import vlantransparent as vlan_apidef
 from neutron_lib.api import extensions
 from neutron_lib.api import validators
-from neutron_lib.api.validators import availability_zone as az_validator
 from neutron_lib.callbacks import events
 from neutron_lib.callbacks import registry
 from neutron_lib.callbacks import resources
@@ -1171,13 +1170,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                         raise n_exc.VlanIdInUse(
                                     vlan_id=segmentation_id,
                                     physical_network=physical_network)
-                return self._create_network(context, network, net_data,
-                                            provider_type, external,
-                                            backend_network, network_type)
+                new_net = self._create_network(context, network, net_data,
+                                               provider_type, external,
+                                               backend_network, network_type)
         else:
-            return self._create_network(context, network, net_data,
-                                        provider_type, external,
-                                        backend_network, network_type)
+            new_net = self._create_network(context, network, net_data,
+                                           provider_type, external,
+                                           backend_network, network_type)
+        return self.get_network(context, new_net['id'])
 
     def _create_network(self, context, network, net_data,
                         provider_type, external, backend_network,
@@ -1294,18 +1294,18 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     context, net_data, new_net)
 
                 if vlt:
-                    super(NsxVPluginV2, self).update_network(context,
+                    new_net = super(NsxVPluginV2, self).update_network(
+                        context,
                         new_net['id'],
                         {'network': {'vlan_transparent': vlt}})
 
                 # update the network with the availability zone hints
                 if az_def.AZ_HINTS in net_data:
-                    az_hints = az_validator.convert_az_list_to_string(
-                        net_data[az_def.AZ_HINTS])
-                    super(NsxVPluginV2, self).update_network(context,
-                        new_net['id'],
+                    az_hints = net_data[az_def.AZ_HINTS]
+                    super(NsxVPluginV2, self).update_network(
+                        context, new_net['id'],
                         {'network': {az_def.AZ_HINTS: az_hints}})
-                    new_net[az_def.AZ_HINTS] = az_hints
+                    new_net[az_def.AZ_HINTS] = net_data[az_def.AZ_HINTS]
                     # still no availability zones until subnets creation
                     new_net[az_def.COLLECTION_NAME] = []
 
@@ -1389,10 +1389,6 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             # Update the QOS restrictions of the backend network
             self._update_qos_on_created_network(context, net_data, new_net)
 
-        # this extra lookup is necessary to get the
-        # latest db model for the extension functions
-        net_model = self._get_network(context, new_net['id'])
-        resource_extend.apply_funcs('networks', new_net, net_model)
         return new_net
 
     def _update_qos_on_created_network(self, context, net_data, new_net):
@@ -1704,6 +1700,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 net_morefs = list(new_dvs_pg_mappings.values())
 
         with db_api.context_manager.writer.using(context):
+            # remove the qos policy id from the network before updating it
+            if qos_consts.QOS_POLICY_ID in net_attrs:
+                qos_policy_id = net_attrs[qos_consts.QOS_POLICY_ID]
+                del net_attrs[qos_consts.QOS_POLICY_ID]
+                qos_in_changes = True
+            else:
+                qos_policy_id = orig_net.get(qos_consts.QOS_POLICY_ID)
+                qos_in_changes = False
+
             net_res = super(NsxVPluginV2, self).update_network(context, id,
                                                                network)
             self._extension_manager.process_update_network(context, net_attrs,
@@ -1757,20 +1762,16 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         # Handle QOS updates (Value can be None, meaning to delete the
         # current policy), or moref updates with an existing qos policy
         if (not ext_net.external and
-            (qos_consts.QOS_POLICY_ID in net_attrs) or
+            qos_in_changes or
             (updated_morefs and orig_net.get(qos_consts.QOS_POLICY_ID))):
             # update the qos data
-            qos_policy_id = (net_attrs[qos_consts.QOS_POLICY_ID]
-                if qos_consts.QOS_POLICY_ID in net_attrs
-                else orig_net.get(qos_consts.QOS_POLICY_ID))
             self._update_qos_on_backend_network(context, id, qos_policy_id)
 
             # attach the policy to the network in neutron DB
             qos_com_utils.update_network_policy_binding(
                 context, id, qos_policy_id)
 
-            net_res[qos_consts.QOS_POLICY_ID] = (
-                qos_com_utils.get_network_policy_id(context, id))
+            net_res[qos_consts.QOS_POLICY_ID] = qos_policy_id
 
         # Handle case of network name update - this only is relevant for
         # networks that we create - not portgroup providers

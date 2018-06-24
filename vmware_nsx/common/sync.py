@@ -304,8 +304,8 @@ class NsxSynchronizer(object):
 
         with db_api.context_manager.writer.using(context):
             try:
-                network = self._plugin._get_network(context,
-                                                    neutron_network_data['id'])
+                network = self._plugin._get_network(
+                    context, neutron_network_data['id'])
             except exceptions.NetworkNotFound:
                 pass
             else:
