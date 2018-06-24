@@ -1009,7 +1009,7 @@ class NsxPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         # this extra lookup is necessary to get the
         # latest db model for the extension functions
-        net_model = self._get_network(context, new_net['id'])
+        net_model = self._get_network_db(context, new_net['id'])
         resource_extend.apply_funcs('networks', new_net, net_model)
         self.handle_network_dhcp_access(context, new_net,
                                         action='create_network')

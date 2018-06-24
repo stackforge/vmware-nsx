@@ -1258,8 +1258,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
                 if az_def.AZ_HINTS in net_data:
                     # Update the AZ hints in the neutron object
-                    az_hints = az_validator.convert_az_list_to_string(
-                        net_data[az_def.AZ_HINTS])
+                    az_hints = net_data[az_def.AZ_HINTS]
                     super(NsxV3Plugin, self).update_network(
                         context,
                         created_net['id'],
@@ -1325,7 +1324,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         # this extra lookup is necessary to get the
         # latest db model for the extension functions
-        net_model = self._get_network(context, created_net['id'])
+        net_model = self._get_network_db(context, created_net['id'])
         resource_extend.apply_funcs('networks', created_net, net_model)
 
         # Update the QoS policy (will affect only future compute ports)
@@ -1452,6 +1451,16 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         else:
             if is_ens_net:
                 self._assert_on_ens_with_qos(net_data)
+
+        # remove the qos policy id from the network before updating it
+        if qos_consts.QOS_POLICY_ID in net_data:
+            qos_policy_id = net_data[qos_consts.QOS_POLICY_ID]
+            del net_data[qos_consts.QOS_POLICY_ID]
+            qos_in_changes = True
+        else:
+            qos_policy_id = original_net[qos_consts.QOS_POLICY_ID]
+            qos_in_changes = False
+
         updated_net = super(NsxV3Plugin, self).update_network(context, id,
                                                               network)
         self._extension_manager.process_update_network(context, net_data,
@@ -1493,11 +1502,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     super(NsxV3Plugin, self).update_network(
                         context, id, {'network': original_net})
 
-        if qos_consts.QOS_POLICY_ID in net_data:
+        if qos_in_changes:
             # attach the policy to the network in neutron DB
             #(will affect only future compute ports)
             qos_com_utils.update_network_policy_binding(
-                context, id, net_data[qos_consts.QOS_POLICY_ID])
+                context, id, qos_policy_id)
+        updated_net[qos_consts.QOS_POLICY_ID] = qos_policy_id
 
         if not extern_net and not is_nsx_net:
             # update the network name & attributes in related NSX objects:
