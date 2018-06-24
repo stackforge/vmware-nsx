@@ -48,6 +48,7 @@ from neutron_lib import context
 from neutron_lib import exceptions as n_exc
 from neutron_lib.plugins import directory
 from neutron_lib.plugins import utils as plugin_utils
+from neutron_lib.services.qos import constants as qos_consts
 from oslo_config import cfg
 from oslo_utils import uuidutils
 from webob import exc
@@ -748,6 +749,61 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
                 # did not fail)
                 self.assertEqual('ManagerError',
                                  res['NeutronError']['type'])
+
+    def test_create_network_with_qos_policy(self):
+        ctx = context.get_admin_context()
+
+        # fake policy id
+        policy_id = uuidutils.generate_uuid()
+        description = 'QoS Net'
+        data = {'network': {
+                'name': 'test-qos',
+                'tenant_id': self._tenant_id,
+                'qos_policy_id': policy_id,
+                'port_security_enabled': False,
+                'description': description,
+                'admin_state_up': False,
+                'shared': False
+                }}
+        with mock.patch('vmware_nsx.services.qos.common.utils.'
+                        'get_network_policy_id',
+                        return_value=policy_id):
+            # create the network - should succeed and translate the policy id
+            net = self.plugin.create_network(ctx, data)
+            self.assertEqual(policy_id, net[qos_consts.QOS_POLICY_ID])
+            self.assertEqual(description, net['description'])
+
+            # Get network should also return the qos policy id
+            net2 = self.plugin.get_network(ctx, net['id'])
+            self.assertEqual(policy_id, net2[qos_consts.QOS_POLICY_ID])
+            self.assertEqual(description, net2['description'])
+
+    def test_update_network_with_qos_policy(self):
+        ctx = context.get_admin_context()
+
+        # create the network without qos policy
+        data = {'network': {
+                'name': 'test-qos',
+                'tenant_id': self._tenant_id,
+                'port_security_enabled': False,
+                'admin_state_up': True,
+                'shared': False
+                }}
+        net = self.plugin.create_network(ctx, data)
+
+        # fake policy id
+        policy_id = uuidutils.generate_uuid()
+        data['network']['qos_policy_id'] = policy_id
+        # update the network - should succeed and translate the policy id
+        with mock.patch('vmware_nsx.services.qos.common.utils.'
+                        'get_network_policy_id',
+                        return_value=policy_id):
+            res = self.plugin.update_network(ctx, net['id'], data)
+            self.assertEqual(policy_id, res[qos_consts.QOS_POLICY_ID])
+
+            # Get network should also return the qos policy id
+            net2 = self.plugin.get_network(ctx, net['id'])
+            self.assertEqual(policy_id, net2[qos_consts.QOS_POLICY_ID])
 
 
 class TestSubnetsV2(test_plugin.TestSubnetsV2, NsxV3PluginTestCaseMixin):
