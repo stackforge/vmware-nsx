@@ -222,10 +222,10 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
                     context, net_data, new_net)
 
                 # Process vlan transparent extension
-                net_db = self._get_network(context, new_net['id'])
-                net_db['vlan_transparent'] = trunk_mode
+                new_net = super(NsxDvsV2, self).update_network(
+                    context, new_net['id'],
+                    {'network': {'vlan_transparent': trunk_mode}})
                 net_data['vlan_transparent'] = trunk_mode
-                resource_extend.apply_funcs('networks', net_data, net_db)
 
                 nsx_db.add_network_binding(
                     context.session, new_net['id'],
@@ -242,11 +242,6 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         new_net[pnet.NETWORK_TYPE] = net_data.get(pnet.NETWORK_TYPE)
         new_net[pnet.PHYSICAL_NETWORK] = net_id or 'dvs'
         new_net[pnet.SEGMENTATION_ID] = vlan_tag
-
-        # this extra lookup is necessary to get the
-        # latest db model for the extension functions
-        net_model = self._get_network(context, net_data['id'])
-        resource_extend.apply_funcs('networks', new_net, net_model)
 
         self.handle_network_dhcp_access(context, new_net,
                                         action='create_network')
