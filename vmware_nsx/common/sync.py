@@ -304,16 +304,18 @@ class NsxSynchronizer(object):
 
         with db_api.context_manager.writer.using(context):
             try:
-                network = self._plugin._get_network(context,
-                                                    neutron_network_data['id'])
+                # update the new status in the DB
+                self._plugin.update_network(
+                    context,
+                    neutron_network_data['id'],
+                    {'network': {'status': status}})
             except exceptions.NetworkNotFound:
                 pass
-            else:
-                network.status = status
-                LOG.debug("Updating status for neutron resource %(q_id)s to:"
-                          " %(status)s",
-                          {'q_id': neutron_network_data['id'],
-                           'status': status})
+        LOG.debug("Updating status for neutron resource %(q_id)s to:"
+                  " %(status)s",
+                  {'q_id': neutron_network_data['id'],
+                   'status': status})
+        neutron_network_data['status'] = status
 
     def _synchronize_lswitches(self, ctx, ls_uuids, scan_missing=False):
         if not ls_uuids and not scan_missing:
