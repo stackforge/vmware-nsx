@@ -1268,11 +1268,15 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     context, net_data, created_net)
                 self._process_l3_create(context, created_net, net_data)
 
+                if extensions.is_extension_supported(self, 'vlan-transparent'):
+                    created_net = super(NsxV3Plugin, self).update_network(
+                        context, created_net['id'],
+                        {'network': {'vlan_transparent': vlt}})
+
                 if az_def.AZ_HINTS in net_data:
                     # Update the AZ hints in the neutron object
-                    az_hints = az_validator.convert_az_list_to_string(
-                        net_data[az_def.AZ_HINTS])
-                    super(NsxV3Plugin, self).update_network(
+                    az_hints = net_data[az_def.AZ_HINTS]
+                    created_net = super(NsxV3Plugin, self).update_network(
                         context,
                         created_net['id'],
                         {'network': {az_def.AZ_HINTS: az_hints}})
@@ -1292,11 +1296,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         context.session,
                         neutron_net_id,
                         nsx_net_id)
-
-                if extensions.is_extension_supported(self, 'vlan-transparent'):
-                    super(NsxV3Plugin, self).update_network(context,
-                        created_net['id'],
-                        {'network': {'vlan_transparent': vlt}})
 
             rollback_network = True
 
@@ -1334,11 +1333,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 if rollback_network:
                     super(NsxV3Plugin, self).delete_network(
                         context, created_net['id'])
-
-        # this extra lookup is necessary to get the
-        # latest db model for the extension functions
-        net_model = self._get_network(context, created_net['id'])
-        resource_extend.apply_funcs('networks', created_net, net_model)
 
         # Update the QoS policy (will affect only future compute ports)
         qos_com_utils.set_qos_policy_on_new_net(
@@ -1475,19 +1469,29 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             err_msg = _("Cannot change the router:external flag of a network")
             raise n_exc.InvalidInput(error_message=err_msg)
 
-        updated_net = super(NsxV3Plugin, self).update_network(context, id,
-                                                              network)
-        self._extension_manager.process_update_network(context, net_data,
-                                                       updated_net)
-        if psec.PORTSECURITY in net_data:
-            # do not allow to enable port security on ENS networks
-            if (net_data[psec.PORTSECURITY] and
-                not original_net[psec.PORTSECURITY] and is_ens_net):
-                raise nsx_exc.NsxENSPortSecurity()
-            self._process_network_port_security_update(
-                context, net_data, updated_net)
-        self._process_l3_update(context, updated_net, network['network'])
-        self._extend_network_dict_provider(context, updated_net)
+        # remove the qos policy id from the network before updating it
+        if qos_consts.QOS_POLICY_ID in net_data:
+            qos_policy_id = net_data[qos_consts.QOS_POLICY_ID]
+            del net_data[qos_consts.QOS_POLICY_ID]
+            qos_in_changes = True
+        else:
+            qos_policy_id = original_net.get(qos_consts.QOS_POLICY_ID)
+            qos_in_changes = False
+
+        with db_api.context_manager.writer.using(context):
+            updated_net = super(NsxV3Plugin, self).update_network(context, id,
+                                                                  network)
+            self._extension_manager.process_update_network(context, net_data,
+                                                           updated_net)
+            if psec.PORTSECURITY in net_data:
+                # do not allow to enable port security on ENS networks
+                if (net_data[psec.PORTSECURITY] and
+                    not original_net[psec.PORTSECURITY] and is_ens_net):
+                    raise nsx_exc.NsxENSPortSecurity()
+                self._process_network_port_security_update(
+                    context, net_data, updated_net)
+            self._process_l3_update(context, updated_net, network['network'])
+            self._extend_network_dict_provider(context, updated_net)
 
         if (not extern_net and not is_nsx_net and
             ('name' in net_data or 'admin_state_up' in net_data or
@@ -1516,16 +1520,17 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     super(NsxV3Plugin, self).update_network(
                         context, id, {'network': original_net})
 
-        if qos_consts.QOS_POLICY_ID in net_data:
+        if qos_in_changes:
             # attach the policy to the network in neutron DB
             #(will affect only future compute ports)
             qos_com_utils.update_network_policy_binding(
-                context, id, net_data[qos_consts.QOS_POLICY_ID])
+                context, id, qos_policy_id)
             if net_data[qos_consts.QOS_POLICY_ID]:
                 LOG.info("QoS Policy %(qos)s will be applied to future "
                          "compute ports of network %(net)s",
                          {'qos': net_data[qos_consts.QOS_POLICY_ID],
                           'net': id})
+        updated_net[qos_consts.QOS_POLICY_ID] = qos_policy_id
 
         if not extern_net and not is_nsx_net:
             # update the network name & attributes in related NSX objects:
