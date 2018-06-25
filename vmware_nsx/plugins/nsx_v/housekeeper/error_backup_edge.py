@@ -30,6 +30,7 @@ LOG = log.getLogger(__name__)
 
 
 class ErrorBackupEdgeJob(base_job.BaseJob):
+
     def __init__(self, readonly):
         super(ErrorBackupEdgeJob, self).__init__(
             readonly, cfg.CONF.nsxv.housekeeping_readonly_jobs)

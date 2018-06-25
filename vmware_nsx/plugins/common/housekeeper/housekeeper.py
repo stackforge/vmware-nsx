@@ -29,13 +29,12 @@ ALL_DUMMY_JOB = {
 class NsxHousekeeper(stevedore.named.NamedExtensionManager):
     def __init__(self, hk_ns, hk_jobs, hk_readonly):
         self.readonly = hk_readonly
-        self.results = {}
-
         if self.readonly:
             LOG.info('Housekeeper initialized in readonly mode')
         else:
             LOG.info('Housekeeper initialized')
 
+        self.results = {}
         self.jobs = {}
         super(NsxHousekeeper, self).__init__(
             hk_ns, hk_jobs, invoke_on_load=True, invoke_args=(self.readonly,))
