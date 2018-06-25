@@ -14,6 +14,7 @@
 #    under the License.
 
 from neutron_lib import constants
+from oslo_config import cfg
 from oslo_log import log
 from oslo_utils import uuidutils
 
@@ -28,7 +29,8 @@ LOG = log.getLogger(__name__)
 
 class ErrorDhcpEdgeJob(base_job.BaseJob):
     def __init__(self, readonly):
-        super(ErrorDhcpEdgeJob, self).__init__(readonly)
+        super(ErrorDhcpEdgeJob, self).__init__(
+            readonly, cfg.CONF.nsxv.housekeeping_readonly_jobs)
         self.error_count = 0
 
     def get_project_plugin(self, plugin):
