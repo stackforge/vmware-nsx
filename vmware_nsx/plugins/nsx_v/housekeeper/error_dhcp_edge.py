@@ -14,6 +14,7 @@
 #    under the License.
 
 from neutron_lib import constants
+from oslo_config import cfg
 from oslo_log import log
 from oslo_utils import uuidutils
 
@@ -30,6 +31,10 @@ class ErrorDhcpEdgeJob(base_job.BaseJob):
     def __init__(self, readonly):
         super(ErrorDhcpEdgeJob, self).__init__(readonly)
         self.error_count = 0
+
+    def __init__(self, readonly):
+        super(ErrorDhcpEdgeJob, self).__init__(
+            readonly, cfg.CONF.nsxv.housekeeping_readonly_jobs)
 
     def get_project_plugin(self, plugin):
         return plugin.get_plugin_by_type(projectpluginmap.NsxPlugins.NSX_V)

@@ -444,6 +444,18 @@ nsx_v3_opts = [
                        "specifying Transport Zone UUID usable for VLAN "
                        "provider networks, as well as ranges of VLAN "
                        "tags on each available for allocation to networks.")),
+    cfg.ListOpt('housekeeping_jobs',
+                default=['orphaned_dhcp_server', 'orphaned_logical_switch',
+                         'orphaned_logical_router', 'mismatch_logical_port',
+                         'orphaned_firewall_section'],
+                help=_("List of the enabled housekeeping jobs")),
+    cfg.ListOpt('housekeeping_readonly_jobs',
+                default=[],
+                help=_("List of housekeeping jobs which are enabled in read "
+                       "only mode")),
+    cfg.BoolOpt('housekeeping_readonly',
+                default=True,
+                help=_("Housekeeping will only warn about breakage.")),
 ]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
