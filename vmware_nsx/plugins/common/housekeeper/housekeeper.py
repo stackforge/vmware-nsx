@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from oslo_config import cfg
 from oslo_log import log
 import stevedore
 
@@ -27,21 +26,22 @@ ALL_DUMMY_JOB = {
     'enabled': True}
 
 
-class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
-    def __init__(self, hk_ns, hk_jobs):
-        self.readonly = cfg.CONF.nsxv.housekeeping_readonly
+class NsxHousekeeper(stevedore.named.NamedExtensionManager):
+    def __init__(self, hk_ns, hk_jobs, hk_readonly):
+        self.readonly = hk_readonly
         if self.readonly:
             LOG.info('Housekeeper initialized in readonly mode')
         else:
             LOG.info('Housekeeper initialized')
 
+        self.results = {}
         self.jobs = {}
-        super(NsxvHousekeeper, self).__init__(
+        super(NsxHousekeeper, self).__init__(
             hk_ns, hk_jobs, invoke_on_load=True, invoke_args=(self.readonly,))
 
         LOG.info("Loaded housekeeping job names: %s", self.names())
         for job in self:
-            if job.obj.get_name() in cfg.CONF.nsxv.housekeeping_jobs:
+            if job.obj.get_name() in hk_jobs:
                 self.jobs[job.obj.get_name()] = job.obj
 
     def get(self, job_name):
