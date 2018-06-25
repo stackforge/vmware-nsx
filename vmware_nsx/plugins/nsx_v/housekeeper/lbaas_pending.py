@@ -17,6 +17,7 @@ import time
 
 from neutron_lbaas.db.loadbalancer import models
 from neutron_lib import constants
+from oslo_config import cfg
 from oslo_log import log
 
 from vmware_nsx.extensions import projectpluginmap
@@ -36,6 +37,10 @@ class LbaasPendingJob(base_job.BaseJob):
                     models.PoolV2,
                     models.MemberV2,
                     models.HealthMonitorV2]
+
+    def __init__(self, readonly):
+        super(LbaasPendingJob, self).__init__(
+            readonly, cfg.CONF.nsxv.housekeeping_readonly_jobs)
 
     def get_project_plugin(self, plugin):
         return plugin.get_plugin_by_type(projectpluginmap.NsxPlugins.NSX_V)

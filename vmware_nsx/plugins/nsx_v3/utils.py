@@ -23,10 +23,12 @@ from neutron import version as n_version
 from neutron_lib import context as q_context
 
 from vmware_nsx.common import exceptions as nsx_exc
+from vmware_nsx.db import db as nsx_db
 from vmware_nsx.plugins.nsx_v3 import cert_utils
 from vmware_nsxlib import v3
 from vmware_nsxlib.v3 import client_cert
 from vmware_nsxlib.v3 import config
+from vmware_nsxlib.v3 import nsx_constants
 
 NSX_NEUTRON_PLUGIN = 'NSX Neutron plugin'
 OS_NEUTRON_ID_SCOPE = 'os-neutron-id'
@@ -145,3 +147,72 @@ def get_nsxlib_wrapper(nsx_username=None, nsx_password=None, basic_auth=False):
         dns_nameservers=cfg.CONF.nsx_v3.nameservers,
         dns_domain=cfg.CONF.nsx_v3.dns_domain)
     return v3.NsxLib(nsxlib_config)
+
+
+def get_orphaned_dhcp_servers(plugin, nsxlib, dhcp_profile_uuid=None):
+    # An orphaned DHCP server means the associated neutron network
+    # does not exist or has no DHCP-enabled subnet.
+
+    orphaned_servers = []
+    server_net_pairs = []
+
+    # Find matching DHCP servers (for a given dhcp_profile_uuid).
+    response = nsxlib.dhcp_server.list()
+    for dhcp_server in response['results']:
+        if (dhcp_profile_uuid and
+            dhcp_server['dhcp_profile_id'] != dhcp_profile_uuid):
+            continue
+        found = False
+        for tag in dhcp_server.get('tags', []):
+            if tag['scope'] == 'os-neutron-net-id':
+                server_net_pairs.append((dhcp_server, tag['tag']))
+                found = True
+                break
+        if not found:
+            # The associated neutron network is not defined.
+            dhcp_server['neutron_net_id'] = None
+            orphaned_servers.append(dhcp_server)
+
+    # Check if there is DHCP-enabled subnet in each network.
+    for dhcp_server, net_id in server_net_pairs:
+        try:
+            network = plugin.get_network(net_id)
+        except Exception:
+            # The associated neutron network is not found in DB.
+            dhcp_server['neutron_net_id'] = None
+            orphaned_servers.append(dhcp_server)
+            continue
+        dhcp_enabled = False
+        for subnet_id in network['subnets']:
+            subnet = plugin.get_subnet(subnet_id)
+            if subnet['enable_dhcp']:
+                dhcp_enabled = True
+                break
+        if not dhcp_enabled:
+            dhcp_server['neutron_net_id'] = net_id
+            orphaned_servers.append(dhcp_server)
+
+    return orphaned_servers
+
+
+def delete_orphaned_dhcp_server(context, nsxlib, server):
+    # Delete an orphaned DHCP server:
+    # (1) delete the attached logical DHCP port,
+    # (2) delete the logical DHCP server,
+    # (3) clean corresponding neutron DB entry.
+    # Return True if it was deleted, or false + error if not
+    try:
+        response = nsxlib.logical_port.get_by_attachment('DHCP_SERVICE',
+                                                         server['id'])
+        if response and response['result_count'] > 0:
+            nsxlib.logical_port.delete(response['results'][0]['id'])
+        nsxlib.dhcp_server.delete(server['id'])
+        net_id = server.get('neutron_net_id')
+        if net_id:
+            # Delete neutron_net_id -> dhcp_service_id mapping from the DB.
+            nsx_db.delete_neutron_nsx_service_binding(
+                context.session, net_id,
+                nsx_constants.SERVICE_DHCP)
+        return True, None
+    except Exception as e:
+        return False, e
