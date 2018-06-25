@@ -57,3 +57,15 @@ class BaseJob(object):
     @abc.abstractmethod
     def get_project_plugin(self, plugin):
         pass
+
+
+def housekeeper_log(msg, info, is_error=True):
+    if info:
+        info = "%s\n%s" % (info, msg)
+    else:
+        info = "%s" % msg
+    if is_error:
+        LOG.warning("Housekeeping: %s", msg)
+    else:
+        LOG.info("Housekeeping: %s", msg)
+    return info

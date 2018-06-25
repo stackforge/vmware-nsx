@@ -37,19 +37,19 @@ ALL_DUMMY_JOB = {
 class NsxHousekeeper(stevedore.named.NamedExtensionManager):
     def __init__(self, hk_ns, hk_jobs, hk_readonly):
         self.readonly = hk_readonly
+
         self.email_notifier = None
         if (cfg.CONF.smtp_gateway and
                 cfg.CONF.smtp_from_addr and
                 cfg.CONF.snmp_to_list):
             self.email_notifier = HousekeeperEmailNotifier()
 
-        self.results = {}
-
         if self.readonly:
             LOG.info('Housekeeper initialized in readonly mode')
         else:
             LOG.info('Housekeeper initialized')
 
+        self.results = {}
         self.jobs = {}
         super(NsxHousekeeper, self).__init__(
             hk_ns, hk_jobs, invoke_on_load=True, invoke_args=(self.readonly,))
