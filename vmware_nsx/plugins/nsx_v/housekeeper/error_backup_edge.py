@@ -14,6 +14,7 @@
 #    under the License.
 
 from neutron_lib import constants
+from oslo_config import cfg
 from oslo_log import log
 from sqlalchemy.orm import exc as sa_exc
 
@@ -29,8 +30,10 @@ LOG = log.getLogger(__name__)
 
 
 class ErrorBackupEdgeJob(base_job.BaseJob):
+
     def __init__(self, readonly):
-        super(ErrorBackupEdgeJob, self).__init__(readonly)
+        super(ErrorBackupEdgeJob, self).__init__(
+            readonly, cfg.CONF.nsxv.housekeeping_readonly_jobs)
         self.azs = nsx_az.NsxVAvailabilityZones()
 
     def get_project_plugin(self, plugin):

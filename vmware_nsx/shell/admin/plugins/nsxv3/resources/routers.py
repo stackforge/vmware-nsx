@@ -16,6 +16,7 @@ import sys
 
 from vmware_nsx.common import utils as nsx_utils
 from vmware_nsx.db import db as nsx_db
+from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 from vmware_nsx.shell.admin.plugins.common import constants
 from vmware_nsx.shell.admin.plugins.common import formatters
 from vmware_nsx.shell.admin.plugins.common import utils as admin_utils
@@ -115,17 +116,8 @@ def update_nat_rules(resource, event, trigger, **kwargs):
 @admin_utils.output_header
 def list_orphaned_routers(resource, event, trigger, **kwargs):
     nsxlib = utils.get_connected_nsxlib()
-    nsx_routers = nsxlib.logical_router.list()['results']
-    missing_routers = []
-    for nsx_router in nsx_routers:
-        # check if it exists in the neutron DB
-        if not neutron_client.lrouter_id_to_router_id(nsx_router['id']):
-            # Skip non-neutron routers, by tags
-            for tag in nsx_router.get('tags', []):
-                if tag.get('scope') == 'os-neutron-router-id':
-                    missing_routers.append(nsx_router)
-                    break
-
+    admin_cxt = neutron_context.get_admin_context()
+    missing_routers = v3_utils.get_orphaned_routers(admin_cxt, nsxlib)
     LOG.info(formatters.output_formatter(constants.ORPHANED_ROUTERS,
                                          missing_routers,
                                          ['id', 'display_name']))
