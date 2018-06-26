@@ -49,6 +49,8 @@ class LbaasPendingJob(base_job.BaseJob):
     def run(self, context):
         super(LbaasPendingJob, self).run(context)
         curr_time = time.time()
+        error_count = 0
+        error_info = ''
 
         for model in self.lbaas_models:
             sess = context.session
@@ -65,9 +67,11 @@ class LbaasPendingJob(base_job.BaseJob):
                     if lifetime > ELEMENT_LIFETIME:
                         # Entry has been pending for more than lifetime.
                         # Report and remove when in R/W mode
-                        LOG.warning('Housekeeping: LBaaS %s %s is stuck in '
-                                    'pending state',
-                                    model.NAME, element['id'])
+                        text = 'LBaaS %s %s is stuck in pending state' % (
+                            model.NAME, element['id'])
+                        LOG.warning('Housekeeping: %', text)
+                        error_count += 1
+                        self.error_info += text + "\n"
                         if not self.readonly:
                             element['provisioning_status'] = constants.ERROR
                         del self.lbaas_objects[element['id']]
@@ -93,3 +97,8 @@ class LbaasPendingJob(base_job.BaseJob):
                 LOG.debug('Housekeeping: LBaaS %s %s is back to normal',
                           self.lbaas_objects[obj_id]['model'].NAME, obj_id)
                 del self.lbaas_objects[obj_id]
+
+        if error_count == 0:
+            error_info = 'No LBaaS objects in pending state'
+        return {'error_count': error_count,
+                'error_info': error_info}
