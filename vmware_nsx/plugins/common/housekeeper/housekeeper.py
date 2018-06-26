@@ -13,6 +13,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import smtplib
+
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 from oslo_config import cfg
 from oslo_log import log
 import stevedore
@@ -24,12 +29,19 @@ LOG = log.getLogger(__name__)
 ALL_DUMMY_JOB = {
     'name': 'all',
     'description': 'Execute all housekeepers',
-    'enabled': True}
+    'enabled': True,
+    'error_count': 0,
+    'error_info': None}
 
 
 class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
     def __init__(self, hk_ns, hk_jobs):
+        if (cfg.CONF.smtp_gateway and
+                cfg.CONF.smtp_from_addr and
+                cfg.CONF.snmp_to_list):
         self.readonly = cfg.CONF.nsxv.housekeeping_readonly
+        self.results = {}
+
         if self.readonly:
             LOG.info('Housekeeper initialized in readonly mode')
         else:
@@ -53,7 +65,11 @@ class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
             if job_name == name:
                 return {'name': job_name,
                         'description': job.obj.get_description(),
-                        'enabled': job_name in self.jobs}
+                        'enabled': job_name in self.jobs,
+                        'error_count': self.results.get(
+                            job_name, {}).get('error_count', 0),
+                        'error_info': self.results.get(
+                            job_name, {}).get('error_info', '')}
 
         raise n_exc.ObjectNotFound(id=job_name)
 
@@ -64,21 +80,67 @@ class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
             job_name = job.obj.get_name()
             results.append({'name': job_name,
                             'description': job.obj.get_description(),
-                            'enabled': job_name in self.jobs})
+                            'enabled': job_name in self.jobs,
+                            'error_count': self.results.get(
+                                job_name, {}).get('error_count', 0),
+                            'error_info': self.results.get(
+                                job_name, {}).get('error_info', '')})
 
         return results
 
     def run(self, context, job_name):
+        self.results = {}
         if context.is_admin:
             with locking.LockManager.get_lock('nsx-housekeeper'):
+                error_count = 0
+                error_info = ''
                 if job_name == ALL_DUMMY_JOB.get('name'):
                     for job in self.jobs.values():
-                        job.run(context)
+                        result = job.run(context)
+                        if result:
+                            error_count += result['error_count']
+                            error_info += result['error_info'] + "\n"
+                    self.results[job_name] = {
+                        'error_count': error_count,
+                        'error_info': error_info
+                    }
+
                 else:
                     job = self.jobs.get(job_name)
                     if job:
-                        job.run(context)
+                        result = job.run(context)
+                        if result:
+                            self.results[job.get_name()] = result
                     else:
                         raise n_exc.ObjectNotFound(id=job_name)
         else:
             raise n_exc.AdminRequired()
+
+
+class HousekeeperEmailNotifier(object):
+    def __init__(self):
+        self.msg = MIMEMultipart('alternative')
+        self.msg['Subject'] = "Link"
+        self.msg['From'] = cfg.CONF.smtp_from_addr
+        self.msg['To'] = ', '.join(cfg.CONF.snmp_to_list)
+        self.text = ''
+        self.html = ('<html>\n<a href="http://www.vmware.com/">'
+                     '<img src="https://botw-pd.s3.amazonaws.com/'
+                     'styles/logo-thumbnail/s3/022015/vmware_2014_logo_0.png'
+                     '?itok=z47gZxJZ"/></a><br/><div>')
+
+    def add_text(self, text):
+        self.text += text + "\n"
+        self.html += text + "<br>\n"
+
+    def send(self):
+        self.html += "</div></html>"
+        part1 = MIMEText(self.text, 'plain')
+        part2 = MIMEText(self.html, 'html')
+        self.msg.attach(part1)
+        self.msg.attach(part2)
+        s = smtplib.SMTP(cfg.CONF.smtp_gateway)
+        s.sendmail(cfg.CONF.smtp_from_addr,
+                   cfg.CONF.smtp_from_addr,
+                   self.msg.as_string())
+        s.quit()
