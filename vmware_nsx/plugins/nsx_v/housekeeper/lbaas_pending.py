@@ -49,6 +49,7 @@ class LbaasPendingJob(base_job.BaseJob):
     def run(self, context):
         super(LbaasPendingJob, self).run(context)
         curr_time = time.time()
+        error_count = 0
 
         for model in self.lbaas_models:
             sess = context.session
@@ -68,6 +69,7 @@ class LbaasPendingJob(base_job.BaseJob):
                         LOG.warning('Housekeeping: LBaaS %s %s is stuck in '
                                     'pending state',
                                     model.NAME, element['id'])
+                        error_count += 1
                         if not self.readonly:
                             element['provisioning_status'] = constants.ERROR
                         del self.lbaas_objects[element['id']]
@@ -93,3 +95,6 @@ class LbaasPendingJob(base_job.BaseJob):
                 LOG.debug('Housekeeping: LBaaS %s %s is back to normal',
                           self.lbaas_objects[obj_id]['model'].NAME, obj_id)
                 del self.lbaas_objects[obj_id]
+
+        return {'error_count': error_count,
+                'error_info': 'Total number of LBaaS objects in pending state'}

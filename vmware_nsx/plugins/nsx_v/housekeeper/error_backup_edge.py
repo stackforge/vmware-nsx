@@ -44,6 +44,7 @@ class ErrorBackupEdgeJob(base_job.BaseJob):
 
     def run(self, context):
         super(ErrorBackupEdgeJob, self).run(context)
+        error_count = 0
 
         # Gather ERROR state backup edges into dict
         filters = {'status': [constants.ERROR]}
@@ -62,9 +63,13 @@ class ErrorBackupEdgeJob(base_job.BaseJob):
             LOG.warning('Housekeeping: Backup Edge appliance %s is in ERROR'
                         ' state', binding['edge_id'])
 
+            error_count += 1
             if not self.readonly:
                 with locking.LockManager.get_lock(binding['edge_id']):
                     self._handle_backup_edge(context, binding)
+
+        return {'error_count': error_count,
+                'error_info': 'Total backup edges failures detected'}
 
     def _handle_backup_edge(self, context, binding):
         dist = (binding['edge_type'] == nsxv_constants.VDR_EDGE)
