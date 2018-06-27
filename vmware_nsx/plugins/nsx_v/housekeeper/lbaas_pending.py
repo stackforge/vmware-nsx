@@ -17,6 +17,7 @@ import time
 
 from neutron_lbaas.db.loadbalancer import models
 from neutron_lib import constants
+from oslo_config import cfg
 from oslo_log import log
 
 from vmware_nsx.extensions import projectpluginmap
@@ -37,6 +38,10 @@ class LbaasPendingJob(base_job.BaseJob):
                     models.MemberV2,
                     models.HealthMonitorV2]
 
+    def __init__(self, readonly):
+        super(LbaasPendingJob, self).__init__(
+            readonly, cfg.CONF.nsxv.housekeeping_readonly_jobs)
+
     def get_project_plugin(self, plugin):
         return plugin.get_plugin_by_type(projectpluginmap.NsxPlugins.NSX_V)
 
@@ -46,7 +51,7 @@ class LbaasPendingJob(base_job.BaseJob):
     def get_description(self):
         return 'Monitor LBaaS objects in pending states'
 
-    def run(self, context):
+    def run(self, context, readonly=False):
         super(LbaasPendingJob, self).run(context)
         curr_time = time.time()
         error_count = 0
@@ -70,7 +75,7 @@ class LbaasPendingJob(base_job.BaseJob):
                                     'pending state',
                                     model.NAME, element['id'])
                         error_count += 1
-                        if not self.readonly:
+                        if not self.readonly and not readonly:
                             element['provisioning_status'] = constants.ERROR
                         del self.lbaas_objects[element['id']]
                     else:
