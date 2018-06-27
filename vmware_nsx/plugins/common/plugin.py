@@ -359,6 +359,24 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
             err_msg = _("Can not enable DHCP on external network")
             raise n_exc.InvalidInput(error_message=err_msg)
 
+    def get_housekeeper(self, context, name, fields=None):
+        # run the job in readonly mode and get the results
+        self.housekeeper.run(context, name, readonly=True)
+        return self.housekeeper.get(name)
+
+    def get_housekeepers(self, context, filters=None, fields=None, sorts=None,
+                         limit=None, marker=None, page_reverse=False):
+        return self.housekeeper.list()
+
+    def update_housekeeper(self, context, name, housekeeper):
+        # run the job in non-readonly mode and get the results
+        # (unless global configuration or job configuration is read only)
+        self.housekeeper.run(context, name, readonly=False)
+        return self.housekeeper.get(name)
+
+    def get_housekeeper_count(self, context, filters=None):
+        return len(self.housekeeper.list())
+
 
 # Register the callback
 def _validate_network_has_subnet(resource, event, trigger, **kwargs):

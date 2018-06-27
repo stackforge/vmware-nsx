@@ -35,29 +35,31 @@ ALL_DUMMY_JOB = {
     'error_info': None}
 
 
-class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
-    def __init__(self, hk_ns, hk_jobs):
+class NsxHousekeeper(stevedore.named.NamedExtensionManager):
+    def __init__(self, hk_ns, hk_jobs, hk_readonly, hk_readonly_jobs):
+        self.global_readonly = hk_readonly
+        self.readonly_jobs = hk_readonly_jobs
         self.email_notifier = None
         if (cfg.CONF.smtp_gateway and
                 cfg.CONF.smtp_from_addr and
                 cfg.CONF.snmp_to_list):
             self.email_notifier = HousekeeperEmailNotifier()
 
-        self.readonly = cfg.CONF.nsxv.housekeeping_readonly
         self.results = {}
 
-        if self.readonly:
+        if self.global_readonly:
             LOG.info('Housekeeper initialized in readonly mode')
         else:
             LOG.info('Housekeeper initialized')
 
         self.jobs = {}
-        super(NsxvHousekeeper, self).__init__(
-            hk_ns, hk_jobs, invoke_on_load=True, invoke_args=(self.readonly,))
+        super(NsxHousekeeper, self).__init__(
+            hk_ns, hk_jobs, invoke_on_load=True,
+            invoke_args=(self.global_readonly, self.readonly_jobs))
 
         LOG.info("Loaded housekeeping job names: %s", self.names())
         for job in self:
-            if job.obj.get_name() in cfg.CONF.nsxv.housekeeping_jobs:
+            if job.obj.get_name() in hk_jobs:
                 self.jobs[job.obj.get_name()] = job.obj
 
     def get(self, job_name):
@@ -112,7 +114,19 @@ class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
 
         return results
 
-    def run(self, context, job_name):
+    def run_job_as_readonly(self, caller_readonly, job_name):
+        # return a readonly flag for a specific job
+        if caller_readonly or self.global_readonly:
+            return True
+        # check config by job name
+        if self.readonly_jobs and job_name in self.readonly_jobs:
+            return True
+        return False
+
+    def run(self, context, job_name, readonly=False):
+        # the given readonly flag should be combined with the global config
+        # and the per-job configuration to decide if this job will run in
+        # readonly mode or not.
         self.results = {}
         if context.is_admin:
             if self.email_notifier:
@@ -124,7 +138,9 @@ class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
                 error_info = ''
                 if job_name == ALL_DUMMY_JOB.get('name'):
                     for job in self.jobs.values():
-                        result = job.run(context)
+                        job_readonly = self.run_job_as_readonly(
+                            readonly, job.get_name())
+                        result = job.run(context, readonly=job_readonly)
                         if result:
                             if self.email_notifier and result['error_count']:
                                 self._add_job_text_to_notifier(job, result)
@@ -140,7 +156,9 @@ class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
                 else:
                     job = self.jobs.get(job_name)
                     if job:
-                        result = job.run(context)
+                        job_readonly = self.run_job_as_readonly(
+                            readonly, job_name)
+                        result = job.run(context, readonly=job_readonly)
                         if result:
                             error_count = result['error_count']
                             if self.email_notifier:
