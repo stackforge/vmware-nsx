@@ -34,15 +34,15 @@ ALL_DUMMY_JOB = {
     'error_info': None}
 
 
-class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
-    def __init__(self, hk_ns, hk_jobs):
+class NsxHousekeeper(stevedore.named.NamedExtensionManager):
+    def __init__(self, hk_ns, hk_jobs, hk_readonly):
+        self.readonly = hk_readonly
         self.email_notifier = None
         if (cfg.CONF.smtp_gateway and
                 cfg.CONF.smtp_from_addr and
                 cfg.CONF.snmp_to_list):
             self.email_notifier = HousekeeperEmailNotifier()
 
-        self.readonly = cfg.CONF.nsxv.housekeeping_readonly
         self.results = {}
 
         if self.readonly:
@@ -51,12 +51,12 @@ class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
             LOG.info('Housekeeper initialized')
 
         self.jobs = {}
-        super(NsxvHousekeeper, self).__init__(
+        super(NsxHousekeeper, self).__init__(
             hk_ns, hk_jobs, invoke_on_load=True, invoke_args=(self.readonly,))
 
         LOG.info("Loaded housekeeping job names: %s", self.names())
         for job in self:
-            if job.obj.get_name() in cfg.CONF.nsxv.housekeeping_jobs:
+            if job.obj.get_name() in hk_jobs:
                 self.jobs[job.obj.get_name()] = job.obj
 
     def get(self, job_name):
@@ -91,7 +91,7 @@ class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
 
         return results
 
-    def run(self, context, job_name):
+    def run(self, context, job_name, readonly=False):
         self.results = {}
         if context.is_admin:
             if self.email_notifier:
@@ -102,7 +102,7 @@ class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
                 error_info = ''
                 if job_name == ALL_DUMMY_JOB.get('name'):
                     for job in self.jobs.values():
-                        result = job.run(context)
+                        result = job.run(context, readonly=readonly)
                         LOG.debug('Housekeeper jobs %s results %s',
                                   job.get_name(), result)
                         if result:
@@ -118,7 +118,7 @@ class NsxvHousekeeper(stevedore.named.NamedExtensionManager):
                 else:
                     job = self.jobs.get(job_name)
                     if job:
-                        result = job.run(context)
+                        result = job.run(context, readonly=readonly)
                         if result:
                             self._add_job_text_to_notifier(job, result)
                             self.results[job.get_name()] = result
