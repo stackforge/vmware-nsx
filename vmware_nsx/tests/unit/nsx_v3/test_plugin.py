@@ -695,6 +695,34 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
 
         self.assertEqual(ctx_manager.exception.code, 503)
 
+    def test_update_external_flag_on_net(self):
+        with self.network() as net:
+            # should fail to update the network to external
+            args = {'network': {'router:external': 'True'}}
+            req = self.new_update_request('networks', args,
+                                          net['network']['id'], fmt='json')
+            res = self.deserialize('json', req.get_response(self.api))
+            self.assertEqual('InvalidInput',
+                             res['NeutronError']['type'])
+
+    def test_update_external_flag_on_ext_net(self):
+        data = {'network': {'name': 'net1',
+                            'router:external': 'True',
+                            'tenant_id': 'tenant_one',
+                            'provider:physical_network': 'stam'}}
+        network_req = self.new_create_request('networks', data)
+        network = self.deserialize(self.fmt,
+                                   network_req.get_response(self.api))
+        ext_net_id = network['network']['id']
+
+        # should fail to update the network to non-external
+        args = {'network': {'router:external': 'False'}}
+        req = self.new_update_request('networks', args,
+                                      ext_net_id, fmt='json')
+        res = self.deserialize('json', req.get_response(self.api))
+        self.assertEqual('InvalidInput',
+                         res['NeutronError']['type'])
+
     def test_update_network_rollback(self):
         with self.network() as net:
             # Fail the backend update
