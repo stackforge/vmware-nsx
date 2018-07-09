@@ -1,0 +1,10 @@
+Verified+1: VMware NSX CI
+Code-Review+2: Michal Kelner Mishali <mkelnermishal@vmware.com>
+Code-Review+2: Kobi Samoray <ksamoray@vmware.com>
+Workflow+1: Kobi Samoray <ksamoray@vmware.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Mon, 09 Jul 2018 11:31:06 +0000
+Reviewed-on: https://review.openstack.org/580311
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
