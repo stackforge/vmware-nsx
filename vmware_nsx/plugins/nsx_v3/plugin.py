@@ -484,18 +484,28 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self.init_is_complete = True
 
     def _init_octavia(self):
+        if self._is_sub_plugin:
+            # The TVD plugin will take care of this
+            return
+
         if not self.nsxlib.feature_supported(
             nsxlib_consts.FEATURE_LOAD_BALANCER):
             return
 
+        octavia_objects = self._get_octavia_objects()
         self.octavia_listener = octavia_listener.NSXOctaviaListener(
-            loadbalancer=loadbalancer_mgr.EdgeLoadBalancerManagerFromDict(),
-            listener=listener_mgr.EdgeListenerManagerFromDict(),
-            pool=pool_mgr.EdgePoolManagerFromDict(),
-            member=member_mgr.EdgeMemberManagerFromDict(),
-            healthmonitor=healthmonitor_mgr.EdgeHealthMonitorManagerFromDict(),
-            l7policy=l7policy_mgr.EdgeL7PolicyManagerFromDict(),
-            l7rule=l7rule_mgr.EdgeL7RuleManagerFromDict())
+            **octavia_objects)
+
+    def _get_octavia_objects(self):
+        return {
+            'loadbalancer': loadbalancer_mgr.EdgeLoadBalancerManagerFromDict(),
+            'listener': listener_mgr.EdgeListenerManagerFromDict(),
+            'pool': pool_mgr.EdgePoolManagerFromDict(),
+            'member': member_mgr.EdgeMemberManagerFromDict(),
+            'healthmonitor':
+                healthmonitor_mgr.EdgeHealthMonitorManagerFromDict(),
+            'l7policy': l7policy_mgr.EdgeL7PolicyManagerFromDict(),
+            'l7rule': l7rule_mgr.EdgeL7RuleManagerFromDict()}
 
     def _extend_fault_map(self):
         """Extends the Neutron Fault Map.

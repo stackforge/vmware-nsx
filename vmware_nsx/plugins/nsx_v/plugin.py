@@ -386,18 +386,24 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 hk_readonly_jobs=cfg.CONF.nsxv.housekeeping_readonly_jobs)
 
             # Init octavia listener and endpoints
-            self.octavia_listener = octavia_listener.NSXOctaviaListener(
-                loadbalancer=loadbalancer_mgr.EdgeLoadBalancerManagerFromDict(
-                    self.nsx_v),
-                listener=listener_mgr.EdgeListenerManagerFromDict(self.nsx_v),
-                pool=pool_mgr.EdgePoolManagerFromDict(self.nsx_v),
-                member=member_mgr.EdgeMemberManagerFromDict(self.nsx_v),
-                healthmonitor=healthmon_mgr.EdgeHealthMonitorManagerFromDict(
-                    self.nsx_v),
-                l7policy=l7policy_mgr.EdgeL7PolicyManagerFromDict(self.nsx_v),
-                l7rule=l7rule_mgr.EdgeL7RuleManagerFromDict(self.nsx_v))
+            if not self._is_sub_plugin:
+                octavia_objects = self._get_octavia_objects()
+                self.octavia_listener = octavia_listener.NSXOctaviaListener(
+                    **octavia_objects)
 
             self.init_is_complete = True
+
+    def _get_octavia_objects(self):
+        return {
+            'loadbalancer': loadbalancer_mgr.EdgeLoadBalancerManagerFromDict(
+                        self.nsx_v),
+            'listener': listener_mgr.EdgeListenerManagerFromDict(self.nsx_v),
+            'pool': pool_mgr.EdgePoolManagerFromDict(self.nsx_v),
+            'member': member_mgr.EdgeMemberManagerFromDict(self.nsx_v),
+            'healthmonitor': healthmon_mgr.EdgeHealthMonitorManagerFromDict(
+                    self.nsx_v),
+            'l7policy': l7policy_mgr.EdgeL7PolicyManagerFromDict(self.nsx_v),
+            'l7rule': l7rule_mgr.EdgeL7RuleManagerFromDict(self.nsx_v)}
 
     def _validate_nsx_version(self):
         ver = self.nsx_v.vcns.get_version()
