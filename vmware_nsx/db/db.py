@@ -571,14 +571,27 @@ def delete_nsx_lbaas_loadbalancer_binding(session, loadbalancer_id):
 
 
 def add_nsx_lbaas_listener_binding(session, loadbalancer_id, listener_id,
-                                   app_profile_id, lb_vs_id):
+                                   app_profile_id, lb_vs_id, sg_id):
     with session.begin(subtransactions=True):
         binding = nsx_models.NsxLbaasListener(
             loadbalancer_id=loadbalancer_id, listener_id=listener_id,
             app_profile_id=app_profile_id,
-            lb_vs_id=lb_vs_id)
+            lb_vs_id=lb_vs_id, sg_id=sg_id)
         session.add(binding)
     return binding
+
+
+def update_nsx_lbaas_listener_binding(session, loadbalancer_id, listener_id,
+                                      sg_id):
+    try:
+        with session.begin(subtransactions=True):
+            binding = (session.query(nsx_models.NsxLbaasListener).
+                       filter_by(loadbalancer_id=loadbalancer_id,
+                                 listener_id=listener_id).one())
+            binding.sg_id = sg_id
+    except exc.NoResultFound:
+        LOG.debug("Binding not found for listener %s", listener_id)
+        return
 
 
 def get_nsx_lbaas_listener_binding(session, loadbalancer_id, listener_id):

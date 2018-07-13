@@ -421,6 +421,7 @@ class NsxLbaasListener(model_base.BASEV2, models.TimestampMixin):
                             primary_key=True)
     app_profile_id = sa.Column(sa.String(36), nullable=False)
     lb_vs_id = sa.Column(sa.String(36), nullable=False)
+    sg_id = sa.Column(sa.String(36), nullable=False)
 
 
 class NsxLbaasPool(model_base.BASEV2, models.TimestampMixin):

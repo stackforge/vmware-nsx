@@ -89,6 +89,34 @@ class EdgeMemberManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
         return lb_pool['members']
 
     @log_helpers.log_method_call
+    def _create_sg_for_lb_member_internal_net(self, context, lb_id, tenant_id,
+                                              description, listen_port,
+                                              protocol, ethertype,
+                                              remote_group_id ,remote_ip_pfx,
+                                              listener_id):
+        self.core_plugin.create_security_group(
+            context, {'security_group': {"name": lb_id,
+                                         'tenant_id': tenant_id,
+                                         'description':
+                                             description}})
+        self.core_plugin.create_security_group_rule(
+            context, {"security_group_rule": {"direction": "ingress",
+                                              'tenant_id': tenant_id,
+                                              "port_range_min": listen_port,
+                                              "port_range_max": listen_port,
+                                              "protocol": protocol,
+                                              "ethertype": ethertype,
+                                              "remote_group_id":
+                                                  remote_group_id,
+                                              "remote_ip_prefix":
+                                                  remote_ip_pfx,
+                                              "security_group_id": lb_id}})
+
+        nsx_db.update_nsx_lbaas_listener_binding(context.session, lb_id,
+                                                 listener_id)
+
+
+
     def _add_loadbalancer_binding(self, context, lb_id, lbs_id,
                                   nsx_router_id, vip_address):
         # First check if there is already binding for the lb.
@@ -183,6 +211,11 @@ class EdgeMemberManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                     'weight': member['weight']}]
                 members = (old_m + new_m) if old_m else new_m
                 pool_client.update_pool_with_members(lb_pool_id, members)
+                self._create_sg_for_lb_member_internal_net(
+                    context, name=loadbalancer['id'], tenant_id=member['pool']['tenant_id'],
+                    description="sg for lb", listen_port=member['protocol_port'],
+                    protocol="TCP", remote_ip_pfx="100.64.240.0/31",
+                    listener_id=member['pool']['listener']['id'])
         else:
             msg = (_('Failed to get pool binding to add member %s') %
                    member['id'])
