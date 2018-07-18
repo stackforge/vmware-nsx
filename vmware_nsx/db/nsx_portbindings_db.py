@@ -162,7 +162,7 @@ class NsxPortBindingMixin(pbin_db.PortBindingMixin):
         # see https://review.openstack.org/#/c/414251
         if hasattr(common_utils, 'get_port_binding_by_status_and_host'):
             binding = common_utils.get_port_binding_by_status_and_host(
-                port_db.port_bindings, constants.ACTIVE)
+                port_db.port_binding, constants.ACTIVE)
         else:
             binding = port_db.port_binding
 
