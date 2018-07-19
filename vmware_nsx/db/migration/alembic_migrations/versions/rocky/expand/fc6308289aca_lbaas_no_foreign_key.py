@@ -30,6 +30,9 @@ revision = 'fc6308289aca'
 down_revision = '0dbeda408e41'
 depends_on = ('717f7f63a219')
 
+# milestone identifier, used by neutron-db-manage
+neutron_milestone = [migration.ROCKY]
+
 
 def upgrade():
     for table_name in ['nsxv3_lbaas_loadbalancers',
