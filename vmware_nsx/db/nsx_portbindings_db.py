@@ -153,13 +153,14 @@ class NsxPortBindingMixin(pbin_db.PortBindingMixin):
     @resource_extend.extends([port_def.COLLECTION_NAME])
     def _extend_port_portbinding(port_res, port_db):
         plugin = directory.get_plugin()
+        LOG.error("DEBUG ADIT _extend_port_portbinding %s", port_db)
         plugin.extend_port_dict_binding(port_res, port_db)
 
         if port_db.nsx_port_attributes:
             port_res[pbin.VNIC_TYPE] = port_db.nsx_port_attributes.vnic_type
 
         binding = common_utils.get_port_binding_by_status_and_host(
-            port_db.port_binding, constants.ACTIVE)
+            port_db.port_bindings, constants.ACTIVE)
 
         if binding:
             plugin.extend_port_portbinding(port_res, binding)
