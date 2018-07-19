@@ -159,7 +159,7 @@ class NsxPortBindingMixin(pbin_db.PortBindingMixin):
             port_res[pbin.VNIC_TYPE] = port_db.nsx_port_attributes.vnic_type
 
         binding = common_utils.get_port_binding_by_status_and_host(
-            port_db.port_binding, constants.ACTIVE)
+            port_db.binding, constants.ACTIVE)
 
         if binding:
             plugin.extend_port_portbinding(port_res, binding)
