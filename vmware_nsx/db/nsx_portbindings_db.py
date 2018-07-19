@@ -158,8 +158,13 @@ class NsxPortBindingMixin(pbin_db.PortBindingMixin):
         if port_db.nsx_port_attributes:
             port_res[pbin.VNIC_TYPE] = port_db.nsx_port_attributes.vnic_type
 
-        binding = common_utils.get_port_binding_by_status_and_host(
-            port_db.port_binding, constants.ACTIVE)
+        # TODO(boden): remove common_utils check when neutron patch lands
+        # see https://review.openstack.org/#/c/414251
+        if hasattr(common_utils, 'get_port_binding_by_status_and_host'):
+            binding = common_utils.get_port_binding_by_status_and_host(
+                port_db.port_bindings, constants.ACTIVE)
+        else:
+            binding = port_db.port_binding
 
         if binding:
             plugin.extend_port_portbinding(port_res, binding)
