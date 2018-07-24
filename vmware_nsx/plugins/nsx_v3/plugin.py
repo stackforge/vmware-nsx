@@ -3569,10 +3569,15 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     context, filters, fields, sorts,
                     limit, marker, page_reverse))
             # Add port extensions
-            for port in ports:
+            for port in ports[:]:
                 if 'id' in port:
-                    port_model = self._get_port(context, port['id'])
-                    resource_extend.apply_funcs('ports', port, port_model)
+                    try:
+                        port_model = self._get_port(context, port['id'])
+                        resource_extend.apply_funcs('ports', port, port_model)
+                    except n_exc.PortNotFound:
+                        # Port might have been deleted by now
+                        ports.remove(port)
+                        continue
                 self._extend_get_port_dict_qos_and_binding(context, port)
                 self._remove_provider_security_groups_from_list(port)
         return (ports if not fields else
