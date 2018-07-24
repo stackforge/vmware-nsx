@@ -95,6 +95,7 @@ PLUGIN_NAME = 'vmware_nsx.plugin.NsxVPlugin'
 _uuid = uuidutils.generate_uuid
 
 
+# Testing...
 def set_az_in_config(name, resource_pool_id="respool-7",
                      datastore_id="datastore-7",
                      edge_ha=False, ha_datastore_id=None):
