@@ -58,14 +58,17 @@ from neutron_lib.utils import net
 from oslo_config import cfg
 from oslo_utils import uuidutils
 import six
+from testtools import matchers
 import webob.exc
 
 from vmware_nsx._i18n import _
 from vmware_nsx.common import config
 from vmware_nsx.common import exceptions as nsxv_exc
 from vmware_nsx.common import nsx_constants
+from vmware_nsx.common import nsxv_constants
 from vmware_nsx.common import utils as c_utils
 from vmware_nsx.db import nsxv_db
+from vmware_nsx.db import nsxv_models
 from vmware_nsx.dvs import dvs
 from vmware_nsx.dvs import dvs_utils
 from vmware_nsx.extensions import projectpluginmap
@@ -219,6 +222,22 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
         cfg.CONF.set_override("resource_pool_id", self.default_res_pool,
                               group="nsxv")
         set_az_in_config('az7')
+
+        # Add the metadata configuration
+        cfg.CONF.set_override('mgt_net_moid', 'net-1', group="nsxv")
+        cfg.CONF.set_override('mgt_net_proxy_ips', ['2.2.2.2'], group="nsxv")
+        cfg.CONF.set_override('mgt_net_proxy_netmask', '255.255.255.0',
+                              group="nsxv")
+        cfg.CONF.set_override('mgt_net_default_gateway', '1.1.1.1',
+                              group="nsxv")
+        cfg.CONF.set_override('nova_metadata_ips', ['3.3.3.3'], group="nsxv")
+
+        # Add some mocks required for the md code
+        mock_alloc_vnic = mock.patch.object(nsxv_db, 'allocate_edge_vnic')
+        mock_alloc_vnic_inst = mock_alloc_vnic.start()
+        mock_alloc_vnic_inst.return_value = nsxv_models.NsxvEdgeVnicBinding
+        mock.patch.object(edge_utils, "update_internal_interface").start()
+
         if service_plugins is not None:
             # override the service plugins only if specified directly
             super(NsxVPluginV2TestCase, self).setUp(
@@ -229,6 +248,7 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
             super(NsxVPluginV2TestCase, self).setUp(
                 plugin=plugin,
                 ext_mgr=ext_mgr)
+
         self.addCleanup(self.fc2.reset_all)
         plugin_instance = directory.get_plugin()
         # handle TVD plugin case
@@ -244,6 +264,12 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
         # call init_complete manually. The event is not called in unit tests
         plugin_instance.init_complete(None, None, {})
 
+        self.context = context.get_admin_context()
+        self.internal_net_id = nsxv_db.get_nsxv_internal_network_for_az(
+            self.context.session,
+            vcns_const.InternalEdgePurposes.INTER_EDGE_PURPOSE,
+            'default')['network_id']
+
     def _get_core_plugin_with_dvs(self):
         # enable dvs features to allow policy with QOS
         cfg.CONF.set_default('use_dvs_features', True, 'nsxv')
@@ -251,6 +277,129 @@ class NsxVPluginV2TestCase(test_plugin.NeutronDbPluginV2TestCase):
         with mock.patch.object(dvs_utils, 'dvs_create_session'):
             plugin._vcm = dvs.VCManager()
         return plugin
+
+    def _remove_md_proxy_from_list(self, items):
+        for r in items[:]:
+            if (r.get('tenant_id') == nsxv_constants.INTERNAL_TENANT_ID or
+                r.get('name') == 'inter-edge-net'):
+                items.remove(r)
+
+    def deserialize(self, content_type, response):
+        """Override list actions to skip metadata internal objects
+        This will allow most tests to run with mdproxy
+        """
+        ctype = 'application/%s' % content_type
+        data = self._deserializers[ctype].deserialize(response.body)['body']
+        for resource in ['networks', 'subnets', 'ports']:
+            if data.get(resource):
+                self._remove_md_proxy_from_list(data[resource])
+        return data
+
+    def _list(self, resource, fmt=None, neutron_context=None,
+              query_params=None, expected_code=webob.exc.HTTPOk.code):
+        fmt = fmt or self.fmt
+        req = self.new_list_request(resource, fmt, query_params)
+        if neutron_context:
+            req.environ['neutron.context'] = neutron_context
+        res = req.get_response(self._api_for_resource(resource))
+        self.assertEqual(expected_code, res.status_int)
+        if query_params and '_id=' in query_params:
+            # Do not remove objects if their id was requested specifically
+            return super(NsxVPluginV2TestCase, self).deserialize(fmt, res)
+        else:
+            return self.deserialize(fmt, res)
+
+    def _test_list_with_pagination(self, resource, items, sort,
+                                   limit, expected_page_num,
+                                   resources=None,
+                                   query_params='',
+                                   verify_key='id'):
+        """Override list actions to skip metadata internal objects
+        This will allow most tests to run with mdproxy
+        """
+        if not resources:
+            resources = '%ss' % resource
+        query_str = query_params + '&' if query_params else ''
+        query_str = query_str + ("limit=%s&sort_key=%s&"
+                                 "sort_dir=%s") % (limit, sort[0], sort[1])
+        req = self.new_list_request(resources, params=query_str)
+        items_res = []
+        page_num = 0
+        api = self._api_for_resource(resources)
+        resource = resource.replace('-', '_')
+        resources = resources.replace('-', '_')
+        while req:
+            page_num = page_num + 1
+            res = super(NsxVPluginV2TestCase, self).deserialize(
+                self.fmt, req.get_response(api))
+            self.assertThat(len(res[resources]),
+                            matchers.LessThan(limit + 1))
+            items_res = items_res + res[resources]
+            req = None
+            if '%s_links' % resources in res:
+                for link in res['%s_links' % resources]:
+                    if link['rel'] == 'next':
+                        content_type = 'application/%s' % self.fmt
+                        req = testlib_api.create_request(link['href'],
+                                                         '', content_type)
+                        self.assertEqual(len(res[resources]),
+                                         limit)
+        # skip md-proxy objects
+        orig_items_num = len(items_res)
+        self._remove_md_proxy_from_list(items_res)
+        # Test number of pages only if no mdproxy entries were removed
+        if orig_items_num == len(items_res):
+            self.assertEqual(expected_page_num, page_num)
+        self.assertEqual([item[resource][verify_key] for item in items],
+                         [n[verify_key] for n in items_res])
+
+    def _test_list_with_pagination_reverse(self, resource, items, sort,
+                                           limit, expected_page_num,
+                                           resources=None,
+                                           query_params=''):
+        """Override list actions to skip metadata internal objects
+        This will allow most tests to run with mdproxy
+        """
+        if not resources:
+            resources = '%ss' % resource
+        resource = resource.replace('-', '_')
+        api = self._api_for_resource(resources)
+        marker = items[-1][resource]['id']
+        query_str = query_params + '&' if query_params else ''
+        query_str = query_str + ("limit=%s&page_reverse=True&"
+                                 "sort_key=%s&sort_dir=%s&"
+                                 "marker=%s") % (limit, sort[0], sort[1],
+                                                 marker)
+        req = self.new_list_request(resources, params=query_str)
+        item_res = [items[-1][resource]]
+        page_num = 0
+        resources = resources.replace('-', '_')
+        while req:
+            page_num = page_num + 1
+            res = super(NsxVPluginV2TestCase, self).deserialize(
+                self.fmt, req.get_response(api))
+            self.assertThat(len(res[resources]),
+                            matchers.LessThan(limit + 1))
+            res[resources].reverse()
+            item_res = item_res + res[resources]
+            req = None
+            if '%s_links' % resources in res:
+                for link in res['%s_links' % resources]:
+                    if link['rel'] == 'previous':
+                        content_type = 'application/%s' % self.fmt
+                        req = testlib_api.create_request(link['href'],
+                                                         '', content_type)
+                        self.assertEqual(len(res[resources]),
+                                         limit)
+        # skip md-proxy objects
+        orig_items_num = len(item_res)
+        self._remove_md_proxy_from_list(item_res)
+        # Test number of pages only if no mdproxy entries were removed
+        if orig_items_num == len(item_res):
+            self.assertEqual(expected_page_num, page_num)
+        expected_res = [item[resource]['id'] for item in items]
+        expected_res.reverse()
+        self.assertEqual(expected_res, [n['id'] for n in item_res])
 
 
 class TestNetworksV2(test_plugin.TestNetworksV2, NsxVPluginV2TestCase):
@@ -415,11 +564,13 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxVPluginV2TestCase):
             with self.network(name='net2', shared=True):
                 req = self.new_list_request('networks')
                 res = self.deserialize('json', req.get_response(self.api))
+                ###self._remove_md_proxy_from_list(res['networks'])
                 self.assertEqual(len(res['networks']), 2)
                 req_2 = self.new_list_request('networks')
                 req_2.environ['neutron.context'] = context.Context('',
                                                                    'somebody')
                 res = self.deserialize('json', req_2.get_response(self.api))
+                ###self._remove_md_proxy_from_list(res['networks'])
                 # tenant must see a single network
                 self.assertEqual(len(res['networks']), 1)
 
@@ -842,6 +993,27 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxVPluginV2TestCase):
         # the availability zone is still empty until subnet creation
         self.assertEqual([],
                          net['availability_zones'])
+
+    def test_list_networks_with_fields(self):
+        with self.network(name='net1'):
+            req = self.new_list_request('networks',
+                                        params='fields=name')
+            res = self.deserialize(self.fmt, req.get_response(self.api))
+            self._remove_md_proxy_from_list(res['networks'])
+            self.assertEqual(1, len(res['networks']))
+            net = res['networks'][0]
+            self.assertEqual('net1', net['name'])
+            self.assertNotIn('id', net)
+            self.assertNotIn('tenant_id', net)
+            self.assertNotIn('project_id', net)
+
+    def test_list_networks_without_pk_in_fields_pagination_native(self):
+        self.skipTest("The test is not suitable for the metadata test case")
+
+    def test_cannot_delete_md_net(self):
+        req = self.new_delete_request('networks', self.internal_net_id)
+        net_del_res = req.get_response(self.api)
+        self.assertEqual(net_del_res.status_int, 400)
 
 
 class TestVnicIndex(NsxVPluginV2TestCase,
@@ -2065,6 +2237,16 @@ class TestSubnetsV2(NsxVPluginV2TestCase,
                 self._test_create_subnet(network=net,
                                          cidr='169.254.128.128/25')
                 self.assertEqual(ctx_manager.exception.code, 400)
+
+    def test_cannot_delete_md_subnet(self):
+        query_params = "network_id=%s" % self.internal_net_id
+        res = self._list('subnets',
+                         neutron_context=self.context,
+                         query_params=query_params)
+        internal_sub = res['subnets'][0]['id']
+        req = self.new_delete_request('subnets', internal_sub)
+        net_del_res = req.get_response(self.api)
+        self.assertEqual(net_del_res.status_int, 400)
 
 
 class TestSubnetPoolsV2(NsxVPluginV2TestCase, test_plugin.TestSubnetsV2):
