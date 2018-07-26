@@ -31,6 +31,12 @@ if [[ "$1" == "stack" && "$2" == "install" ]]; then
     setup_develop ${GITDIR['vmware-nsx']}
 fi
 
+if [[ "$1" == "stack" && "$2" == "test-config" ]]; then
+    echo "FINDME: Some debbuging"
+    dpkg -l
+    ip route
+fi
+
 if [[ $Q_PLUGIN == 'vmware_nsx_v' ]]; then
     source $dir/lib/vmware_nsx_v
     if [[ "$1" == "unstack" ]]; then
