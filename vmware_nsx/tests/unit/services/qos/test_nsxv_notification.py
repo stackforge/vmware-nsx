@@ -44,8 +44,11 @@ class TestQosNsxVNotification(test_plugin.NsxVPluginV2TestCase,
         self._init_dvs_config()
         # Reset the drive to re-create it
         qos_driver.DRIVER = None
-        super(TestQosNsxVNotification, self).setUp(plugin=CORE_PLUGIN,
-                                                   ext_mgr=None)
+        with mock.patch("vmware_nsx.services.lbaas.octavia."
+                        "octavia_listener.NSXOctaviaListener.__init__",
+                        return_value=None):
+            super(TestQosNsxVNotification, self).setUp(plugin=CORE_PLUGIN,
+                                                       ext_mgr=None)
         self.setup_coreplugin(CORE_PLUGIN)
 
         plugin_instance = directory.get_plugin()
@@ -58,11 +61,12 @@ class TestQosNsxVNotification(test_plugin.NsxVPluginV2TestCase,
                           return_value=self.qos_plugin).start()
 
         # Pre defined QoS data for the tests
-        self.ctxt = context.Context('fake_user', 'fake_tenant')
+        self.tenant_id = uuidutils.generate_uuid()
+        self.ctxt = context.Context('fake_user', self.tenant_id)
 
         self.policy_data = {
             'policy': {'id': uuidutils.generate_uuid(),
-                       'project_id': uuidutils.generate_uuid(),
+                       'project_id': self.tenant_id,
                        'name': 'test-policy',
                        'description': 'Test policy description',
                        'shared': True}}
@@ -101,7 +105,7 @@ class TestQosNsxVNotification(test_plugin.NsxVPluginV2TestCase,
 
         self._net_data = {'network': {
             'name': 'test-qos',
-            'tenant_id': 'fake_tenant',
+            'tenant_id': self.tenant_id,
             'qos_policy_id': self.policy.id,
             'port_security_enabled': False,
             'admin_state_up': False,
