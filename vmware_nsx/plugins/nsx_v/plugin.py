@@ -1135,7 +1135,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
     def create_network(self, context, network):
         net_data = network['network']
         tenant_id = net_data['tenant_id']
-        self._ensure_default_security_group(context, tenant_id)
+        try:
+            # DEBUG ADIT - testing....
+            self._ensure_default_security_group(context, tenant_id)
+        except Exception as e:
+            msg = (_("DEBUG ADIT failed create_network _ensure_default_"
+                     "security_group for tenant %(tenant)s: %(e)s") % {
+                   'tenant': tenant_id, 'e': e})
+            raise n_exc.InvalidInput(error_message=msg)
+
         # Process the provider network extension
         provider_type = self._convert_to_transport_zones_dict(net_data)
         self._validate_provider_create(context, net_data)
