@@ -1136,6 +1136,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         net_data = network['network']
         tenant_id = net_data['tenant_id']
         self._ensure_default_security_group(context, tenant_id)
+
         # Process the provider network extension
         provider_type = self._convert_to_transport_zones_dict(net_data)
         self._validate_provider_create(context, net_data)
