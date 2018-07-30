@@ -528,7 +528,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             rule_config = self.nsx_sg_utils.get_rule_config(
                 applied_to_ids, rule['name'], rule['action'],
                 applied_to_type, services=rule['services'],
-                logged=cfg.CONF.nsxv.log_security_groups_allowed_traffic)
+                logged=cfg.CONF.nsxv.log_security_groups_allowed_traffic,
+                notes=rule.get('description'))
             rule_list.append(rule_config)
 
         igmp_names = ['IGMP Membership Query', 'IGMP V2 Membership Report',
@@ -547,13 +548,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                     applied_to_ids, rule['name'], rule['action'],
                     applied_to_type,
                     application_services=rule['service_ids'],
-                    logged=cfg.CONF.nsxv.log_security_groups_allowed_traffic)
+                    logged=cfg.CONF.nsxv.log_security_groups_allowed_traffic,
+                    notes=rule.get('description'))
                 rule_list.append(rule_config)
 
         # Default security-group rules
         block_rule = self.nsx_sg_utils.get_rule_config(
             [self.sg_container_id], 'Block All', 'deny',
-            logged=cfg.CONF.nsxv.log_security_groups_blocked_traffic)
+            logged=cfg.CONF.nsxv.log_security_groups_blocked_traffic,
+            notes=rule.get('description'))
         rule_list.append(block_rule)
 
         with locking.LockManager.get_lock('default-section-init'):
