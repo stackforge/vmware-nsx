@@ -269,6 +269,10 @@ Security Groups, Firewall and Spoofguard
 
     nsxadmin -r security-groups -o migrate-to-policy --property policy-id=policy-10 --property security-group-id=733f0741-fa2c-4b32-811c-b78e4dc8ec39
 
+- Update logging flag of the security groups on the NSX DFW
+
+    nsxadmin -r security-groups -o update-logging --property log-allowed-traffic=true
+
 - Spoofguard support::
 
     nsxadmin -r spoofguard-policy -o list-mismatches
