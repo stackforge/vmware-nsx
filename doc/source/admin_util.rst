@@ -221,6 +221,10 @@ Security Groups, Firewall and Spoofguard
     nsxadmin -r nsx-security-groups -o {list, list-missmatches}
     nsxadmin -r firewall-sections -o {list, list-missmatches, nsx-update}
 
+- Update logging flag of the security groups on the NSX DFW
+
+    nsxadmin -r security-groups -o update-logging --property log-allowed-traffic=true
+
 - Spoofguard support::
 
     nsxadmin -r spoofguard-policy -o list-mismatches
