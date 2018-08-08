@@ -250,3 +250,8 @@ class EdgeMemberManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                 raise n_exc.BadRequest(resource='lbaas-member', msg=msg)
 
         completor(success=True)
+
+
+    def get_operating_status(self, context, id):
+        # DEBUG ADIT: implement
+        pass

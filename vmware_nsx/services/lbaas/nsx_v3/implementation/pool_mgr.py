@@ -168,3 +168,7 @@ class EdgePoolManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                                                  lb_id, pool['id'])
 
         completor(success=True)
+
+    def get_operating_status(self, context, id):
+        # DEBUG ADIT: implement
+        pass

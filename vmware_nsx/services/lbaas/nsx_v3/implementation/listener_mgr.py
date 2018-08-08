@@ -281,3 +281,7 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                 context.session, lb_id, listener['id'])
 
         completor(success=True)
+
+    def get_operating_status(self, context, id):
+        # DEBUG ADIT: implement
+        pass

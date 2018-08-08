@@ -107,8 +107,21 @@ class EdgeLoadBalancerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
         completor(success=True)
 
     def refresh(self, context, lb):
-        # TODO(tongl): implememnt
+        # TODO(tongl): implement
         pass
+
+    def get_operating_status(self, context, id):
+        service_client = self.core_plugin.nsxlib.load_balancer.service
+        lb_binding = nsx_db.get_nsx_lbaas_loadbalancer_binding(
+            context.session, id)
+        if lb_binding:
+            lb_service_id = lb_binding['lb_service_id']
+            try:
+                lb_service = service_client.get(lb_service_id)
+                LOG.error("DEBUG ADIT nsx lb service %s", lb_service)
+            except nsxlib_exc.ManagerError:
+                LOG.warning("LB service %(lbs)s is not found",
+                            {'lbs': lb_service_id})
 
     def stats(self, context, lb):
         # Since multiple LBaaS loadbalancer can share the same LB service,
