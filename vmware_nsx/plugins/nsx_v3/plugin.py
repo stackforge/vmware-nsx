@@ -4854,14 +4854,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                               "backend.")
                 if ns_group:
                     self.nsxlib.ns_group.delete(ns_group['id'])
-        except Exception:
+        except Exception as e:
             with excutils.save_and_reraise_exception():
                 section_id = firewall_section.get('id')
                 nsgroup_id = ns_group.get('id')
-                LOG.debug("Neutron failed to create security-group, "
+                LOG.error("Neutron failed to create security-group, "
                           "deleting backend resources: "
-                          "section %s, ns-group %s.",
-                          section_id, nsgroup_id)
+                          "section %s, ns-group %s. Error: %s",
+                          section_id, nsgroup_id, e)
                 if nsgroup_id:
                     self.nsxlib.ns_group.delete(nsgroup_id)
                 if section_id:
