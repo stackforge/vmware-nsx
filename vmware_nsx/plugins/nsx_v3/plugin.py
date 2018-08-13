@@ -4927,6 +4927,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self.nsxlib.ns_group.delete(nsgroup_id)
 
     def create_security_group_rule(self, context, security_group_rule):
+        # verify support for ver 2.4
         bulk_rule = {'security_group_rules': [security_group_rule]}
         return self.create_security_group_rule_bulk(context, bulk_rule)[0]
 
