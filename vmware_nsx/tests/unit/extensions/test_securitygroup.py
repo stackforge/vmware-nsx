@@ -96,6 +96,7 @@ class TestSecurityGroupsNoDynamicCriteria(test_nsxv3.NsxV3PluginTestCaseMixin,
         self._patchers.append(mock_nsx_version)
 
     def test_create_security_group_rule_icmp_with_type_and_code(self):
+        # verify support for ver 2.4
         name = 'webservers'
         description = 'my webservers'
         with self.security_group(name, description) as sg:
