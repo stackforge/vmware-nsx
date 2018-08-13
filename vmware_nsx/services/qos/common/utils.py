@@ -15,7 +15,18 @@
 #    under the License.
 
 from neutron.objects.qos import policy as qos_policy
+from neutron_lib import exceptions as n_exc
 from neutron_lib.services.qos import constants as qos_consts
+
+
+def validate_policy_accessable(context, policy_id):
+    policy_obj = qos_policy.QosPolicy.get_object(
+        context, id=policy_id)
+    if not policy_obj:
+        # This means that rbac decided the policy cannot be used with this
+        # context
+        msg = _("QoS Policy %s cannot be used by this project") % policy_id
+        raise n_exc.InvalidInput(error_message=msg)
 
 
 def update_network_policy_binding(context, net_id, new_policy_id):
