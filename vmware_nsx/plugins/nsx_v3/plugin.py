@@ -1155,6 +1155,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             network[pnet.PHYSICAL_NETWORK] = bindings[0].phy_uuid
             network[pnet.SEGMENTATION_ID] = bindings[0].vlan_id
 
+    def validate_qos_policy_id(self, context, qos_policy_id):
+        if qos_policy_id:
+            qos_com_utils.validate_policy_accessable(context, qos_policy_id)
+
     def _assert_on_external_net_with_qos(self, net_data):
         # Prevent creating/update external network with QoS policy
         if validators.is_attr_set(net_data.get(qos_consts.QOS_POLICY_ID)):
@@ -1229,6 +1233,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             vlt = vlan_apidef.get_vlan_transparent(net_data)
 
         nsx_net_id = None
+        self.validate_qos_policy_id(
+            context, net_data.get(qos_consts.QOS_POLICY_ID))
         if validators.is_attr_set(external) and external:
             self._assert_on_external_net_with_qos(net_data)
             is_provider_net, net_type, physical_net, vlan_id = (
@@ -1446,6 +1452,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         net_data = network['network']
         # Neutron does not support changing provider network values
         providernet._raise_if_updates_provider_attributes(net_data)
+        self.validate_qos_policy_id(
+            context, net_data.get(qos_consts.QOS_POLICY_ID))
         extern_net = self._network_is_external(context, id)
         is_nsx_net = self._network_is_nsx_net(context, id)
         is_ens_net = self._is_ens_tz_net(context, id)
@@ -2918,6 +2926,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         is_ens_tz_port = self._is_ens_tz_port(context, port_data)
         qos_selected = validators.is_attr_set(port_data.get(
             qos_consts.QOS_POLICY_ID))
+        self.validate_qos_policy_id(
+            context, port_data.get(qos_consts.QOS_POLICY_ID))
 
         if is_ens_tz_port:
             if qos_selected:
@@ -3399,6 +3409,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             port_data = port['port']
             nsx_lswitch_id, nsx_lport_id = nsx_db.get_nsx_switch_and_port_id(
                 context.session, id)
+            self.validate_qos_policy_id(
+                context, port_data.get(qos_consts.QOS_POLICY_ID))
             is_external_net = self._network_is_external(
                 context, original_port['network_id'])
             if is_external_net:
