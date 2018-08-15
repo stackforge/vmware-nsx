@@ -3253,9 +3253,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         updated_ps = updated_port.get('port_security_enabled')
         updated_excluded = self._is_excluded_port(updated_device_owner,
                                                   updated_ps)
+        LOG.error("DEBUG ADIT update port %s updated_ps=%s", lport_id, updated_ps)
         original_ps = original_port.get('port_security_enabled')
         original_excluded = self._is_excluded_port(original_device_owner,
                                                    original_ps)
+        LOG.error("DEBUG ADIT update port %s original_ps=%s", lport_id, original_ps)
         if updated_excluded != original_excluded:
             if self.nsxlib.feature_supported(
                 nsxlib_consts.FEATURE_EXCLUDE_PORT_BY_TAG):
@@ -3263,8 +3265,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     tags_update.append({'scope': security.PORT_SG_SCOPE,
                                         'tag': nsxlib_consts.EXCLUDE_PORT})
                 else:
-                    tags_update.append({'scope': security.PORT_SG_SCOPE,
-                                        'tag': None})
+                    # Need tags_update not to be empty in order to make sure
+                    # the tags are updated on the NSX logical port.
+                    # But this is done below with security groups
+                    # (or adding empty tag)
+                    if not self.nsxlib.feature_supported(
+                        nsxlib_consts.FEATURE_DYNAMIC_CRITERIA):
+                        tags_update.append({'scope': security.PORT_SG_SCOPE,
+                                            'tag': None})
             else:
                 fs = self.nsxlib.firewall_section
                 if updated_excluded:
@@ -3276,9 +3284,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         if self.nsxlib.feature_supported(
             nsxlib_consts.FEATURE_DYNAMIC_CRITERIA):
+            LOG.error("DEBUG ADIT tags_update0 = %s", tags_update)
             tags_update += self.nsxlib.ns_group.get_lport_tags(
                 updated_port.get(ext_sg.SECURITYGROUPS, []) +
                 updated_port.get(provider_sg.PROVIDER_SECURITYGROUPS, []))
+            LOG.error("DEBUG ADIT tags_update1 = %s", tags_update)
             # Only set the default section tag if there is no port security
             if not updated_excluded:
                 tags_update.append({'scope': security.PORT_SG_SCOPE,
@@ -3289,6 +3299,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     nsxlib_consts.FEATURE_EXCLUDE_PORT_BY_TAG):
                     tags_update.append({'scope': security.PORT_SG_SCOPE,
                                         'tag': nsxlib_consts.EXCLUDE_PORT})
+            LOG.error("DEBUG ADIT tags_update2 = %s", tags_update)
         else:
             self._update_lport_with_security_groups(
                 context, lport_id,
@@ -3324,11 +3335,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             switch_profile_ids.append(qos_profile_id)
 
         psec_is_on = self._get_port_security_profile_id() in switch_profile_ids
+        LOG.error("DEBUG ADIT update port %s psec_is_on=%s", lport_id, psec_is_on)
 
         address_pairs = updated_port.get(addr_apidef.ADDRESS_PAIRS)
+        LOG.error("DEBUG ADIT update port %s address_pairs=%s", lport_id, address_pairs)
         mac_learning_profile_set = (
             validators.is_attr_set(address_pairs) and address_pairs and
             psec_is_on)
+        LOG.error("DEBUG ADIT update port %s mac_learning_profile_set=%s", lport_id, mac_learning_profile_set)
         # Add mac_learning profile if it exists and is configured
         if (not is_ens_tz_port and self._mac_learning_profile and
             (mac_learning_profile_set or
@@ -3336,6 +3350,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             switch_profile_ids.append(self._mac_learning_profile)
             switch_profile_ids.append(self._no_switch_security)
 
+        LOG.error("DEBUG ADIT update port %s address_pairs=%s", lport_id, address_pairs)
+        LOG.error("DEBUG ADIT update port %s address_bindings=%s", lport_id, address_bindings)
+        LOG.error("DEBUG ADIT update port %s switch_profile_ids=%s", lport_id, switch_profile_ids)
+        LOG.error("DEBUG ADIT update port %s final tags_update=%s", lport_id, tags_update)
         try:
             self.nsxlib.logical_port.update(
                 lport_id, vif_uuid, name=name,
