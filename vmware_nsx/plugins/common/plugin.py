@@ -48,7 +48,7 @@ LOG = logging.getLogger(__name__)
 @resource_extend.has_resource_extenders
 class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
                     address_scope_db.AddressScopeDbMixin):
-    """Common methods for NSX-V and NSX-V3 plugins"""
+    """Common methods for NSX-V and NSX-V3 plugins."""
 
     @property
     def plugin_type(self):
