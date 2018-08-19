@@ -2717,6 +2717,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         return policy_id, profile_id
 
+    def _update_extra_dhcp_opts_on_port(self, context, id, port,
+                                        updated_port=None):
+        if super(NsxV3Plugin, self)._update_extra_dhcp_opts_on_port(
+            context, id, port, updated_port=updated_port):
+            # Make sure the port revision is updated
+            port_model = self._get_port(context, id)
+            port_model.bump_revision()
+
     def update_port(self, context, id, port):
         switch_profile_ids = None
 
