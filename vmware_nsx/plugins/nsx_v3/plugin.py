@@ -4737,6 +4737,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def create_security_group(self, context, security_group, default_sg=False):
         secgroup = security_group['security_group']
         secgroup['id'] = secgroup.get('id') or uuidutils.generate_uuid()
+        LOG.info("NSX-V3 plugin: creating security group %s default=%s",
+                 secgroup, default_sg)
         ns_group = {}
         firewall_section = {}
 
@@ -4753,6 +4755,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 # NOTE(arosen): a neutron security group be default adds rules
                 # that allow egress traffic. We do not want this behavior for
                 # provider security_groups
+                LOG.info("NSX-V3 plugin: creating neutron security group %s",
+                    secgroup['id'])
                 if secgroup.get(provider_sg.PROVIDER) is True:
                     secgroup_db = self.create_provider_security_group(
                         context, security_group)
@@ -4761,6 +4765,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         super(NsxV3Plugin, self).create_security_group(
                             context, security_group, default_sg))
 
+                LOG.info("NSX-V3 plugin: adding nsx mapping to DB for SG %s",
+                    secgroup_db['id'])
                 nsx_db.save_sg_mappings(context,
                                         secgroup_db['id'],
                                         ns_group['id'],
@@ -4791,6 +4797,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     self.nsxlib.ns_group.delete(nsgroup_id)
                 if section_id:
                     self.nsxlib.firewall_section.delete(section_id)
+                # DEBUG ADIT - delete the nsx DB entries too?
+                # Should not need to because of on-delete-cascade
         try:
             sg_rules = secgroup_db['security_group_rules']
             # skip if there are no rules in group. i.e provider case
