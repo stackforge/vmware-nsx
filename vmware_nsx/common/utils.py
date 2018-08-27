@@ -70,6 +70,7 @@ class NsxV3NetworkTypes(object):
     VLAN = 'vlan'
     GENEVE = 'geneve'
     NSX_NETWORK = 'nsx-net'
+    PORTGROUP = 'portgroup'
 
 
 def is_nsx_version_1_1_0(nsx_version):
