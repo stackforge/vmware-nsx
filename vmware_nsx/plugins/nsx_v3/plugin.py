@@ -595,14 +595,19 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # Not using the register api for this because we need the context
         port_data[pbin.VIF_TYPE] = pbin.VIF_TYPE_OVS
         port_data[pbin.VNIC_TYPE] = pbin.VNIC_NORMAL
-        if 'network_id' in port_data:
+        net_id = port_data.get('network_id')
+        if net_id:
+            if self._network_is_portgroup_net(context, net_id):
+                port_data[pbin.VIF_TYPE] = 'dvs'
             port_data[pbin.VIF_DETAILS] = {
                 pbin.OVS_HYBRID_PLUG: False,
                 # TODO(rkukura): Replace with new VIF security details
                 pbin.CAP_PORT_FILTER:
                 'security-group' in self.supported_extension_aliases,
                 'nsx-logical-switch-id':
-                self._get_network_nsx_id(context, port_data['network_id'])}
+                self._get_network_nsx_id(context, net_id),
+                'segmentation-id':
+                self._get_network_segmentation_id(context, net_id)}
 
     @nsxlib_utils.retry_upon_exception(
         Exception, max_attempts=cfg.CONF.nsx_v3.retries)
@@ -957,6 +962,15 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 if bindings:
                     err_msg = (_('Logical switch %s is already used by '
                                  'another network') % physical_net)
+            elif net_type == utils.NsxV3NetworkTypes.PORTGROUP:
+                # The plugin will not create an NSX object for this kind of
+                # network. Nova will manage it as a flat (segmentation_id=0)
+                # or vlan network
+                if vlan_id is None:
+                    vlan_id = 0
+                if physical_net is not None:
+                    err_msg = (_("Physical network cannot be specified with "
+                                 "%s network type") % net_type)
             else:
                 err_msg = (_('%(net_type_param)s %(net_type_value)s not '
                              'supported') %
@@ -977,7 +991,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         # validate the transport zone existence and type
         if (not err_msg and physical_net and
-            net_type != utils.NsxV3NetworkTypes.NSX_NETWORK):
+            net_type != utils.NsxV3NetworkTypes.NSX_NETWORK and
+            net_type != utils.NsxV3NetworkTypes.PORTGROUP):
             if is_provider_net:
                 try:
                     backend_type = nsxlib_tz.get_transport_type(
@@ -1030,7 +1045,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         neutron_net_id = net_data.get('id') or uuidutils.generate_uuid()
         net_data['id'] = neutron_net_id
         if self._is_ens_tz(physical_net):
-            self._assert_on_ens_with_qos(net_data)
+            self._assert_on_illegal_net_with_qos(net_data, net_type="ENS")
             self._ensure_override_ens_with_portsecurity(net_data)
         if (provider_data['switch_mode'] ==
             self.nsxlib.transport_zone.HOST_SWITCH_MODE_ENS):
@@ -1041,7 +1056,18 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # set the default port security to False
             net_data[psec.PORTSECURITY] = False
 
-        if (provider_data['is_provider_net'] and
+        is_backend_network = True
+        if provider_data['net_type'] == utils.NsxV3NetworkTypes.PORTGROUP:
+            # do not create the network on the backend
+            nsx_id = None
+            is_backend_network = False
+            # Do not allow port security or QoS on this network
+            if net_data.get(psec.PORTSECURITY):
+                raise nsx_exc.NsxPortgroupPortSecurity()
+            self._assert_on_illegal_net_with_qos(net_data,
+                                                 net_type="portgroup")
+
+        elif (provider_data['is_provider_net'] and
             provider_data['net_type'] == utils.NsxV3NetworkTypes.NSX_NETWORK):
             # Network already exists on the NSX backend
             nsx_id = provider_data['physical_net']
@@ -1078,7 +1104,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 provider_data['net_type'],
                 provider_data['physical_net'],
                 provider_data['vlan_id'],
-                nsx_id)
+                nsx_id,
+                is_backend_network)
 
     def _is_ddi_supported_on_net_with_type(self, context, network_id):
         net = self.get_network(context, network_id)
@@ -1155,10 +1182,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             network[pnet.PHYSICAL_NETWORK] = bindings[0].phy_uuid
             network[pnet.SEGMENTATION_ID] = bindings[0].vlan_id
 
-    def _assert_on_external_net_with_qos(self, net_data):
-        # Prevent creating/update external network with QoS policy
+    def _assert_on_illegal_net_with_qos(self, net_data, net_type="external"):
+        # Prevent creating/update external/non-backend network with QoS policy
         if validators.is_attr_set(net_data.get(qos_consts.QOS_POLICY_ID)):
-            err_msg = _("Cannot configure QOS on external networks")
+            err_msg = _("Cannot configure QOS on %s networks") % net_type
             raise n_exc.InvalidInput(error_message=err_msg)
 
     def get_subnets(self, context, filters=None, fields=None, sorts=None,
@@ -1176,12 +1203,37 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return super(NsxV3Plugin, self).get_subnets(
             context, filters, fields, sorts, limit, marker, page_reverse)
 
+    def _is_backend_network(self, context, network_id):
+        """Return True if the network is configured and maintained by
+        the plugin on the NSX backend.
+
+        False for:
+        - External networks
+        - NSX type provider networks
+        - portgroup type provider networks
+        """
+        if self._network_is_external(context, network_id):
+            return False
+        bindings = nsx_db.get_network_bindings(context.session, network_id)
+        if not bindings:
+            return True
+        bind_type = bindings[0].binding_type
+        return bind_type not in [utils.NsxV3NetworkTypes.NSX_NETWORK,
+                                 utils.NsxV3NetworkTypes.PORTGROUP]
+
     def _network_is_nsx_net(self, context, network_id):
         bindings = nsx_db.get_network_bindings(context.session, network_id)
         if not bindings:
             return False
         return (bindings[0].binding_type ==
                 utils.NsxV3NetworkTypes.NSX_NETWORK)
+
+    def _network_is_portgroup_net(self, context, network_id):
+        bindings = nsx_db.get_network_bindings(context.session, network_id)
+        if not bindings:
+            return False
+        return (bindings[0].binding_type ==
+                utils.NsxV3NetworkTypes.PORTGROUP)
 
     def _generate_segment_id(self, context, physical_network, net_data):
         bindings = nsx_db.get_network_bindings_by_phy_uuid(
@@ -1214,7 +1266,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         is_backend_network = False
         is_ddi_network = False
         tenant_id = net_data['tenant_id']
-
         # validate the availability zone, and get the AZ object
         if az_def.AZ_HINTS in net_data:
             self._validate_availability_zones_forced(
@@ -1232,14 +1283,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._validate_qos_policy_id(
             context, net_data.get(qos_consts.QOS_POLICY_ID))
         if validators.is_attr_set(external) and external:
-            self._assert_on_external_net_with_qos(net_data)
+            self._assert_on_illegal_net_with_qos(net_data)
             is_provider_net, net_type, physical_net, vlan_id = (
                 self._validate_external_net_create(net_data, az))
         else:
-            is_provider_net, net_type, physical_net, vlan_id, nsx_net_id = (
-                self._create_network_at_the_backend(context, net_data, az,
-                                                    vlt))
-            is_backend_network = True
+            (is_provider_net, net_type, physical_net, vlan_id, nsx_net_id,
+             is_backend_network) = self._create_network_at_the_backend(
+                context, net_data, az, vlt)
 
         try:
             rollback_network = False
@@ -1338,12 +1388,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         return created_net
 
-    def _assert_on_ens_with_qos(self, net_data):
-        qos_id = net_data.get(qos_consts.QOS_POLICY_ID)
-        if validators.is_attr_set(qos_id):
-            err_msg = _("Cannot configure QOS on ENS networks")
-            raise n_exc.InvalidInput(error_message=err_msg)
-
     def _ensure_override_ens_with_portsecurity(self, net_data):
         if cfg.CONF.nsx_v3.disable_port_security_for_ens:
             if net_data[psec.PORTSECURITY]:
@@ -1413,12 +1457,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         nsx_net_id = self._get_network_nsx_id(context, network_id)
         is_nsx_net = self._network_is_nsx_net(context, network_id)
+        is_backend_net = self._is_backend_network(context, network_id)
         is_ddi_network = self._is_ddi_supported_on_network(context, network_id)
         # First call DB operation for delete network as it will perform
         # checks on active ports
         self._retry_delete_network(context, network_id)
-        if (not self._network_is_external(context, network_id) and
-            not is_nsx_net):
+        if is_backend_net:
             # TODO(salv-orlando): Handle backend failure, possibly without
             # requiring us to un-delete the DB object. For instance, ignore
             # failures occurring if logical switch is not found
@@ -1429,6 +1473,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 # Delete the mdproxy port manually
                 self._delete_network_nsx_dhcp_port(network_id)
             # TODO(berlin): delete subnets public announce on the network
+
+    def _get_network_segmentation_id(self, context, neutron_id):
+        bindings = nsx_db.get_network_bindings(context.session, neutron_id)
+        if bindings:
+            return bindings[0].vlan_id
 
     def _get_network_nsx_id(self, context, neutron_id):
         # get the nsx switch id from the DB mapping
@@ -1451,13 +1500,24 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._validate_qos_policy_id(
             context, net_data.get(qos_consts.QOS_POLICY_ID))
         extern_net = self._network_is_external(context, id)
-        is_nsx_net = self._network_is_nsx_net(context, id)
+        is_backend_net = self._is_backend_network(context, id)
+        is_portgroup_net = self._network_is_portgroup_net(context, id)
         is_ens_net = self._is_ens_tz_net(context, id)
         if extern_net:
-            self._assert_on_external_net_with_qos(net_data)
-        else:
-            if is_ens_net:
-                self._assert_on_ens_with_qos(net_data)
+            self._assert_on_illegal_net_with_qos(net_data)
+        elif is_portgroup_net:
+            # do not allow to enable port security or Qos on portgroup networks
+            self._assert_on_illegal_net_with_qos(
+                net_data, net_type="portgroup")
+            if (net_data.get(psec.PORTSECURITY) and
+                not original_net[psec.PORTSECURITY]):
+                raise nsx_exc.NsxPortgroupPortSecurity()
+        elif is_ens_net:
+            # do not allow to enable port security or QoS on ENS networks
+            self._assert_on_illegal_net_with_qos(net_data, net_type="ENS")
+            if (net_data.get(psec.PORTSECURITY) and
+                not original_net[psec.PORTSECURITY]):
+                raise nsx_exc.NsxENSPortSecurity()
         # Do not support changing external/non-external networks
         if (extnet_apidef.EXTERNAL in net_data and
             net_data[extnet_apidef.EXTERNAL] != extern_net):
@@ -1469,16 +1529,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._extension_manager.process_update_network(context, net_data,
                                                        updated_net)
         if psec.PORTSECURITY in net_data:
-            # do not allow to enable port security on ENS networks
-            if (net_data[psec.PORTSECURITY] and
-                not original_net[psec.PORTSECURITY] and is_ens_net):
-                raise nsx_exc.NsxENSPortSecurity()
             self._process_network_port_security_update(
                 context, net_data, updated_net)
         self._process_l3_update(context, updated_net, network['network'])
         self._extend_network_dict_provider(context, updated_net)
 
-        if (not extern_net and not is_nsx_net and
+        if (is_backend_net and
             ('name' in net_data or 'admin_state_up' in net_data or
              'description' in net_data)):
             try:
@@ -1516,7 +1572,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                          {'qos': net_data[qos_consts.QOS_POLICY_ID],
                           'net': id})
 
-        if not extern_net and not is_nsx_net:
+        if is_backend_net:
             # update the network name & attributes in related NSX objects:
             if 'name' in net_data or 'dns_domain' in net_data:
                 # update the dhcp server after finding it by tags
@@ -1913,20 +1969,19 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def create_subnet(self, context, subnet):
         self._validate_host_routes_input(subnet)
+        net_id = subnet['subnet']['network_id']
         # TODO(berlin): public external subnet announcement
         if (cfg.CONF.nsx_v3.native_dhcp_metadata and
             subnet['subnet'].get('enable_dhcp', False)):
-            self._validate_external_subnet(context,
-                                           subnet['subnet']['network_id'])
-            lock = 'nsxv3_network_' + subnet['subnet']['network_id']
+            self._validate_external_subnet(context, net_id)
+            lock = 'nsxv3_network_' + net_id
             ddi_support, ddi_type = self._is_ddi_supported_on_net_with_type(
                 context, subnet['subnet']['network_id'])
             with locking.LockManager.get_lock(lock):
                 # Check if it is on an overlay network and is the first
                 # DHCP-enabled subnet to create.
                 if ddi_support:
-                    network = self._get_network(
-                        context, subnet['subnet']['network_id'])
+                    network = self._get_network(context, net_id)
                     if self._has_no_dhcp_enabled_subnet(context, network):
                         created_subnet = super(
                             NsxV3Plugin, self).create_subnet(context, subnet)
@@ -1944,9 +1999,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         self._extension_manager.process_create_subnet(context,
                             subnet['subnet'], created_subnet)
                         dhcp_relay = self.get_network_az_by_net_id(
-                            context,
-                            subnet['subnet']['network_id']).dhcp_relay_service
-                        if not dhcp_relay:
+                            context, net_id).dhcp_relay_service
+                        is_portgroup_net = self._network_is_portgroup_net(
+                            context, net_id)
+                        if not dhcp_relay and not is_portgroup_net:
                             self._enable_native_dhcp(context, network,
                                                      created_subnet)
                         msg = None
@@ -2003,23 +2059,24 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def update_subnet(self, context, subnet_id, subnet):
         updated_subnet = None
-        orig = self._get_subnet(context, subnet_id)
-        self._validate_host_routes_input(subnet,
-                                         orig_enable_dhcp=orig['enable_dhcp'],
-                                         orig_host_routes=orig['routes'])
+        orig_subnet = self._get_subnet(context, subnet_id)
+        net_id = orig_subnet['network_id']
+        is_portgroup_net = self._network_is_portgroup_net(context, net_id)
+        self._validate_host_routes_input(
+            subnet,
+            orig_enable_dhcp=orig_subnet['enable_dhcp'],
+            orig_host_routes=orig_subnet['routes'])
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
-            orig_subnet = self.get_subnet(context, subnet_id)
             enable_dhcp = subnet['subnet'].get('enable_dhcp')
             if (enable_dhcp is not None and
                 enable_dhcp != orig_subnet['enable_dhcp']):
-                lock = 'nsxv3_network_' + orig_subnet['network_id']
+                lock = 'nsxv3_network_' + net_id
                 with locking.LockManager.get_lock(lock):
-                    network = self._get_network(
-                        context, orig_subnet['network_id'])
+                    network = self._get_network(context, net_id)
                     if enable_dhcp:
                         (ddi_support,
                          ddi_type) = self._is_ddi_supported_on_net_with_type(
-                            context, orig_subnet['network_id'])
+                            context, net_id)
                         if ddi_support:
                             if self._has_no_dhcp_enabled_subnet(
                                 context, network):
@@ -2028,17 +2085,18 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                     context, subnet_id, subnet)
                                 self._extension_manager.process_update_subnet(
                                     context, subnet['subnet'], updated_subnet)
-                                self._enable_native_dhcp(context, network,
-                                                         updated_subnet)
+                                if not is_portgroup_net:
+                                    self._enable_native_dhcp(context, network,
+                                                             updated_subnet)
                                 msg = None
                             else:
                                 msg = (_("Multiple DHCP-enabled subnets is "
                                          "not allowed in network %s") %
-                                       orig_subnet['network_id'])
+                                       net_id)
                         else:
                             msg = (_("Native DHCP is not supported for "
                                      "%(type)s network %(id)s") %
-                                   {'id': orig_subnet['network_id'],
+                                   {'id': net_id,
                                     'type': ddi_type})
                         if msg:
                             LOG.error(msg)
@@ -2081,7 +2139,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     kwargs['gateway_ip'] = gw_ip
             if kwargs:
                 dhcp_service = nsx_db.get_nsx_service_binding(
-                    context.session, orig_subnet['network_id'],
+                    context.session, net_id,
                     nsxlib_consts.SERVICE_DHCP)
                 if dhcp_service:
                     try:
@@ -2093,7 +2151,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                 "Unable to update logical DHCP server "
                                 "%(server)s for network %(network)s",
                                 {'server': dhcp_service['nsx_service_id'],
-                                 'network': orig_subnet['network_id']})
+                                 'network': net_id})
                     if 'options' in kwargs:
                         # Need to update the static binding of every VM in
                         # this logical DHCP server.
@@ -2920,6 +2978,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                         port_data.get('device_owner'))
         self._assert_on_dhcp_relay_without_router(context, port_data)
         is_ens_tz_port = self._is_ens_tz_port(context, port_data)
+        is_portgroup_net = self._network_is_portgroup_net(
+            context, port_data['network_id'])
         qos_selected = validators.is_attr_set(port_data.get(
             qos_consts.QOS_POLICY_ID))
         self._validate_qos_policy_id(
@@ -2935,6 +2995,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                             port_data['network_id'])
                 port_data[psec.PORTSECURITY] = False
                 port_data['security_groups'] = []
+        if is_portgroup_net:
+            if qos_selected:
+                err_msg = _("Cannot configure QOS on portgroup networks")
+                raise n_exc.InvalidInput(error_message=err_msg)
+            if port_data.get(psec.PORTSECURITY):
+                raise nsx_exc.NsxPortgroupPortSecurity()
 
         with db_api.context_manager.writer.using(context):
             is_external_net = self._network_is_external(
@@ -2996,7 +3062,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # Operations to backend should be done outside of DB transaction.
         # NOTE(arosen): ports on external networks are nat rules and do
         # not result in ports on the backend.
-        if not is_external_net:
+        if not is_external_net and not is_portgroup_net:
             try:
                 lport = self._create_port_at_the_backend(
                     context, port_data, l2gw_port_check, is_psec_on,
@@ -3052,7 +3118,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._remove_provider_security_groups_from_list(port_data)
 
         # Add Mac/IP binding to native DHCP server and neutron DB.
-        if cfg.CONF.nsx_v3.native_dhcp_metadata:
+        if cfg.CONF.nsx_v3.native_dhcp_metadata and not is_portgroup_net:
             try:
                 self._add_dhcp_binding(context, port_data)
             except nsx_lib_exc.ManagerError:
@@ -3422,12 +3488,20 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                                       original_port)
 
             is_ens_tz_port = self._is_ens_tz_port(context, original_port)
+            is_portgroup_net = self._network_is_portgroup_net(
+                context, original_port['network_id'])
             qos_selected = validators.is_attr_set(port_data.get
                                                   (qos_consts.QOS_POLICY_ID))
             if is_ens_tz_port:
                 if qos_selected:
                     err_msg = _("Cannot configure QOS on ENS networks")
                     raise n_exc.InvalidInput(error_message=err_msg)
+            if is_portgroup_net:
+                if qos_selected:
+                    err_msg = _("Cannot configure QOS on portgroup networks")
+                    raise n_exc.InvalidInput(error_message=err_msg)
+                if port_data.get(psec.PORTSECURITY):
+                    raise nsx_exc.NsxPortgroupPortSecurity()
 
             dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS)
             self._validate_extra_dhcp_options(dhcp_opts)
@@ -3494,7 +3568,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             address_bindings = []
 
         # update the port in the backend, only if it exists in the DB
-        # (i.e not external net)
+        # (i.e not external net or portgroup net)
         if nsx_lport_id is not None:
             try:
                 self._update_port_on_backend(context, nsx_lport_id,

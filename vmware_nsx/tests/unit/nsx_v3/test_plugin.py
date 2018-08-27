@@ -485,6 +485,80 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxV3PluginTestCaseMixin):
             # should fail
             self.assertEqual('InvalidInput', data['NeutronError']['type'])
 
+    def test_create_provider_portgroup_network_with_vlan(self):
+        segmentation_id = 14
+        providernet_args = {pnet.NETWORK_TYPE: 'portgroup',
+                            pnet.SEGMENTATION_ID: segmentation_id,
+                            psec.PORTSECURITY: False}
+        with mock.patch(
+            'vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.create',
+            side_effect=nsxlib_exc.ResourceNotFound) as nsx_create, \
+            mock.patch('vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
+                       'delete') as nsx_delete, \
+            self.network(name='portgroup_net',
+                         providernet_args=providernet_args,
+                         arg_list=(psec.PORTSECURITY,
+                                   pnet.NETWORK_TYPE,
+                                   pnet.SEGMENTATION_ID)) as net:
+            self.assertEqual('portgroup',
+                             net['network'].get(pnet.NETWORK_TYPE))
+            self.assertEqual(segmentation_id,
+                             net['network'].get(pnet.SEGMENTATION_ID))
+            # make sure the network is NOT created at the backend
+            nsx_create.assert_not_called()
+
+            # Delete the network. It should NOT deleted from the backend
+            req = self.new_delete_request('networks', net['network']['id'])
+            res = req.get_response(self.api)
+            self.assertEqual(exc.HTTPNoContent.code, res.status_int)
+            nsx_delete.assert_not_called()
+
+    def test_create_provider_portgroup_network_no_vlan(self):
+        providernet_args = {pnet.NETWORK_TYPE: 'portgroup',
+                            psec.PORTSECURITY: False}
+        with mock.patch(
+            'vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.create',
+            side_effect=nsxlib_exc.ResourceNotFound) as nsx_create, \
+            mock.patch('vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.'
+                       'delete') as nsx_delete, \
+            self.network(name='portgroup_net',
+                         providernet_args=providernet_args,
+                         arg_list=(psec.PORTSECURITY,
+                                   pnet.NETWORK_TYPE)) as net:
+            self.assertEqual('portgroup',
+                             net['network'].get(pnet.NETWORK_TYPE))
+            self.assertEqual(0,
+                             net['network'].get(pnet.SEGMENTATION_ID))
+            # make sure the network is NOT created at the backend
+            nsx_create.assert_not_called()
+
+            # Delete the network. It should NOT deleted from the backend
+            req = self.new_delete_request('networks', net['network']['id'])
+            res = req.get_response(self.api)
+            self.assertEqual(exc.HTTPNoContent.code, res.status_int)
+            nsx_delete.assert_not_called()
+
+    def test_create_provider_portgroup_with_port_sec(self):
+        segmentation_id = '14'
+        providernet_args = {pnet.NETWORK_TYPE: 'portgroup',
+                            pnet.SEGMENTATION_ID: segmentation_id,
+                            psec.PORTSECURITY: True}
+        with mock.patch("vmware_nsxlib.v3.core_resources.NsxLibTransportZone."
+                        "get_host_switch_mode", return_value="ENS"),\
+            mock.patch(
+            "vmware_nsxlib.v3.core_resources.NsxLibLogicalSwitch.get",
+            return_value={'transport_zone_id': 'xxx'}):
+            result = self._create_network(
+                fmt='json', name='portgroup_net',
+                admin_state_up=True,
+                providernet_args=providernet_args,
+                arg_list=(psec.PORTSECURITY, pnet.NETWORK_TYPE,
+                          pnet.SEGMENTATION_ID))
+            res = self.deserialize('json', result)
+            # should fail
+            self.assertEqual('NsxPortgroupPortSecurity',
+                             res['NeutronError']['type'])
+
     def test_create_ens_network_with_no_port_sec(self):
         cfg.CONF.set_override('ens_support', True, 'nsx_v3')
         providernet_args = {psec.PORTSECURITY: False}
@@ -1519,6 +1593,48 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
             # should fail
             self.assertEqual('NsxENSPortSecurity',
                              res['NeutronError']['type'])
+
+    def test_create_portgroup_port_with_no_port_sec(self):
+        providernet_args = {pnet.NETWORK_TYPE: 'portgroup',
+                            psec.PORTSECURITY: False}
+        with self.network(name='portgroup_net',
+                         providernet_args=providernet_args,
+                         arg_list=(psec.PORTSECURITY,
+                                   pnet.NETWORK_TYPE)) as net,\
+            self.subnet(network=net) as subnet,\
+            mock.patch("vmware_nsxlib.v3.resources.LogicalPort."
+                       "create") as port_create:
+            args = {'port': {'network_id': net['network']['id'],
+                             'tenant_id': subnet['subnet']['tenant_id'],
+                             'fixed_ips': [{'subnet_id':
+                                            subnet['subnet']['id']}],
+                             psec.PORTSECURITY: False}}
+            port_req = self.new_create_request('ports', args)
+            port = self.deserialize(self.fmt, port_req.get_response(self.api))
+            self.assertFalse(port['port']['port_security_enabled'])
+            port_create.assert_not_called()
+
+    def test_create_portgroup_port_with_port_sec(self):
+        providernet_args = {pnet.NETWORK_TYPE: 'portgroup',
+                            psec.PORTSECURITY: False}
+        with self.network(name='portgroup_net',
+                         providernet_args=providernet_args,
+                         arg_list=(psec.PORTSECURITY,
+                                   pnet.NETWORK_TYPE)) as net,\
+            self.subnet(network=net) as subnet,\
+            mock.patch("vmware_nsxlib.v3.resources.LogicalPort."
+                       "create") as port_create:
+            args = {'port': {'network_id': subnet['subnet']['network_id'],
+                             'tenant_id': subnet['subnet']['tenant_id'],
+                             'fixed_ips': [{'subnet_id':
+                                            subnet['subnet']['id']}],
+                             psec.PORTSECURITY: True}}
+            port_req = self.new_create_request('ports', args)
+            res = self.deserialize('json', port_req.get_response(self.api))
+            # should fail
+            self.assertEqual('NsxPortgroupPortSecurity',
+                             res['NeutronError']['type'])
+            port_create.assert_not_called()
 
     def test_update_dhcp_port_device_owner(self):
         cfg.CONF.set_override('native_dhcp_metadata', True, 'nsx_v3')

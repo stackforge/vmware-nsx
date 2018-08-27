@@ -210,3 +210,7 @@ class NsxIPsecVpnMappingNotFound(n_exc.NotFound):
 
 class NsxENSPortSecurity(n_exc.BadRequest):
     message = _("Port security is not supported on ENS Transport zones")
+
+
+class NsxPortgroupPortSecurity(n_exc.BadRequest):
+    message = _("Port security is not supported on portgroup networks")
