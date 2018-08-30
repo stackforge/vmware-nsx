@@ -473,6 +473,76 @@ nsx_v3_opts = [
                 help=_("Housekeeping will only warn about breakage.")),
 
 ]
+nsx_p_opts = [
+    cfg.ListOpt('nsx_api_user',
+                default=['admin'],
+                help=_('User names for the NSX policy managers')),
+    cfg.ListOpt('nsx_api_password',
+                default=['default'],
+                secret=True,
+                help=_('Passwords for the NSX policy managers')),
+    cfg.ListOpt('nsx_api_managers',
+                default=[],
+                help=_("IP address of one or more NSX policy managers "
+                       "separated by commas. The IP address should be of the "
+                       "form:\n"
+                       "[<scheme>://]<ip_address>[:<port>]\nIf scheme is not "
+                       "provided https is used. If port is not provided port "
+                       "80 is used for http and port 443 for https.")),
+    cfg.BoolOpt('nsx_use_client_auth',
+                default=False,
+                help=_("Use client certificate in NSX manager "
+                       "authentication")),
+    cfg.StrOpt('nsx_client_cert_file',
+               default='',
+               help=_("File to contain client certificate and private key")),
+    cfg.StrOpt('nsx_client_cert_pk_password',
+               default="",
+               secret=True,
+               help=_("password for private key encryption")),
+    cfg.StrOpt('nsx_client_cert_storage',
+               default='nsx-db',
+               choices=['nsx-db', 'none'],
+               help=_("Storage type for client certificate sensitive data")),
+    cfg.IntOpt('retries',
+               default=10,
+               help=_('Maximum number of times to retry API requests upon '
+                      'stale revision errors.')),
+    cfg.ListOpt('ca_file',
+               help=_('Specify a CA bundle files to use in verifying the NSX '
+                      'Managers server certificate. This option is ignored '
+                      'if "insecure" is set to True. If "insecure" is set to '
+                      'False and ca_file is unset, the system root CAs will '
+                      'be used to verify the server certificate.')),
+    cfg.BoolOpt('insecure',
+                default=True,
+                help=_('If true, the NSX Manager server certificate is not '
+                       'verified. If false the CA bundle specified via '
+                       '"ca_file" will be used or if unsest the default '
+                       'system root CAs will be used.')),
+    cfg.IntOpt('http_timeout',
+               default=10,
+               help=_('The time in seconds before aborting a HTTP connection '
+                      'to a NSX manager.')),
+    cfg.IntOpt('http_read_timeout',
+               default=180,
+               help=_('The time in seconds before aborting a HTTP read '
+                      'response from a NSX manager.')),
+    cfg.IntOpt('http_retries',
+               default=3,
+               help=_('Maximum number of times to retry a HTTP connection.')),
+    cfg.IntOpt('concurrent_connections', default=10,
+               help=_("Maximum concurrent connections to each NSX "
+                      "manager.")),
+    cfg.IntOpt('conn_idle_timeout',
+               default=10,
+               help=_("The amount of time in seconds to wait before ensuring "
+                      "connectivity to the NSX manager if no manager "
+                      "connection has been used.")),
+    cfg.IntOpt('redirects',
+               default=2,
+               help=_('Number of times a HTTP redirect should be followed.')),
+]
 
 DEFAULT_STATUS_CHECK_INTERVAL = 2000
 DEFAULT_MINIMUM_POOLED_EDGES = 1
@@ -923,6 +993,7 @@ nsx_tvd_opts = [
 cfg.CONF.register_opts(connection_opts)
 cfg.CONF.register_opts(cluster_opts)
 cfg.CONF.register_opts(nsx_common_opts)
+cfg.CONF.register_opts(nsx_p_opts, group="nsx_p")
 cfg.CONF.register_opts(nsx_v3_opts, group="nsx_v3")
 cfg.CONF.register_opts(nsxv_opts, group="nsxv")
 cfg.CONF.register_opts(nsx_tvd_opts, group="nsx_tvd")
