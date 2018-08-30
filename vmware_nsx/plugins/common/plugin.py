@@ -20,6 +20,7 @@ from neutron.db import _resource_extend as resource_extend
 from neutron.db import address_scope_db
 from neutron.db import api as db_api
 from neutron.db import db_base_plugin_v2
+from neutron.db import l3_attrs_db
 from neutron.db import l3_db
 from neutron.db import models_v2
 from neutron_lib.api.definitions import address_scope as ext_address_scope
@@ -384,6 +385,34 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
     def _validate_qos_policy_id(self, context, qos_policy_id):
         if qos_policy_id:
             qos_com_utils.validate_policy_accessable(context, qos_policy_id)
+
+    def _assert_on_external_net_with_compute(self, port_data):
+        # Prevent creating port with device owner prefix 'compute'
+        # on external networks.
+        device_owner = port_data.get('device_owner')
+        if (device_owner is not None and
+            device_owner.startswith(constants.DEVICE_OWNER_COMPUTE_PREFIX)):
+            err_msg = _("Unable to update/create a port with an external "
+                        "network")
+            LOG.warning(err_msg)
+            raise n_exc.InvalidInput(error_message=err_msg)
+
+    def _process_extra_attr_router_create(self, context, router_db, r):
+        for extra_attr in l3_attrs_db.get_attr_info().keys():
+            if (extra_attr in r and
+                validators.is_attr_set(r.get(extra_attr))):
+                self.set_extra_attr_value(context, router_db,
+                                          extra_attr, r[extra_attr])
+
+    def _get_interface_network(self, context, interface_info):
+        is_port, is_sub = self._validate_interface_info(interface_info)
+        if is_port:
+            net_id = self.get_port(context,
+                                   interface_info['port_id'])['network_id']
+        elif is_sub:
+            net_id = self.get_subnet(context,
+                                     interface_info['subnet_id'])['network_id']
+        return net_id
 
     def get_housekeeper(self, context, name, fields=None):
         # run the job in readonly mode and get the results
