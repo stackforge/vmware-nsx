@@ -2480,6 +2480,56 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if lport_id:
             self.nsxlib.logical_port.delete(lport_id)
 
+    def _assert_on_external_net_port_with_qos(self, port_data):
+        # Prevent creating/update port with QoS policy
+        # on external networks.
+        if validators.is_attr_set(port_data.get(qos_consts.QOS_POLICY_ID)):
+            err_msg = _("Unable to update/create a port with an external "
+                        "network and a QoS policy")
+            LOG.warning(err_msg)
+            raise n_exc.InvalidInput(error_message=err_msg)
+
+    def _assert_on_illegal_port_with_qos(self, port_data, device_owner):
+        # Prevent creating/update port with QoS policy
+        # on router-interface/network-dhcp ports.
+        if ((device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF or
+             device_owner == const.DEVICE_OWNER_DHCP) and
+            validators.is_attr_set(port_data.get(qos_consts.QOS_POLICY_ID))):
+            err_msg = _("Unable to create or update %s port with a QoS "
+                        "policy") % device_owner
+            LOG.warning(err_msg)
+            raise n_exc.InvalidInput(error_message=err_msg)
+
+    def _assert_on_device_owner_change(self, port_data, orig_dev_own):
+        """Prevent illegal device owner modifications
+        """
+        if orig_dev_own == const.DEVICE_OWNER_LOADBALANCERV2:
+            if port_data['allowed_address_pairs']:
+                msg = _('Loadbalancer port can not be updated '
+                        'with address pairs')
+                raise n_exc.InvalidInput(error_message=msg)
+
+        if 'device_owner' not in port_data:
+            return
+        new_dev_own = port_data['device_owner']
+        if new_dev_own == orig_dev_own:
+            return
+
+        err_msg = (_("Changing port device owner '%(orig)s' to '%(new)s' is "
+                     "not allowed") % {'orig': orig_dev_own,
+                                       'new': new_dev_own})
+
+        # Do not allow changing nova <-> neutron device owners
+        if ((orig_dev_own.startswith(const.DEVICE_OWNER_COMPUTE_PREFIX) and
+             new_dev_own.startswith(const.DEVICE_OWNER_NETWORK_PREFIX)) or
+            (orig_dev_own.startswith(const.DEVICE_OWNER_NETWORK_PREFIX) and
+             new_dev_own.startswith(const.DEVICE_OWNER_COMPUTE_PREFIX))):
+            raise n_exc.InvalidInput(error_message=err_msg)
+
+        # Do not allow removing the device owner in some cases
+        if orig_dev_own == const.DEVICE_OWNER_DHCP:
+            raise n_exc.InvalidInput(error_message=err_msg)
+
     def _assert_on_port_admin_state(self, port_data, device_owner):
         """Do not allow changing the admin state of some ports"""
         if (device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF or
@@ -3357,6 +3407,18 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 context, port_data, original_port['network_id'])
 
             # Update the neutron port
+            device_owner = (port_data['device_owner']
+                            if 'device_owner' in port_data
+                            else original_port.get('device_owner'))
+            self._assert_on_device_owner_change(
+                port_data, original_port.get('device_owner'))
+            self._assert_on_illegal_port_with_qos(
+                port_data, device_owner)
+            self._assert_on_port_admin_state(port_data, device_owner)
+            self._assert_on_port_sec_change(port_data, device_owner)
+            self._validate_max_ips_per_port(
+                port_data.get('fixed_ips', []), device_owner)
+            self._assert_on_vpn_port_change(original_port)
             updated_port = super(NsxV3Plugin, self).update_port(context,
                                                                 id, port)
             self._extension_manager.process_update_port(context, port_data,
