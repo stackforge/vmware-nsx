@@ -2529,6 +2529,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def _assert_on_device_owner_change(self, port_data, orig_dev_own):
         """Prevent illegal device owner modifications
         """
+        if orig_dev_own == const.DEVICE_OWNER_LOADBALANCERV2:
+            if port_data['allowed_address_pairs']:
+                msg = _('Loadbalancer port can not be updated '
+                        'with address pairs')
+                raise n_exc.InvalidInput(error_message=msg)
+
         if 'device_owner' not in port_data:
             return
         new_dev_own = port_data['device_owner']
@@ -3444,7 +3450,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._validate_max_ips_per_port(
                 port_data.get('fixed_ips', []), device_owner)
             self._assert_on_vpn_port_change(original_port)
-
             updated_port = super(NsxV3Plugin, self).update_port(context,
                                                                 id, port)
             self._extension_manager.process_update_port(context, port_data,
