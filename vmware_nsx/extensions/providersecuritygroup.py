@@ -63,7 +63,7 @@ class DefaultSecurityGroupIsNotProvider(nexception.InvalidInput):
 
 class ProviderSecurityGroupDeleteNotAdmin(nexception.NotAuthorized):
     message = _("Security group %(id)s is a provider security group and "
-                "requires an admin to delete it.")
+                "requires an admin to modify it.")
 
 
 class Providersecuritygroup(extensions.ExtensionDescriptor):
