@@ -4683,6 +4683,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         ruleid_2_remote_nsgroup_map = {}
         _sg_rules = copy.deepcopy(sg_rules)
         for sg_rule in _sg_rules:
+            self._fix_sg_rule_dict_ips(sg_rule)
             remote_nsgroup_id = None
             remote_group_id = sg_rule.get('remote_group_id')
             # skip unnecessary db access when possible
