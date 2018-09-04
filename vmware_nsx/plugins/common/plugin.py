@@ -570,6 +570,16 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
                                      interface_info['subnet_id'])['network_id']
         return net_id
 
+    def _fix_sg_rule_dict_ips(self, sg_rule):
+        # 0.0.0.0/# is not a valid entry for local and remote so we need
+        # to change this to None
+        if (sg_rule.get('remote_ip_prefix') and
+            sg_rule['remote_ip_prefix'].startswith('0.0.0.0/')):
+            sg_rule['remote_ip_prefix'] = None
+        if (sg_rule.get('local_ip_prefix') and
+            sg_rule['local_ip_prefix'].startswith('0.0.0.0/')):
+            sg_rule['local_ip_prefix'] = None
+
     def get_housekeeper(self, context, name, fields=None):
         # run the job in readonly mode and get the results
         self.housekeeper.run(context, name, readonly=True)
