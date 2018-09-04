@@ -16,6 +16,7 @@
 from oslo_config import cfg
 from oslo_log import log
 from oslo_utils import excutils
+from oslo_utils import uuidutils
 import webob.exc
 
 from neutron.db import _resource_extend as resource_extend
@@ -55,6 +56,7 @@ from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import l3_rpc_agent_api
 from vmware_nsx.common import locking
 from vmware_nsx.common import managers
+from vmware_nsx.common import utils
 from vmware_nsx.db import db as nsx_db
 from vmware_nsx.db import extended_security_group_rule as extend_sg_rule
 from vmware_nsx.db import maclearning as mac_db
@@ -63,6 +65,7 @@ from vmware_nsx.plugins.common import plugin as nsx_plugin_common
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
 
 from vmware_nsxlib.v3 import exceptions as nsx_lib_exc
+from vmware_nsxlib.v3 import policy_constants
 from vmware_nsxlib.v3 import utils as nsxlib_utils
 
 LOG = log.getLogger(__name__)
@@ -619,47 +622,155 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         super(NsxPolicyPlugin, self).disassociate_floatingips(
             context, port_id, do_notify=False)
 
-    def _create_security_group_backend_resources(self, secgroup):
-        # TODO(asarfaty): implement
-        pass
+    def _create_security_group_backend_resources(self, secgroup, domain_id):
+        """Create communication map (=section) and group (=NS group)"""
+
+        map_id = group_id = None
+        tags = self.nsxpolicy.build_v3_tags_payload(
+            secgroup, resource_type='os-neutron-secgr-id',
+            project_name=secgroup['tenant_id'])
+        nsx_name = utils.get_name_and_uuid(secgroup['name'] or 'securitygroup',
+                                           secgroup['id'])
+        try:
+            group = self.nsxpolicy.group.create_or_overwrite(
+                nsx_name, domain_id, group_id=secgroup['id'],
+                tags=tags,
+                description=secgroup.get('description'))
+            group_id = group['id']
+        except Exception as e:
+            msg = (_("Failed to create NSX group for SG %(sg)s: "
+                     "%(e)s") % {'sg': secgroup['id'], 'e': e})
+            raise nsx_exc.NsxPluginException(err_msg=msg)
+
+        try:
+            comm_map = self.nsxpolicy.comm_map.create_or_overwrite_map_only(
+                nsx_name, domain_id, map_id=secgroup['id'],
+                description=secgroup.get('description'),
+                tags=tags,
+                category=policy_constants.CATEGORY_APPLICATION)
+            map_id = comm_map['id']
+        except Exception as e:
+            msg = (_("Failed to create NSX communication map for SG %(sg)s: "
+                     "%(e)s") % {'sg': secgroup['id'], 'e': e})
+            self.nsxpolicy.group.delete(domain_id, group_id)
+            raise nsx_exc.NsxPluginException(err_msg=msg)
+
+        return map_id, group_id
+
+    def _create_security_group_backend_rule(self, domain_id, map_id, sg_rule):
+        # The id of the map and group is the same as the security group id
+        this_group_id = map_id
+        # There is no rule name in neutron. Using ID instead
+        nsx_name = sg_rule['id']
+        # TODO(asarfaty): use actual rule source/dest/service/direction here
+        self.nsxpolicy.comm_map.create_entry(
+            nsx_name, domain_id, map_id, entry_id=sg_rule['id'],
+            description=sg_rule.get('description'),
+            service_ids=None,  # temporary
+            action=policy_constants.ACTION_ALLOW,
+            source_groups=[this_group_id],  # temporary
+            dest_groups=None  # temporary
+        )
+
+    def _create_project_domain(self, context, project_id):
+        """Return the NSX domain id of a neutron project
+
+        The ID of the created domain will be the same as the project ID
+        so there is no need to keep it in the neutron DB
+        """
+        try:
+            tags = self.nsxpolicy.build_v3_api_version_tag()
+            domain = self.nsxpolicy.domain.create_or_overwrite(
+                name=project_id,
+                domain_id=project_id,
+                description="Domain for OS project %s" % project_id,
+                tags=tags)
+            domain_id = domain['id']
+        except Exception as e:
+            msg = (_("Failed to create NSX domain for project %(proj)s: "
+                     "%(e)s") % {'proj': project_id, 'e': e})
+            raise nsx_exc.NsxPluginException(err_msg=msg)
+        LOG.info("NSX Domain was created for project %s", project_id)
+        return domain_id
 
     def create_security_group(self, context, security_group, default_sg=False):
         secgroup = security_group['security_group']
+        secgroup['id'] = secgroup.get('id') or uuidutils.generate_uuid()
 
+        domain_id = project_id = secgroup['tenant_id']
         if not default_sg:
-            tenant_id = secgroup['tenant_id']
-            self._ensure_default_security_group(context, tenant_id)
+            self._ensure_default_security_group(context, project_id)
+        else:
+            # create the NSX policy domain for this new project
+            domain_id = self._create_project_domain(context, project_id)
 
-        self._create_security_group_backend_resources(secgroup)
+        # create the Neutron SG
         with db_api.context_manager.writer.using(context):
             secgroup_db = (
                 super(NsxPolicyPlugin, self).create_security_group(
                     context, security_group, default_sg))
 
-            # TODO(asarfaty) save NSX->Neutron mappings
-            self._process_security_group_properties_create(context,
-                                                           secgroup_db,
-                                                           secgroup,
-                                                           default_sg)
+        try:
+            # Create Group & communication map on the NSX
+            map_id, group_id = self._create_security_group_backend_resources(
+                secgroup, domain_id)
+
+            sg_rules = secgroup_db['security_group_rules']
+            for sg_rule in sg_rules:
+                self._create_security_group_backend_rule(
+                    domain_id, map_id, sg_rule)
+        except Exception as e:
+            with excutils.save_and_reraise_exception():
+                LOG.exception("Failed to create backend SG rules "
+                              "for security-group %(name)s (%(id)s), "
+                              "rolling back changes. Error: %(e)s",
+                              {'name': secgroup_db['name'],
+                               'id': secgroup_db['id'],
+                               'e': e})
+                # rollback SG creation (which will also delete the backend
+                # objects)
+                super(NsxPolicyPlugin, self).delete_security_group(
+                    context, secgroup['id'])
 
         return secgroup_db
 
     def update_security_group(self, context, id, security_group):
-        orig_secgroup = self.get_security_group(
-            context, id, fields=['id', 'name', 'description'])
-        LOG.debug("Updating SG %s -> %s", orig_secgroup,
-                  security_group['security_group'])
+        # update the neutron security gruop
         with db_api.context_manager.writer.using(context):
             secgroup_res = super(NsxPolicyPlugin, self).update_security_group(
                 context, id, security_group)
-            self._process_security_group_properties_update(
-                context, secgroup_res, security_group['security_group'])
-        #TODO(asarfaty): Update the NSX backend
+
+        # Update the name and description on NSX backend
+        nsx_name = utils.get_name_and_uuid(
+            secgroup_res['name'] or 'securitygroup', id)
+        domain_id = secgroup_res['tenant_id']
+        try:
+            self.nsxpolicy.group.create_or_overwrite(
+                nsx_name, domain_id, id,
+                description=secgroup_res.get('description'))
+            self.nsxpolicy.comm_map.create_or_overwrite_map_only(
+                nsx_name, domain_id, id,
+                description=secgroup_res.get('description'),
+                category=policy_constants.CATEGORY_APPLICATION)
+        except Exception as e:
+            LOG.warning("Failed to update SG %s NSX resources: %s",
+                        id, e)
+            # Go on with the update anyway (it's just the name & description)
+
         return secgroup_res
 
     def delete_security_group(self, context, id):
+        sg = self.get_security_group(context, id)
+        domain_id = sg['tenant_id']
+        try:
+            self.nsxpolicy.comm_map.delete(domain_id, id)
+            self.nsxpolicy.group.delete(domain_id, id)
+        except Exception as e:
+            LOG.warning("Failed to delete SG %s NSX resources: %s",
+                        id, e)
+            # Go on with the deletion anyway
+
         super(NsxPolicyPlugin, self).delete_security_group(context, id)
-        #TODO(asarfaty): Update the nSX backend
 
     def create_security_group_rule(self, context, security_group_rule):
         bulk_rule = {'security_group_rules': [security_group_rule]}
@@ -667,9 +778,16 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def create_security_group_rule_bulk(self, context, security_group_rules):
         sg_rules = security_group_rules['security_group_rules']
-        for r in sg_rules:
-            # TODO(asarfaty): create rules at the NSX
-            pass
+        # Tenant & security group are the same for all rules in the bulk
+        example_rule = sg_rules[0]['security_group_rule']
+        map_id = example_rule['security_group_id']
+        domain_id = example_rule['tenant_id']
+        for sg_rule in sg_rules:
+            # create the NSX rule
+            rule_data = sg_rule['security_group_rule']
+            rule_data['id'] = rule_data.get('id') or uuidutils.generate_uuid()
+            self._create_security_group_backend_rule(
+                domain_id, map_id, rule_data)
 
         with db_api.context_manager.writer.using(context):
             rules_db = (super(NsxPolicyPlugin,
@@ -681,5 +799,14 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return rules_db
 
     def delete_security_group_rule(self, context, id):
-        #TODO(asarfaty): Update the nSX backend
+        rule_db = self._get_security_group_rule(context, id)
+        map_id = rule_db['security_group_id']
+        domain_id = rule_db['tenant_id']
+        try:
+            self.nsxpolicy.comm_map.delete_entry(domain_id, map_id, id)
+        except Exception as e:
+            LOG.warning("Failed to delete SG rule %s NSX resources: %s",
+                        id, e)
+            # Go on with the deletion anyway
+
         super(NsxPolicyPlugin, self).delete_security_group_rule(context, id)
