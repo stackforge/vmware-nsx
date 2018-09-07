@@ -39,25 +39,8 @@ class SingleDvsManager(object):
     """
     def __init__(self):
         self._dvs = DvsManager()
-        self._dvs_moref = self._get_dvs_moref_by_name(
-            self._dvs.get_vc_session(),
+        self._dvs_moref = self._dvs.get_dvs_moref_by_name(
             dvs_utils.dvs_name_get())
-
-    def _get_dvs_moref_by_name(self, session, dvs_name):
-        """Get the moref of the configured DVS."""
-        results = session.invoke_api(vim_util,
-                                     'get_objects',
-                                     session.vim,
-                                     'DistributedVirtualSwitch',
-                                     100)
-        while results:
-            for dvs in results.objects:
-                for prop in dvs.propSet:
-                    if dvs_name == prop.val:
-                        vim_util.cancel_retrieval(session.vim, results)
-                        return dvs.obj
-            results = vim_util.continue_retrieval(session.vim, results)
-        raise nsx_exc.DvsNotFound(dvs=dvs_name)
 
     def add_port_group(self, net_id, vlan_tag=None, trunk_mode=False):
         return self._dvs.add_port_group(self._dvs_moref, net_id,
@@ -94,6 +77,23 @@ class DvsManager(VCManagerBase):
 
     The dvs-id is not a class member, since multiple dvs-es can be supported.
     """
+
+    def get_dvs_moref_by_name(self, dvs_name):
+        """Get the moref of DVS."""
+        session = self.get_vc_session()
+        results = session.invoke_api(vim_util,
+                                     'get_objects',
+                                     session.vim,
+                                     'DistributedVirtualSwitch',
+                                     100)
+        while results:
+            for dvs in results.objects:
+                for prop in dvs.propSet:
+                    if dvs_name == prop.val:
+                        vim_util.cancel_retrieval(session.vim, results)
+                        return dvs.obj
+            results = vim_util.continue_retrieval(session.vim, results)
+        raise nsx_exc.DvsNotFound(dvs=dvs_name)
 
     def _get_dvs_moref_by_id(self, dvs_id):
         return vim_util.get_moref(dvs_id, 'VmwareDistributedVirtualSwitch')
