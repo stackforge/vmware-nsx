@@ -955,6 +955,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 super(NsxPolicyPlugin, self).delete_security_group(
                     context, secgroup['id'])
 
+            # TODO(asarfaty) save NSX->Neutron mappings
         return secgroup_db
 
     def update_security_group(self, context, sg_id, security_group):
