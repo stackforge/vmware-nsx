@@ -636,11 +636,6 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     context, security_group, default_sg))
 
             # TODO(asarfaty) save NSX->Neutron mappings
-            self._process_security_group_properties_create(context,
-                                                           secgroup_db,
-                                                           secgroup,
-                                                           default_sg)
-
         return secgroup_db
 
     def update_security_group(self, context, id, security_group):
