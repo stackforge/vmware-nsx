@@ -16,7 +16,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-# Common VMware NSXv and NSXv3 plugin
+# Common VMware NSXv, NSXv3 and NSXp plugin
 # -----------------------------------
 
 # ensure we don't re-source this in the same environment
@@ -117,6 +117,17 @@ function _nsxv3_ini_set {
     fi
 }
 
+function _nsxp_ini_set {
+    if [[ -z $1 || -z $2 ]]; then
+        if [[ $3 != "" ]]; then
+           die $LINENO $3
+        fi
+    fi
+    if [[ $2 != "" ]]; then
+        iniset /$Q_PLUGIN_CONF_FILE nsx_p $1 $2
+    fi
+}
+
 function nsxv3_configure_service {
     install_neutron_projects
 
@@ -166,3 +177,31 @@ function nsxv3_configure_service {
         _nsxv3_ini_set nsx_client_cert_pk_password "openstack"
     fi
 }
+
+function nsxp_configure_service {
+    install_neutron_projects
+    if [[ "$DEFAULT_TIER0_ROUTER_UUID" != "" ]]; then
+        _nsxp_ini_set default_tier0_router $DEFAULT_TIER0_ROUTER_UUID
+        Q_L3_ENABLED=True
+        Q_L3_ROUTER_PER_TENANT=True
+    fi
+    # NSX_POLICY must be a comma separated string
+    if [[ "$NSX_POLICIES" != "" ]]; then
+        _nsxp_ini_set nsx_api_managers $NSX_POLICIES
+    elif [[ "$NSX_POLICY" != "" ]]; then
+        _nsxp_ini_set nsx_api_managers $NSX_POLICY
+    else
+        if [[ $1 == "nsx_p" ]]; then
+            die $LINENO "The VMware nsx-p plugin needs at least one NSX policy manager."
+        fi
+    fi
+    if [[ "$NSX_L2GW_DRIVER" != "" ]]; then
+        iniset /$Q_PLUGIN_CONF_FILE DEFAULT nsx_l2gw_driver $NSX_L2GW_DRIVER
+    fi
+    _nsxp_ini_set nsx_api_user $NSX_USER
+    _nsxp_ini_set nsx_api_password $NSX_PASSWORD
+    _nsxp_ini_set retries $NSX_RETRIES
+    _nsxp_ini_set insecure $NSX_INSECURE
+    _nsxp_ini_set ca_file $NSX_CA_FILE
+}
+
