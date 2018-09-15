@@ -38,9 +38,9 @@ class SingleDvsManager(object):
     the operations supported by the manager.
     """
     def __init__(self):
-        self._dvs = DvsManager()
+        self.dvs = DvsManager()
         self._dvs_moref = self._get_dvs_moref_by_name(
-            self._dvs.get_vc_session(),
+            self.dvs.get_vc_session(),
             dvs_utils.dvs_name_get())
 
     def _get_dvs_moref_by_name(self, session, dvs_name):
@@ -60,18 +60,18 @@ class SingleDvsManager(object):
         raise nsx_exc.DvsNotFound(dvs=dvs_name)
 
     def add_port_group(self, net_id, vlan_tag=None, trunk_mode=False):
-        return self._dvs.add_port_group(self._dvs_moref, net_id,
-                                        vlan_tag=vlan_tag,
-                                        trunk_mode=trunk_mode)
+        return self.dvs.add_port_group(self._dvs_moref, net_id,
+                                       vlan_tag=vlan_tag,
+                                       trunk_mode=trunk_mode)
 
     def delete_port_group(self, net_id):
-        return self._dvs.delete_port_group(self._dvs_moref, net_id)
+        return self.dvs.delete_port_group(self._dvs_moref, net_id)
 
     def get_port_group_info(self, net_id):
-        return self._dvs.get_port_group_info(self._dvs_moref, net_id)
+        return self.dvs.get_port_group_info(self._dvs_moref, net_id)
 
     def net_id_to_moref(self, net_id):
-        return self._dvs._net_id_to_moref(self._dvs_moref, net_id)
+        return self.dvs._net_id_to_moref(self._dvs_moref, net_id)
 
 
 class VCManagerBase(object):
@@ -161,29 +161,49 @@ class DvsManager(VCManagerBase):
                   'vlan_tag': vlan_tag,
                   'dvs': dvs_moref.value})
 
+    def _get_portgroup(self, net_id):
+        """Get the port group moref of the net_id."""
+        results = self._session.invoke_api(vim_util,
+                                           'get_objects',
+                                           self._session.vim,
+                                           'DistributedVirtualPortgroup',
+                                           100)
+        while results:
+            for pg in results.objects:
+                for prop in pg.propSet:
+                    if net_id == prop.val:
+                        vim_util.cancel_retrieval(self._session.vim, results)
+                        return pg.obj
+            results = vim_util.continue_retrieval(self._session.vim, results)
+        raise exceptions.NetworkNotFound(net_id=net_id)
+
     def _net_id_to_moref(self, dvs_moref, net_id):
         """Gets the moref for the specific neutron network."""
         # NOTE(garyk): return this from a cache if not found then invoke
         # code below.
-        port_groups = self._session.invoke_api(vim_util,
-                                               'get_object_properties',
-                                               self._session.vim,
-                                               dvs_moref,
-                                               ['portgroup'])
-        if len(port_groups) and hasattr(port_groups[0], 'propSet'):
-            for prop in port_groups[0].propSet:
-                for val in prop.val[0]:
-                    props = self._session.invoke_api(vim_util,
-                                                     'get_object_properties',
-                                                     self._session.vim,
-                                                     val, ['name'])
-                    if len(props) and hasattr(props[0], 'propSet'):
-                        for prop in props[0].propSet:
-                            # match name or mor id
-                            if net_id == prop.val or net_id == val.value:
-                                # NOTE(garyk): update cache
-                                return val
-        raise exceptions.NetworkNotFound(net_id=net_id)
+        if dvs_moref:
+            port_groups = self._session.invoke_api(vim_util,
+                                                   'get_object_properties',
+                                                   self._session.vim,
+                                                   dvs_moref,
+                                                   ['portgroup'])
+            if len(port_groups) and hasattr(port_groups[0], 'propSet'):
+                for prop in port_groups[0].propSet:
+                    for val in prop.val[0]:
+                        props = self._session.invoke_api(
+                                vim_util,
+                                'get_object_properties',
+                                self._session.vim,
+                                val, ['name'])
+                        if len(props) and hasattr(props[0], 'propSet'):
+                            for prop in props[0].propSet:
+                                # match name or mor id
+                                if net_id == prop.val or net_id == val.value:
+                                    # NOTE(garyk): update cache
+                                    return val
+            raise exceptions.NetworkNotFound(net_id=net_id)
+        else:
+            return self._get_portgroup(net_id)
 
     def _is_vlan_network_by_moref(self, moref):
         """
@@ -403,7 +423,7 @@ class DvsManager(VCManagerBase):
                                            'get_object_properties_dict',
                                            self._session.vim,
                                            pg_moref, properties)
-        return pg_info
+        return pg_info, pg_moref
 
     def _get_dvs_moref_from_teaming_data(self, teaming_data):
         """Get the moref dvs that belongs to the teaming data"""
