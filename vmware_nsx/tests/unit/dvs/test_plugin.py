@@ -75,7 +75,7 @@ class DvsTestCase(base.BaseTestCase):
                        return_value='fake-spec')
     def test_add_port_group_with_exception(self, fake_get_spec):
         with (
-            mock.patch.object(self._dvs._dvs._session, 'wait_for_task',
+            mock.patch.object(self._dvs.dvs._session, 'wait_for_task',
                               side_effect=exp.NeutronException())
         ):
             self.assertRaises(exp.NeutronException,
@@ -95,7 +95,7 @@ class DvsTestCase(base.BaseTestCase):
                        return_value='fake-moref')
     def test_delete_port_group_with_exception(self, fake_get_moref):
         with (
-            mock.patch.object(self._dvs._dvs._session, 'wait_for_task',
+            mock.patch.object(self._dvs.dvs._session, 'wait_for_task',
                               side_effect=exp.NeutronException())
         ):
             self.assertRaises(exp.NeutronException,
@@ -211,11 +211,10 @@ class NeutronSimpleDvsTest(NeutronSimpleDvsTestCase):
 
     @mock.patch.object(dvs.DvsManager, 'get_port_group_info')
     @mock.patch.object(dvs.DvsManager, '_net_id_to_moref')
-    def test_create_and_delete_dvs_network_portgroup(self, fake_get_moref,
+    def test_create_and_delete_dvs_network_portgroup(self, fake_moref,
                                                      fake_pg_info):
-        fake_pg_info.return_value = {'name': 'fake-name'}
+        fake_pg_info.return_value = {'name': 'fake-name'}, fake_moref
         self._create_and_delete_dvs_network(network_type='portgroup')
-        self.assertTrue(fake_get_moref.call_count)
         self.assertTrue(fake_pg_info.call_count)
 
     @mock.patch.object(dvs.DvsManager, 'get_port_group_info')
@@ -223,10 +222,9 @@ class NeutronSimpleDvsTest(NeutronSimpleDvsTestCase):
     def test_create_and_delete_dvs_network_portgroup_vlan(self,
                                                           fake_get_moref,
                                                           fake_pg_info):
-        fake_pg_info.return_value = {'name': 'fake-name'}
+        fake_pg_info.return_value = {'name': 'fake-name'}, fake_get_moref
         self._create_and_delete_dvs_network(network_type='portgroup',
                                             vlan_tag=7)
-        self.assertTrue(fake_get_moref.call_count)
         self.assertTrue(fake_pg_info.call_count)
 
     def test_create_and_delete_dvs_port(self):
@@ -320,7 +318,7 @@ class NeutronSimpleDvsTest(NeutronSimpleDvsTestCase):
     def test_create_and_delete_portgroup_network_invalid_name(self,
                                                           fake_get_moref,
                                                           fake_pg_info):
-        fake_pg_info.return_value = {'name': 'fake-different-name'}
+        fake_pg_info.return_value = {'name': 'invalid-name'}, fake_get_moref
         data = {'network': {'provider:network_type': 'portgroup',
                             'name': 'fake-name',
                             'admin_state_up': True}}
