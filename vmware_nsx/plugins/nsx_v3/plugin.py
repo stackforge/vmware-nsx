@@ -1665,7 +1665,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             LOG.debug("Created logical DHCP server %(server)s for network "
                       "%(network)s",
                       {'server': dhcp_server['id'], 'network': network['id']})
-            name = self._get_port_name(context, port_data)
+            name = self._build_port_name(context, port_data)
             nsx_port = self.nsxlib.logical_port.create(
                 nsx_net_id, dhcp_server['id'], tags=port_tags, name=name,
                 attachment_type=nsxlib_consts.ATTACHMENT_DHCP,
@@ -2164,24 +2164,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                                   net_name or 'network'),
                                        net_id)
 
-    def _get_port_name(self, context, port_data):
-        device_owner = port_data.get('device_owner')
-        device_id = port_data.get('device_id')
-        if device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF and device_id:
-            router = self._get_router(context, device_id)
-            name = utils.get_name_and_uuid(
-                router['name'] or 'router', port_data['id'], tag='port')
-        elif device_owner == const.DEVICE_OWNER_DHCP:
-            network = self.get_network(context, port_data['network_id'])
-            name = self._get_dhcp_port_name(network['name'],
-                                            network['id'])
-        elif device_owner.startswith(const.DEVICE_OWNER_COMPUTE_PREFIX):
-            name = utils.get_name_and_uuid(
-                port_data['name'] or 'instance-port', port_data['id'])
-        else:
-            name = port_data['name']
-        return name
-
     def _get_qos_profile_id(self, context, policy_id):
         switch_profile_id = nsx_db.get_switch_profile_by_qos_policy(
             context.session, policy_id)
@@ -2316,7 +2298,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             profiles.append(self._mac_learning_profile)
             profiles.append(self._no_switch_security)
 
-        name = self._get_port_name(context, port_data)
+        name = self._build_port_name(context, port_data)
         nsx_net_id = self._get_network_nsx_id(context, port_data['network_id'])
         try:
             result = self.nsxlib.logical_port.create(
@@ -3183,7 +3165,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             attachment_type = None
             vif_uuid = None
 
-        name = self._get_port_name(context, updated_port)
+        name = self._build_port_name(context, updated_port)
 
         # Update exclude list if necessary
         updated_ps = updated_port.get('port_security_enabled')
@@ -4271,9 +4253,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
             # If it is a no-snat router, interface address scope must be the
             # same as the gateways
-            if not router_db.enable_snat and gw_network_id:
-                self._validate_address_scope_for_router_interface(
-                    context.elevated(), router_id, gw_network_id, subnet['id'])
+            self._validate_interface_address_scope(context, router_db, info)
 
             nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                      router_id)
