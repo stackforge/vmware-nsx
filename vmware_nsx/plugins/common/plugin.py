@@ -44,6 +44,7 @@ from neutron_lib.utils import net
 
 from vmware_nsx._i18n import _
 from vmware_nsx.common import exceptions as nsx_exc
+from vmware_nsx.common import utils
 from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.vpnaas.nsxv3 import ipsec_utils
@@ -565,6 +566,24 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
             port_data.get('fixed_ips', []), device_owner)
         self._assert_on_vpn_port_change(original_port)
         self._assert_on_lb_port_fixed_ip_change(port_data, orig_dev_owner)
+
+    def _build_port_name(self, context, port_data):
+        device_owner = port_data.get('device_owner')
+        device_id = port_data.get('device_id')
+        if device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF and device_id:
+            router = self._get_router(context, device_id)
+            name = utils.get_name_and_uuid(
+                router['name'] or 'router', port_data['id'], tag='port')
+        elif device_owner == constants.DEVICE_OWNER_DHCP:
+            network = self.get_network(context, port_data['network_id'])
+            name = self._get_dhcp_port_name(network['name'],
+                                            network['id'])
+        elif device_owner.startswith(constants.DEVICE_OWNER_COMPUTE_PREFIX):
+            name = utils.get_name_and_uuid(
+                port_data['name'] or 'instance-port', port_data['id'])
+        else:
+            name = port_data['name']
+        return name
 
     def _process_extra_attr_router_create(self, context, router_db, r):
         for extra_attr in l3_attrs_db.get_attr_info().keys():
