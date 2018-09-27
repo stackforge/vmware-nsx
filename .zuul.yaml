@@ -1,21 +1,37 @@
+- project:
+    templates:
+      - openstack-python-jobs-neutron
+      - check-requirements
+      - openstack-python35-jobs-neutron
+      - periodic-stable-jobs-neutron
+      - periodic-jobs-with-neutron-lib-master
+      - publish-to-pypi-neutron
+    check:
+      jobs:
+        - vmware-tox-lower-constraints
+        - build-openstack-sphinx-docs
+        - openstack-tox-pep8
+        - openstack-tox-py27:
+            timeout: 5400
+        - openstack-tox-py35:
+            timeout: 5400
+    gate:
+      queue: vmware-nsx
+      jobs:
+        - vmware-tox-lower-constraints
+        - build-openstack-sphinx-docs
+        - openstack-tox-pep8
+        - openstack-tox-py27:
+            timeout: 5400
+        - openstack-tox-py35:
+            timeout: 5400
+    post:
+      jobs:
+        - publish-openstack-python-branch-tarball
+    release:
+      jobs:
+        - release-openstack-python
 - job:
     name: vmware-tox-lower-constraints
     parent: openstack-tox-lower-constraints
     timeout: 5400
-    required-projects:
-      - openstack/neutron
-      - openstack/networking-l2gw
-      - openstack/networking-sfc
-      - openstack/neutron-lbaas
-      - openstack/vmware-nsxlib
-      - openstack/neutron-fwaas
-      - openstack/neutron-dynamic-routing
-      - openstack/neutron-vpnaas
-      - openstack/tap-as-a-service
-- project:
-    check:
-      jobs:
-        - vmware-tox-lower-constraints
-    gate:
-      jobs:
-        - vmware-tox-lower-constraints
