@@ -74,6 +74,8 @@ class NsxPPluginTestCaseMixin(
             "vmware_nsxlib.v3.client.RESTClient.patch").start()
         mock.patch(
             "vmware_nsxlib.v3.client.RESTClient.delete").start()
+        mock.patch(
+            "vmware_nsxlib.v3.client.RESTClient.list").start()
         mock.patch("vmware_nsxlib.v3.policy_resources."
                    "NsxPolicyCommunicationMapApi._get_last_seq_num",
                    return_value=-1).start()
@@ -82,6 +84,8 @@ class NsxPPluginTestCaseMixin(
         cfg.CONF.set_override('default_overlay_tz', NSX_OVERLAY_TZ_NAME,
                               'nsx_p')
         cfg.CONF.set_override('default_vlan_tz', NSX_VLAN_TZ_NAME, 'nsx_p')
+        cfg.CONF.set_override('default_tier0_router',
+                              DEFAULT_TIER0_ROUTER_UUID, 'nsx_p')
 
     def _create_network(self, fmt, name, admin_state_up,
                         arg_list=None, providernet_args=None,
