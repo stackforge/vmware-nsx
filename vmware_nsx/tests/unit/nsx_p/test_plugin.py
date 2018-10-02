@@ -15,6 +15,8 @@
 
 import mock
 
+from oslo_config import cfg
+
 from neutron.tests.unit.db import test_db_base_plugin_v2
 from neutron.tests.unit.extensions import test_securitygroup
 
@@ -22,6 +24,7 @@ from vmware_nsxlib.v3 import nsx_constants
 
 
 PLUGIN_NAME = 'vmware_nsx.plugin.NsxPolicyPlugin'
+NSX_TIER0_ROUTER_ID = 'default tier0 router'
 
 
 class NsxPPluginTestCaseMixin(
@@ -51,6 +54,8 @@ class NsxPPluginTestCaseMixin(
             "vmware_nsxlib.v3.client.RESTClient.patch").start()
         mock.patch(
             "vmware_nsxlib.v3.client.RESTClient.delete").start()
+        mock.patch(
+            "vmware_nsxlib.v3.client.RESTClient.list").start()
         mock.patch("vmware_nsxlib.v3.policy_resources."
                    "NsxPolicyCommunicationMapApi._get_last_seq_num",
                    return_value=-1).start()
@@ -63,7 +68,8 @@ class NsxPPluginTestCaseMixin(
         #                      NSX_DHCP_PROFILE_ID, 'nsx_p')
         #cfg.CONF.set_override('metadata_proxy',
         #                      NSX_METADATA_PROXY_ID, 'nsx_p')
-        pass
+        cfg.CONF.set_override('default_tier0_router',
+                              NSX_TIER0_ROUTER_ID, 'nsx_p')
 
 
 class NsxPTestSecurityGroup(NsxPPluginTestCaseMixin,
