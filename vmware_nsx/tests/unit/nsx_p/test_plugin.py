@@ -51,6 +51,8 @@ class NsxPPluginTestCaseMixin(
             "vmware_nsxlib.v3.client.RESTClient.patch").start()
         mock.patch(
             "vmware_nsxlib.v3.client.RESTClient.delete").start()
+        mock.patch(
+            "vmware_nsxlib.v3.client.RESTClient.list").start()
         mock.patch("vmware_nsxlib.v3.policy_resources."
                    "NsxPolicyCommunicationMapApi._get_last_seq_num",
                    return_value=-1).start()
