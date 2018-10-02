@@ -573,6 +573,12 @@ NSXtvd Plugin
 
      nsxadmin -r projects -o nsx-migrate-v-v3 --property project-id=<V project ID> --property external-net=<T external network ID> (--property from-file=True)
 
+NSX Policy Plugin
+-----------------
+- List all the neutron security groups together with their NSX Policy objects and realization state::
+
+    nsxadmin -r security-groups -o list
+
 
 Upgrade Steps (Version 1.0.0 to Version 1.1.0)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

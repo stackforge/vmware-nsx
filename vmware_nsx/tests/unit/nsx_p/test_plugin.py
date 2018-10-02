@@ -15,6 +15,8 @@
 
 import mock
 
+from oslo_config import cfg
+
 from neutron.tests.unit.db import test_db_base_plugin_v2
 from neutron.tests.unit.extensions import test_securitygroup
 
