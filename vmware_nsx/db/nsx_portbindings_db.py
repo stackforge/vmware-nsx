@@ -117,10 +117,12 @@ class NsxPortBindingMixin(pbin_db.PortBindingMixin):
                 pbin_model.PortBinding).filter_by(port_id=port_id).first()
 
             if not port_binding:
+                context.session.begin(subtransactions=True)
                 port_binding = pbin_model.PortBinding(
                     port_id=port_id,
                     vif_type=vif_type)
                 context.session.add(port_binding)
+                context.session.commit()
 
             port_binding.host = port_res[pbin.HOST_ID] or ''
             port_binding.vnic_type = vnic_type
