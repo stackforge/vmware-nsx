@@ -1,0 +1,10 @@
+Code-Review+2: boden <bodenvmw@gmail.com>
+Code-Review+2: Adit Sarfaty <asarfaty@vmware.com>
+Workflow+1: Adit Sarfaty <asarfaty@vmware.com>
+Verified-1: VMware NSX CI
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Wed, 10 Oct 2018 15:02:52 +0000
+Reviewed-on: https://review.openstack.org/606788
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
