@@ -4481,7 +4481,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         return info
 
-    def _update_lb_vip(self, port, vip_address):
+    def _update_lb_vip(self, port, vip_address, nsx_router_id, is_fip=True):
         # update the load balancer virtual server's VIP with
         # floating ip, but don't add NAT rules
         device_id = port['device_id']
@@ -4493,6 +4493,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             for vs in vs_list['results']:
                 vs_client.update_virtual_server_with_vip(vs['id'],
                                                          vip_address)
+
+        # Add/remove the flag for LB vip adv
+        self.nsxlib.logical_router.update_advertisement(
+            nsx_router_id, advertise_lb_vip=is_fip)
 
     def _create_floating_ip_wrapper(self, context, floatingip):
         if cfg.CONF.api_replay_mode:
@@ -4517,6 +4521,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if not router_id:
             return new_fip
         port_id = floatingip['floatingip']['port_id']
+        nsx_router_id = nsx_db.get_nsx_router_id(context.session,
+                                                 router_id)
         if port_id:
             port_data = self.get_port(context, port_id)
             device_owner = port_data.get('device_owner')
@@ -4524,15 +4530,14 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             if (device_owner == const.DEVICE_OWNER_LOADBALANCERV2 or
                 device_owner == oct_const.DEVICE_OWNER_OCTAVIA):
                 try:
-                    self._update_lb_vip(port_data, fip_address)
+                    self._update_lb_vip(port_data, fip_address,
+                                        nsx_router_id, True)
                 except nsx_lib_exc.ManagerError:
                     with excutils.save_and_reraise_exception():
                         super(NsxV3Plugin, self).delete_floatingip(
                             context, new_fip['id'])
                 return new_fip
         try:
-            nsx_router_id = nsx_db.get_nsx_router_id(context.session,
-                                                     router_id)
             self.nsxlib.router.add_fip_nat_rules(
                 nsx_router_id, new_fip['floating_ip_address'],
                 new_fip['fixed_ip_address'],
@@ -4545,6 +4550,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def delete_floatingip(self, context, fip_id):
         fip = self.get_floatingip(context, fip_id)
         router_id = fip['router_id']
+        nsx_router_id = nsx_db.get_nsx_router_id(context.session,
+                                                 router_id)
         port_id = fip['port_id']
         is_lb_port = False
         if port_id:
@@ -4557,7 +4564,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 # update the virtual server VIP back to fixed IP.
                 is_lb_port = True
                 try:
-                    self._update_lb_vip(port_data, fixed_ip_address)
+                    self._update_lb_vip(port_data, fixed_ip_address,
+                                        nsx_router_id, False)
                 except nsx_lib_exc.ManagerError as e:
                     LOG.error("Exception when updating vip ip_address"
                               "on vip_port %(port)s: %(err)s",
@@ -4565,8 +4573,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         if router_id and not is_lb_port:
             try:
-                nsx_router_id = nsx_db.get_nsx_router_id(context.session,
-                                                         router_id)
                 self.nsxlib.router.delete_fip_nat_rules(
                     nsx_router_id, fip['floating_ip_address'],
                     fip['fixed_ip_address'])
@@ -4582,12 +4588,16 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def update_floatingip(self, context, fip_id, floatingip):
         old_fip = self.get_floatingip(context, fip_id)
         old_port_id = old_fip['port_id']
+        old_nsx_router_id = nsx_db.get_nsx_router_id(
+            context.session, old_fip['router_id'])
         new_status = (const.FLOATINGIP_STATUS_ACTIVE
                       if floatingip['floatingip'].get('port_id')
                       else const.FLOATINGIP_STATUS_DOWN)
         new_fip = super(NsxV3Plugin, self).update_floatingip(
             context, fip_id, floatingip)
         router_id = new_fip['router_id']
+        nsx_router_id = nsx_db.get_nsx_router_id(context.session,
+                                                 router_id)
         new_port_id = new_fip['port_id']
         try:
             is_lb_port = False
@@ -4598,14 +4608,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 if (old_device_owner == const.DEVICE_OWNER_LOADBALANCERV2 or
                     old_device_owner == oct_const.DEVICE_OWNER_OCTAVIA):
                     is_lb_port = True
-                    self._update_lb_vip(old_port_data, old_fixed_ip)
+                    self._update_lb_vip(old_port_data, old_fixed_ip,
+                                        old_nsx_router_id, False)
 
             # Delete old router's fip rules if old_router_id is not None.
             if old_fip['router_id'] and not is_lb_port:
 
                 try:
-                    old_nsx_router_id = nsx_db.get_nsx_router_id(
-                        context.session, old_fip['router_id'])
                     self.nsxlib.router.delete_fip_nat_rules(
                         old_nsx_router_id, old_fip['floating_ip_address'],
                         old_fip['fixed_ip_address'])
@@ -4626,7 +4635,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 if (new_dev_own == const.DEVICE_OWNER_LOADBALANCERV2 or
                     new_dev_own == oct_const.DEVICE_OWNER_OCTAVIA):
                     is_lb_port = True
-                    self._update_lb_vip(new_port_data, new_fip_address)
+                    self._update_lb_vip(new_port_data, new_fip_address,
+                                        nsx_router_id, True)
 
             # TODO(berlin): Associating same FIP to different internal IPs
             # would lead to creating multiple times of FIP nat rules at the
@@ -4634,8 +4644,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
             # Update current router's nat rules if router_id is not None.
             if router_id and not is_lb_port:
-                nsx_router_id = nsx_db.get_nsx_router_id(context.session,
-                                                         router_id)
                 self.nsxlib.router.add_fip_nat_rules(
                     nsx_router_id, new_fip['floating_ip_address'],
                     new_fip['fixed_ip_address'],

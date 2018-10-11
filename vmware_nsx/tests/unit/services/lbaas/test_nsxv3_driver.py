@@ -611,7 +611,9 @@ class TestEdgeLbaasV2Member(BaseTestEdgeLbaasV2):
             mock.patch.object(self.service_client, 'get_router_lb_service'
                               ) as mock_get_lb_service, \
             mock.patch.object(self.core_plugin, 'get_router'
-                              ) as mock_get_router:
+                              ) as mock_get_router,\
+            mock.patch.object(self.core_plugin, 'get_subnet'
+                              ) as mock_get_subnet:
             mock_validate_lb_subnet.return_value = True
             mock_get_pool_members.return_value = [self.member]
             mock_get_network.return_value = LB_NETWORK
@@ -621,6 +623,7 @@ class TestEdgeLbaasV2Member(BaseTestEdgeLbaasV2):
             mock_get_nsx_router_id.return_value = LB_ROUTER_ID
             mock_get_lb_service.return_value = None
             mock_get_router.return_value = {'id': 'router1-xxx'}
+            mock_get_subnet.return_value = {'id': 'sub1-xxx', 'network_id': 'net1-xxx'}
 
             self.assertRaises(n_exc.BadRequest,
                               self.edge_driver.member.create,

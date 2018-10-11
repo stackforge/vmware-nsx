@@ -49,6 +49,37 @@ def get_router_from_network(context, plugin, subnet_id):
             return router['id']
 
 
+def is_external_vip(context, plugin, loadbalancer):
+    """Check whether the VIP is external
+
+    Return True if on the external network or a tenant net with a
+    floating IP
+    """
+    subnet = plugin.get_subnet(context, loadbalancer['vip_subnet_id'])
+    if plugin._network_is_external(context, subnet['network_id']):
+        return True
+
+    # check if a floating ip is connected to the vip
+    filters = {'port_id': [loadbalancer['vip_port_id']]}
+    floating_ips = plugin.get_floatingips(context, filters=filters)
+    if floating_ips:
+        return True
+    return False
+
+
+def get_router_lb_vip_adv_status(context, plugin, router_id, ignore_lb_id=None):
+    # get all the NSX loadbalancers on this neutron router by tag
+    rtr_tag = [{'scope': 'os-neutron-router-id', 'tag': router_id}]
+    nsx_services = plugin.nsxlib.search_by_tags(
+        tags=rtr_tag, resource_type='LbService')['results']
+    if nsx_services:
+        print "DEBUG ADIT get_router_lb_vip_adv_status nsx_services %s" % nsx_services
+        for srv in nsx_services:
+            for vs_id in srv.get('virtual_server_ids', []):
+                vs = plugin.nsxlib.load_balancer.virtual_server.get(vs_id)
+                print "DEBUG ADIT get_router_lb_vip_adv_status %s" % vs
+
+
 def get_lb_flavor_size(flavor_plugin, context, flavor_id):
     if not flavor_id:
         return lb_const.DEFAULT_LB_SIZE
