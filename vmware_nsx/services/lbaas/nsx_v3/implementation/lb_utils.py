@@ -13,6 +13,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import netaddr
+
 from neutron.db import l3_db
 from neutron.services.flavors import flavors_plugin
 from neutron_lib import exceptions as n_exc
@@ -47,6 +49,65 @@ def get_router_from_network(context, plugin, subnet_id):
         router = plugin.get_router(context, ports[0]['device_id'])
         if router.get('external_gateway_info'):
             return router['id']
+
+
+def is_external_vip(context, plugin, loadbalancer):
+    """Check whether the VIP is external
+
+    Return True if on the external network or a tenant net with a
+    floating IP
+    """
+    subnet = plugin.get_subnet(context, loadbalancer['vip_subnet_id'])
+    if plugin._network_is_external(context, subnet['network_id']):
+        return True
+
+    # check if a floating ip is connected to the vip
+    filters = {'port_id': [loadbalancer['vip_port_id']]}
+    floating_ips = plugin.get_floatingips(context, filters=filters)
+    if floating_ips:
+        return True
+    return False
+
+
+def set_router_vip_adv(plugin, nsx_router_id, advertise_lb_vip):
+    # Update router to enable advertise_lb_vip flag
+    plugin.nsxlib.logical_router.update_advertisement(
+        nsx_router_id, advertise_lb_vip=True)
+
+
+def get_router_lb_vip_adv_status(context, plugin, router_id, ignore_lb_id=None):
+    """Return True if a router needs to advertise the LB VIPs"""
+    # get all the NSX loadbalancers on this neutron router by tag
+    rtr_tag = [{'scope': 'os-neutron-router-id', 'tag': router_id}]
+    nsx_services = plugin.nsxlib.search_by_tags(
+        tags=rtr_tag, resource_type='LbService')['results']
+    vips = []
+    if nsx_services:
+        # Go over the services of the NSX loadbalancer
+        for srv in nsx_services:
+            # Go over the virtual servers, skipping the ones of the loadbalancer
+            # that should be ignored
+            for vs_id in srv.get('virtual_server_ids', []):
+                vs = plugin.nsxlib.load_balancer.virtual_server.get(vs_id)
+                if ignore_lb_id:
+                    # go over the tags:
+                    for tag in vs.get('tags', []):
+                        if (tag['scope'] == 'os-lbaas-lb-id' and
+                            tag['tag'] == ignore_lb_id):
+                            next
+                vips.append(vs.get('ip_address'))
+
+    if not vips:
+        return False
+
+    # Get an IP set of all the local subnets of this router
+    local_subnets = netaddr.IPSet(plugin._find_router_subnets_cidrs(
+        context, router_id))
+    for vip in vips:
+        # if the vip is not internal - it should be advertised.
+        if netaddr.IPAddress(vip) not in local_subnets:
+            return True
+    return False
 
 
 def get_lb_flavor_size(flavor_plugin, context, flavor_id):

@@ -120,6 +120,7 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
         vs_name = utils.get_name_and_uuid(listener['name'] or 'listener',
                                           listener['id'])
         tags = self._get_listener_tags(context, listener)
+        router_id = None
 
         if (listener['protocol'] == lb_const.LB_PROTOCOL_HTTP or
                 listener['protocol'] == lb_const.LB_PROTOCOL_TERMINATED_HTTPS):
@@ -151,6 +152,7 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
             context.session, lb_id)
         if binding:
             lb_service_id = binding['lb_service_id']
+            router_id = binding['lb_router_id']
             try:
                 service_client.add_virtual_server(lb_service_id,
                                                   virtual_server['id'])
@@ -159,6 +161,15 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                 msg = _('Failed to add virtual server to lb service '
                         'at NSX backend')
                 raise n_exc.BadRequest(resource='lbaas-listener', msg=msg)
+
+        external_vip = lb_utils.is_external_vip(context, self.core_plugin,
+                                                listener['loadbalancer'])
+        if external_vip and router_id:
+            # Update router to enable advertise_lb_vip flag
+            nsx_router_id = nsx_db.get_nsx_router_id(context.session,
+                                                     router_id)
+            lbutils.set_router_vip_adv(self.core_plugin, nsx_router_id,
+                advertise_lb_vip=True)
 
         nsx_db.add_nsx_lbaas_listener_binding(
             context.session, lb_id, listener['id'], app_profile_id,
@@ -209,7 +220,7 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
         service_client = nsxlib_lb.service
         vs_client = nsxlib_lb.virtual_server
         app_client = nsxlib_lb.application_profile
-
+        router_id = None
         binding = nsx_db.get_nsx_lbaas_listener_binding(
             context.session, lb_id, listener['id'])
         if binding:
@@ -218,6 +229,7 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
             lb_binding = nsx_db.get_nsx_lbaas_loadbalancer_binding(
                 context.session, lb_id)
             if lb_binding:
+                router_id = binding['lb_router_id']
                 try:
                     lbs_id = lb_binding.get('lb_service_id')
                     lb_service = service_client.get(lbs_id)
@@ -281,6 +293,15 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
 
             nsx_db.delete_nsx_lbaas_listener_binding(
                 context.session, lb_id, listener['id'])
+
+        # Update router advertise_lb_vip flag
+        if router_id:
+            advertise_lb_vip = lb_utils.get_router_lb_vip_adv_status(
+                context, self.core_plugin, router_id)
+            nsx_router_id = nsx_db.get_nsx_router_id(context.session,
+                                                     router_id)
+            lbutils.set_router_vip_adv(self.core_plugin, nsx_router_id,
+                advertise_lb_vip=True)
 
         completor(success=True)
 
