@@ -49,6 +49,24 @@ def get_router_from_network(context, plugin, subnet_id):
             return router['id']
 
 
+def is_external_vip(context, plugin, loadbalancer):
+    """Check whether the VIP is external
+
+    Return True if on the external network or a tenant net with a
+    floating IP
+    """
+    subnet = plugin.get_subnet(context, loadbalancer['vip_subnet_id'])
+    if plugin._network_is_external(context, subnet['network_id']):
+        return True
+
+    # check if a floating ip is connected to the vip
+    filters = {'port_id': [loadbalancer['vip_port_id']]}
+    floating_ips = plugin.get_floatingips(context, filters=filters)
+    if floating_ips:
+        return True
+    return False
+
+
 def get_lb_flavor_size(flavor_plugin, context, flavor_id):
     if not flavor_id:
         return lb_const.DEFAULT_LB_SIZE

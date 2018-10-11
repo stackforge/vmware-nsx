@@ -51,7 +51,8 @@ class EdgeMemberManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
 
     @log_helpers.log_method_call
     def _create_lb_service(self, context, service_client, tenant_id,
-                           router_id, nsx_router_id, lb_id, lb_size):
+                           router_id, nsx_router_id, lb_id, lb_size,
+                           external_vip):
         router = self.core_plugin.get_router(context, router_id)
         if not router.get('external_gateway_info'):
             msg = (_('Tenant router %(router)s does not connect to '
@@ -74,9 +75,10 @@ class EdgeMemberManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
             LOG.error("Failed to create LB service: %s", e)
             return
 
-        # Update router to enable advertise_lb_vip flag
-        self.core_plugin.nsxlib.logical_router.update_advertisement(
-            nsx_router_id, advertise_lb_vip=True)
+        if external_vip:
+            # Update router to enable advertise_lb_vip flag
+            self.core_plugin.nsxlib.logical_router.update_advertisement(
+                nsx_router_id, advertise_lb_vip=True)
         return lb_service
 
     def _get_updated_pool_members(self, context, lb_pool, member):
@@ -163,7 +165,9 @@ class EdgeMemberManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                         loadbalancer.get('flavor_id'))
                     lb_service = self._create_lb_service(
                         context, service_client, member['tenant_id'],
-                        router_id, nsx_router_id, loadbalancer['id'], lb_size)
+                        router_id, nsx_router_id, loadbalancer['id'], lb_size,
+                        lb_utils.is_external_vip(context, self.core_plugin,
+                                                 loadbalancer))
                 if lb_service:
                     lb_service_id = lb_service['id']
                     self._add_loadbalancer_binding(
