@@ -643,8 +643,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 port_data[pbin.VIF_DETAILS] = {}
             port_data[pbin.VIF_DETAILS][pbin.OVS_HYBRID_PLUG] = False
             if port_data.get('device_owner') == const.DEVICE_OWNER_FLOATINGIP:
-                # floatingip belongs to an external net without nsx-id
+                # Floatingip belongs to an external net without nsx-id
                 port_data[pbin.VIF_DETAILS]['nsx-logical-switch-id'] = None
+                # Floating ip ports do not have the portbinding entry
+                port_data[pbin.VIF_DETAILS][pbin.CAP_PORT_FILTER] = True
+                port_data[pbin.PROFILE] = {}
             else:
                 port_data[pbin.VIF_DETAILS]['nsx-logical-switch-id'] = (
                     self._get_network_nsx_id(context, net_id))
@@ -2936,9 +2939,10 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self._create_port_preprocess_security(context, port,
                                                       port_data, neutron_db,
                                                       is_ens_tz_port))
-            self._process_portbindings_create_and_update(
-                context, port['port'], port_data,
-                vif_type=self._vif_type_by_vnic_type(direct_vnic_type))
+            if port_data.get('device_owner') != const.DEVICE_OWNER_FLOATINGIP:
+                self._process_portbindings_create_and_update(
+                    context, port['port'], port_data,
+                    vif_type=self._vif_type_by_vnic_type(direct_vnic_type))
             self._process_port_create_extra_dhcp_opts(
                 context, port_data, dhcp_opts)
 
@@ -3443,9 +3447,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
             (port_security, has_ip) = self._determine_port_security_and_has_ip(
                 context, updated_port)
-            self._process_portbindings_create_and_update(
-                context, port_data, updated_port,
-                vif_type=self._vif_type_by_vnic_type(direct_vnic_type))
+            if (updated_port.get('device_owner') !=
+                const.DEVICE_OWNER_FLOATINGIP):
+                self._process_portbindings_create_and_update(
+                    context, port_data, updated_port,
+                    vif_type=self._vif_type_by_vnic_type(direct_vnic_type))
             self._extend_nsx_port_dict_binding(context, updated_port)
             mac_learning_state = updated_port.get(mac_ext.MAC_LEARNING)
             if mac_learning_state is not None:
