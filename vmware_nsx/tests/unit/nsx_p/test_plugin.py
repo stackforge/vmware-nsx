@@ -15,6 +15,8 @@
 
 import mock
 
+import decorator
+
 from neutron.tests.unit.db import test_db_base_plugin_v2
 from neutron.tests.unit.extensions import test_securitygroup
 
@@ -106,6 +108,123 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
         self.skipTest('Multiple fixed ips on a port are not supported')
 
     def test_update_port_add_additional_ip(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+
+class NsxPTestSubnets(test_db_base_plugin_v2.TestSubnetsV2,
+                      NsxPPluginTestCaseMixin):
+
+    def setUp(self, plugin=PLUGIN_NAME, ext_mgr=None):
+        super(NsxPTestSubnets, self).setUp(plugin=plugin, ext_mgr=ext_mgr)
+        self.disable_dhcp = False
+
+    def _create_subnet_bulk(self, fmt, number, net_id, name,
+                            ip_version=4, **kwargs):
+        base_data = {'subnet': {'network_id': net_id,
+                                'ip_version': ip_version,
+                                'enable_dhcp': False,
+                                'tenant_id': self._tenant_id}}
+        # auto-generate cidrs as they should not overlap
+        overrides = dict((k, v)
+                         for (k, v) in zip(range(number),
+                                           [{'cidr': "10.0.%s.0/24" % num}
+                                            for num in range(number)]))
+        kwargs.update({'override': overrides})
+        return self._create_bulk(fmt, number, 'subnet', base_data, **kwargs)
+
+    def _make_subnet(self, *args, **kwargs):
+        """Override the original make_subnet to control the DHCP status"""
+        if self.disable_dhcp:
+            if 'enable_dhcp' in kwargs:
+                kwargs['enable_dhcp'] = False
+            else:
+                if len(args) > 7:
+                    arg_list = list(args)
+                    arg_list[7] = False
+                    args = tuple(arg_list)
+        return super(NsxPTestSubnets, self)._make_subnet(*args, **kwargs)
+
+    @decorator.decorator
+    def with_disable_dhcp(f, *args, **kwargs):
+        """Change the default subnet DHCP status to disable.
+
+        This is used to allow tests with 2 subnets on the same net
+        """
+        obj = args[0]
+        obj.disable_dhcp = True
+        result = f(*args, **kwargs)
+        obj.disable_dhcp = False
+        return result
+
+    @with_disable_dhcp
+    def test_list_subnets_filtering_by_project_id(self):
+        super(NsxPTestSubnets,
+              self).test_list_subnets_filtering_by_project_id()
+
+    @with_disable_dhcp
+    def test_list_subnets(self):
+        super(NsxPTestSubnets, self).test_list_subnets()
+
+    @with_disable_dhcp
+    def test_list_subnets_with_parameter(self):
+        super(NsxPTestSubnets, self).test_list_subnets_with_parameter()
+
+    @with_disable_dhcp
+    def test_create_two_subnets(self):
+        super(NsxPTestSubnets, self).test_create_two_subnets()
+
+    @with_disable_dhcp
+    def test_create_subnets_bulk_emulated(self):
+        super(NsxPTestSubnets, self).test_create_subnets_bulk_emulated()
+
+    @with_disable_dhcp
+    def test_create_subnets_bulk_native(self):
+        super(NsxPTestSubnets, self).test_create_subnets_bulk_native()
+
+    @with_disable_dhcp
+    def test_get_subnets_count(self):
+        super(NsxPTestSubnets, self).test_get_subnets_count()
+
+    @with_disable_dhcp
+    def test_get_subnets_count_filter_by_project_id(self):
+        super(NsxPTestSubnets,
+              self).test_get_subnets_count_filter_by_project_id()
+
+    @with_disable_dhcp
+    def test_get_subnets_count_filter_by_unknown_filter(self):
+        super(NsxPTestSubnets,
+              self).test_get_subnets_count_filter_by_unknown_filter()
+
+    @with_disable_dhcp
+    def test_delete_subnet_dhcp_port_associated_with_other_subnets(self):
+        super(NsxPTestSubnets,
+              self).test_get_subnets_count_filter_by_unknown_filter()
+
+    @with_disable_dhcp
+    def _test_create_subnet_ipv6_auto_addr_with_port_on_network(
+        self, *args, **kwargs):
+        super(NsxPTestSubnets,
+              self)._test_create_subnet_ipv6_auto_addr_with_port_on_network(
+              *args, **kwargs)
+
+    @with_disable_dhcp
+    def test_delete_subnet_with_other_subnet_on_network_still_in_use(self):
+        super(NsxPTestSubnets, self).\
+            test_delete_subnet_with_other_subnet_on_network_still_in_use()
+
+    def test_create_subnet_dhcpv6_stateless_with_ip_already_allocated(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_ipv6_slaac_with_db_reference_error(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_ipv6_slaac_with_ip_already_allocated(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_subnet_update_ipv4_and_ipv6_pd_v6stateless_subnets(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_subnet_update_ipv4_and_ipv6_pd_slaac_subnets(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
 
 

@@ -170,7 +170,7 @@ def nsx_recreate_dhcp_server(resource, event, trigger, **kwargs):
         except exceptions.NetworkNotFound:
             LOG.error("Network %s was not found", net_id)
             return
-        if plugin._has_no_dhcp_enabled_subnet(context, network):
+        if plugin._net_has_no_dhcp_enabled_subnet(context, network):
             LOG.error("Network %s has no DHCP enabled subnet", net_id)
             return
         dhcp_relay = plugin.get_network_az_by_net_id(
