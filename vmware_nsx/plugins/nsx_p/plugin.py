@@ -89,6 +89,8 @@ NSX_P_DEFAULT_SECTION_CATEGORY = policy_constants.CATEGORY_APPLICATION
 NSX_P_REGULAR_SECTION_CATEGORY = policy_constants.CATEGORY_ENVIRONMENT
 NSX_P_PROVIDER_SECTION_CATEGORY = policy_constants.CATEGORY_INFRASTRUCTURE
 
+NSX_P_DHCP_LOCK = 'nsxp_network_%s'
+
 
 @resource_extend.has_resource_extenders
 class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
@@ -378,16 +380,236 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 [db_utils.resource_fields(network,
                                           fields) for network in networks])
 
-    def create_subnet(self, context, subnet):
-        self._validate_host_routes_input(subnet)
+    def _create_neutron_subnet(self, context, subnet):
         created_subnet = super(
             NsxPolicyPlugin, self).create_subnet(context, subnet)
-        # TODO(asarfaty): Handle dhcp on the policy manager
+        try:
+            # This can be called only after the super create
+            # since we need the subnet pool to be translated
+            # to allocation pools
+            self._validate_address_space(context, created_subnet)
+        except n_exc.InvalidInput:
+            # revert the subnet creation
+            with excutils.save_and_reraise_exception():
+                super(NsxPolicyPlugin, self).delete_subnet(
+                    context, created_subnet['id'])
+        self._extension_manager.process_create_subnet(context,
+            subnet['subnet'], created_subnet)
+        return created_subnet
+
+    def _get_ext_networks_uplink_ips(self, external_nets):
+        # DEBUG ADIT - not yet
+        return []
+
+    def _disable_native_dhcp(self, context, network_id):
+        # Disable native DHCP service on the backend for this network.
+        # First delete the DHCP port in this network. Then delete the
+        # corresponding LogicalDhcpServerConfig for this network.
+
+        # dhcp_service = nsx_db.get_nsx_service_binding(
+        #     context.session, network_id, nsxlib_consts.SERVICE_DHCP)
+        # if not dhcp_service:
+        #     return
+
+        # if dhcp_service['port_id']:
+        #     try:
+        #         self.delete_port(context, dhcp_service['port_id'],
+        #                          force_delete_dhcp=True)
+        #     except nsx_lib_exc.ResourceNotFound:
+        #         # This could happen when the port has been manually deleted.
+        #         LOG.error("Failed to delete DHCP port %(port)s for "
+        #                   "network %(network)s",
+        #                   {'port': dhcp_service['port_id'],
+        #                    'network': network_id})
+        # else:
+        #     LOG.error("DHCP port is not configured for network %s",
+        #               network_id)
+
+        # try:
+        #     self.nsxlib.dhcp_server.delete(dhcp_service['nsx_service_id'])
+        #     LOG.debug("Deleted logical DHCP server %(server)s for network "
+        #               "%(network)s",
+        #               {'server': dhcp_service['nsx_service_id'],
+        #                'network': network_id})
+        # except nsx_lib_exc.ManagerError:
+        #     with excutils.save_and_reraise_exception():
+        #         LOG.error("Unable to delete logical DHCP server %(server)s "
+        #                   "for network %(network)s",
+        #                   {'server': dhcp_service['nsx_service_id'],
+        #                    'network': network_id})
+        pass
+
+    def _enable_native_dhcp(self, context, network, subnet):
+        # Enable native DHCP service on the backend for this network.
+        # First create a Neutron DHCP port and use its assigned IP
+        # address as the DHCP server address in an API call to create a
+        # LogicalDhcpServerConfig on the backend. Then create the corresponding
+
+        # DEBUG ADIT??
+        # logical port for the Neutron port with DHCP attachment as the
+        # LogicalDhcpServer UUID.
+
+        # Delete obsolete settings if exist. This could happen when a
+        # previous failed transaction was rolled back. But the backend
+        # entries are still there.
+        self._disable_native_dhcp(context, network['id'])
+
+        # Get existing ports on subnet
+        existing_ports = super(NsxPolicyPlugin, self).get_ports(
+            context, filters={'network_id': [network['id']],
+                              'fixed_ips': {'subnet_id': [subnet['id']]}})
+        port_data = {
+            'name': 'DHCP port',
+            'admin_state_up': True,
+            # DEBUG ADIT we may need to search by this device_id later
+            'device_id': network['id'],
+            'device_owner': const.DEVICE_OWNER_DHCP,
+            'network_id': network['id'],
+            'tenant_id': network['tenant_id'],
+            'mac_address': const.ATTR_NOT_SPECIFIED,
+            'fixed_ips': [{'subnet_id': subnet['id']}],
+            psec.PORTSECURITY: False
+        }
+        # Create the neutron DHCP port (on neutron only)
+        port = {'port': port_data}
+        neutron_port = super(NsxPolicyPlugin, self).create_port(context, port)
+        server_ip = neutron_port['fixed_ips'][0]['ip_address']
+        prefixlen = netaddr.IPNetwork(subnet['cidr']).prefixlen
+        server_address = "%s/%u" % (server_ip, prefixlen)
+
+        # Create the NSX backend resources
+        # DEBUG ADIT - do we need those?
+        net_tags = self.nsxpolicy.build_v3_tags_payload(
+            network, resource_type='os-neutron-net-id',
+            project_name=context.tenant_name)
+        server_name = utils.get_name_and_uuid('DHCP server for net',
+                                              network['id'])
+        try:
+            server = self.nsxpolicy.dhcp_server_config.create_or_overwrite(
+                server_name, config_id=network['id'],
+                #description=None,
+                server_address=server_address,
+                #edge_cluster_id=None,
+                #lease_time=None,
+                tags=net_tags)
+            LOG.debug("Created logical DHCP server config for network "
+                      "%(network)s: %(server)s",
+                      {'network': network['id'], 'server': server})
+        except nsx_lib_exc.ManagerError:
+            with excutils.save_and_reraise_exception():
+                LOG.error("Unable to create logical DHCP server for "
+                          "network %s", network['id'])
+                super(NsxPolicyPlugin, self).delete_port(
+                    context, neutron_port['id'])
+
+        # server_data['dhcp_profile_id'] = az._native_dhcp_profile_uuid
+        # nsx_net_id = self._get_network_nsx_id(context, network['id'])
+        # port_tags = self.nsxlib.build_v3_tags_payload(
+        #     neutron_port, resource_type='os-neutron-dport-id',
+        #     project_name=context.tenant_name)
+        # dhcp_server = None
+        # dhcp_port_profiles = []
+        # if (not self._is_ens_tz_net(context, network['id']) and
+        #     not cfg.CONF.nsx_v3.native_dhcp_metadata):
+        #     dhcp_port_profiles.append(self._dhcp_profile)
+        # try:
+        #     dhcp_server = self.nsxlib.dhcp_server.create(**server_data)
+        #     LOG.debug("Created logical DHCP server %(server)s for network "
+        #               "%(network)s",
+        #               {'server': dhcp_server['id'],
+        #                'network': network['id']})
+        #     name = self._build_port_name(context, port_data)
+        #     nsx_port = self.nsxlib.logical_port.create(
+        #         nsx_net_id, dhcp_server['id'], tags=port_tags, name=name,
+        #         attachment_type=nsxlib_consts.ATTACHMENT_DHCP,
+        #         switch_profile_ids=dhcp_port_profiles)
+        #     LOG.debug("Created DHCP logical port %(port)s for "
+        #               "network %(network)s",
+        #               {'port': nsx_port['id'], 'network': network['id']})
+        # except nsx_lib_exc.ManagerError:
+        #     with excutils.save_and_reraise_exception():
+        #         LOG.error("Unable to create logical DHCP server for "
+        #                   "network %s", network['id'])
+        #         if dhcp_server:
+        #             self.nsxlib.dhcp_server.delete(dhcp_server['id'])
+        #         super(NsxPolicyPlugin, self).delete_port(
+        #             context, neutron_port['id'])
+
+        # Configure existing ports to work with the new DHCP server
+        try:
+            for port_data in existing_ports:
+                self._add_dhcp_binding(context, port_data)
+        except Exception:
+            LOG.error('Unable to create DHCP bindings for existing ports '
+                      'on subnet %s', subnet['id'])
+
+    def _add_dhcp_binding(self, context, port):
+        # DEBUG ADIT not yet
+        LOG.error("DEBUG ADIT _add_dhcp_binding skipped for port %s",
+                  port['id'])
+
+    def create_subnet(self, context, subnet):
+        self._validate_host_routes_input(subnet)
+
+        # Handle dhcp-enabled subnets on the backend
+        if subnet['subnet'].get('enable_dhcp', False):
+            self._validate_external_subnet(context,
+                                           subnet['subnet']['network_id'])
+            # Allow only 1 dhcp subnet creation/deletion per net at a time
+            lock = NSX_P_DHCP_LOCK % subnet['subnet']['network_id']
+            with locking.LockManager.get_lock(lock):
+                # Check if it is the first dhcp-enabled subnet on this network
+                network = self._get_network(
+                    context, subnet['subnet']['network_id'])
+                if self._net_has_no_dhcp_enabled_subnet(context, network):
+                    created_subnet = self._create_neutron_subnet(
+                        context, subnet)
+                    #TODO(asarfaty): this should also depend on dhcp relay
+                    self._enable_native_dhcp(context, network, created_subnet)
+                else:
+                    msg = (_("Can not create more than one DHCP-enabled "
+                             "subnet in network %s") %
+                           subnet['subnet']['network_id'])
+                    raise n_exc.InvalidInput(error_message=msg)
+        else:
+            # Non-DHCP subnet:
+            created_subnet = self._create_neutron_subnet(context, subnet)
+
         return created_subnet
 
     def delete_subnet(self, context, subnet_id):
-        # TODO(asarfaty): cleanup dhcp on the policy manager
-        super(NsxPolicyPlugin, self).delete_subnet(context, subnet_id)
+        subnet = self.get_subnet(context, subnet_id)
+        disable_dhcp = False
+        # Allow only 1 dhcp subnet deletion/creation per net at the same time
+        if subnet['enable_dhcp']:
+            lock = NSX_P_DHCP_LOCK % subnet['network_id']
+            with locking.LockManager.get_lock(lock):
+                # Check if it is the last DHCP-enabled subnet to delete.
+                network = self._get_network(context, subnet['network_id'])
+                if self._net_has_single_dhcp_enabled_subnet(context, network):
+                    disable_dhcp = True
+
+            # Delete the neutron subnet before making changes to the backend
+            # so in case it fails, there will be no rollback.
+            super(NsxPolicyPlugin, self).delete_subnet(context, subnet_id)
+
+            # Update the NSX backend DHCP
+            if disable_dhcp:
+                try:
+                    self._disable_native_dhcp(context, network['id'])
+                except Exception as e:
+                    LOG.error("Failed to disable native DHCP for"
+                              "network %(id)s. Exception: %(e)s",
+                              {'id': network['id'], 'e': e})
+        else:
+            super(NsxPolicyPlugin, self).delete_subnet(context, subnet_id)
+
+    def _update_neutron_subnet(self, context, subnet_id, subnet):
+        updated_subnet = super(NsxPolicyPlugin, self).update_subnet(
+            context, subnet_id, subnet)
+        self._extension_manager.process_update_subnet(
+            context, subnet['subnet'], updated_subnet)
+        return updated_subnet
 
     def update_subnet(self, context, subnet_id, subnet):
         updated_subnet = None
@@ -395,11 +617,38 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._validate_host_routes_input(subnet,
                                          orig_enable_dhcp=orig['enable_dhcp'],
                                          orig_host_routes=orig['routes'])
-        # TODO(asarfaty): Handle dhcp updates on the policy manager
-        updated_subnet = super(NsxPolicyPlugin, self).update_subnet(
-            context, subnet_id, subnet)
-        self._extension_manager.process_update_subnet(
-            context, subnet['subnet'], updated_subnet)
+
+        # Handle changed in the subnet DHCP status
+        enable_dhcp = subnet['subnet'].get('enable_dhcp')
+        if (enable_dhcp is not None and
+            enable_dhcp != orig['enable_dhcp']):
+            # Only 1 dhcp subnet of a net can be manipulated at the same time
+            lock = NSX_P_DHCP_LOCK % orig['network_id']
+            with locking.LockManager.get_lock(lock):
+                network = self._get_network(context, orig['network_id'])
+                if enable_dhcp:
+                    if self._net_has_no_dhcp_enabled_subnet(context, network):
+                        updated_subnet = self._update_neutron_subnet(
+                            context, subnet_id, subnet)
+                        self._enable_native_dhcp(context, network,
+                                                 updated_subnet)
+                    else:
+                        msg = (_("Multiple DHCP-enabled subnets is "
+                                 "not allowed in network %s") %
+                               orig['network_id'])
+                        raise n_exc.InvalidInput(error_message=msg)
+                elif self._net_has_single_dhcp_enabled_subnet(context,
+                                                              network):
+                    self._disable_native_dhcp(context, network['id'])
+                    updated_subnet = self._update_neutron_subnet(
+                        context, subnet_id, subnet)
+        else:
+            # No DHCP changes - only update neutron
+            updated_subnet = self._update_neutron_subnet(
+                context, subnet_id, subnet)
+
+        # Check if needs to update logical DHCP server for native DHCP.
+        # DEBUG ADIT todo
 
         return updated_subnet
 
