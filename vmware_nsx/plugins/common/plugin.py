@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import netaddr
 
 from oslo_log import log as logging
 
@@ -347,6 +348,70 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
     def get_subnets_by_network(self, context, network_id):
         return [self._make_subnet_dict(subnet_obj) for subnet_obj in
                 self._get_subnets_by_network(context.elevated(), network_id)]
+
+    def _net_has_no_dhcp_enabled_subnet(self, context, network):
+        # Check if there is no DHCP-enabled subnet in the network.
+        for subnet in network.subnets:
+            if subnet.enable_dhcp:
+                return False
+        return True
+
+    def _net_has_single_dhcp_enabled_subnet(self, context, network):
+        # Check if there is only one DHCP-enabled subnet in the network.
+        count = 0
+        for subnet in network.subnets:
+            if subnet.enable_dhcp:
+                count += 1
+                if count > 1:
+                    return False
+        return True if count == 1 else False
+
+    def _get_ext_networks_uplink_ips(self, external_nets):
+        """This api should be implemented by the specific plugin"""
+        return []
+
+    def _validate_address_space(self, context, subnet):
+        """Validate the address space of a subnet."""
+        # Only working for IPv4 at the moment
+        if (subnet['ip_version'] != 4):
+            return
+
+        # get the subnet IPs
+        if ('allocation_pools' in subnet and
+            validators.is_attr_set(subnet['allocation_pools'])):
+            # use the pools instead of the cidr
+            subnet_networks = [
+                netaddr.IPRange(pool.get('start'), pool.get('end'))
+                for pool in subnet.get('allocation_pools')]
+        else:
+            cidr = subnet.get('cidr')
+            if not validators.is_attr_set(cidr):
+                return
+            subnet_networks = [netaddr.IPNetwork(subnet['cidr'])]
+
+        # Check if subnet overlaps with shared address space.
+        # This is checked on the backend when attaching subnet to a router.
+        shared_ips = '100.64.0.0/10'
+        for subnet_net in subnet_networks:
+            if netaddr.IPSet(subnet_net) & netaddr.IPSet([shared_ips]):
+                msg = _("Subnet overlaps with shared address space "
+                        "%s") % shared_ips
+                LOG.error(msg)
+                raise n_exc.InvalidInput(error_message=msg)
+
+        # Ensure that the NSX uplink does not lie on the same subnet as
+        # the external subnet
+        filters = {'id': [subnet['network_id']],
+                   'router:external': [True]}
+        external_nets = self.get_networks(context, filters=filters)
+        uplink_ips = self._get_ext_networks_uplink_ips(external_nets)
+        for ip_address in uplink_ips:
+            for subnet_network in subnet_networks:
+                if (netaddr.IPAddress(ip_address) in subnet_network):
+                    msg = _("External subnet cannot overlap with T0 "
+                            "router uplink address %s") % ip_address
+                    LOG.error(msg)
+                    raise n_exc.InvalidInput(error_message=msg)
 
     def _validate_routes(self, context, router_id, routes):
         super(NsxPluginBase, self)._validate_routes(
