@@ -1652,23 +1652,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 LOG.warning("Failed to update network %(id)s dhcp server on "
                             "the NSX: %(e)s", {'id': network['id'], 'e': e})
 
-    def _has_no_dhcp_enabled_subnet(self, context, network):
-        # Check if there is no DHCP-enabled subnet in the network.
-        for subnet in network.subnets:
-            if subnet.enable_dhcp:
-                return False
-        return True
-
-    def _has_single_dhcp_enabled_subnet(self, context, network):
-        # Check if there is only one DHCP-enabled subnet in the network.
-        count = 0
-        for subnet in network.subnets:
-            if subnet.enable_dhcp:
-                count += 1
-                if count > 1:
-                    return False
-        return True if count == 1 else False
-
     def _enable_native_dhcp(self, context, network, subnet):
         # Enable native DHCP service on the backend for this network.
         # First create a Neutron DHCP port and use its assigned IP
@@ -1816,52 +1799,16 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 LOG.error("Unable to delete DHCP server mapping for "
                           "network %s", network_id)
 
-    def _validate_address_space(self, context, subnet):
-        # Only working for IPv4 at the moment
-        if (subnet['ip_version'] != 4):
-            return
-
-        # get the subnet IPs
-        if ('allocation_pools' in subnet and
-            validators.is_attr_set(subnet['allocation_pools'])):
-            # use the pools instead of the cidr
-            subnet_networks = [
-                netaddr.IPRange(pool.get('start'), pool.get('end'))
-                for pool in subnet.get('allocation_pools')]
-        else:
-            cidr = subnet.get('cidr')
-            if not validators.is_attr_set(cidr):
-                return
-            subnet_networks = [netaddr.IPNetwork(subnet['cidr'])]
-
-        # Check if subnet overlaps with shared address space.
-        # This is checked on the backend when attaching subnet to a router.
-        shared_ips = '100.64.0.0/10'
-        for subnet_net in subnet_networks:
-            if netaddr.IPSet(subnet_net) & netaddr.IPSet([shared_ips]):
-                msg = _("Subnet overlaps with shared address space "
-                        "%s") % shared_ips
-                LOG.error(msg)
-                raise n_exc.InvalidInput(error_message=msg)
-
-        # Ensure that the NSX uplink does not lie on the same subnet as
-        # the external subnet
-        filters = {'id': [subnet['network_id']],
-                   'router:external': [True]}
-        external_nets = self.get_networks(context, filters=filters)
+    def _get_ext_networks_uplink_ips(self, external_nets):
         tier0_routers = [ext_net[pnet.PHYSICAL_NETWORK]
                          for ext_net in external_nets
                          if ext_net.get(pnet.PHYSICAL_NETWORK)]
+        tier0_ips = []
         for tier0_rtr in set(tier0_routers):
-            tier0_ips = self.nsxlib.logical_router_port.get_tier0_uplink_ips(
+            uplink_ips = self.nsxlib.logical_router_port.get_tier0_uplink_ips(
                 tier0_rtr)
-            for ip_address in tier0_ips:
-                for subnet_network in subnet_networks:
-                    if (netaddr.IPAddress(ip_address) in subnet_network):
-                        msg = _("External subnet cannot overlap with T0 "
-                                "router address %s") % ip_address
-                        LOG.error(msg)
-                        raise n_exc.InvalidInput(error_message=msg)
+            tier0_ips.extend(uplink_ips)
+        return tier0_ips
 
     def _create_bulk_with_callback(self, resource, context, request_items,
                                    post_create_func=None, rollback_func=None):
@@ -1974,7 +1921,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 if ddi_support:
                     network = self._get_network(
                         context, subnet['subnet']['network_id'])
-                    if self._has_no_dhcp_enabled_subnet(context, network):
+                    if self._net_has_no_dhcp_enabled_subnet(context, network):
                         created_subnet = super(
                             NsxV3Plugin, self).create_subnet(context, subnet)
                         try:
@@ -2036,7 +1983,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 with locking.LockManager.get_lock(lock):
                     # Check if it is the last DHCP-enabled subnet to delete.
                     network = self._get_network(context, subnet['network_id'])
-                    if self._has_single_dhcp_enabled_subnet(context, network):
+                    if self._net_has_single_dhcp_enabled_subnet(
+                        context, network):
                         try:
                             self._disable_native_dhcp(context, network['id'])
                         except Exception as e:
@@ -2068,7 +2016,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                          ddi_type) = self._is_ddi_supported_on_net_with_type(
                             context, orig_subnet['network_id'])
                         if ddi_support:
-                            if self._has_no_dhcp_enabled_subnet(
+                            if self._net_has_no_dhcp_enabled_subnet(
                                 context, network):
                                 updated_subnet = super(
                                     NsxV3Plugin, self).update_subnet(
@@ -2090,8 +2038,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                         if msg:
                             LOG.error(msg)
                             raise n_exc.InvalidInput(error_message=msg)
-                    elif self._has_single_dhcp_enabled_subnet(context,
-                                                              network):
+                    elif self._net_has_single_dhcp_enabled_subnet(context,
+                                                                  network):
                         self._disable_native_dhcp(context, network['id'])
                         updated_subnet = super(
                             NsxV3Plugin, self).update_subnet(
