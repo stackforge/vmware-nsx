@@ -7,7 +7,7 @@ usage: nsxadmin -r <resources> -o <operation>
 NSX-V Plugin
 ------------
 
-The following resources are supported: 'security-groups', 'edges', 'networks', 'firewall-sections', 'orphaned-edges', 'spoofguard-policy', 'missing-edges', 'backup-edges', 'nsx-security-groups', 'dhcp-binding' and  'metadata'
+The following resources are supported: 'security-groups', 'edges', 'networks', 'firewall-sections', 'orphaned-edges', 'spoofguard-policy', 'missing-edges', 'backup-edges', 'nsx-security-groups', 'dhcp-binding', 'fwaas' and  'metadata'
 
 Edges
 ~~~~~
@@ -294,6 +294,13 @@ Metadata
 
     nsxadmin -r metadata -o status [--property network_id=<net_id>]
 
+FWaaS
+~~~~~
+
+- Migrate FWaaS V1 object to V2. This should run while neutron is down. Before restarting neutron the configuration of the FWaaS plugin/driver should be modified to start using FWaaS v2 instead::
+
+    nsxadmin -r fwaas -o migrate-v1-to-v2
+
 Config
 ~~~~~~
 
@@ -550,6 +557,13 @@ Cluster
 - Show the NSX cluster managers ips::
 
     nsxadmin -r cluster -o show
+
+FWaaS
+~~~~~
+
+- Migrate FWaaS V1 object to V2. This should run while neutron is down. Before restarting neutron the configuration of the FWaaS plugin/driver should be modified to start using FWaaS v2 instead::
+
+    nsxadmin -r fwaas -o migrate-v1-to-v2
 
 Config
 ~~~~~~

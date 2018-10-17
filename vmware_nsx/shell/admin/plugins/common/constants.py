@@ -34,6 +34,7 @@ SECURITY_GROUPS = 'security-groups'
 CONFIG = 'config'
 ORPHANED_NETWORKS = 'orphaned-networks'
 ORPHANED_ROUTERS = 'orphaned-routers'
+FWAAS = 'fwaas'
 
 # NSXV3 only Resource Constants
 PORTS = 'ports'
