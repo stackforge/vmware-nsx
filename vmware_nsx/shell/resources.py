@@ -61,6 +61,7 @@ class Operations(enum.Enum):
     MIGRATE_TO_POLICY = 'migrate-to-policy'
     UPDATE_LOGGING = 'update-logging'
     NSX_MIGRATE_EXCLUDE_PORTS = 'migrate-exclude-ports'
+    MIGRATE_V1_TO_V2 = 'migrate-v1-to-v2'
     MIGRATE_VDR_DHCP = 'migrate-vdr-dhcp'
     STATUS = 'status'
     GENERATE = 'generate'
@@ -143,7 +144,9 @@ nsxv3_resources = {
                                    [Operations.SHOW.value,
                                     Operations.NSX_UPDATE.value]),
     constants.CLUSTER: Resource(constants.CLUSTER,
-                                [Operations.SHOW.value])
+                                [Operations.SHOW.value]),
+    constants.FWAAS: Resource(constants.FWAAS,
+                              [Operations.MIGRATE_V1_TO_V2.value])
 }
 
 # Add supported NSX-V resources in this dictionary
@@ -227,6 +230,8 @@ nsxv_resources = {
                                        Operations.DELETE.value]),
     constants.LBAAS: Resource(constants.LBAAS,
                               [Operations.NSX_UPDATE.value]),
+    constants.FWAAS: Resource(constants.FWAAS,
+                              [Operations.MIGRATE_V1_TO_V2.value])
 }
 
 
