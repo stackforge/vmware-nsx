@@ -1,0 +1,9 @@
+Verified+1: VMware NSX CI
+Code-Review+2: Kobi Samoray <ksamoray@vmware.com>
+Workflow+1: Kobi Samoray <ksamoray@vmware.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Thu, 18 Oct 2018 17:03:07 +0000
+Reviewed-on: https://review.openstack.org/611234
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/queens
