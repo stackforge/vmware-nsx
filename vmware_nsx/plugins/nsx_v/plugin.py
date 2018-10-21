@@ -143,7 +143,9 @@ from vmware_nsx.plugins.nsx_v.vshield import edge_utils
 from vmware_nsx.plugins.nsx_v.vshield import securitygroup_utils
 from vmware_nsx.plugins.nsx_v.vshield import vcns_driver
 from vmware_nsx.services.flowclassifier.nsx_v import utils as fc_utils
+from vmware_nsx.services.fwaas.common import utils as fwaas_utils
 from vmware_nsx.services.fwaas.nsx_v import fwaas_callbacks
+from vmware_nsx.services.fwaas.nsx_v import fwaas_callbacks_v2
 from vmware_nsx.services.lbaas.nsx_v.implementation import healthmon_mgr
 from vmware_nsx.services.lbaas.nsx_v.implementation import l7policy_mgr
 from vmware_nsx.services.lbaas.nsx_v.implementation import l7rule_mgr
@@ -497,7 +499,12 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
     def _init_fwaas(self):
         # Bind FWaaS callbacks to the driver
-        self.fwaas_callbacks = fwaas_callbacks.NsxvFwaasCallbacks()
+        if fwaas_utils.is_fwaas_v1_plugin_enabled():
+            LOG.info("NSXv FWaaS v1 plugin enabled")
+            self.fwaas_callbacks = fwaas_callbacks.NsxvFwaasCallbacks()
+        if fwaas_utils.is_fwaas_v2_plugin_enabled():
+            LOG.info("NSXv FWaaS v2 plugin enabled")
+            self.fwaas_callbacks = fwaas_callbacks_v2.NsxvFwaasCallbacksV2()
 
     def _create_security_group_container(self):
         name = "OpenStack Security Group container"
