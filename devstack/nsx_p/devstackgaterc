@@ -22,3 +22,4 @@
 r="^(?!.*)"
 
 export DEVSTACK_GATE_TEMPEST_REGEX="$r"
+r="$r|(?:tempest\.api\.network\.test_security_groups\.SecGroupTest\.test_create_security_group_rule_with_icmp_type_code.*)"
