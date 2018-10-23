@@ -1,0 +1,9 @@
+Code-Review+2: Anna Khmelnitsky <akhmelnitsky@vmware.com>
+Verified+1: VMware NSX CI
+Workflow+1: Adit Sarfaty <asarfaty@vmware.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Tue, 23 Oct 2018 07:19:24 +0000
+Reviewed-on: https://review.openstack.org/611535
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
