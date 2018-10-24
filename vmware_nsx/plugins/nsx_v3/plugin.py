@@ -4075,6 +4075,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 router_db['status'] = curr_status
 
     def _get_nsx_router_and_fw_section(self, context, router_id):
+        LOG.error("DEBUG ADIT _get_nsx_router_and_fw_section %s", router_id)
         # find the backend router id in the DB
         nsx_router_id = nsx_db.get_nsx_router_id(context.session, router_id)
         if nsx_router_id is None:
@@ -4082,6 +4083,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             LOG.error(msg)
             raise nsx_exc.NsxPluginException(err_msg=msg)
 
+        LOG.error("DEBUG ADIT _get_nsx_router_and_fw_section nsx_router_id %s", nsx_router_id)
         # get the FW section id of the backend router
         try:
             section_id = self.nsxlib.logical_router.get_firewall_section_id(
@@ -4392,8 +4394,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 LOG.error("Neutron failed to add_router_interface on "
                           "router %s, and would try to rollback.",
                           router_id)
-                self.remove_router_interface(
-                    context, router_id, interface_info)
+                try:
+                    self.remove_router_interface(
+                        context, router_id, interface_info)
+                except Exception:
+                    # rollback also failed
+                    LOG.error("Neutron rollback failed to remove router "
+                              "interface on router %s.", router_id)
         return info
 
     def remove_router_interface(self, context, router_id, interface_info):
