@@ -68,14 +68,23 @@ class Nsxv3FwaasCallbacksV2(com_callbacks.NsxFwaasCallbacksV2):
         return self.internal_driver.get_port_translated_rules(
             nsx_ls_id, fwg, plugin_rules)
 
+    def state_firewall_groups(self, context, router_interfaces):
+        for port in router_interfaces:
+            fwg = self.get_port_fwg(context, port['id'])
+            if fwg and fwg.get('status') == nl_constants.ACTIVE:
+                return True
+        return False
+
     def update_router_firewall(self, context, nsxlib, router_id,
-                               router_interfaces, nsx_router_id, section_id):
+                               router_interfaces, nsx_router_id, section_id,
+                               from_fw=False):
         """Rewrite all the FWaaS v2 rules in the router edge firewall
 
         This method should be called on FWaaS updates, and on router
         interfaces changes.
         """
         fw_rules = []
+        with_fw = False
         # Add firewall rules per port attached to a firewall group
         for port in router_interfaces:
             nsx_ls_id, _nsx_port_id = nsx_db.get_nsx_switch_and_port_id(
@@ -84,6 +93,7 @@ class Nsxv3FwaasCallbacksV2(com_callbacks.NsxFwaasCallbacksV2):
             # Check if this port has a firewall
             fwg = self.get_port_fwg(context, port['id'])
             if fwg:
+                with_fw = True
                 # Add plugin additional allow rules
                 plugin_rules = self.core_plugin.get_extra_fw_rules(
                     context, router_id, port['id'])
@@ -99,7 +109,21 @@ class Nsxv3FwaasCallbacksV2(com_callbacks.NsxFwaasCallbacksV2):
             section_id, allow_all=True))
 
         # update the backend router firewall
-        nsxlib.firewall_section.update(section_id, rules=fw_rules)
+        exists_on_backend = self.core_plugin.verify_sr_at_backend(context,
+                                                                  router_id)
+        if from_fw:
+            if with_fw:
+                if not exists_on_backend:
+                    self.core_plugin.create_service_router(context, router_id)
+                    exists_on_backend = True
+            else:
+                sr_exists = self.core_plugin.service_router_has_services(
+                    context, router_id)
+                if not sr_exists and exists_on_backend:
+                    self.core_plugin.delete_service_router(context, router_id)
+                    exists_on_backend = False
+        if exists_on_backend:
+            nsxlib.firewall_section.update(section_id, rules=fw_rules)
 
     def delete_port(self, context, port_id):
         # Mark the FW group as inactive if this is the last port
