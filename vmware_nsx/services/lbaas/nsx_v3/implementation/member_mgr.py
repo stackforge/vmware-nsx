@@ -161,6 +161,7 @@ class EdgeMemberManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                     lb_size = lb_utils.get_lb_flavor_size(
                         self.flavor_plugin, context,
                         loadbalancer.get('flavor_id'))
+                    self.core_plugin._create_service_router(context, router_id)
                     lb_service = self._create_lb_service(
                         context, service_client, member['tenant_id'],
                         router_id, nsx_router_id, loadbalancer['id'], lb_size)
