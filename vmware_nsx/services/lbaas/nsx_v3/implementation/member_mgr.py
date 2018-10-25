@@ -169,6 +169,9 @@ class EdgeMemberManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                     lb_service = self._create_lb_service(
                         context, service_client, member['tenant_id'],
                         router_id, nsx_router_id, loadbalancer['id'], lb_size)
+                if not self.core_plugin.verify_service_router_exist(context,
+                                                                    router_id):
+                    self.core_plugin.create_service_router(context, router_id)
                 if lb_service:
                     lb_service_id = lb_service['id']
                     self._add_loadbalancer_binding(
