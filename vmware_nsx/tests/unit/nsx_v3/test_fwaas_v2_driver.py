@@ -205,6 +205,8 @@ class Nsxv3FwaasTestCase(test_v3_plugin.NsxV3PluginTestCaseMixin):
                               return_value=port),\
             mock.patch.object(self.plugin.fwaas_callbacks, 'get_port_fwg',
                               return_value=firewall),\
+            mock.patch.object(self.plugin, 'service_router_has_services',
+                              return_value=True),\
             mock.patch("vmware_nsx.db.db.get_nsx_switch_and_port_id",
                        return_value=(FAKE_NSX_LS_ID, 0)),\
             mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
@@ -239,7 +241,9 @@ class Nsxv3FwaasTestCase(test_v3_plugin.NsxV3PluginTestCaseMixin):
             mock.patch.object(self.plugin, 'get_port',
                               return_value=port),\
             mock.patch.object(self.plugin.fwaas_callbacks, 'get_port_fwg',
-                              return_value=firewall),\
+                              return_value=firewall), \
+            mock.patch.object(self.plugin, 'service_router_has_services',
+                              return_value=True), \
             mock.patch("vmware_nsx.db.db.get_nsx_switch_and_port_id",
                        return_value=(FAKE_NSX_LS_ID, 0)),\
             mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
@@ -294,7 +298,9 @@ class Nsxv3FwaasTestCase(test_v3_plugin.NsxV3PluginTestCaseMixin):
         with mock.patch.object(self.plugin, '_get_router_interfaces',
                                return_value=[port]),\
             mock.patch.object(self.plugin, 'get_port',
-                              return_value=port),\
+                              return_value=port), \
+            mock.patch.object(self.plugin, 'service_router_has_services',
+                              return_value=True), \
             mock.patch.object(self.plugin.fwaas_callbacks, 'get_port_fwg',
                               return_value=firewall),\
             mock.patch("vmware_nsx.db.db.get_nsx_switch_and_port_id",
@@ -310,7 +316,9 @@ class Nsxv3FwaasTestCase(test_v3_plugin.NsxV3PluginTestCaseMixin):
         with mock.patch.object(self.plugin, '_get_router_interfaces',
                                return_value=[port]),\
             mock.patch.object(self.plugin.fwaas_callbacks, 'get_port_fwg',
-                              return_value=None),\
+                              return_value=None), \
+            mock.patch.object(self.plugin, 'service_router_has_services',
+                              return_value=True), \
             mock.patch("vmware_nsx.db.db.get_nsx_switch_and_port_id",
                        return_value=(FAKE_NSX_LS_ID, 0)),\
             mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
@@ -343,7 +351,9 @@ class Nsxv3FwaasTestCase(test_v3_plugin.NsxV3PluginTestCaseMixin):
             mock.patch.object(self.plugin, '_get_port_relay_servers',
                               return_value=[relay_server]),\
             mock.patch.object(self.plugin.fwaas_callbacks, 'get_port_fwg',
-                              return_value=firewall),\
+                              return_value=firewall), \
+            mock.patch.object(self.plugin, 'service_router_has_services',
+                              return_value=True), \
             mock.patch("vmware_nsx.db.db.get_nsx_switch_and_port_id",
                        return_value=(FAKE_NSX_LS_ID, 0)),\
             mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
