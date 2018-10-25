@@ -101,6 +101,14 @@ class Nsxv3FwaasCallbacksV2(com_callbacks.NsxFwaasCallbacksV2):
         # update the backend router firewall
         nsxlib.firewall_section.update(section_id, rules=fw_rules)
 
+    def state_firewall_groups(self, context, router_interfaces):
+        for port in router_interfaces:
+            fwg = self.get_port_fwg(context, port['id'])
+            if (fwg and fwg.get('status') == nl_constants.ACTIVE and
+                    len(fwg.get('ports', [])) <= 1):
+                return True
+        return False
+
     def delete_port(self, context, port_id):
         # Mark the FW group as inactive if this is the last port
         fwg = self.get_port_fwg(context, port_id)
