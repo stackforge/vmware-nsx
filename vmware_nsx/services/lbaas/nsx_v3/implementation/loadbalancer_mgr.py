@@ -98,6 +98,8 @@ class EdgeLoadBalancerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                         router_client.update_advertisement_rules(
                             nsx_router_id, [],
                             name_prefix=lb_utils.ADV_RULE_NAME)
+                        router_id = nsx_db.get_neutron_from_nsx_router_id(
+                            context.session, nsx_router_id)
                     except nsxlib_exc.ManagerError:
                         completor(success=False)
                         msg = (_('Failed to delete lb service %(lbs)s from nsx'
@@ -105,6 +107,11 @@ class EdgeLoadBalancerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                         raise n_exc.BadRequest(resource='lbaas-lb', msg=msg)
             nsx_db.delete_nsx_lbaas_loadbalancer_binding(
                 context.session, lb['id'])
+            if not self.core_plugin.verify_service_router_exist(
+                    context,
+                    router_id):
+                self.core_plugin.delete_service_router(context,
+                                                       router_id)
         completor(success=True)
 
     def refresh(self, context, lb):

@@ -68,6 +68,13 @@ class Nsxv3FwaasCallbacksV2(com_callbacks.NsxFwaasCallbacksV2):
         return self.internal_driver.get_port_translated_rules(
             nsx_ls_id, fwg, plugin_rules)
 
+    def state_firewall_groups(self, context, router_interfaces):
+        for port in router_interfaces:
+            fwg = self.get_port_fwg(context, port['id'])
+            if fwg and fwg.get('status') == nl_constants.ACTIVE:
+                return True
+        return False
+
     def update_router_firewall(self, context, nsxlib, router_id,
                                router_interfaces, nsx_router_id, section_id):
         """Rewrite all the FWaaS v2 rules in the router edge firewall
@@ -84,6 +91,9 @@ class Nsxv3FwaasCallbacksV2(com_callbacks.NsxFwaasCallbacksV2):
             # Check if this port has a firewall
             fwg = self.get_port_fwg(context, port['id'])
             if fwg:
+                if not self.core_plugin.verify_service_router_exist(context,
+                                                                    router_id):
+                    self.core_plugin.create_service_router(context, router_id)
                 # Add plugin additional allow rules
                 plugin_rules = self.core_plugin.get_extra_fw_rules(
                     context, router_id, port['id'])
@@ -93,6 +103,10 @@ class Nsxv3FwaasCallbacksV2(com_callbacks.NsxFwaasCallbacksV2):
                 # rule for this port
                 fw_rules.extend(self.get_port_rules(nsx_ls_id, fwg,
                                                     plugin_rules))
+            if not fwg:
+                if not self.core_plugin.verify_service_router_exist(context,
+                                                                    router_id):
+                    self.core_plugin.delete_service_router(context, router_id)
 
         # add a default allow-all rule to all other traffic & ports
         fw_rules.append(self.internal_driver.get_default_backend_rule(
