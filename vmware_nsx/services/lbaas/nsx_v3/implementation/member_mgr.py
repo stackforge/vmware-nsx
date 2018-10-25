@@ -66,6 +66,7 @@ class EdgeMemberManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
         attachment = {'target_id': nsx_router_id,
                       'target_type': 'LogicalRouter'}
         try:
+            self.core_plugin._create_service_router(context, router_id)
             lb_service = service_client.create(display_name=lb_name,
                                                tags=tags,
                                                attachment=attachment,
