@@ -3602,6 +3602,17 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     'net': sub['network_id']})
                 raise n_exc.InvalidInput(error_message=msg)
 
+    def _create_service_router(self, new_tier0_uuid, nsx_router_id):
+        edge_cluster_uuid = self._get_edge_cluster(new_tier0_uuid)
+        self.nsxlib.router.update_router_edge_cluster(nsx_router_id,
+                                                      edge_cluster_uuid)
+
+    def _delete_service_router(self, nsx_router_id):
+        self.nsxlib.router.change_status_edge_firewall(
+            nsx_router_id, nsxlib_consts.FW_DISABLE)
+        self.nsxlib.router.update_router_edge_cluster(nsx_router_id,
+                                                      None)
+
     def _update_router_gw_info(self, context, router_id, info):
         router = self._get_router(context, router_id)
         org_tier0_uuid = self._get_tier0_uuid_by_router(context, router)
@@ -3609,13 +3620,16 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         orgaddr, orgmask, _orgnexthop = (
             self._get_external_attachment_info(
                 context, router))
+        has_floatingip = self.router_gw_port_has_floating_ips(context,
+                                                              router_id)
+        new_tier0_uuid = self._get_tier0_uuid_by_net_id(context.elevated(),
+                                                        info['network_id'])
 
         # Ensure that a router cannot have SNAT disabled if there are
         # floating IP's assigned
         if (info and 'enable_snat' in info and
             org_enable_snat != info.get('enable_snat') and
-            info.get('enable_snat') is False and
-            self.router_gw_port_has_floating_ips(context, router_id)):
+            info.get('enable_snat') is False and has_floatingip):
             msg = _("Unable to set SNAT disabled. Floating IPs assigned")
             raise n_exc.InvalidInput(error_message=msg)
 
@@ -3623,8 +3637,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             context.elevated(), router_id)
 
         if info and info.get('network_id'):
-            new_tier0_uuid = self._get_tier0_uuid_by_net_id(context.elevated(),
-                                                            info['network_id'])
             if new_tier0_uuid:
                 self._validate_router_tz(context, new_tier0_uuid,
                                          router_subnets)
@@ -3694,6 +3706,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             pass
         if remove_snat_rules:
             self.nsxlib.router.delete_gw_snat_rules(nsx_router_id, orgaddr)
+            self._delete_service_router(nsx_router_id)
+
         if remove_no_dnat_rules:
             for subnet in router_subnets:
                 self._del_subnet_no_dnat_rule(context, nsx_router_id, subnet)
@@ -3704,25 +3718,25 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 nsxlib_consts.FEATURE_ROUTER_TRANSPORT_ZONE):
                 self.nsxlib.router.update_router_transport_zone(
                     nsx_router_id, None)
+        if info and info['enable_snat'] and org_tier0_uuid:
+            self._create_service_router(org_tier0_uuid, nsx_router_id)
         if add_router_link_port:
-            # First update edge cluster info for router
-            edge_cluster_uuid = self._get_edge_cluster(new_tier0_uuid)
-            self.nsxlib.router.update_router_edge_cluster(
-                nsx_router_id, edge_cluster_uuid)
-            # Add the overlay transport zone to the router config
-            if self.nsxlib.feature_supported(
-                nsxlib_consts.FEATURE_ROUTER_TRANSPORT_ZONE):
-                tz_uuid = self.nsxlib.router.get_tier0_router_overlay_tz(
-                    new_tier0_uuid)
-                if tz_uuid:
-                    self.nsxlib.router.update_router_transport_zone(
-                        nsx_router_id, tz_uuid)
-            tags = self.nsxlib.build_v3_tags_payload(
-                   router, resource_type='os-neutron-rport',
-                   project_name=context.tenant_name)
-            self.nsxlib.router.add_router_link_port(nsx_router_id,
-                                                    new_tier0_uuid,
-                                                    tags=tags)
+            if info and info['enable_snat']:
+                self._create_service_router(new_tier0_uuid, nsx_router_id)
+                # Add the overlay transport zone to the router config
+                if self.nsxlib.feature_supported(
+                    nsxlib_consts.FEATURE_ROUTER_TRANSPORT_ZONE):
+                    tz_uuid = self.nsxlib.router.get_tier0_router_overlay_tz(
+                        new_tier0_uuid)
+                    if tz_uuid:
+                        self.nsxlib.router.update_router_transport_zone(
+                            nsx_router_id, tz_uuid)
+                tags = self.nsxlib.build_v3_tags_payload(
+                       router, resource_type='os-neutron-rport',
+                       project_name=context.tenant_name)
+                self.nsxlib.router.add_router_link_port(nsx_router_id,
+                                                        new_tier0_uuid,
+                                                        tags=tags)
         if add_snat_rules:
             # Add SNAT rules for all the subnets which are in different scope
             # than the gw
