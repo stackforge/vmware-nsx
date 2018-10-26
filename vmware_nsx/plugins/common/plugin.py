@@ -653,6 +653,8 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
         else:
             port_data[addr_apidef.ADDRESS_PAIRS] = []
 
+    # NSXv3 and Policy only
+
     def get_housekeeper(self, context, name, fields=None):
         # run the job in readonly mode and get the results
         self.housekeeper.run(context, name, readonly=True)
