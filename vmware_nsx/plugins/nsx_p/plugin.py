@@ -39,6 +39,7 @@ from neutron.db import portsecurity_db
 from neutron.db import securitygroups_db
 from neutron.db import vlantransparent_db
 from neutron.extensions import providernet
+from neutron.extensions import securitygroup as ext_sg
 from neutron.quota import resource_registry
 from neutron_lib.api.definitions import allowedaddresspairs as addr_apidef
 from neutron_lib.api.definitions import external_net
@@ -420,6 +421,18 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         return address_bindings
 
+    def _build_port_tags(self, port_data):
+        sec_groups = port_data.get(ext_sg.SECURITYGROUPS, [])
+        sec_groups += port_data.get(provider_sg.PROVIDER_SECURITYGROUPS, [])
+
+        tags = []
+        for sg in sec_groups:
+            tags = nsxlib_utils.add_v3_tag(tags,
+                                           NSX_P_SECURITY_GROUP_TAG,
+                                           sg)
+
+        return tags
+
     def _create_port_at_the_backend(self, context, port_data):
         # TODO(annak): admin_state not supported by policy
         # TODO(annak): handle exclude list
@@ -434,12 +447,15 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if device_owner and device_owner != l3_db.DEVICE_OWNER_ROUTER_INTF:
             vif_id = port_data['id']
 
+        tags = self._build_port_tags(port_data)
+
         self.nsxpolicy.segment_port.create_or_overwrite(
             name,
             port_data['network_id'],
             port_id=port_data['id'],
             description=port_data.get('description'),
             address_bindings=address_bindings,
+            tags=tags,
             vif_id=vif_id)
 
     def _cleanup_port(self, context, port_id, lport_id):
@@ -469,7 +485,15 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             neutron_db = self.base_create_port(context, port)
             port["port"].update(neutron_db)
 
-            self._create_port_address_pairs(context, port_data)
+            # TODO(annak): check if ENS is relevant
+            (is_psec_on, has_ip, sgids, psgids) = (
+                self._create_port_preprocess_security(context, port,
+                                                      port_data, neutron_db,
+                                                      False))
+
+            self._process_port_create_security_group(context, port_data, sgids)
+            self._process_port_create_provider_security_group(
+                context, port_data, psgids)
 
         if not is_external_net:
             try:

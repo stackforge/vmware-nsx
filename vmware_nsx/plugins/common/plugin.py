@@ -22,6 +22,7 @@ from neutron.db import db_base_plugin_v2
 from neutron.db import l3_attrs_db
 from neutron.db import l3_db
 from neutron.db import models_v2
+from neutron.extensions import securitygroup as ext_sg
 from neutron_lib.api.definitions import address_scope as ext_address_scope
 from neutron_lib.api.definitions import allowedaddresspairs as addr_apidef
 from neutron_lib.api.definitions import availability_zone as az_def
@@ -40,6 +41,7 @@ from neutron_lib import context as n_context
 from neutron_lib.db import api as db_api
 from neutron_lib import exceptions as n_exc
 from neutron_lib.exceptions import allowedaddresspairs as addr_exc
+from neutron_lib.exceptions import port_security as psec_exc
 from neutron_lib.plugins import directory
 from neutron_lib.services.qos import constants as qos_consts
 from neutron_lib.utils import net
@@ -652,6 +654,38 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
                                                            address_pairs)
         else:
             port_data[addr_apidef.ADDRESS_PAIRS] = []
+
+    # NSXv3 and Policy only
+    def _create_port_preprocess_security(
+            self, context, port, port_data, neutron_db, is_ens_tz_port):
+        (port_security, has_ip) = self._determine_port_security_and_has_ip(
+            context, port_data)
+        port_data[psec.PORTSECURITY] = port_security
+        # No port security is allowed if the port belongs to an ENS TZ
+        if (port_security and is_ens_tz_port and
+            not self._ens_psec_supported()):
+            raise nsx_exc.NsxENSPortSecurity()
+        self._process_port_port_security_create(
+                context, port_data, neutron_db)
+
+        # allowed address pair checks
+        self._create_port_address_pairs(context, port_data)
+
+        if port_security and has_ip:
+            self._ensure_default_security_group_on_port(context, port)
+            (sgids, psgids) = self._get_port_security_groups_lists(
+                context, port)
+        elif (self._check_update_has_security_groups({'port': port_data}) or
+              self._provider_sgs_specified(port_data) or
+              self._get_provider_security_groups_on_port(context, port)):
+            LOG.error("Port has conflicting port security status and "
+                      "security groups")
+            raise psec_exc.PortSecurityAndIPRequiredForSecurityGroups()
+        else:
+            sgids = psgids = []
+        port_data[ext_sg.SECURITYGROUPS] = (
+            self._get_security_groups_on_port(context, port))
+        return port_security, has_ip, sgids, psgids
 
     def get_housekeeper(self, context, name, fields=None):
         # run the job in readonly mode and get the results
