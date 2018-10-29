@@ -489,6 +489,22 @@ nsx_p_opts = nsx_v3_and_p + [
                       "configuring external networks. If only one tier0 "
                       " router is present on backend, it will be assumed "
                       "as default unless this value is provided")),
+    cfg.StrOpt('default_overlay_tz',
+               help=_("This is the name or UUID of the default NSX overlay "
+                      "transport zone that will be used for creating "
+                      "tunneled isolated Neutron networks. It needs to be "
+                      "created in NSX before starting Neutron with the NSX "
+                      "plugin. If only one overlay transport zone is present "
+                      "on backend, it will be assumed as default unless this "
+                      "value is provided")),
+    cfg.StrOpt('default_vlan_tz',
+               help=_("(Optional) Only required when creating VLAN or flat "
+                      "provider networks. Name or UUID of default NSX VLAN "
+                      "transport zone that will be used for bridging between "
+                      "Neutron networks, if no physical network has been "
+                      "specified. If only one VLAN transport zone is present "
+                      "on backend, it will be assumed as default unless this "
+                      "value is provided")),
                ]
 
 

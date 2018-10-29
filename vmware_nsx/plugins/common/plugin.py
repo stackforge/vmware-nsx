@@ -13,7 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
 from oslo_log import log as logging
 
 from neutron.db import _resource_extend as resource_extend
@@ -29,6 +28,7 @@ from neutron_lib.api.definitions import external_net as extnet_apidef
 from neutron_lib.api.definitions import network as net_def
 from neutron_lib.api.definitions import port as port_def
 from neutron_lib.api.definitions import port_security as psec
+from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib.api.definitions import subnet as subnet_def
 from neutron_lib.api import validators
 from neutron_lib.api.validators import availability_zone as az_validator
@@ -41,16 +41,21 @@ from neutron_lib.db import api as db_api
 from neutron_lib import exceptions as n_exc
 from neutron_lib.exceptions import allowedaddresspairs as addr_exc
 from neutron_lib.plugins import directory
+from neutron_lib.plugins import utils as plugin_utils
 from neutron_lib.services.qos import constants as qos_consts
 from neutron_lib.utils import net
 
 from vmware_nsx._i18n import _
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import utils
+from vmware_nsx.db import db as nsx_db
 from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.extensions import secgroup_rule_local_ip_prefix as sg_prefix
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.vpnaas.nsxv3 import ipsec_utils
+
+from vmware_nsxlib.v3 import exceptions as nsx_lib_exc
+from vmware_nsxlib.v3 import nsx_constants as nsxlib_consts
 
 LOG = logging.getLogger(__name__)
 
@@ -58,7 +63,7 @@ LOG = logging.getLogger(__name__)
 @resource_extend.has_resource_extenders
 class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
                     address_scope_db.AddressScopeDbMixin):
-    """Common methods for NSX-V and NSX-V3 plugins"""
+    """Common methods for NSX-V, NSX-V3 and NSX-P plugins"""
 
     @property
     def plugin_type(self):
@@ -395,6 +400,49 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
         if qos_policy_id:
             qos_com_utils.validate_policy_accessable(context, qos_policy_id)
 
+    def _process_extra_attr_router_create(self, context, router_db, r):
+        for extra_attr in l3_attrs_db.get_attr_info().keys():
+            if (extra_attr in r and
+                validators.is_attr_set(r.get(extra_attr))):
+                self.set_extra_attr_value(context, router_db,
+                                          extra_attr, r[extra_attr])
+
+    def _get_interface_network(self, context, interface_info):
+        is_port, is_sub = self._validate_interface_info(interface_info)
+        if is_port:
+            net_id = self.get_port(context,
+                                   interface_info['port_id'])['network_id']
+        elif is_sub:
+            net_id = self.get_subnet(context,
+                                     interface_info['subnet_id'])['network_id']
+        return net_id
+
+    def get_housekeeper(self, context, name, fields=None):
+        # run the job in readonly mode and get the results
+        self.housekeeper.run(context, name, readonly=True)
+        return self.housekeeper.get(name)
+
+    def get_housekeepers(self, context, filters=None, fields=None, sorts=None,
+                         limit=None, marker=None, page_reverse=False):
+        return self.housekeeper.list()
+
+    def update_housekeeper(self, context, name, housekeeper):
+        # run the job in non-readonly mode and get the results
+        if not self.housekeeper.readwrite_allowed(name):
+            err_msg = (_("Can not run housekeeper job %s in readwrite "
+                         "mode") % name)
+            raise n_exc.InvalidInput(error_message=err_msg)
+        self.housekeeper.run(context, name, readonly=False)
+        return self.housekeeper.get(name)
+
+    def get_housekeeper_count(self, context, filters=None):
+        return len(self.housekeeper.list())
+
+
+@resource_extend.has_resource_extenders
+class NsxTandPPluginBase(NsxPluginBase):
+    """Common methods for NSX-V3 and NSX-P plugins"""
+
     def _validate_create_network(self, context, net_data):
         """Validate the parameters of the new network to be created
 
@@ -412,7 +460,7 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
             if is_external_net:
                 raise nsx_exc.QoSOnExternalNet()
 
-    def _validate_update_netowrk(self, context, id, original_net, net_data):
+    def _validate_update_network(self, context, id, original_net, net_data):
         """Validate the updated parameters of a network
 
         This method includes general validations that does not depend on
@@ -593,23 +641,6 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
             name = port_data['name']
         return name
 
-    def _process_extra_attr_router_create(self, context, router_db, r):
-        for extra_attr in l3_attrs_db.get_attr_info().keys():
-            if (extra_attr in r and
-                validators.is_attr_set(r.get(extra_attr))):
-                self.set_extra_attr_value(context, router_db,
-                                          extra_attr, r[extra_attr])
-
-    def _get_interface_network(self, context, interface_info):
-        is_port, is_sub = self._validate_interface_info(interface_info)
-        if is_port:
-            net_id = self.get_port(context,
-                                   interface_info['port_id'])['network_id']
-        elif is_sub:
-            net_id = self.get_subnet(context,
-                                     interface_info['subnet_id'])['network_id']
-        return net_id
-
     def _fix_sg_rule_dict_ips(self, sg_rule):
         # 0.0.0.0/# is not a valid entry for local and remote so we need
         # to change this to None
@@ -637,7 +668,6 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
             if not utils.is_ipv4_ip_address(ip):
                 raise nsx_exc.InvalidIPAddress(ip_address=ip)
 
-    # NSXv3 and Policy only
     def _create_port_address_pairs(self, context, port_data):
         (port_security, has_ip) = self._determine_port_security_and_has_ip(
             context, port_data)
@@ -653,26 +683,219 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
         else:
             port_data[addr_apidef.ADDRESS_PAIRS] = []
 
-    def get_housekeeper(self, context, name, fields=None):
-        # run the job in readonly mode and get the results
-        self.housekeeper.run(context, name, readonly=True)
-        return self.housekeeper.get(name)
+    def _validate_external_net_create(self, net_data, default_tier0_router,
+                                      tier0_validator=None):
+        """Validate external network configuration
 
-    def get_housekeepers(self, context, filters=None, fields=None, sorts=None,
-                         limit=None, marker=None, page_reverse=False):
-        return self.housekeeper.list()
+        Returns a tuple of:
+        - Boolean is provider network (always True)
+        - Network type (always L3_EXT)
+        - tier 0 router id
+        - vlan id
+        """
+        if not validators.is_attr_set(net_data.get(pnet.PHYSICAL_NETWORK)):
+            tier0_uuid = default_tier0_router
+        else:
+            tier0_uuid = net_data[pnet.PHYSICAL_NETWORK]
+        if ((validators.is_attr_set(net_data.get(pnet.NETWORK_TYPE)) and
+             net_data.get(pnet.NETWORK_TYPE) != utils.NetworkTypes.L3_EXT and
+             net_data.get(pnet.NETWORK_TYPE) != utils.NetworkTypes.LOCAL) or
+            validators.is_attr_set(net_data.get(pnet.SEGMENTATION_ID))):
+            msg = (_("External network cannot be created with %s provider "
+                     "network or segmentation id") %
+                   net_data.get(pnet.NETWORK_TYPE))
+            raise n_exc.InvalidInput(error_message=msg)
+        if tier0_validator:
+            tier0_validator(tier0_uuid)
+        return (True, utils.NetworkTypes.L3_EXT, tier0_uuid, 0)
 
-    def update_housekeeper(self, context, name, housekeeper):
-        # run the job in non-readonly mode and get the results
-        if not self.housekeeper.readwrite_allowed(name):
-            err_msg = (_("Can not run housekeeper job %s in readwrite "
-                         "mode") % name)
+    def _extend_network_dict_provider(self, context, network, bindings=None):
+        """Add network provider fields to the network dict from the DB"""
+        if 'id' not in network:
+            return
+        if not bindings:
+            bindings = nsx_db.get_network_bindings(context.session,
+                                                   network['id'])
+        # With NSX plugin, "normal" overlay networks will have no binding
+        if bindings:
+            # Network came in through provider networks API
+            network[pnet.NETWORK_TYPE] = bindings[0].binding_type
+            network[pnet.PHYSICAL_NETWORK] = bindings[0].phy_uuid
+            network[pnet.SEGMENTATION_ID] = bindings[0].vlan_id
+
+    def _assert_on_ens_with_qos(self, net_data):
+        qos_id = net_data.get(qos_consts.QOS_POLICY_ID)
+        if validators.is_attr_set(qos_id):
+            err_msg = _("Cannot configure QOS on ENS networks")
             raise n_exc.InvalidInput(error_message=err_msg)
-        self.housekeeper.run(context, name, readonly=False)
-        return self.housekeeper.get(name)
 
-    def get_housekeeper_count(self, context, filters=None):
-        return len(self.housekeeper.list())
+    def _ens_psec_supported(self):
+        """Should be implemented by each plugin"""
+        pass
+
+    def _validate_ens_net_portsecurity(self, net_data):
+        """Validate/Update the port security of the new network for ENS TZ
+        Should be implemented by the plugin if necessary
+        """
+        pass
+
+    def _validate_provider_create(self, context, network_data,
+                                  default_vlan_tz_uuid,
+                                  default_overlay_tz_uuid,
+                                  transparent_vlan, nsxlib_tz,
+                                  plugin_allow_ens=True):
+        """Validate the parameters of a new provider network
+
+        raises an error if illegal
+        returns a dictionary with the relevant processed data:
+        - is_provider_net: boolean
+        - net_type: provider network type or None
+        - physical_net: the uuid of the relevant transport zone or None
+        - vlan_id: vlan tag, 0 or None
+        - switch_mode: standard ot ENS
+        """
+        is_provider_net = any(
+            validators.is_attr_set(network_data.get(f))
+            for f in (pnet.NETWORK_TYPE,
+                      pnet.PHYSICAL_NETWORK,
+                      pnet.SEGMENTATION_ID))
+
+        physical_net = network_data.get(pnet.PHYSICAL_NETWORK)
+        if not validators.is_attr_set(physical_net):
+            physical_net = None
+
+        vlan_id = network_data.get(pnet.SEGMENTATION_ID)
+        if not validators.is_attr_set(vlan_id):
+            vlan_id = None
+
+        if vlan_id and transparent_vlan:
+            err_msg = (_("Segmentation ID cannot be set with transparent "
+                         "vlan!"))
+            raise n_exc.InvalidInput(error_message=err_msg)
+
+        err_msg = None
+        net_type = network_data.get(pnet.NETWORK_TYPE)
+        tz_type = nsxlib_consts.TRANSPORT_TYPE_VLAN
+        switch_mode = nsxlib_consts.HOST_SWITCH_MODE_STANDARD
+        if validators.is_attr_set(net_type):
+            if net_type == utils.NsxV3NetworkTypes.FLAT:
+                if vlan_id is not None:
+                    err_msg = (_("Segmentation ID cannot be specified with "
+                                 "%s network type") %
+                               utils.NsxV3NetworkTypes.FLAT)
+                else:
+                    if not transparent_vlan:
+                        # Set VLAN id to 0 for flat networks
+                        vlan_id = '0'
+                    if physical_net is None:
+                        physical_net = default_vlan_tz_uuid
+            elif (net_type == utils.NsxV3NetworkTypes.VLAN and
+                  not transparent_vlan):
+                # Use default VLAN transport zone if physical network not given
+                if physical_net is None:
+                    physical_net = default_vlan_tz_uuid
+
+                # Validate VLAN id
+                if not vlan_id:
+                    vlan_id = self._generate_segment_id(context,
+                                                        physical_net,
+                                                        network_data)
+                elif not plugin_utils.is_valid_vlan_tag(vlan_id):
+                    err_msg = (_('Segmentation ID %(segmentation_id)s out of '
+                                 'range (%(min_id)s through %(max_id)s)') %
+                               {'segmentation_id': vlan_id,
+                                'min_id': constants.MIN_VLAN_TAG,
+                                'max_id': constants.MAX_VLAN_TAG})
+                else:
+                    # Verify VLAN id is not already allocated
+                    bindings = (
+                        nsx_db.get_network_bindings_by_vlanid_and_physical_net(
+                            context.session, vlan_id, physical_net)
+                    )
+                    if bindings:
+                        raise n_exc.VlanIdInUse(
+                            vlan_id=vlan_id, physical_network=physical_net)
+            elif (net_type == utils.NsxV3NetworkTypes.VLAN and
+                  transparent_vlan):
+                # Use default VLAN transport zone if physical network not given
+                if physical_net is None:
+                    physical_net = default_vlan_tz_uuid
+            elif net_type == utils.NsxV3NetworkTypes.GENEVE:
+                if vlan_id:
+                    err_msg = (_("Segmentation ID cannot be specified with "
+                                 "%s network type") %
+                               utils.NsxV3NetworkTypes.GENEVE)
+                tz_type = nsxlib_consts.TRANSPORT_TYPE_OVERLAY
+            elif net_type == utils.NsxV3NetworkTypes.NSX_NETWORK:
+                # Linking neutron networks to an existing NSX logical switch
+                if physical_net is None:
+                    err_msg = (_("Physical network must be specified with "
+                                 "%s network type") % net_type)
+                # Validate the logical switch existence
+                try:
+                    nsx_net = self.nsxlib.logical_switch.get(physical_net)
+                    switch_mode = nsxlib_tz.get_host_switch_mode(
+                        nsx_net['transport_zone_id'])
+                except nsx_lib_exc.ResourceNotFound:
+                    err_msg = (_('Logical switch %s does not exist') %
+                               physical_net)
+                # make sure no other neutron network is using it
+                bindings = (
+                    nsx_db.get_network_bindings_by_vlanid_and_physical_net(
+                        context.elevated().session, 0, physical_net))
+                if bindings:
+                    err_msg = (_('Logical switch %s is already used by '
+                                 'another network') % physical_net)
+            else:
+                err_msg = (_('%(net_type_param)s %(net_type_value)s not '
+                             'supported') %
+                           {'net_type_param': pnet.NETWORK_TYPE,
+                            'net_type_value': net_type})
+        elif is_provider_net:
+            # FIXME: Ideally provider-network attributes should be checked
+            # at the NSX backend. For now, the network_type is required,
+            # so the plugin can do a quick check locally.
+            err_msg = (_('%s is required for creating a provider network') %
+                       pnet.NETWORK_TYPE)
+        else:
+            net_type = None
+
+        if physical_net is None:
+            # Default to transport type overlay
+            physical_net = default_overlay_tz_uuid
+
+        # validate the transport zone existence and type
+        if (not err_msg and physical_net and
+            net_type != utils.NsxV3NetworkTypes.NSX_NETWORK):
+            if is_provider_net:
+                try:
+                    backend_type = nsxlib_tz.get_transport_type(
+                        physical_net)
+                except nsx_lib_exc.ResourceNotFound:
+                    err_msg = (_('Transport zone %s does not exist') %
+                               physical_net)
+                else:
+                    if backend_type != tz_type:
+                        err_msg = (_('%(tz)s transport zone is required for '
+                                     'creating a %(net)s provider network') %
+                                   {'tz': tz_type, 'net': net_type})
+            if not err_msg:
+                switch_mode = nsxlib_tz.get_host_switch_mode(physical_net)
+
+        if err_msg:
+            raise n_exc.InvalidInput(error_message=err_msg)
+
+        if (switch_mode == self.nsxlib.transport_zone.HOST_SWITCH_MODE_ENS):
+            if not plugin_allow_ens:
+                raise NotImplementedError(_("ENS support is disabled"))
+            self._assert_on_ens_with_qos(network_data)
+            self._validate_ens_net_portsecurity(network_data)
+
+        return {'is_provider_net': is_provider_net,
+                'net_type': net_type,
+                'physical_net': physical_net,
+                'vlan_id': vlan_id,
+                'switch_mode': switch_mode}
 
 
 # Register the callback
