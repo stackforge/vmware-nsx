@@ -919,146 +919,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         return self.conn.consume_in_threads()
 
-    def _validate_provider_create(self, context, network_data, az,
-                                  transparent_vlan):
-        is_provider_net = any(
-            validators.is_attr_set(network_data.get(f))
-            for f in (pnet.NETWORK_TYPE,
-                      pnet.PHYSICAL_NETWORK,
-                      pnet.SEGMENTATION_ID))
-
-        physical_net = network_data.get(pnet.PHYSICAL_NETWORK)
-        if not validators.is_attr_set(physical_net):
-            physical_net = None
-
-        vlan_id = network_data.get(pnet.SEGMENTATION_ID)
-        if not validators.is_attr_set(vlan_id):
-            vlan_id = None
-
-        if vlan_id and transparent_vlan:
-            err_msg = (_("Segmentation ID cannot be set with transparent "
-                         "vlan!"))
-            raise n_exc.InvalidInput(error_message=err_msg)
-
-        err_msg = None
-        net_type = network_data.get(pnet.NETWORK_TYPE)
-        nsxlib_tz = self.nsxlib.transport_zone
-        tz_type = nsxlib_tz.TRANSPORT_TYPE_VLAN
-        switch_mode = nsxlib_tz.HOST_SWITCH_MODE_STANDARD
-        if validators.is_attr_set(net_type):
-            if net_type == utils.NsxV3NetworkTypes.FLAT:
-                if vlan_id is not None:
-                    err_msg = (_("Segmentation ID cannot be specified with "
-                                 "%s network type") %
-                               utils.NsxV3NetworkTypes.FLAT)
-                else:
-                    if not transparent_vlan:
-                        # Set VLAN id to 0 for flat networks
-                        vlan_id = '0'
-                    if physical_net is None:
-                        physical_net = az._default_vlan_tz_uuid
-            elif (net_type == utils.NsxV3NetworkTypes.VLAN and
-                  not transparent_vlan):
-                # Use default VLAN transport zone if physical network not given
-                if physical_net is None:
-                    physical_net = az._default_vlan_tz_uuid
-
-                # Validate VLAN id
-                if not vlan_id:
-                    vlan_id = self._generate_segment_id(context,
-                                                        physical_net,
-                                                        network_data)
-                elif not plugin_utils.is_valid_vlan_tag(vlan_id):
-                    err_msg = (_('Segmentation ID %(segmentation_id)s out of '
-                                 'range (%(min_id)s through %(max_id)s)') %
-                               {'segmentation_id': vlan_id,
-                                'min_id': const.MIN_VLAN_TAG,
-                                'max_id': const.MAX_VLAN_TAG})
-                else:
-                    # Verify VLAN id is not already allocated
-                    bindings = (
-                        nsx_db.get_network_bindings_by_vlanid_and_physical_net(
-                            context.session, vlan_id, physical_net)
-                    )
-                    if bindings:
-                        raise n_exc.VlanIdInUse(
-                            vlan_id=vlan_id, physical_network=physical_net)
-            elif (net_type == utils.NsxV3NetworkTypes.VLAN and
-                  transparent_vlan):
-                # Use default VLAN transport zone if physical network not given
-                if physical_net is None:
-                    physical_net = az._default_vlan_tz_uuid
-            elif net_type == utils.NsxV3NetworkTypes.GENEVE:
-                if vlan_id:
-                    err_msg = (_("Segmentation ID cannot be specified with "
-                                 "%s network type") %
-                               utils.NsxV3NetworkTypes.GENEVE)
-                tz_type = nsxlib_tz.TRANSPORT_TYPE_OVERLAY
-            elif net_type == utils.NsxV3NetworkTypes.NSX_NETWORK:
-                # Linking neutron networks to an existing NSX logical switch
-                if physical_net is None:
-                    err_msg = (_("Physical network must be specified with "
-                                 "%s network type") % net_type)
-                # Validate the logical switch existence
-                try:
-                    nsx_net = self.nsxlib.logical_switch.get(physical_net)
-                    switch_mode = nsxlib_tz.get_host_switch_mode(
-                        nsx_net['transport_zone_id'])
-                except nsx_lib_exc.ResourceNotFound:
-                    err_msg = (_('Logical switch %s does not exist') %
-                               physical_net)
-                # make sure no other neutron network is using it
-                bindings = (
-                    nsx_db.get_network_bindings_by_vlanid_and_physical_net(
-                        context.elevated().session, 0, physical_net))
-                if bindings:
-                    err_msg = (_('Logical switch %s is already used by '
-                                 'another network') % physical_net)
-            else:
-                err_msg = (_('%(net_type_param)s %(net_type_value)s not '
-                             'supported') %
-                           {'net_type_param': pnet.NETWORK_TYPE,
-                            'net_type_value': net_type})
-        elif is_provider_net:
-            # FIXME: Ideally provider-network attributes should be checked
-            # at the NSX backend. For now, the network_type is required,
-            # so the plugin can do a quick check locally.
-            err_msg = (_('%s is required for creating a provider network') %
-                       pnet.NETWORK_TYPE)
-        else:
-            net_type = None
-
-        if physical_net is None:
-            # Default to transport type overlay
-            physical_net = az._default_overlay_tz_uuid
-
-        # validate the transport zone existence and type
-        if (not err_msg and physical_net and
-            net_type != utils.NsxV3NetworkTypes.NSX_NETWORK):
-            if is_provider_net:
-                try:
-                    backend_type = nsxlib_tz.get_transport_type(
-                        physical_net)
-                except nsx_lib_exc.ResourceNotFound:
-                    err_msg = (_('Transport zone %s does not exist') %
-                               physical_net)
-                else:
-                    if backend_type != tz_type:
-                        err_msg = (_('%(tz)s transport zone is required for '
-                                     'creating a %(net)s provider network') %
-                                   {'tz': tz_type, 'net': net_type})
-            if not err_msg:
-                switch_mode = nsxlib_tz.get_host_switch_mode(physical_net)
-
-        if err_msg:
-            raise n_exc.InvalidInput(error_message=err_msg)
-
-        return {'is_provider_net': is_provider_net,
-                'net_type': net_type,
-                'physical_net': physical_net,
-                'vlan_id': vlan_id,
-                'switch_mode': switch_mode}
-
     def _get_edge_cluster(self, tier0_uuid):
         self.nsxlib.router.validate_tier0(self.tier0_groups_dict, tier0_uuid)
         tier0_info = self.tier0_groups_dict[tier0_uuid]
@@ -1082,8 +942,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def _create_network_at_the_backend(self, context, net_data, az,
                                        transparent_vlan):
-        provider_data = self._validate_provider_create(context, net_data, az,
-                                                       transparent_vlan)
+        provider_data = self._validate_provider_create(
+            context, net_data, az, transparent_vlan, self.nsxlib.transport_zone)
         neutron_net_id = net_data.get('id') or uuidutils.generate_uuid()
         net_data['id'] = neutron_net_id
         if (provider_data['switch_mode'] ==
@@ -1290,8 +1150,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             is_backend_network = False
         else:
             is_provider_net, net_type, physical_net, vlan_id, nsx_net_id = (
-                self._create_network_at_the_backend(context, net_data, az,
-                                                    vlt))
+                self._create_network_at_the_backend(
+                    context, net_data, az._default_vlan_tz_uuid,
+                    az._default_overlay_tz_uuid, vlt))
             is_backend_network = True
 
         try:

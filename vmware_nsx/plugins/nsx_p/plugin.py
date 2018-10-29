@@ -93,7 +93,7 @@ NSX_P_PROVIDER_SECTION_CATEGORY = policy_constants.CATEGORY_INFRASTRUCTURE
 @resource_extend.has_resource_extenders
 class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                       addr_pair_db.AllowedAddressPairsMixin,
-                      nsx_plugin_common.NsxPluginBase,
+                      nsx_plugin_common.NsxTandPPluginBase,
                       extend_sg_rule.ExtendedSecurityGroupRuleMixin,
                       extend_sg.ExtendedSecurityGroupPropertiesMixin,
                       securitygroups_db.SecurityGroupDbMixin,
@@ -274,22 +274,44 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             description=net_data.get('description'),
             tags=tags)
 
-    def _validate_external_net_create(self, net_data):
-        #TODO(asarfaty): implement
+    def _tier0_validator(self, tier0_uuid):
+        #TODO(asarfaty): implement - check that the tier0 router exists on the
+        # policy manager
         pass
+
+    def _ens_psec_supported(self):
+        """ ENS security features are alsways enabled on NSX versions which
+        the policy plugin supports
+        """
+        return True
 
     def create_network(self, context, network):
         net_data = network['network']
 
-        #TODO(asarfaty): network validation
+        #TODO(asarfaty): add vlt support
+        #TODO(asarfaty): add ENS support
+        #TODO(asarfaty): add automatic vlan selection supprot
         external = net_data.get(external_net.EXTERNAL)
         is_external_net = validators.is_attr_set(external) and external
         tenant_id = net_data['tenant_id']
 
         self._ensure_default_security_group(context, tenant_id)
-
+        vlt = vlan_apidef.get_vlan_transparent(net_data)
         if is_external_net:
-            self._validate_external_net_create(net_data)
+            is_provider_net, net_type, physical_net, vlan_id = (
+                self._validate_external_net_create(
+                    net_data, self.default_tier0_router,
+                    self._tier0_validator))
+            is_backend_network = False
+        else:
+            # TODO(asarfaty): support provider networks + validation
+            # DEBUG ADIT - add default TZ to config
+            provider_data = self._validate_provider_create(
+                context, net_data, self._default_vlan_tz_uuid,
+                self._default_overlay_tz_uuid,
+                vlt, self.nsxpolicy.transport_zone)
+            is_provider_net = provider_data['is_provider_net']
+            is_backend_network = True
 
         # Create the neutron network
         with db_api.CONTEXT_WRITER.using(context):
@@ -304,8 +326,16 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 context, net_data, created_net)
             self._process_l3_create(context, created_net, net_data)
 
+            if is_provider_net:
+                # Save provider network fields, needed by get_network()
+                net_bindings = [nsx_db.add_network_binding(
+                    context.session, created_net['id'],
+                    net_type, physical_net, vlan_id)]
+                self._extend_network_dict_provider(context, created_net,
+                                                   bindings=net_bindings)
+
         # Create the backend NSX network
-        if not is_external_net:
+        if is_backend_network:
             try:
                 self._create_network_at_the_backend(context, created_net)
             except Exception as e:
@@ -348,6 +378,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._extension_manager.process_update_network(context, net_data,
                                                        updated_net)
         self._process_l3_update(context, updated_net, network['network'])
+        self._extend_network_dict_provider(context, updated_net)
 
         #TODO(asarfaty): update the Policy manager
 
@@ -360,6 +391,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             # Don't do field selection here otherwise we won't be able to add
             # provider networks fields
             net = self._make_network_dict(network, context=context)
+            self._extend_network_dict_provider(context, network)
         return db_utils.resource_fields(net, fields)
 
     def get_networks(self, context, filters=None, fields=None,
@@ -372,7 +404,9 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 super(NsxPolicyPlugin, self).get_networks(
                     context, filters, fields, sorts,
                     limit, marker, page_reverse))
-            # TODO(asarfaty) Add plugin/provider network fields
+            # Add provider network fields
+            for net in networks:
+                self._extend_network_dict_provider(context, net)
 
         return (networks if not fields else
                 [db_utils.resource_fields(network,
@@ -714,11 +748,8 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                   fip_id, router_id, port_id)
 
         if router_id:
-            nsx_router_id = nsx_db.get_nsx_router_id(context.session,
-                                                     router_id)
-            if nsx_router_id:
-                #TODO(asarfaty): Update the NSX router
-                pass
+            #TODO(asarfaty): Update the NSX router
+            pass
 
         super(NsxPolicyPlugin, self).delete_floatingip(context, fip_id)
 
@@ -733,9 +764,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         router_id = new_fip['router_id']
         new_port_id = new_fip['port_id']
 
-        nsx_router_id = nsx_db.get_nsx_router_id(context.session,
-                                                 router_id)
-        if nsx_router_id:
+        if router_id:
             #TODO(asarfaty): Update the NSX router
             LOG.debug("Updating floating IP %s. Router %s, Port %s "
                       "(old port %s)",
@@ -753,9 +782,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         for fip_db in fip_dbs:
             if not fip_db.router_id:
                 continue
-            nsx_router_id = nsx_db.get_nsx_router_id(context.session,
-                                                     fip_db.router_id)
-            if nsx_router_id:
+            if fip_db.router_id:
                 # TODO(asarfaty): Update the NSX logical router
                 pass
             self.update_floatingip_status(context, fip_db.id,
