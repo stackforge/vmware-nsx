@@ -29,6 +29,7 @@ from neutron_lib.api.definitions import external_net as extnet_apidef
 from neutron_lib.api.definitions import network as net_def
 from neutron_lib.api.definitions import port as port_def
 from neutron_lib.api.definitions import port_security as psec
+from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib.api.definitions import subnet as subnet_def
 from neutron_lib.api import validators
 from neutron_lib.api.validators import availability_zone as az_validator
@@ -47,6 +48,7 @@ from neutron_lib.utils import net
 from vmware_nsx._i18n import _
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import utils
+from vmware_nsx.db import db as nsx_db
 from vmware_nsx.extensions import maclearning as mac_ext
 from vmware_nsx.extensions import secgroup_rule_local_ip_prefix as sg_prefix
 from vmware_nsx.services.qos.common import utils as qos_com_utils
@@ -58,7 +60,7 @@ LOG = logging.getLogger(__name__)
 @resource_extend.has_resource_extenders
 class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
                     address_scope_db.AddressScopeDbMixin):
-    """Common methods for NSX-V and NSX-V3 plugins"""
+    """Common methods for NSX-V, NSX-V3 and NSX-P plugins"""
 
     @property
     def plugin_type(self):
@@ -232,6 +234,7 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
 
         return subnets
 
+    @abc.abstractmethod
     def recalculate_snat_rules_for_router(self, context, router, subnets):
         """Method to recalculate router snat rules for specific subnets.
         Invoked when subnetpool address scope changes.
@@ -239,6 +242,7 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
         """
         pass
 
+    @abc.abstractmethod
     def recalculate_fw_rules_for_router(self, context, router, subnets):
         """Method to recalculate router FW rules for specific subnets.
         Invoked when subnetpool address scope changes.
@@ -395,6 +399,49 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
         if qos_policy_id:
             qos_com_utils.validate_policy_accessable(context, qos_policy_id)
 
+    def _process_extra_attr_router_create(self, context, router_db, r):
+        for extra_attr in l3_attrs_db.get_attr_info().keys():
+            if (extra_attr in r and
+                validators.is_attr_set(r.get(extra_attr))):
+                self.set_extra_attr_value(context, router_db,
+                                          extra_attr, r[extra_attr])
+
+    def _get_interface_network(self, context, interface_info):
+        is_port, is_sub = self._validate_interface_info(interface_info)
+        if is_port:
+            net_id = self.get_port(context,
+                                   interface_info['port_id'])['network_id']
+        elif is_sub:
+            net_id = self.get_subnet(context,
+                                     interface_info['subnet_id'])['network_id']
+        return net_id
+
+    def get_housekeeper(self, context, name, fields=None):
+        # run the job in readonly mode and get the results
+        self.housekeeper.run(context, name, readonly=True)
+        return self.housekeeper.get(name)
+
+    def get_housekeepers(self, context, filters=None, fields=None, sorts=None,
+                         limit=None, marker=None, page_reverse=False):
+        return self.housekeeper.list()
+
+    def update_housekeeper(self, context, name, housekeeper):
+        # run the job in non-readonly mode and get the results
+        if not self.housekeeper.readwrite_allowed(name):
+            err_msg = (_("Can not run housekeeper job %s in readwrite "
+                         "mode") % name)
+            raise n_exc.InvalidInput(error_message=err_msg)
+        self.housekeeper.run(context, name, readonly=False)
+        return self.housekeeper.get(name)
+
+    def get_housekeeper_count(self, context, filters=None):
+        return len(self.housekeeper.list())
+
+
+@resource_extend.has_resource_extenders
+class NsxTandPPluginBase(NsxPluginBase):
+    """Common methods for NSX-V3 and NSX-P plugins"""
+
     def _validate_create_network(self, context, net_data):
         """Validate the parameters of the new network to be created
 
@@ -412,7 +459,7 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
             if is_external_net:
                 raise nsx_exc.QoSOnExternalNet()
 
-    def _validate_update_netowrk(self, context, id, original_net, net_data):
+    def _validate_update_network(self, context, id, original_net, net_data):
         """Validate the updated parameters of a network
 
         This method includes general validations that does not depend on
@@ -593,23 +640,6 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
             name = port_data['name']
         return name
 
-    def _process_extra_attr_router_create(self, context, router_db, r):
-        for extra_attr in l3_attrs_db.get_attr_info().keys():
-            if (extra_attr in r and
-                validators.is_attr_set(r.get(extra_attr))):
-                self.set_extra_attr_value(context, router_db,
-                                          extra_attr, r[extra_attr])
-
-    def _get_interface_network(self, context, interface_info):
-        is_port, is_sub = self._validate_interface_info(interface_info)
-        if is_port:
-            net_id = self.get_port(context,
-                                   interface_info['port_id'])['network_id']
-        elif is_sub:
-            net_id = self.get_subnet(context,
-                                     interface_info['subnet_id'])['network_id']
-        return net_id
-
     def _fix_sg_rule_dict_ips(self, sg_rule):
         # 0.0.0.0/# is not a valid entry for local and remote so we need
         # to change this to None
@@ -637,7 +667,6 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
             if not utils.is_ipv4_ip_address(ip):
                 raise nsx_exc.InvalidIPAddress(ip_address=ip)
 
-    # NSXv3 and Policy only
     def _create_port_address_pairs(self, context, port_data):
         (port_security, has_ip) = self._determine_port_security_and_has_ip(
             context, port_data)
@@ -653,26 +682,62 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
         else:
             port_data[addr_apidef.ADDRESS_PAIRS] = []
 
-    def get_housekeeper(self, context, name, fields=None):
-        # run the job in readonly mode and get the results
-        self.housekeeper.run(context, name, readonly=True)
-        return self.housekeeper.get(name)
+    def _validate_external_net_create(self, net_data, default_tier0_router,
+                                      tier0_validator=None):
+        """Validate external network configuration
 
-    def get_housekeepers(self, context, filters=None, fields=None, sorts=None,
-                         limit=None, marker=None, page_reverse=False):
-        return self.housekeeper.list()
+        Returns a tuple of:
+        - Boolean is provider network (always True)
+        - Network type (always L3_EXT)
+        - tier 0 router id
+        - vlan id
+        """
+        if not validators.is_attr_set(net_data.get(pnet.PHYSICAL_NETWORK)):
+            tier0_uuid = default_tier0_router
+        else:
+            tier0_uuid = net_data[pnet.PHYSICAL_NETWORK]
+        if ((validators.is_attr_set(net_data.get(pnet.NETWORK_TYPE)) and
+             net_data.get(pnet.NETWORK_TYPE) != utils.NetworkTypes.L3_EXT and
+             net_data.get(pnet.NETWORK_TYPE) != utils.NetworkTypes.LOCAL) or
+            validators.is_attr_set(net_data.get(pnet.SEGMENTATION_ID))):
+            msg = (_("External network cannot be created with %s provider "
+                     "network or segmentation id") %
+                   net_data.get(pnet.NETWORK_TYPE))
+            raise n_exc.InvalidInput(error_message=msg)
+        if tier0_validator:
+            tier0_validator(tier0_uuid)
+        return (True, utils.NetworkTypes.L3_EXT, tier0_uuid, 0)
 
-    def update_housekeeper(self, context, name, housekeeper):
-        # run the job in non-readonly mode and get the results
-        if not self.housekeeper.readwrite_allowed(name):
-            err_msg = (_("Can not run housekeeper job %s in readwrite "
-                         "mode") % name)
+    def _extend_network_dict_provider(self, context, network, bindings=None):
+        """Add network provider fields to the network dict from the DB"""
+        if 'id' not in network:
+            return
+        if not bindings:
+            bindings = nsx_db.get_network_bindings(context.session,
+                                                   network['id'])
+        # With NSX plugin, "normal" overlay networks will have no binding
+        if bindings:
+            # Network came in through provider networks API
+            network[pnet.NETWORK_TYPE] = bindings[0].binding_type
+            network[pnet.PHYSICAL_NETWORK] = bindings[0].phy_uuid
+            network[pnet.SEGMENTATION_ID] = bindings[0].vlan_id
+
+    def _assert_on_ens_with_qos(self, net_data):
+        qos_id = net_data.get(qos_consts.QOS_POLICY_ID)
+        if validators.is_attr_set(qos_id):
+            err_msg = _("Cannot configure QOS on ENS networks")
             raise n_exc.InvalidInput(error_message=err_msg)
-        self.housekeeper.run(context, name, readonly=False)
-        return self.housekeeper.get(name)
 
-    def get_housekeeper_count(self, context, filters=None):
-        return len(self.housekeeper.list())
+    @abc.abstractmethod
+    def _ens_psec_supported(self):
+        """Should be implemented by each plugin"""
+        pass
+
+    def _validate_ens_net_portsecurity(self, net_data):
+        """Validate/Update the port security of the new network for ENS TZ
+        Should be implemented by the plugin if necessary
+        """
+        pass
 
 
 # Register the callback
