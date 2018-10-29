@@ -15,6 +15,8 @@
 
 import mock
 
+from oslo_config import cfg
+
 from neutron.tests.unit.db import test_db_base_plugin_v2
 from neutron.tests.unit.extensions import test_securitygroup
 
@@ -22,6 +24,8 @@ from vmware_nsxlib.v3 import nsx_constants
 
 
 PLUGIN_NAME = 'vmware_nsx.plugin.NsxPolicyPlugin'
+NSX_OVERLAY_TZ_NAME = 'OVERLAY_TZ'
+NSX_VLAN_TZ_NAME = 'VLAN_TZ'
 
 
 class NsxPPluginTestCaseMixin(
@@ -56,14 +60,15 @@ class NsxPPluginTestCaseMixin(
                    return_value=-1).start()
 
     def setup_conf_overrides(self):
+        cfg.CONF.set_override('default_overlay_tz', NSX_OVERLAY_TZ_NAME,
+                              'nsx_p')
+        cfg.CONF.set_override('default_vlan_tz', NSX_VLAN_TZ_NAME, 'nsx_p')
         #TODO(asarfaty): will be needed in the future
-        #cfg.CONF.set_override('default_overlay_tz', NSX_TZ_NAME, 'nsx_p')
         #cfg.CONF.set_override('native_dhcp_metadata', False, 'nsx_p')
         #cfg.CONF.set_override('dhcp_profile',
         #                      NSX_DHCP_PROFILE_ID, 'nsx_p')
         #cfg.CONF.set_override('metadata_proxy',
         #                      NSX_METADATA_PROXY_ID, 'nsx_p')
-        pass
 
 
 class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
