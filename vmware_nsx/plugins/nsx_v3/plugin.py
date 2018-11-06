@@ -2524,7 +2524,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     binding['id'])
             except (db_exc.DBError, sql_exc.TimeoutError):
                 LOG.error("Failed to add mapping of DHCP binding "
-                          "%(binding)s for port %(port)s, deleting"
+                          "%(binding)s for port %(port)s, deleting "
                           "DHCP binding on server",
                           {'binding': binding['id'], 'port': port['id']})
                 self._delete_dhcp_binding_on_server(context, binding)
