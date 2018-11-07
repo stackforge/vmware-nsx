@@ -19,7 +19,16 @@
 # based on the features that are ready to be tested.
 
 # Begin list of exclusions.
-#r="^(?!.*)"
+r="^(?!.*"
 
-r="$r(tempest\.api\.network\.test_security_groups|tempest\.api\.network\.test_networks|tempest\.api\.network\.test_networks_negative).*$"
+r="$r|(?:tempest\.api\.network\.test_ports\.PortsTestJSON\.test_create_update_port_with_second_ip.*)"
+#r="$r|(?:tempest\.api\.network\.test_ports\.PortsTestJSON\.test_update_port_with_security_group_and_extra_attributes.*)"
+#r="$r|(?:tempest\.api\.network\.test_ports\.PortsTestJSON\.test_update_port_with_two_security_groups_and_extra_attributes.*)"
+
+# End list of exclusions.
+r="$r)"
+
+# Temporarily run only subset of the networking tests, until the plugin code is complete
+r="$r(tempest\.api\.network\.test_security_groups|tempest\.api\.network\.test_networks|tempest\.api\.network\.test_networks_negative|tempest\.api\.network\.test_ports).*$"
+
 export DEVSTACK_GATE_TEMPEST_REGEX="$r"
