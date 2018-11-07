@@ -16,6 +16,7 @@
 import netaddr
 
 from oslo_config import cfg
+from oslo_db import exception as db_exc
 from oslo_log import log
 from oslo_utils import excutils
 from oslo_utils import uuidutils
@@ -45,6 +46,7 @@ from neutron_lib.api.definitions import allowedaddresspairs as addr_apidef
 from neutron_lib.api.definitions import external_net
 from neutron_lib.api.definitions import l3 as l3_apidef
 from neutron_lib.api.definitions import port_security as psec
+from neutron_lib.api.definitions import provider_net as pnet
 from neutron_lib.api.definitions import vlantransparent as vlan_apidef
 from neutron_lib.api import faults
 from neutron_lib.api import validators
@@ -738,11 +740,41 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return (ports if not fields else
                 [db_utils.resource_fields(port, fields) for port in ports])
 
+    def _get_tier0_uuid_by_net_id(self, context, network_id):
+        if not network_id:
+            return
+        network = self.get_network(context, network_id)
+        if not network.get(pnet.PHYSICAL_NETWORK):
+            return self.default_tier0_router
+        else:
+            return network.get(pnet.PHYSICAL_NETWORK)
+
+    def _get_tier0_uuid_by_router(self, context, router):
+        network_id = router.gw_port_id and router.gw_port.network_id
+        return self._get_tier0_uuid_by_net_id(context, network_id)
+
     def _update_router_gw_info(self, context, router_id, info):
-        router = self._get_router(context, router_id)
+        # First update the neutron DB
         super(NsxPolicyPlugin, self)._update_router_gw_info(
-            context, router_id, info, router=router)
-        #TODO(asarfaty): Update the NSX
+            context, router_id, info)
+
+        # Get the new tier0 of the updated router (or None if GW was removed)
+        router = self._get_router(context, router_id)
+        new_tier0_uuid = self._get_tier0_uuid_by_router(context, router)
+        # DEBUG ADIT: this does not work yet, as update ignores None values
+        # And for some reason it also deleted the router display name...
+        self.nsxpolicy.tier1.update(router['id'], tier0=new_tier0_uuid)
+
+        # update the edge cluster (to create / remove the service router)
+        # TODO(asarfaty): Should depend on whether service router is needed
+        if new_tier0_uuid:
+            edge_cluster = self.nsxpolicy.tier0.get_edge_cluster(new_tier0_uuid)
+            LOG.error("DEBUG ADIT new_tier0_uuid %s edge_cluster %s ", new_tier0_uuid, edge_cluster)
+            self.nsxpolicy.tier1.set_edge_cluster(router['id'], edge_cluster)
+        else:
+            self.nsxpolicy.tier1.set_edge_cluster(router['id'], None)
+
+        # TODO(asarfaty): handle enable/disable snat, router adv flags, etc.
 
     def create_router(self, context, router):
         r = router['router']
@@ -757,11 +789,10 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                               router['id'])
         tags = self.nsxpolicy.build_v3_api_version_project_tag(
             context.tenant_name)
-        #TODO(annak): handle GW
         try:
             self.nsxpolicy.tier1.create_or_overwrite(
                 router_name, router['id'],
-                tier0=self.default_tier0_router,
+                tier0=None,
                 tags=tags)
         #TODO(annak): narrow down the exception
         except Exception as ex:
@@ -771,8 +802,19 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                           {'id': router['id'], 'e': ex})
                 self.delete_router(context, router['id'])
 
-        LOG.debug("Created router %s: %s. GW info %s",
-                  router['id'], r, gw_info)
+        if gw_info and gw_info != const.ATTR_NOT_SPECIFIED:
+            try:
+                self._update_router_gw_info(context, router['id'], gw_info)
+            except (db_exc.DBError, nsx_lib_exc.ManagerError):
+                with excutils.save_and_reraise_exception():
+                    LOG.error("Failed to set gateway info for router "
+                              "being created: %s - removing router",
+                              router['id'])
+                    self.delete_router(context, router['id'])
+                    LOG.info("Create router failed while setting external "
+                             "gateway. Router:%s has been removed from "
+                             "DB and backend",
+                             router['id'])
         return self.get_router(context, router['id'])
 
     def delete_router(self, context, router_id):
@@ -804,10 +846,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         network_id = self._get_interface_network(context, interface_info)
         extern_net = self._network_is_external(context, network_id)
         router_db = self._get_router(context, router_id)
-        gw_network_id = (router_db.gw_port.network_id if router_db.gw_port
-                         else None)
-        LOG.debug("Adding router %s interface %s with GW %s",
-                  router_id, network_id, gw_network_id)
+
         # A router interface cannot be an external network
         if extern_net:
             msg = _("An external network cannot be attached as "
@@ -819,29 +858,35 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
              context, router_id, interface_info)
 
         self._validate_interface_address_scope(context, router_db, info)
-        subnet = self.get_subnet(context, info['subnet_ids'][0])
 
-        segment_id = self._get_network_nsx_id(context, network_id)
-        # TODO(annak): Validate TZ
         try:
-            # This is always an overwrite call
-            # NOTE: Connecting network to multiple routers is not supported
-            self.nsxpolicy.segment.create_or_overwrite(segment_id,
-                                                       tier1_id=router_id)
+            segment_id = self._get_network_nsx_id(context, network_id)
+            self.nsxpolicy.segment.update(segment_id, tier1_id=router_id)
         except Exception as ex:
             with excutils.save_and_reraise_exception():
-                LOG.error('Failed to create router interface for subnet '
+                LOG.error('Failed to create router interface for network '
                           '%(id)s on NSX backend. Exception: %(e)s',
-                          {'id': subnet['id'], 'e': ex})
+                          {'id': network_id, 'e': ex})
                 self.remove_router_interface(
                     context, router_id, interface_info)
 
         return info
 
     def remove_router_interface(self, context, router_id, interface_info):
-        #TODO(asarfaty) Update the NSX logical router ports
+        # Update the neutron router first
         info = super(NsxPolicyPlugin, self).remove_router_interface(
             context, router_id, interface_info)
+        network_id = info['network_id']
+        # Remove the tier1 router from this segment on the nSX
+        try:
+            segment_id = self._get_network_nsx_id(context, network_id)
+            # DEBUG ADIT: this does not work yet, as update ignores None values
+            self.nsxpolicy.segment.update(segment_id, tier1_id=None)
+        except Exception as ex:
+            # do not fail the neutron action
+            LOG.error('Failed to remove router interface for network '
+                      '%(id)s on NSX backend. Exception: %(e)s',
+                      {'id': network_id, 'e': ex})
         return info
 
     def create_floatingip(self, context, floatingip):
