@@ -2081,6 +2081,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             if validators.is_attr_set(address_pairs) and address_pairs:
                 mac_learning_profile_set = True
             profiles.append(self._get_port_security_profile_id())
+        else:
+            profiles.append(self._no_switch_security)
         if device_owner == const.DEVICE_OWNER_DHCP:
             if ((not is_ens_tz_port or self._ens_psec_supported()) and
                 not cfg.CONF.nsx_v3.native_dhcp_metadata):
@@ -2108,7 +2110,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             if is_ens_tz_port:
                 profiles.append(self._no_switch_security_ens)
             else:
-                profiles.append(self._no_switch_security)
+                if self._no_switch_security not in profiles:
+                    profiles.append(self._no_switch_security)
 
         name = self._build_port_name(context, port_data)
         nsx_net_id = self._get_network_nsx_id(context, port_data['network_id'])
@@ -3004,7 +3007,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             if is_ens_tz_port:
                 switch_profile_ids.append(self._no_switch_security_ens)
             else:
-                switch_profile_ids.append(self._no_switch_security)
+                if self._no_switch_security not in switch_profile_ids:
+                    switch_profile_ids.append(self._no_switch_security)
 
         try:
             self.nsxlib.logical_port.update(
@@ -3140,6 +3144,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             switch_profile_ids = [self._get_port_security_profile_id()]
         else:
             switch_profile_ids = [self._no_psec_profile_id]
+            switch_profile_ids.append(self._no_switch_security)
             address_bindings = []
 
         # update the port in the backend, only if it exists in the DB
