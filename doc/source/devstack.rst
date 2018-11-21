@@ -5,8 +5,8 @@ Below are the options for configuring the NSX plugin with DevStack. Prior
 to doing this DevStack needs to be downloaded. After updating the relevant
 configuration file(s) run ./stack.sh
 
-NSX-V
------
+NSXv
+----
 
 LBaaS v2 Driver
 ~~~~~~~~~~~~~~~
@@ -85,21 +85,6 @@ lines to the policy.json file::
     "delete_flow_classifier": "rule:admin_only",
     "get_flow_classifier": "rule:admin_only"
 
-FWaaS (V1) Driver
-~~~~~~~~~~~~~~~~~
-
-Add neutron-fwaas repo as an external repository and configure following flags in ``local.conf``::
-
-    [[local|localrc]]
-    enable_plugin neutron-fwaas https://git.openstack.org/openstack/neutron-fwaas
-    ENABLED_SERVICES+=,q-fwaas-v1
-    Q_SERVICE_PLUGIN_CLASSES=neutron_fwaas.services.firewall.fwaas_plugin.FirewallPlugin
-
-    [[post-config|$NEUTRON_CONF]]
-    [fwaas]
-    enabled = True
-    driver = vmware_nsxv_edge
-
 Neutron dynamic routing plugin (bgp)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -124,7 +109,7 @@ Add neutron-vpnaas repo as an external repository and configure following flags 
     NEUTRON_VPNAAS_SERVICE_PROVIDER=VPN:vmware:vmware_nsx.services.vpnaas.nsxv.ipsec_driver.NSXvIPsecVpnDriver:default
 
 
-NSX-T
+NSXv3
 -----
 
 QoS Driver
@@ -167,12 +152,12 @@ Trunk Driver
 Enable trunk service and configure following flags in ``local.conf``::
 
     [[local]|[localrc]]
-    # Trunk plugin NSX-T driver config
+    # Trunk plugin NSXv3 driver config
     ENABLED_SERVICES+=,q-trunk
     Q_SERVICE_PLUGIN_CLASSES=trunk
 
-FWaaS (V1) Driver
-~~~~~~~~~~~~~~~~~
+FWaaS (V1) Driver:
+~~~~~~~~~~~~~
 
 Add neutron-fwaas repo as an external repository and configure following flags in ``local.conf``::
 
@@ -201,9 +186,6 @@ Add neutron-fwaas repo as an external repository and configure following flags i
     [fwaas]
     enabled = True
     driver = vmware_nsxv3_edge_v2
-
-    [service_providers]
-    service_provider = FIREWALL_V2:fwaas_db:neutron_fwaas.services.firewall.service_drivers.agents.agents.FirewallAgentDriver:default
 
 LBaaS v2 Driver
 ~~~~~~~~~~~~~~~
@@ -238,30 +220,6 @@ Add neutron-vpnaas repo as an external repository and configure following flags 
     [DEFAULT]
     api_extensions_path = $DEST/neutron-vpnaas/neutron_vpnaas/extensions
 
-Octavia
-~~~~~~~
-
-Add octavia repo as an external repository and configure following flags in ``local.conf``::
-
-    [[local|localrc]]
-    OCTAVIA_NODE=api
-    DISABLE_AMP_IMAGE_BUILD=True
-    enable_plugin octavia $GIT_BASE/openstack/octavia.git
-    enable_plugin octavia-dashboard $GIT_BASE/openstack/octavia-dashboard
-    enable_service octavia
-    enable_service o-api
-
-    [[post-config|$OCTAVIA_CONF]]
-    [DEFAULT]
-    verbose = True
-    debug = True
-
-    [api_settings]
-    default_provider_driver=vmwareedge
-    enabled_provider_drivers=vmwareedge:NSX
-
-    [oslo_messaging]
-    topic=vmwarensxv_edge_lb
 
 NSX-TVD
 -------
@@ -285,23 +243,6 @@ Configure the service provider::
     [DEFAULT]
     api_extensions_path = $DEST/neutron-lbaas/neutron_lbaas/extensions
 
-FWaaS (V1) Driver
-~~~~~~~~~~~~~~~~~
-
-Add neutron-fwaas repo as an external repository and configure following flags in ``local.conf``::
-
-    [[local|localrc]]
-    enable_plugin neutron-fwaas https://git.openstack.org/openstack/neutron-fwaas
-    ENABLED_SERVICES+=,q-fwaas
-    Q_SERVICE_PLUGIN_CLASSES=vmware_nsxtvd_fwaasv1
-
-    [[post-config|$NEUTRON_CONF]]
-    [fwaas]
-    enabled = True
-    driver = vmware_nsxtvd_edge_v1
-    [DEFAULT]
-    api_extensions_path = $DEST/neutron-fwaas/neutron_fwaas/extensions
-
 
 FWaaS (V2) Driver
 ~~~~~~~~~~~~~~~~~
@@ -319,9 +260,6 @@ Add neutron-fwaas repo as an external repository and configure following flags i
     driver = vmware_nsxtvd_edge_v2
     [DEFAULT]
     api_extensions_path = $DEST/neutron-fwaas/neutron_fwaas/extensions
-
-    [service_providers]
-    service_provider = FIREWALL_V2:fwaas_db:neutron_fwaas.services.firewall.service_drivers.agents.agents.FirewallAgentDriver:default
 
 L2GW Driver
 ~~~~~~~~~~~
