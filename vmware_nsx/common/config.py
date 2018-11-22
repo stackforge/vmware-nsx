@@ -350,6 +350,10 @@ nsx_v3_and_p = [
                        "specifying Transport Zone UUID usable for VLAN "
                        "provider networks, as well as ranges of VLAN "
                        "tags on each available for allocation to networks.")),
+    cfg.BoolOpt('native_dhcp_metadata',
+                default=True,
+                help=_("If true, DHCP and metadata proxy services will be "
+                       "provided by NSX backend.")),
 ]
 
 nsx_v3_opts = nsx_v3_and_p + [
@@ -403,10 +407,6 @@ nsx_v3_opts = nsx_v3_and_p + [
                 help=_("If true, an internal metadata network will be created "
                        "for a router only when the router is attached to a "
                        "DHCP-disabled subnet.")),
-    cfg.BoolOpt('native_dhcp_metadata',
-                default=True,
-                help=_("If true, DHCP and metadata proxy services will be "
-                       "provided by NSX backend.")),
     cfg.StrOpt('native_metadata_route',
                default="169.254.169.254/31",
                help=_("The metadata route used for native metadata proxy "
