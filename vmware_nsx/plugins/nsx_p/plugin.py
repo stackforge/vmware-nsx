@@ -1816,6 +1816,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         super(NsxPolicyPlugin, self).delete_security_group_rule(
             context, rule_id)
 
+<<<<<<< HEAD
     def _is_overlay_network(self, context, network_id):
         """Return True if this is an overlay network
 
@@ -1840,4 +1841,14 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 type = self.nsxpolicy.transport_zone.get_transport_type(
                     tz)
                 return type == nsxlib_consts.TRANSPORT_TYPE_OVERLAY
+
+    def _has_native_dhcp_metadata(self):
+        return True
+
+    def _is_ens_tz_net(self, context, net_id):
+        #TODO(annak): handle ENS case
+        return False
+
+    def _is_ens_tz_port(self, context, port_data):
+        #TODO(annak): handle ENS case
         return False
