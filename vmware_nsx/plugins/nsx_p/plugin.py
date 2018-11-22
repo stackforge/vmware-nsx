@@ -1738,3 +1738,10 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         super(NsxPolicyPlugin, self).delete_security_group_rule(
             context, rule_id)
+
+    def _has_native_dhcp_metadata(self):
+        return True
+
+    def _is_ens_tz_net(self):
+        #TODO(annak): handle ENS case
+        return False
