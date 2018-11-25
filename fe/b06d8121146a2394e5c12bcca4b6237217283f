@@ -1,0 +1,9 @@
+Code-Review+2: Kobi Samoray <ksamoray@vmware.com>
+Code-Review+2: Adit Sarfaty <asarfaty@vmware.com>
+Workflow+1: Adit Sarfaty <asarfaty@vmware.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Sun, 25 Nov 2018 08:27:30 +0000
+Reviewed-on: https://review.openstack.org/616888
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/queens
