@@ -3691,7 +3691,8 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             relay_target = []
             if self.fwaas_callbacks:
                 relay_target = (self.fwaas_callbacks.fwaas_driver.
-                    translate_addresses_to_target(set(relay_servers)))
+                    translate_addresses_to_target(set(relay_servers),
+                                                  self.plugin_type()))
 
             dhcp_services = self._get_port_relay_services()
 
