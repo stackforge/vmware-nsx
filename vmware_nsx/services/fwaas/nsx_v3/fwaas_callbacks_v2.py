@@ -15,8 +15,6 @@
 
 from oslo_log import log as logging
 
-from neutron_lib import constants as nl_constants
-
 from vmware_nsx.db import db as nsx_db
 from vmware_nsx.extensions import projectpluginmap
 from vmware_nsx.services.fwaas.common import fwaas_callbacks_v2 as \
