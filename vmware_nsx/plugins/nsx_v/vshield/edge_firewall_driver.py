@@ -114,6 +114,10 @@ class EdgeFirewallDriver(object):
             vcns_rule['source'] = {
                 "vnicGroupId": rule['source_vnic_groups']
             }
+        if rule.get('source_gouping_obj'):
+            vcns_rule['source'] = {
+                "groupingObjectId": rule['source_gouping_obj']
+            }
         if rule.get('destination_ip_address'):
             vcns_rule['destination'] = {
                 "ipAddress": rule['destination_ip_address']
@@ -121,6 +125,10 @@ class EdgeFirewallDriver(object):
         if rule.get('destination_vnic_groups'):
             vcns_rule['destination'] = {
                 "vnicGroupId": rule['destination_vnic_groups']
+            }
+        if rule.get('destination_gouping_obj'):
+            vcns_rule['destination'] = {
+                "groupingObjectId": rule['destination_gouping_obj']
             }
         if rule.get('application'):
             vcns_rule['application'] = rule['application']
