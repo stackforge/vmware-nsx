@@ -160,7 +160,8 @@ def get_nsxlib_wrapper(nsx_username=None, nsx_password=None, basic_auth=False):
         plugin_tag=NSX_NEUTRON_PLUGIN,
         plugin_ver=n_version.version_info.release_string(),
         dns_nameservers=cfg.CONF.nsx_v3.nameservers,
-        dns_domain=cfg.CONF.nsx_v3.dns_domain)
+        dns_domain=cfg.CONF.nsx_v3.dns_domain,
+        cluster_unavailable_retry=True)
     return v3.NsxLib(nsxlib_config)
 
 
