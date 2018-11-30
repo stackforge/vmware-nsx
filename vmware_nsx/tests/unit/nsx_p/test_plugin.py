@@ -46,6 +46,7 @@ PLUGIN_NAME = 'vmware_nsx.plugin.NsxPolicyPlugin'
 NSX_OVERLAY_TZ_NAME = 'OVERLAY_TZ'
 NSX_VLAN_TZ_NAME = 'VLAN_TZ'
 DEFAULT_TIER0_ROUTER_UUID = "efad0078-9204-4b46-a2d8-d4dd31ed448f"
+NSX_DHCP_PROFILE_ID = 'DHCP_PROFILE'
 
 
 def _return_id_key(*args, **kwargs):
@@ -56,6 +57,10 @@ def _return_id_key_list(*args, **kwargs):
     return [{'id': uuidutils.generate_uuid()}]
 
 
+def _return_same(key, *args, **kwargs):
+    return key
+
+
 class NsxPPluginTestCaseMixin(
     test_db_base_plugin_v2.NeutronDbPluginV2TestCase):
 
@@ -64,6 +69,7 @@ class NsxPPluginTestCaseMixin(
               service_plugins=None, **kwargs):
 
         self._mock_nsx_policy_backend_calls()
+        self._mock_nsxlib_backend_calls()
         self.setup_conf_overrides()
         super(NsxPPluginTestCaseMixin, self).setUp(plugin=plugin,
                                                    ext_mgr=ext_mgr)
@@ -93,10 +99,37 @@ class NsxPPluginTestCaseMixin(
         mock.patch("vmware_nsxlib.v3.policy_resources."
                    "NsxPolicyTier1Api.update_transport_zone").start()
 
+    def _mock_nsxlib_backend_calls(self):
+        """Mock nsxlib backend calls used as passthrough
+        until implemented by policy
+        """
+        mock.patch(
+            "vmware_nsxlib.v3.core_resources.NsxLibDhcpProfile."
+            "get_id_by_name_or_id",
+            return_value=NSX_DHCP_PROFILE_ID).start()
+
+        mock.patch(
+            "vmware_nsxlib.v3.core_resources.NsxLibMetadataProxy."
+            "get_id_by_name_or_id",
+            side_effect=_return_same).start()
+
+        mock.patch(
+            "vmware_nsxlib.v3.resources.LogicalPort.create",
+            side_effect=_return_id_key).start()
+
+        mock.patch(
+            "vmware_nsxlib.v3.resources.LogicalDhcpServer.create",
+            side_effect=_return_id_key).start()
+
+        mock.patch(
+            "vmware_nsxlib.v3.resources.LogicalDhcpServer.create_binding",
+            side_effect=_return_id_key).start()
+
     def setup_conf_overrides(self):
         cfg.CONF.set_override('default_overlay_tz', NSX_OVERLAY_TZ_NAME,
                               'nsx_p')
         cfg.CONF.set_override('default_vlan_tz', NSX_VLAN_TZ_NAME, 'nsx_p')
+        cfg.CONF.set_override('dhcp_profile', NSX_DHCP_PROFILE_ID, 'nsx_p')
 
     def _create_network(self, fmt, name, admin_state_up,
                         arg_list=None, providernet_args=None,
