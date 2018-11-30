@@ -370,6 +370,10 @@ nsx_v3_and_p = [
                default="169.254.169.254/31",
                help=_("The metadata route used for native metadata proxy "
                       "service.")),
+    cfg.StrOpt('dhcp_relay_service',
+               help=_("(Optional) This is the name or UUID of the NSX dhcp "
+                      "relay service that will be used to enable DHCP relay "
+                      "on router ports.")),
     cfg.StrOpt('dns_domain',
                default='openstacklocal',
                help=_("Domain to use for building the hostnames.")),
@@ -438,10 +442,6 @@ nsx_v3_opts = nsx_v3_and_p + [
     cfg.IntOpt('dhcp_lease_time',
                default=86400,
                help=_("DHCP default lease time.")),
-    cfg.StrOpt('dhcp_relay_service',
-               help=_("(Optional) This is the name or UUID of the NSX dhcp "
-                      "relay service that will be used to enable DHCP relay "
-                      "on router ports.")),
     cfg.BoolOpt('init_objects_by_tags',
                 default=False,
                 help=_("When True, the configured transport zones, router and "
@@ -505,6 +505,12 @@ nsx_p_opts = nsx_v3_and_p + [
                       "specified. If only one VLAN transport zone is present "
                       "on backend, it will be assumed as default unless this "
                       "value is provided")),
+    # TODO(annak): This needs to be changed to policy DHCP profile
+    cfg.StrOpt('dhcp_profile',
+               help=_("This is the name or UUID of the NSX DHCP Profile "
+                      "that will be used to enable native DHCP service. It "
+                      "needs to be created in NSX before starting Neutron "
+                      "with the NSX plugin")),
                ]
 
 
