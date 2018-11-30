@@ -34,6 +34,7 @@ from neutron_lib.callbacks import registry
 from neutron_lib.callbacks import resources
 from neutron_lib import constants
 from neutron_lib import context
+from neutron_lib import exceptions as n_exc
 from neutron_lib.plugins import directory
 
 from vmware_nsx.common import utils
@@ -353,6 +354,168 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
         res = self.deserialize('json', req.get_response(self.api))
         self.assertEqual('InvalidInput',
                          res['NeutronError']['type'])
+
+
+class TestSubnets(test_db_base_plugin_v2.TestSubnetsV2,
+                  NsxPPluginTestCaseMixin):
+
+    def test_create_subnet_with_shared_address_space(self):
+        with self.network() as network:
+            data = {'subnet': {'network_id': network['network']['id'],
+                               'cidr': '100.64.0.0/16',
+                               'name': 'sub1',
+                               'enable_dhcp': False,
+                               'dns_nameservers': None,
+                               'allocation_pools': None,
+                               'tenant_id': 'tenant_one',
+                               'host_routes': None,
+                               'ip_version': 4}}
+            self.assertRaises(n_exc.InvalidInput,
+                              self.plugin.create_subnet,
+                              context.get_admin_context(), data)
+
+    def _create_external_network(self):
+        data = {'network': {'name': 'net1',
+                            'router:external': 'True',
+                            'tenant_id': 'tenant_one',
+                            'provider:physical_network': 'stam'}}
+        network_req = self.new_create_request('networks', data)
+        network = self.deserialize(self.fmt,
+                                   network_req.get_response(self.api))
+        return network
+
+    def test_create_subnet_with_conflicting_t0_address(self):
+        network = self._create_external_network()
+        data = {'subnet': {'network_id': network['network']['id'],
+                           'cidr': '172.20.1.0/24',
+                           'name': 'sub1',
+                           'enable_dhcp': False,
+                           'dns_nameservers': None,
+                           'allocation_pools': None,
+                           'tenant_id': 'tenant_one',
+                           'host_routes': None,
+                           'ip_version': 4}}
+        ports = [{'subnets': [{'ip_addresses': [u'172.20.1.60'],
+                               'prefix_length': 24}],
+                  'resource_type': 'LogicalRouterUpLinkPort'}]
+        with mock.patch.object(self.plugin.nsxlib.logical_router_port,
+                               'get_by_router_id',
+                               return_value=ports):
+            self.assertRaises(n_exc.InvalidInput,
+                              self.plugin.create_subnet,
+                              context.get_admin_context(), data)
+
+    def test_subnet_update_ipv4_and_ipv6_pd_v6stateless_subnets(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_subnet_update_ipv4_and_ipv6_pd_slaac_subnets(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_subnet_native_dhcp_subnet_enabled(self):
+        cfg.CONF.set_override('native_dhcp_metadata', True, 'nsx_v3')
+        with self.network() as network:
+            with mock.patch.object(self.plugin,
+                                   '_enable_native_dhcp') as enable_dhcp,\
+                self.subnet(network=network, enable_dhcp=True):
+                # Native dhcp should be set for this subnet
+                self.assertTrue(enable_dhcp.called)
+
+    def test_subnet_native_dhcp_subnet_disabled(self):
+        cfg.CONF.set_override('native_dhcp_metadata', True, 'nsx_v3')
+        with self.network() as network:
+            with mock.patch.object(self.plugin,
+                                   '_enable_native_dhcp') as enable_dhcp,\
+                self.subnet(network=network, enable_dhcp=False):
+                # Native dhcp should not be set for this subnet
+                self.assertFalse(enable_dhcp.called)
+
+    def test_subnet_native_dhcp_with_relay(self):
+        """Verify that the relay service is added to the router interface"""
+        self._enable_dhcp_relay()
+        with self.network() as network:
+            with mock.patch.object(self.plugin,
+                                  '_enable_native_dhcp') as enable_dhcp,\
+                self.subnet(network=network, enable_dhcp=True):
+                # Native dhcp should not be set for this subnet
+                self.assertFalse(enable_dhcp.called)
+
+    def test_subnet_native_dhcp_flat_subnet_disabled(self):
+        cfg.CONF.set_override('native_dhcp_metadata', True, 'nsx_v3')
+        providernet_args = {pnet.NETWORK_TYPE: 'flat'}
+        with mock.patch('vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
+                        'get_transport_type', return_value='VLAN'):
+            with self.network(name='flat_net',
+                              providernet_args=providernet_args,
+                              arg_list=(pnet.NETWORK_TYPE, )) as network:
+                data = {'subnet': {'network_id': network['network']['id'],
+                                   'cidr': '172.20.1.0/24',
+                                   'name': 'sub1',
+                                   'enable_dhcp': False,
+                                   'dns_nameservers': None,
+                                   'allocation_pools': None,
+                                   'tenant_id': 'tenant_one',
+                                   'host_routes': None,
+                                   'ip_version': 4}}
+                self.plugin.create_subnet(
+                    context.get_admin_context(), data)
+
+    def test_subnet_native_dhcp_flat_subnet_enabled(self):
+        cfg.CONF.set_override('native_dhcp_metadata', True, 'nsx_v3')
+        providernet_args = {pnet.NETWORK_TYPE: 'flat'}
+        with mock.patch('vmware_nsxlib.v3.core_resources.NsxLibTransportZone.'
+                        'get_transport_type', return_value='VLAN'):
+            with self.network(name='flat_net',
+                             providernet_args=providernet_args,
+                             arg_list=(pnet.NETWORK_TYPE, )) as network:
+                data = {'subnet': {'network_id': network['network']['id'],
+                                   'cidr': '172.20.1.0/24',
+                                   'name': 'sub1',
+                                   'enable_dhcp': True,
+                                   'dns_nameservers': None,
+                                   'allocation_pools': None,
+                                   'tenant_id': 'tenant_one',
+                                   'host_routes': None,
+                                   'ip_version': 4}}
+                self.assertRaises(n_exc.InvalidInput,
+                                  self.plugin.create_subnet,
+                                  context.get_admin_context(), data)
+
+    def test_create_subnet_disable_dhcp_with_host_route_fails(self):
+        with self.network() as network:
+            data = {'subnet': {'network_id': network['network']['id'],
+                               'cidr': '172.20.1.0/24',
+                               'name': 'sub1',
+                               'dns_nameservers': None,
+                               'allocation_pools': None,
+                               'tenant_id': 'tenant_one',
+                               'enable_dhcp': False,
+                               'host_routes': [{
+                                    'destination': '135.207.0.0/16',
+                                    'nexthop': '1.2.3.4'}],
+                               'ip_version': 4}}
+            self.assertRaises(n_exc.InvalidInput,
+                              self.plugin.create_subnet,
+                              context.get_admin_context(), data)
+
+    def test_update_subnet_disable_dhcp_with_host_route_fails(self):
+        with self.network() as network:
+            data = {'subnet': {'network_id': network['network']['id'],
+                               'cidr': '172.20.1.0/24',
+                               'name': 'sub1',
+                               'dns_nameservers': None,
+                               'allocation_pools': None,
+                               'tenant_id': 'tenant_one',
+                               'enable_dhcp': True,
+                               'host_routes': [{
+                                    'destination': '135.207.0.0/16',
+                                    'nexthop': '1.2.3.4'}],
+                               'ip_version': 4}}
+            subnet = self.plugin.create_subnet(
+                context.get_admin_context(), data)
+            data['subnet']['enable_dhcp'] = False
+            self.assertRaises(n_exc.InvalidInput,
+                              self.plugin.update_subnet,
+                              context.get_admin_context(), subnet['id'], data)
 
 
 class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
