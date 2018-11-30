@@ -505,6 +505,12 @@ nsx_p_opts = nsx_v3_and_p + [
                       "specified. If only one VLAN transport zone is present "
                       "on backend, it will be assumed as default unless this "
                       "value is provided")),
+    # TODO(annak): This needs to be changed to policy DHCP profile
+    cfg.StrOpt('dhcp_profile',
+               help=_("This is the name or UUID of the NSX DHCP Profile "
+                      "that will be used to enable native DHCP service. It "
+                      "needs to be created in NSX before starting Neutron "
+                      "with the NSX plugin")),
                ]
 
 
