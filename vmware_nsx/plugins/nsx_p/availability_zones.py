@@ -32,6 +32,9 @@ class NsxPAvailabilityZone(v3_az.NsxV3AvailabilityZone):
         self.default_overlay_tz = cfg.CONF.nsx_p.default_overlay_tz
         self.default_vlan_tz = cfg.CONF.nsx_p.default_vlan_tz
         self.default_tier0_router = cfg.CONF.nsx_p.default_tier0_router
+        self.dns_domain = cfg.CONF.nsx_p.dns_domain
+        self.nameservers = cfg.CONF.nsx_p.nameservers
+        self.dhcp_relay_service = cfg.CONF.nsx_p.dhcp_relay_service
 
 
 class NsxPAvailabilityZones(common_az.ConfiguredAvailabilityZones):
