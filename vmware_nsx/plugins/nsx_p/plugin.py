@@ -472,11 +472,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return updated_net
 
     def create_subnet(self, context, subnet):
-        self._validate_host_routes_input(subnet)
-        created_subnet = super(
-            NsxPolicyPlugin, self).create_subnet(context, subnet)
-        # TODO(asarfaty): Handle dhcp on the policy manager
-        return created_subnet
+        return self._create_subnet(context, subnet)
 
     def delete_subnet(self, context, subnet_id):
         # TODO(asarfaty): cleanup dhcp on the policy manager
@@ -1543,3 +1539,18 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         super(NsxPolicyPlugin, self).delete_security_group_rule(
             context, rule_id)
+
+    def _is_overlay_network(self, context, network_id):
+        """Return True if this is an overlay network"""
+
+        # TODO(annak): refine this
+        network = self.get_network(context, network_id)
+        if pnet.SEGMENTATION_ID in network:
+            if network[pnet.SEGMENTATION_ID]:
+                    return False
+
+        return True
+
+    def _get_tier0_uplink_ips(self, tier0_id):
+        #TODO(annak): implement
+        return []
