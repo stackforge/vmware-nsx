@@ -41,10 +41,6 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
         if switching_profiles:
             self.switching_profiles = switching_profiles
 
-        dhcp_relay_service = az_info.get('dhcp_relay_service')
-        if dhcp_relay_service:
-            self.dhcp_relay_service = dhcp_relay_service
-
     def init_defaults(self):
         # use the default configuration
         self.metadata_proxy = cfg.CONF.nsx_v3.metadata_proxy
@@ -58,16 +54,16 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
         self.dhcp_relay_service = cfg.CONF.nsx_v3.dhcp_relay_service
         self.default_tier0_router = cfg.CONF.nsx_v3.default_tier0_router
 
-    def translate_configured_names_to_uuids(self, nsxlib):
+    def translate_configured_names_to_uuids(self, nsxlib, search_scope=None):
         # Mandatory configurations (in AZ or inherited from global values)
         # Unless this is the default AZ, and metadata is disabled.
         if self.dhcp_profile:
             dhcp_id = None
-            if cfg.CONF.nsx_v3.init_objects_by_tags:
+            if search_scope:
                 # Find the TZ by its tag
                 dhcp_id = nsxlib.get_id_by_resource_and_tag(
                     nsxlib.native_dhcp_profile.resource_type,
-                    cfg.CONF.nsx_v3.search_objects_scope,
+                    search_scope,
                     self.dhcp_profile)
             if not dhcp_id:
                 dhcp_id = nsxlib.native_dhcp_profile.get_id_by_name_or_id(
@@ -78,11 +74,11 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
 
         if self.metadata_proxy:
             proxy_id = None
-            if cfg.CONF.nsx_v3.init_objects_by_tags:
+            if search_scope:
                 # Find the TZ by its tag
                 proxy_id = nsxlib.get_id_by_resource_and_tag(
                     nsxlib.native_md_proxy.resource_type,
-                    cfg.CONF.nsx_v3.search_objects_scope,
+                    search_scope,
                     self.metadata_proxy)
             if not proxy_id:
                 proxy_id = nsxlib.native_md_proxy.get_id_by_name_or_id(
@@ -93,13 +89,13 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
 
         if self.default_overlay_tz:
             tz_id = None
-            if cfg.CONF.nsx_v3.init_objects_by_tags:
+            if search_scope:
                 # Find the TZ by its tag
                 resource_type = (nsxlib.transport_zone.resource_type +
                                  ' AND transport_type:OVERLAY')
                 tz_id = nsxlib.get_id_by_resource_and_tag(
                     resource_type,
-                    cfg.CONF.nsx_v3.search_objects_scope,
+                    search_scope,
                     self.default_overlay_tz)
             if not tz_id:
                 # Find the TZ by its name or id
@@ -112,13 +108,13 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
         # Optional configurations (may be None)
         if self.default_vlan_tz:
             tz_id = None
-            if cfg.CONF.nsx_v3.init_objects_by_tags:
+            if search_scope:
                 # Find the TZ by its tag
                 resource_type = (nsxlib.transport_zone.resource_type +
                                  ' AND transport_type:VLAN')
                 tz_id = nsxlib.get_id_by_resource_and_tag(
                     resource_type,
-                    cfg.CONF.nsx_v3.search_objects_scope,
+                    search_scope,
                     self.default_vlan_tz)
             if not tz_id:
                 # Find the TZ by its name or id
@@ -143,11 +139,11 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
         if (self.dhcp_relay_service and
             nsxlib.feature_supported(nsxlib_consts.FEATURE_DHCP_RELAY)):
             relay_id = None
-            if cfg.CONF.nsx_v3.init_objects_by_tags:
+            if search_scope:
                 # Find the relay service by its tag
                 relay_id = nsxlib.get_id_by_resource_and_tag(
                     nsxlib.relay_service.resource_type,
-                    cfg.CONF.nsx_v3.search_objects_scope,
+                    search_scope,
                     self.dhcp_relay_service)
             if not relay_id:
                 # Find the service by its name or id
@@ -164,13 +160,13 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
 
         if self.default_tier0_router:
             rtr_id = None
-            if cfg.CONF.nsx_v3.init_objects_by_tags:
+            if search_scope:
                 # Find the router by its tag
                 resource_type = (nsxlib.logical_router.resource_type +
                                  ' AND router_type:TIER0')
                 rtr_id = nsxlib.get_id_by_resource_and_tag(
                     resource_type,
-                    cfg.CONF.nsx_v3.search_objects_scope,
+                    search_scope,
                     self.default_tier0_router)
             if not rtr_id:
                 # find the router by name or id
