@@ -163,6 +163,10 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._extension_manager.extension_aliases())
 
         self.nsxpolicy = v3_utils.get_nsxpolicy_wrapper()
+        # NOTE: This is needed for passthrough APIs, should be removed when
+        # policy has full support
+        self.nsxlib = v3_utils.get_nsxlib_wrapper()
+
         nsxlib_utils.set_inject_headers_callback(v3_utils.inject_headers)
         self._validate_nsx_policy_version()
 
@@ -228,6 +232,13 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             cfg.CONF.nsx_p.default_vlan_tz,
             filter_list_results=lambda tzs: [
                 tz for tz in tzs if tz['tz_type'].startswith('VLAN')])
+
+        # TODO(annak): This needs to be replaced with policy resource.
+        # Only ID uuid is supported here until then.
+        self._native_dhcp_profile_uuid = cfg.CONF.nsx_p.dhcp_profile
+        if not self._native_dhcp_profile_uuid:
+            raise cfg.RequiredOptError("dhcp_profile",
+                                       group=cfg.OptGroup('nsx_p'))
 
     def _validate_nsx_policy_version(self):
         self._nsx_version = self.nsxpolicy.get_version()
@@ -472,11 +483,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return updated_net
 
     def create_subnet(self, context, subnet):
-        self._validate_host_routes_input(subnet)
-        created_subnet = super(
-            NsxPolicyPlugin, self).create_subnet(context, subnet)
-        # TODO(asarfaty): Handle dhcp on the policy manager
-        return created_subnet
+        return self._create_subnet(context, subnet)
 
     def delete_subnet(self, context, subnet_id):
         # TODO(asarfaty): cleanup dhcp on the policy manager
@@ -1549,3 +1556,18 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def _is_ens_tz_net(self):
         return False
+
+    def _is_overlay_network(self, context, network_id):
+        """Return True if this is an overlay network"""
+
+        # TODO(annak): refine this
+        network = self.get_network(context, network_id)
+        if pnet.SEGMENTATION_ID in network:
+            if network[pnet.SEGMENTATION_ID]:
+                    return False
+
+        return True
+
+    def _get_tier0_uplink_ips(self, tier0_id):
+        #TODO(annak): implement
+        return []
