@@ -82,7 +82,6 @@ import webob.exc
 
 from vmware_nsx._i18n import _
 from vmware_nsx.api_replay import utils as api_replay_utils
-from vmware_nsx.common import availability_zones as nsx_com_az
 from vmware_nsx.common import config  # noqa
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import l3_rpc_agent_api
@@ -167,7 +166,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                   dns_db.DNSDbMixin,
                   vlantransparent_db.Vlantransparent_db_mixin,
                   mac_db.MacLearningDbMixin,
-                  nsx_com_az.NSXAvailabilityZonesPluginCommon,
                   l3_attrs_db.ExtraAttributesMixin,
                   hk_ext.Housekeeper):
 
@@ -1433,71 +1431,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             except Exception as e:
                 LOG.warning("Failed to update network %(id)s dhcp server on "
                             "the NSX: %(e)s", {'id': network['id'], 'e': e})
-
-    def _has_no_dhcp_enabled_subnet(self, context, network):
-        # Check if there is no DHCP-enabled subnet in the network.
-        for subnet in network.subnets:
-            if subnet.enable_dhcp:
-                return False
-        return True
-
-    def _has_single_dhcp_enabled_subnet(self, context, network):
-        # Check if there is only one DHCP-enabled subnet in the network.
-        count = 0
-        for subnet in network.subnets:
-            if subnet.enable_dhcp:
-                count += 1
-                if count > 1:
-                    return False
-        return True if count == 1 else False
-
-    def _validate_address_space(self, context, subnet):
-        # Only working for IPv4 at the moment
-        if (subnet['ip_version'] != 4):
-            return
-
-        # get the subnet IPs
-        if ('allocation_pools' in subnet and
-            validators.is_attr_set(subnet['allocation_pools'])):
-            # use the pools instead of the cidr
-            subnet_networks = [
-                netaddr.IPRange(pool.get('start'), pool.get('end'))
-                for pool in subnet.get('allocation_pools')]
-        else:
-            cidr = subnet.get('cidr')
-            if not validators.is_attr_set(cidr):
-                return
-            subnet_networks = [netaddr.IPNetwork(subnet['cidr'])]
-
-        # Check if subnet overlaps with shared address space.
-        # This is checked on the backend when attaching subnet to a router.
-        shared_ips_cidrs = cfg.CONF.nsx_v3.transit_networks
-        for subnet_net in subnet_networks:
-            for shared_ips in shared_ips_cidrs:
-                if netaddr.IPSet(subnet_net) & netaddr.IPSet([shared_ips]):
-                    msg = _("Subnet overlaps with shared address space "
-                            "%s") % shared_ips
-                    LOG.error(msg)
-                    raise n_exc.InvalidInput(error_message=msg)
-
-        # Ensure that the NSX uplink does not lie on the same subnet as
-        # the external subnet
-        filters = {'id': [subnet['network_id']],
-                   'router:external': [True]}
-        external_nets = self.get_networks(context, filters=filters)
-        tier0_routers = [ext_net[pnet.PHYSICAL_NETWORK]
-                         for ext_net in external_nets
-                         if ext_net.get(pnet.PHYSICAL_NETWORK)]
-        for tier0_rtr in set(tier0_routers):
-            tier0_ips = self.nsxlib.logical_router_port.get_tier0_uplink_ips(
-                tier0_rtr)
-            for ip_address in tier0_ips:
-                for subnet_network in subnet_networks:
-                    if (netaddr.IPAddress(ip_address) in subnet_network):
-                        msg = _("External subnet cannot overlap with T0 "
-                                "router address %s") % ip_address
-                        LOG.error(msg)
-                        raise n_exc.InvalidInput(error_message=msg)
 
     def _create_bulk_with_callback(self, resource, context, request_items,
                                    post_create_func=None, rollback_func=None):
