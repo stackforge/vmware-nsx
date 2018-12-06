@@ -202,6 +202,14 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 return None
 
     def _init_default_config(self):
+        """Validate the configuration & initialize default values"""
+        if (cfg.CONF.nsx_p.allow_passthrough and
+            not cfg.CONF.nsx_p.nsx_use_client_auth):
+            # Passthrough api can work only with client auth
+            msg = (_("nsx_use_client_auth must be True to allow passthrough "
+                     "api to work"))
+            raise nsx_exc.NsxPluginException(err_msg=msg)
+
         # Default Tier0 router
         self.default_tier0_router = self._init_default_resource(
             self.nsxpolicy.tier0,
@@ -919,7 +927,19 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                         tier0=new_tier0_uuid)
 
             # Set/Unset the router TZ to allow vlan switches traffic
-            #TODO(asarfaty) no api for this yet
+            if cfg.CONF.nsx_p.allow_passthrough:
+                # TODO(asarfaty) need to wait for realization before using
+                # the passthrough api
+                if new_tier0_uuid:
+                    tz_uuid = self.nsxpolicy.tier0.get_overlay_transport_zone(
+                        new_tier0_uuid)
+                else:
+                    tz_uuid = None
+                self.nsxpolicy.tier1.update_transport_zone(
+                    router_id, tz_uuid)
+            else:
+                LOG.debug("Not adding transport-zone to tier1 router %s as "
+                          "passthrough api is disabled", router_id)
 
         if actions['add_snat_rules']:
             # Add SNAT rules for all the subnets which are in different scope
