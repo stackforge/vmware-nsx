@@ -167,7 +167,7 @@ def get_nsxlib_wrapper(nsx_username=None, nsx_password=None, basic_auth=False):
 
 def get_nsxpolicy_wrapper(nsx_username=None, nsx_password=None,
                           basic_auth=False):
-    #TODO(asarfaty) move to a different file?
+    #TODO(asarfaty) move to a different file? (under common_v3)
     client_cert_provider = None
     if not basic_auth:
         # if basic auth requested, dont use cert file even if provided
@@ -190,7 +190,11 @@ def get_nsxpolicy_wrapper(nsx_username=None, nsx_password=None,
         nsx_api_managers=cfg.CONF.nsx_p.nsx_api_managers,
         plugin_scope=OS_NEUTRON_ID_SCOPE,
         plugin_tag=NSX_NEUTRON_PLUGIN,
-        plugin_ver=n_version.version_info.release_string())
+        plugin_ver=n_version.version_info.release_string(),
+        # Note(asarfaty) - for the passthrough api to work,
+        # allow_overwrite_header must be set
+        allow_passthrough=cfg.CONF.nsx_p.allow_passthrough,
+        allow_overwrite_header=cfg.CONF.nsx_p.allow_passthrough)
     return v3.NsxPolicyLib(nsxlib_config)
 
 
