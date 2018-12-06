@@ -190,7 +190,8 @@ def get_nsxpolicy_wrapper(nsx_username=None, nsx_password=None,
         nsx_api_managers=cfg.CONF.nsx_p.nsx_api_managers,
         plugin_scope=OS_NEUTRON_ID_SCOPE,
         plugin_tag=NSX_NEUTRON_PLUGIN,
-        plugin_ver=n_version.version_info.release_string())
+        plugin_ver=n_version.version_info.release_string(),
+        allow_passthrough=cfg.CONF.nsx_p.allow_passthrough)
     return v3.NsxPolicyLib(nsxlib_config)
 
 
