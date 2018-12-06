@@ -919,7 +919,14 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                         tier0=new_tier0_uuid)
 
             # Set/Unset the router TZ to allow vlan switches traffic
-            #TODO(asarfaty) no api for this yet
+            if cfg.CONF.nsx_p.allow_passthrough:
+                if new_tier0_uuid:
+                    tz_uuid = self.nsxpolicy.tier0.get_overlay_transport_zone(
+                        new_tier0_uuid)
+                else:
+                    tz_uuid = None
+                self.nsxpolicy.tier1.update_transport_zone(
+                    router_id, tz_uuid)
 
         if actions['add_snat_rules']:
             # Add SNAT rules for all the subnets which are in different scope
