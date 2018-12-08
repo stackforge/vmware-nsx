@@ -350,6 +350,12 @@ nsx_v3_and_p = [
                        "specifying Transport Zone UUID usable for VLAN "
                        "provider networks, as well as ranges of VLAN "
                        "tags on each available for allocation to networks.")),
+    cfg.ListOpt('availability_zones',
+                default=[],
+                help=_('Optional parameter defining the networks availability '
+                       'zones names for the native dhcp configuration. The '
+                       'configuration of each zone will be under a group '
+                       'names [az:<name>]')),
 ]
 
 nsx_v3_opts = nsx_v3_and_p + [
@@ -436,12 +442,6 @@ nsx_v3_opts = nsx_v3_and_p + [
                help=_("(Optional) This is the name or UUID of the NSX dhcp "
                       "relay service that will be used to enable DHCP relay "
                       "on router ports.")),
-    cfg.ListOpt('availability_zones',
-                default=[],
-                help=_('Optional parameter defining the networks availability '
-                       'zones names for the native dhcp configuration. The '
-                       'configuration of each zone will be under a group '
-                       'names [az:<name>]')),
     cfg.BoolOpt('init_objects_by_tags',
                 default=False,
                 help=_("When True, the configured transport zones, router and "
