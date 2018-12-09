@@ -506,7 +506,7 @@ nsx_p_opts = nsx_v3_and_p + [
                       "on backend, it will be assumed as default unless this "
                       "value is provided")),
     cfg.BoolOpt('allow_passthrough',
-                default=True,
+                default=False,
                 help=_("If True, use nsx manager api for cases which are not "
                        "supported by the policy manager api")),
 ]
