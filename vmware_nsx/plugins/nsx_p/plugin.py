@@ -845,7 +845,8 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             action=policy_constants.NAT_ACTION_SNAT,
             #sequence_number=GW_NAT_PRI # TODO(asarfaty) handle priorities
             translated_network=gw_ip,
-            source_network=subnet['cidr'])
+            source_network=subnet['cidr'],
+            firewall_match=policy_constants.NAT_FIREWALL_MATCH_INTERNAL)
 
     def _get_snat_rule_id(self, subnet):
         return 'S-' + subnet['id']
@@ -862,7 +863,8 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             nat_rule_id=self._get_no_dnat_rule_id(subnet),
             action=policy_constants.NAT_ACTION_NO_DNAT,
             #sequence_number=GW_NAT_PRI # TODO(asarfaty) handle priorities
-            destination_network=subnet['cidr'])
+            destination_network=subnet['cidr'],
+            firewall_match=policy_constants.NAT_FIREWALL_MATCH_BYPASS)
 
     def _del_subnet_no_dnat_rule(self, router_id, subnet):
         # Delete the previously created NO-DNAT rules
@@ -909,6 +911,9 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             if edge_cluster:
                 self.nsxpolicy.tier1.set_edge_cluster_path(
                     router_id, edge_cluster)
+            else:
+                LOG.error("Tier0 %s does not have an edge cluster",
+                          new_tier0_uuid)
 
         if actions['remove_snat_rules']:
             for subnet in router_subnets:
@@ -953,12 +958,10 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             for subnet in router_subnets:
                 self._add_subnet_no_dnat_rule(context, router_id, subnet)
 
-        #self.nsxpolicy.tier1.update_route_advertisement(
-        #    router_id,
-        #    actions['advertise_route_nat_flag'],
-        #    actions['advertise_route_connected_flag'])
-
-        # TODO(asarfaty): handle enable/disable snat, router adv flags, etc.
+        self.nsxpolicy.tier1.update_route_advertisement(
+            router_id,
+            nat=actions['advertise_route_nat_flag'],
+            subnets=actions['advertise_route_connected_flag'])
 
         if actions['remove_service_router']:
             # Disable edge firewall before removing the service router
@@ -1024,15 +1027,67 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         return ret_val
 
+    def _get_static_route_id(self, route):
+        return "%s-%s" % (route['destination'].replace('/', '_'),
+                          route['nexthop'])
+
+    def _add_static_routes(self, router_id, routes):
+        for route in routes:
+            dest = route['destination']
+            self.nsxpolicy.tier1_static_route.create_or_overwrite(
+                'Static route for %s' % dest,
+                router_id,
+                static_route_id=self._get_static_route_id(route),
+                network=dest,
+                next_hop=route['nexthop'])
+
+    def _delete_static_routes(self, router_id, routes):
+        for route in routes:
+            self.nsxpolicy.tier1_static_route.delete(
+                router_id,
+                static_route_id=self._get_static_route_id(route))
+
     def update_router(self, context, router_id, router):
         gw_info = self._extract_external_gw(context, router, is_extract=False)
         router_data = router['router']
-        LOG.debug("Updating router %s: %s. GW info %s",
-                  router_id, router_data, gw_info)
-        #TODO(asarfaty) update the NSX logical router & interfaces
+        self._assert_on_router_admin_state(router_data)
 
-        return super(NsxPolicyPlugin, self).update_router(
+        if validators.is_attr_set(gw_info):
+            self._validate_update_router_gw(context, router_id, gw_info)
+
+        routes_added = []
+        routes_removed = []
+        if 'routes' in router_data:
+            routes_added, routes_removed = self._get_static_routes_diff(
+                context, router_id, gw_info, router_data)
+
+        # Update the neutron router
+        updated_router = super(NsxPolicyPlugin, self).update_router(
             context, router_id, router)
+
+        # Update the policy backend
+        try:
+            if 'name' in router_data or 'description' in router_data:
+                router_name = utils.get_name_and_uuid(
+                    updated_router['name'] or 'router',
+                    router_id)
+                self.nsxpolicy.tier1.update(
+                    router_id, name=router_name,
+                    description=updated_router['description'])
+
+            self._delete_static_routes(router_id, routes_removed)
+            self._add_static_routes(router_id, routes_added)
+
+        except (nsx_lib_exc.ResourceNotFound, nsx_lib_exc.ManagerError):
+            with excutils.save_and_reraise_exception():
+                with db_api.CONTEXT_WRITER.using(context):
+                    router_db = self._get_router(context, router_id)
+                    router_db['status'] = const.NET_STATUS_ERROR
+                # return the static routes to the old state
+                self._delete_static_routes(router_id, routes_added)
+                self._add_static_routes(router_id, routes_removed)
+
+        return updated_router
 
     def add_router_interface(self, context, router_id, interface_info):
         network_id = self._get_interface_network(context, interface_info)
@@ -1061,10 +1116,12 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             net = self._get_network(context, network_id)
             net_name = utils.get_name_and_uuid(
                 net['name'] or 'network', network_id)
-            segment_id = self._get_network_nsx_id(context, network_id)
+            segment_id = self._get_network_nsx_segment_id(context, network_id)
             subnet = self.get_subnet(context, info['subnet_ids'][0])
+            cidr_prefix = int(subnet['cidr'].split('/')[1])
+            gw_addr = "%s/%s" % (subnet['gateway_ip'], cidr_prefix)
             pol_subnet = policy_defs.Subnet(
-                gateway_address=("%s/32" % subnet.get('gateway_ip')))
+                gateway_address=gw_addr)
             self.nsxpolicy.segment.update(segment_id,
                                           name=net_name,
                                           tier1_id=router_id,
@@ -1117,7 +1174,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             net = self._get_network(context, network_id)
             net_name = utils.get_name_and_uuid(
                 net['name'] or 'network', network_id)
-            segment_id = self._get_network_nsx_id(context, network_id)
+            segment_id = self._get_network_nsx_segment_id(context, network_id)
             self.nsxpolicy.segment.update(segment_id, name=net_name,
                                           tier1_id=None)
 
@@ -1693,3 +1750,30 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         super(NsxPolicyPlugin, self).delete_security_group_rule(
             context, rule_id)
+
+    def _is_overlay_network(self, context, network_id):
+        """Return True if this is an overlay network
+
+        1. No binding ("normal" overlay networks will have no binding)
+        2. Geneve network
+        3. nsx network where the backend network is connected to an overlay TZ
+        """
+        bindings = nsx_db.get_network_bindings(context.session, network_id)
+        # With NSX plugin, "normal" overlay networks will have no binding
+        if not bindings:
+            # using the default /AZ overlay_tz
+            return True
+
+        binding = bindings[0]
+        if binding.binding_type == utils.NsxV3NetworkTypes.GENEVE:
+            return True
+        if binding.binding_type == utils.NsxV3NetworkTypes.NSX_NETWORK:
+            # check the backend network
+            segment = self.nsxpolicy.segments.get(binding.phy_uuid)
+            tz = self._get_nsx_net_tz_id(segment)
+            if tz:
+                backend_type = self.nsxlib.transport_zone.get_transport_type(
+                    tz)
+                return (backend_type ==
+                        nsxlib_consts.TRANSPORT_TYPE_OVERLAY)
+        return False
