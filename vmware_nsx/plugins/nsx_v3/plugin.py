@@ -37,7 +37,6 @@ from neutron_lib.services.qos import constants as qos_consts
 from neutron.api.rpc.agentnotifiers import dhcp_rpc_agent_api
 from neutron.api.rpc.handlers import dhcp_rpc
 from neutron.api.rpc.handlers import metadata_rpc
-from neutron.db import _resource_extend as resource_extend
 from neutron.db import agents_db
 from neutron.db import agentschedulers_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
@@ -70,6 +69,7 @@ from neutron_lib.callbacks import registry
 from neutron_lib.callbacks import resources
 from neutron_lib import constants as const
 from neutron_lib import context as q_context
+from neutron_lib.db import resource_extend
 from neutron_lib import exceptions as n_exc
 from neutron_lib.utils import helpers
 from oslo_config import cfg
