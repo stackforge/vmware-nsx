@@ -1,0 +1,10 @@
+Verified-1: VMware NSX CI
+Code-Review+2: Salvatore Orlando <salv.orlando@gmail.com>
+Code-Review+2: Michal Kelner Mishali <mkelnermishal@vmware.com>
+Workflow+1: Adit Sarfaty <asarfaty@vmware.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Mon, 10 Dec 2018 09:29:01 +0000
+Reviewed-on: https://review.openstack.org/622139
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/queens
