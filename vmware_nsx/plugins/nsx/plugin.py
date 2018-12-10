@@ -29,7 +29,6 @@ from oslo_log import log as logging
 from oslo_utils import excutils
 from oslo_utils import uuidutils
 
-from neutron.db import _resource_extend as resource_extend
 from neutron.db import agents_db
 from neutron.db import agentschedulers_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
@@ -47,6 +46,7 @@ from neutron.db import quota_db  # noqa
 from neutron.db import securitygroups_db
 from neutron.quota import resource_registry
 from neutron_lib.api import validators
+from neutron_lib.db import resource_extend
 from neutron_lib import exceptions as n_exc
 
 from vmware_nsx.common import availability_zones as nsx_com_az
