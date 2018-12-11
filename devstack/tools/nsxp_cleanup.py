@@ -102,6 +102,8 @@ class NSXClient(object):
             db_sgs = self.neutron_db.get_security_groups()
             groups = [g for g in groups if g['id'] in db_sgs]
             maps = [m for m in maps if m['id'] in db_sgs]
+            #TODO(asarfaty) should also add the local_groups and remote groups
+            # of each rule
         return groups, maps
 
     def cleanup_security_groups(self, domain_id):
@@ -179,6 +181,10 @@ class NSXClient(object):
         """Delete all OS created NSX Policy segments ports per segment"""
         segment_ports = self.get_os_nsx_segment_ports(segment_id)
         for p in segment_ports:
+            self.nsxpolicy.segment_port_security_profiles.delete(
+                segment_id, p['id'])
+            self.nsxpolicy.segment_port_discovery_profiles.delete(
+                segment_id, p['id'])
             self.nsxpolicy.segment_port.delete(segment_id, p['id'])
 
     def get_os_nsx_services(self):
