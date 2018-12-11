@@ -393,6 +393,16 @@ class NsxPluginV3Base(plugin.NsxPluginBase,
                 LOG.warning(err_msg)
                 raise n_exc.InvalidInput(error_message=err_msg)
 
+    def _assert_on_port_admin_state(self, port_data, device_owner):
+        """Do not allow changing the admin state of some ports"""
+        if (device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF or
+            device_owner == l3_db.DEVICE_OWNER_ROUTER_GW):
+            if port_data.get("admin_state_up") is False:
+                err_msg = _("admin_state_up=False router ports are not "
+                            "supported")
+                LOG.warning(err_msg)
+                raise n_exc.InvalidInput(error_message=err_msg)
+
     def _validate_update_port(self, context, id, original_port, port_data):
         qos_selected = validators.is_attr_set(port_data.get
                                               (qos_consts.QOS_POLICY_ID))
@@ -970,3 +980,17 @@ class NsxPluginV3Base(plugin.NsxPluginBase,
             err_msg = _("admin_state_up=False routers are not supported")
             LOG.warning(err_msg)
             raise n_exc.InvalidInput(error_message=err_msg)
+
+    def _has_native_dhcp_metadata(self):
+        """Should be implemented by each plugin"""
+        pass
+
+    def _is_excluded_port(self, device_owner, port_security):
+        if device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF:
+            return False
+        if device_owner == constants.DEVICE_OWNER_DHCP:
+            if not self._has_native_dhcp_metadata():
+                return True
+        elif not port_security:
+            return True
+        return False
