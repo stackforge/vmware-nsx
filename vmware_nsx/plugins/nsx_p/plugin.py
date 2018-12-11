@@ -96,7 +96,8 @@ NSX_P_PROVIDER_SECTION_CATEGORY = policy_constants.CATEGORY_INFRASTRUCTURE
 SPOOFGUARD_PROFILE_UUID = 'neutron-spoofguard-profile'
 NO_SPOOFGUARD_PROFILE_UUID = policy_defs.SpoofguardProfileDef.DEFAULT_PROFILE
 MAC_DISCOVERY_PROFILE_UUID = 'neutron-mac-discovery-profile'
-NO_SEG_SECURITY_PROFILE_UUID = (
+NO_SEG_SECURITY_PROFILE_UUID = 'neutron-no-segment-security-profile'
+SEG_SECURITY_PROFILE_UUID = (
     policy_defs.SegmentSecurityProfileDef.DEFAULT_PROFILE)
 
 
@@ -277,14 +278,25 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 mac_learning_enabled=True,
                 tags=self.nsxpolicy.build_v3_api_version_tag())
 
-        # No Port security segment-security profile
-        # (default NSX profile. just verify it exists)
+        # No Port security segment-security profile (find it or create)
         try:
             self.nsxpolicy.segment_security_profile.get(
                 NO_SEG_SECURITY_PROFILE_UUID)
         except nsx_lib_exc.ResourceNotFound:
+            # DEBUG ADIT set all flags to FALSE!
+            self.nsxpolicy.segment_security_profile.create_or_overwrite(
+                NO_SEG_SECURITY_PROFILE_UUID,
+                profile_id=NO_SEG_SECURITY_PROFILE_UUID,
+                tags=self.nsxpolicy.build_v3_api_version_tag())
+
+        # Port security segment-security profile
+        # (default NSX profile. just verify it exists)
+        try:
+            self.nsxpolicy.segment_security_profile.get(
+                SEG_SECURITY_PROFILE_UUID)
+        except nsx_lib_exc.ResourceNotFound:
             msg = (_("Cannot find segment security profile %s") %
-                   NO_SEG_SECURITY_PROFILE_UUID)
+                   SEG_SECURITY_PROFILE_UUID)
             raise nsx_exc.NsxPluginException(err_msg=msg)
 
     @staticmethod
@@ -606,10 +618,10 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         return tags
 
-    def _create_port_on_backend(self, context, port_data):
+    def _create_port_on_backend(self, context, port_data, is_psec_on):
         # TODO(annak): admin_state not supported by policy
         # TODO(annak): handle exclude list
-        # TODO(annak): switching profiles when supported
+        # TODO(asarfaty): mac learning profiles when supported
         name = self._build_port_name(context, port_data)
         address_bindings = self._build_port_address_bindings(
             context, port_data)
@@ -635,6 +647,18 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             vif_id=vif_id,
             attachment_type=attachment_type,
             tags=tags)
+
+        # add the security profiles to the port
+        if is_psec_on:
+            spoofguard_profile = SPOOFGUARD_PROFILE_UUID
+            seg_sec_profile = SEG_SECURITY_PROFILE_UUID
+        else:
+            spoofguard_profile = NO_SPOOFGUARD_PROFILE_UUID
+            seg_sec_profile = NO_SEG_SECURITY_PROFILE_UUID
+        self.nsxpolicy.segment_port_sec_profiles.create_or_overwrite(
+            name, segment_id, port_data['id'],
+            spoofguard_profile_id = spoofguard_profile,
+            segment_security_profile_id = seg_sec_profile)
 
     def base_create_port(self, context, port):
         neutron_db = super(NsxPolicyPlugin, self).create_port(context, port)
@@ -677,7 +701,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         if not is_external_net:
             try:
-                self._create_port_on_backend(context, port_data)
+                self._create_port_on_backend(context, port_data, is_psec_on)
             except Exception as e:
                 with excutils.save_and_reraise_exception():
                     LOG.error('Failed to create port %(id)s on NSX '
@@ -710,17 +734,20 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if not self._network_is_external(context, net_id):
             try:
                 segment_id = self._get_network_nsx_segment_id(context, net_id)
-                self.nsxpolicy.segment_port.delete(segment_id, port_data['id'])
+                self.nsxpolicy.segment_port_sec_profiles.delete(
+                    segment_id, port_id)
+                self.nsxpolicy.segment_port.delete(segment_id, port_id)
             except Exception as ex:
                 LOG.error("Failed to delete port %(id)s on NSX backend "
                           "due to %(e)s", {'id': port_id, 'e': ex})
                 # Do not fail the neutron action
 
     def _update_port_on_backend(self, context, lport_id,
-                                original_port, updated_port):
+                                original_port, updated_port,
+                                is_psec_on):
         # For now port create and update are the same
         # Update might evolve with more features
-        return self._create_port_on_backend(context, updated_port)
+        return self._create_port_on_backend(context, updated_port, is_psec_on)
 
     def update_port(self, context, port_id, port):
         with db_api.CONTEXT_WRITER.using(context):
@@ -780,7 +807,8 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if not is_external_net:
             try:
                 self._update_port_on_backend(context, port_id,
-                                             original_port, updated_port)
+                                             original_port, updated_port,
+                                             port_security)
             except Exception as e:
                 LOG.error('Failed to update port %(id)s on NSX '
                           'backend. Exception: %(e)s',

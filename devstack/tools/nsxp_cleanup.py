@@ -172,6 +172,7 @@ class NSXClient(object):
         """Delete all OS created NSX Policy segments ports per segment"""
         segment_ports = self.get_os_nsx_segment_ports(segment_id)
         for p in segment_ports:
+            self.nsxlib.segment_port_sec_profiles.delete(segment_id, p['id'])
             self.nsxlib.segment_port.delete(segment_id, p['id'])
 
     def get_os_nsx_services(self):
