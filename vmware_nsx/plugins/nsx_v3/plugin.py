@@ -2223,16 +2223,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if lport_id:
             self.nsxlib.logical_port.delete(lport_id)
 
-    def _assert_on_port_admin_state(self, port_data, device_owner):
-        """Do not allow changing the admin state of some ports"""
-        if (device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF or
-            device_owner == l3_db.DEVICE_OWNER_ROUTER_GW):
-            if port_data.get("admin_state_up") is False:
-                err_msg = _("admin_state_up=False router ports are not "
-                            "supported")
-                LOG.warning(err_msg)
-                raise n_exc.InvalidInput(error_message=err_msg)
-
     def _filter_ipv4_dhcp_fixed_ips(self, context, fixed_ips):
         ips = []
         for fixed_ip in fixed_ips:
