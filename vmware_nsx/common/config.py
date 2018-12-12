@@ -350,6 +350,10 @@ nsx_v3_and_p = [
                        "specifying Transport Zone UUID usable for VLAN "
                        "provider networks, as well as ranges of VLAN "
                        "tags on each available for allocation to networks.")),
+    cfg.StrOpt('edge_cluster_uuid',
+               default=None,
+               help=_("Specifying an edge_cluster_uuid for T1 to connect "
+                      "other than the default one showing in neutron.conf")),
 ]
 
 nsx_v3_opts = nsx_v3_and_p + [
