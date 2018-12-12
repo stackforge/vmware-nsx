@@ -881,7 +881,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return self.conn.consume_in_threads()
 
     def _get_edge_cluster(self, tier0_uuid):
+        if cfg.CONF.nsx_v3.edge_cluster_uuid:
+            return cfg.CONF.nsx_v3.edge_cluster_uuid
         self.nsxlib.router.validate_tier0(self.tier0_groups_dict, tier0_uuid)
+        if (not self.tier0_groups_dict.get(tier0_uuid) or not self.
+                tier0_groups_dict[tier0_uuid].get('edge_cluster_uuid')):
+            self.nsxlib.router.validate_tier0(self.tier0_groups_dict,
+                                              tier0_uuid)
         tier0_info = self.tier0_groups_dict[tier0_uuid]
         return tier0_info['edge_cluster_uuid']
 
