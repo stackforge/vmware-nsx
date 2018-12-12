@@ -3162,6 +3162,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             return
         network = self.get_network(context, network_id)
         if not network.get(pnet.PHYSICAL_NETWORK):
+            # MICHAL - HERE ?
             az = self.get_network_az_by_net_id(context, network_id)
             return az._default_tier0_router
         else:
@@ -3242,20 +3243,24 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                     nsx_router_id, None)
         if actions['add_router_link_port']:
             # First update edge cluster info for router
-            edge_cluster_uuid = self._get_edge_cluster(new_tier0_uuid)
+            # If the user set a different edge cluster uuid than the default
+            if cfg.CONF.nsx_v3.edge_cluster_uuid:
+                edge_cluster_uuid = cfg.CONF.nsx_v3.edge_cluster_uuid
+            else:
+                edge_cluster_uuid = self._get_edge_cluster(new_tier0_uuid)
             self.nsxlib.router.update_router_edge_cluster(
                 nsx_router_id, edge_cluster_uuid)
             # Add the overlay transport zone to the router config
             if self.nsxlib.feature_supported(
-                nsxlib_consts.FEATURE_ROUTER_TRANSPORT_ZONE):
+                    nsxlib_consts.FEATURE_ROUTER_TRANSPORT_ZONE):
                 tz_uuid = self.nsxlib.router.get_tier0_router_overlay_tz(
                     new_tier0_uuid)
                 if tz_uuid:
                     self.nsxlib.router.update_router_transport_zone(
                         nsx_router_id, tz_uuid)
             tags = self.nsxlib.build_v3_tags_payload(
-                   router, resource_type='os-neutron-rport',
-                   project_name=context.tenant_name)
+                    router, resource_type='os-neutron-rport',
+                    project_name=context.tenant_name)
             self.nsxlib.router.add_router_link_port(nsx_router_id,
                                                     new_tier0_uuid,
                                                     tags=tags)
