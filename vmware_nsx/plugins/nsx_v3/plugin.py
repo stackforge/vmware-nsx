@@ -882,6 +882,12 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
     def _get_edge_cluster(self, tier0_uuid):
         self.nsxlib.router.validate_tier0(self.tier0_groups_dict, tier0_uuid)
+        if cfg.CONF.nsx_v3.edge_cluster_uuid:
+            return cfg.CONF.nsx_v3.edge_cluster_uuid
+        if (not self.tier0_groups_dict.get(tier0_uuid) or not self.
+                tier0_groups_dict[tier0_uuid].get('edge_cluster_uuid')):
+            self.nsxlib.router.validate_tier0(self.tier0_groups_dict,
+                                              tier0_uuid)
         tier0_info = self.tier0_groups_dict[tier0_uuid]
         return tier0_info['edge_cluster_uuid']
 
@@ -3243,6 +3249,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         if actions['add_router_link_port']:
             # First update edge cluster info for router
             edge_cluster_uuid = self._get_edge_cluster(new_tier0_uuid)
+            # If the user set a different edge cluster uuid than the default
+            if cfg.CONF.nsx_v3.edge_cluster_uuid:
+                edge_cluster_uuid = cfg.CONF.nsx_v3.edge_cluster_uuid
+            else:
+                edge_cluster_uuid = self._get_edge_cluster(new_tier0_uuid)
             self.nsxlib.router.update_router_edge_cluster(
                 nsx_router_id, edge_cluster_uuid)
             # Add the overlay transport zone to the router config
