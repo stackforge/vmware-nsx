@@ -40,6 +40,10 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
         if dhcp_relay_service:
             self.dhcp_relay_service = dhcp_relay_service
 
+        edge_cluster_uuid = az_info.get('edge_cluster_uuid')
+        if edge_cluster_uuid:
+            self.edge_cluster_uuid = edge_cluster_uuid
+
     def init_defaults(self):
         # use the default configuration
         self.metadata_proxy = cfg.CONF.nsx_v3.metadata_proxy
@@ -52,6 +56,7 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
         self.switching_profiles = cfg.CONF.nsx_v3.switching_profiles
         self.dhcp_relay_service = cfg.CONF.nsx_v3.dhcp_relay_service
         self.default_tier0_router = cfg.CONF.nsx_v3.default_tier0_router
+        self.edge_cluster_uuid = cfg.CONF.nsx_v3.edge_cluster_uuid
 
     def translate_configured_names_to_uuids(self, nsxlib):
         # Mandatory configurations (in AZ or inherited from global values)

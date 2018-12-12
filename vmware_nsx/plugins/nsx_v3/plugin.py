@@ -880,7 +880,13 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         return self.conn.consume_in_threads()
 
-    def _get_edge_cluster(self, tier0_uuid):
+    def _get_edge_cluster(self, tier0_uuid, router_id):
+        if cfg.CONF.nsx_v3.edge_cluster_uuid:
+            return cfg.CONF.nsx_v3.edge_cluster_uuid
+        az = self.get_obj_az_by_hints(router_id)
+        if az.edge_cluster_uuid:
+                return az._edge_cluster_uuid
+        self.nsxlib.router.validate_tier0(self.tier0_groups_dict, tier0_uuid)
         if (not self.tier0_groups_dict.get(tier0_uuid) or not self.
                 tier0_groups_dict[tier0_uuid].get('edge_cluster_uuid')):
             self.nsxlib.router.validate_tier0(self.tier0_groups_dict,
@@ -3217,7 +3223,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def create_service_router(self, context, router_id):
         router = self._get_router(context, router_id)
         tier0_uuid = self._get_tier0_uuid_by_router(context, router)
-        edge_cluster_uuid = self._get_edge_cluster(tier0_uuid)
+        edge_cluster_uuid = self._get_edge_cluster(tier0_uuid, router_id)
         nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                  router_id)
         self.nsxlib.router.update_router_edge_cluster(nsx_router_id,
@@ -3242,7 +3248,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         router_subnets = self._find_router_subnets(
             context.elevated(), router_id)
-
         if info and info.get('network_id'):
             new_tier0_uuid = self._get_tier0_uuid_by_net_id(context.elevated(),
                                                             info['network_id'])
@@ -3292,6 +3297,11 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 self.nsxlib.router.update_router_transport_zone(
                     nsx_router_id, None)
         if actions['add_router_link_port']:
+            # First update edge cluster info for router
+            edge_cluster_uuid = self._get_edge_cluster(new_tier0_uuid,
+                                                       router_id)
+            self.nsxlib.router.update_router_edge_cluster(
+                nsx_router_id, edge_cluster_uuid)
             # Add the overlay transport zone to the router config
             if self.nsxlib.feature_supported(
                     nsxlib_consts.FEATURE_ROUTER_TRANSPORT_ZONE):
