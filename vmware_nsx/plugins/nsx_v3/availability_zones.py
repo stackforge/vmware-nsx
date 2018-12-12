@@ -52,6 +52,7 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
         self.switching_profiles = cfg.CONF.nsx_v3.switching_profiles
         self.dhcp_relay_service = cfg.CONF.nsx_v3.dhcp_relay_service
         self.default_tier0_router = cfg.CONF.nsx_v3.default_tier0_router
+        self.edge_cluster_uuid = cfg.CONF.nsx_v3.edge_cluster_uuid
 
     def translate_configured_names_to_uuids(self, nsxlib):
         # Mandatory configurations (in AZ or inherited from global values)

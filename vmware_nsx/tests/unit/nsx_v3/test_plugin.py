@@ -2964,6 +2964,24 @@ class TestL3NatTestCase(L3NatTest,
         self._test_route_update_illegal('0.0.0.0/0')
         self._test_route_update_illegal('0.0.0.0/16')
 
+    def test_update_router_distinct_edge_cluster(self):
+        with self.address_scope(name='as1') as addr_scope, \
+                self._create_l3_ext_network() as ext_net:
+            ext_subnet = self._prepare_external_subnet_on_address_scope(
+                ext_net, addr_scope)
+
+            # create a router with this gateway
+            with self.router() as r, \
+                    self._mock_add_remove_service_router() as change_sr, \
+                    cfg.CONF.set_override('edge_cluster_uuid',
+                                          uuidutils.generate_uuid()):
+                router_id = r['router']['id']
+                self._add_external_gateway_to_router(
+                    router_id, ext_subnet['network_id'])
+                self.assertIsNotNone(change_sr.call_args_list[0][0][1])
+
+
+
 
 class ExtGwModeTestCase(test_ext_gw_mode.ExtGwModeIntTestCase,
                         L3NatTest):
