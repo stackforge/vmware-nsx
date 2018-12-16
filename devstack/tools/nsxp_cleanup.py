@@ -100,8 +100,13 @@ class NSXClient(object):
 
         if self.neutron_db:
             db_sgs = self.neutron_db.get_security_groups()
-            groups = [g for g in groups if g['id'] in db_sgs]
+            filtered_groups = [g for g in groups if g['id'] in db_sgs]
             maps = [m for m in maps if m['id'] in db_sgs]
+            # Add groups based on SG rules local/remote ips
+            db_rules = self.neutron_db.get_security_groups_rules()
+            filtered_groups.extend([g for g in groups
+                                   if g['id'][:36] in db_rules])
+            groups = filtered_groups
         return groups, maps
 
     def cleanup_security_groups(self, domain_id):
@@ -219,7 +224,6 @@ class NSXClient(object):
         self.cleanup_tier1_routers()
         self.cleanup_rules_services()
         self.cleanup_domains(domains)
-        return
 
 
 if __name__ == "__main__":
