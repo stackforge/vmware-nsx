@@ -1,0 +1,9 @@
+# This file contains runtime (non-python) dependencies
+# More info at: http://docs.openstack.org/infra/bindep/readme.html
+
+mysql-client [platform:dpkg]
+mysql-server [platform:dpkg]
+postgresql-client [platform:dpkg]
+postgresql-server-dev-all [platform:dpkg]
+python-all-dev [platform:dpkg]
+python3-all-dev [platform:dpkg]
