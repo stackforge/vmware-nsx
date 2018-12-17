@@ -1162,7 +1162,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 net['name'] or 'network', network_id)
             segment_id = self._get_network_nsx_segment_id(context, network_id)
             self.nsxpolicy.segment.update(segment_id, name=net_name,
-                                          tier1_id=None)
+                                          tier1_id=None, subnets=[])
 
             # try to delete the SNAT/NO_DNAT rules of this subnet
             router_db = self._get_router(context, router_id)
