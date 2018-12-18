@@ -59,6 +59,7 @@ from neutron_lib.db import utils as db_utils
 from neutron_lib import exceptions as n_exc
 
 from vmware_nsx._i18n import _
+from vmware_nsx.common import availability_zones as nsx_com_az
 from vmware_nsx.common import config  # noqa
 from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.common import l3_rpc_agent_api
@@ -115,6 +116,7 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                       extradhcpopt_db.ExtraDhcpOptMixin,
                       dns_db.DNSDbMixin,
                       vlantransparent_db.Vlantransparent_db_mixin,
+                      nsx_com_az.NSXAvailabilityZonesPluginCommon,
                       mac_db.MacLearningDbMixin,
                       l3_attrs_db.ExtraAttributesMixin):
 
@@ -137,6 +139,9 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                    "external-net",
                                    "extraroute",
                                    "router",
+                                   "availability_zone",
+                                   "network_availability_zone",
+                                   "router_availability_zone",
                                    "subnet_allocation",
                                    "security-group-logging",
                                    "provider-security-group",
@@ -238,6 +243,10 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             cfg.CONF.nsx_p.default_vlan_tz,
             filter_list_results=lambda tzs: [
                 tz for tz in tzs if tz['tz_type'].startswith('VLAN')])
+
+        # Init AZ resources
+        for az in self.get_azs_list():
+            az.translate_configured_names_to_uuids(self.nsxpolicy)
 
     def init_availability_zones(self):
         self._availability_zones_data = nsxp_az.NsxPAvailabilityZones()
@@ -1738,3 +1747,15 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         super(NsxPolicyPlugin, self).delete_security_group_rule(
             context, rule_id)
+
+    def _list_availability_zones(self, context, filters=None):
+        result = {}
+        for az in self._availability_zones_data.list_availability_zones():
+            # Add this availability zone as a network & router resource
+            if filters:
+                if 'name' in filters and az not in filters['name']:
+                    continue
+            for res in ['network', 'router']:
+                if 'resource' not in filters or res in filters['resource']:
+                    result[(az, res)] = True
+        return result

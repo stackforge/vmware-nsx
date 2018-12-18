@@ -168,7 +168,6 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                   dns_db.DNSDbMixin,
                   vlantransparent_db.Vlantransparent_db_mixin,
                   mac_db.MacLearningDbMixin,
-                  nsx_com_az.NSXAvailabilityZonesPluginCommon,
                   l3_attrs_db.ExtraAttributesMixin,
                   hk_ext.Housekeeper):
 
