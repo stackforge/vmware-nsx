@@ -266,25 +266,33 @@ class NsxPluginV3Base(plugin.NsxPluginBase,
             if is_external_net:
                 raise nsx_exc.QoSOnExternalNet()
 
-    def _validate_update_network(self, context, id, original_net, net_data):
+    def _validate_update_network(self, context, net_id, original_net,
+                                 net_data):
         """Validate the updated parameters of a network
 
         This method includes general validations that does not depend on
         provider attributes, or plugin specific configurations
         """
-        extern_net = self._network_is_external(context, id)
+        extern_net = self._network_is_external(context, net_id)
         with_qos = validators.is_attr_set(
             net_data.get(qos_consts.QOS_POLICY_ID))
 
         # Do not allow QoS on external networks
-        if with_qos and extern_net:
-            raise nsx_exc.QoSOnExternalNet()
+        if with_qos:
+            if extern_net:
+                raise nsx_exc.QoSOnExternalNet()
+            self._validate_qos_policy_id(
+                context, net_data.get(qos_consts.QOS_POLICY_ID))
 
         # Do not support changing external/non-external networks
         if (extnet_apidef.EXTERNAL in net_data and
             net_data[extnet_apidef.EXTERNAL] != extern_net):
             err_msg = _("Cannot change the router:external flag of a network")
             raise n_exc.InvalidInput(error_message=err_msg)
+
+        is_ens_net = self._is_ens_tz_net(context, net_id)
+        if is_ens_net:
+            self._assert_on_ens_with_qos(net_data)
 
     def _assert_on_illegal_port_with_qos(self, device_owner):
         # Prevent creating/update port with QoS policy
@@ -306,6 +314,23 @@ class NsxPluginV3Base(plugin.NsxPluginBase,
                         "network")
             LOG.warning(err_msg)
             raise n_exc.InvalidInput(error_message=err_msg)
+
+    def _validate_ens_create_port(self, context, port_data):
+        qos_selected = validators.is_attr_set(port_data.get(
+            qos_consts.QOS_POLICY_ID))
+        if qos_selected:
+            err_msg = _("Cannot configure QOS on ENS networks")
+            raise n_exc.InvalidInput(error_message=err_msg)
+
+    def _assert_on_port_admin_state(self, port_data, device_owner):
+        """Do not allow changing the admin state of some ports"""
+        if (device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF or
+            device_owner == l3_db.DEVICE_OWNER_ROUTER_GW):
+            if port_data.get("admin_state_up") is False:
+                err_msg = _("admin_state_up=False router ports are not "
+                            "supported")
+                LOG.warning(err_msg)
+                raise n_exc.InvalidInput(error_message=err_msg)
 
     def _validate_create_port(self, context, port_data):
         self._validate_max_ips_per_port(port_data.get('fixed_ips', []),
@@ -330,6 +355,10 @@ class NsxPluginV3Base(plugin.NsxPluginBase,
             self._assert_on_external_net_with_compute(port_data)
 
         self._assert_on_port_admin_state(port_data, device_owner)
+
+        is_ens_tz_port = self._is_ens_tz_port(context, port_data)
+        if is_ens_tz_port:
+            self._validate_ens_create_port(context, port_data)
 
     def _assert_on_vpn_port_change(self, port_data):
         if port_data['device_owner'] == ipsec_utils.VPN_PORT_OWNER:
@@ -401,6 +430,7 @@ class NsxPluginV3Base(plugin.NsxPluginBase,
         device_owner = (port_data['device_owner']
                         if 'device_owner' in port_data
                         else original_port.get('device_owner'))
+        is_ens_tz_port = self._is_ens_tz_port(context, original_port)
 
         # QoS validations
         if qos_selected:
@@ -409,6 +439,9 @@ class NsxPluginV3Base(plugin.NsxPluginBase,
             if is_external_net:
                 raise nsx_exc.QoSOnExternalNet()
             self._assert_on_illegal_port_with_qos(device_owner)
+        if is_ens_tz_port:
+            err_msg = _("Cannot configure QOS on ENS networks")
+            raise n_exc.InvalidInput(error_message=err_msg)
 
         # External networks validations:
         if is_external_net:
@@ -525,6 +558,52 @@ class NsxPluginV3Base(plugin.NsxPluginBase,
             err_msg = _("Cannot configure QOS on ENS networks")
             raise n_exc.InvalidInput(error_message=err_msg)
 
+    def _get_created_port_qos_policy_id(self, context, port_data):
+        """Return the QoS policy Id of a new port that is being created
+
+        Return the QoS policy assigned directly to the port, or the policy
+        of the network, if it is a compute port that should inherit it
+        """
+        qos_policy_id = None
+        device_owner = port_data.get('device_owner')
+        if validators.is_attr_set(port_data.get(qos_consts.QOS_POLICY_ID)):
+            qos_policy_id = port_data[qos_consts.QOS_POLICY_ID]
+        elif device_owner.startswith(constants.DEVICE_OWNER_COMPUTE_PREFIX):
+            # check if the network of this port has a policy
+            qos_policy_id = qos_com_utils.get_network_policy_id(
+                context, port_data['network_id'])
+        return qos_policy_id
+
+    def _get_updated_port_qos_policy_id(self, context, original_port,
+                                        updated_port):
+        """Return the QoS policy Id of a port that is being updated
+
+        Return the QoS policy assigned directly to the port (after update or
+        originally), or the policy of the network, if it is a compute port that
+        should inherit it.
+        """
+        orig_compute = original_port.get('device_owner').startswith(
+            constants.DEVICE_OWNER_COMPUTE_PREFIX)
+        updated_compute = updated_port.get('device_owner').startswith(
+            constants.DEVICE_OWNER_COMPUTE_PREFIX)
+        is_new_compute = updated_compute and not orig_compute
+
+        qos_policy_id = None
+        if (qos_consts.QOS_POLICY_ID in updated_port):
+            qos_policy_id = updated_port[qos_consts.QOS_POLICY_ID]
+        else:
+            # Look for the original QoS policy of this port
+            qos_policy_id = qos_com_utils.get_port_policy_id(
+                context, updated_port['id'])
+        # If the port is now a 'compute' port (attached to a vm) and
+        # Qos policy was not configured on the port directly,
+        # try to take it from the ports network
+        if qos_policy_id is None and is_new_compute:
+            # check if the network of this port has a policy
+            qos_policy_id = qos_com_utils.get_network_policy_id(
+                context, updated_port.get('network_id'))
+        return qos_policy_id
+
     def _ens_psec_supported(self):
         """Should be implemented by each plugin"""
         pass
@@ -538,6 +617,14 @@ class NsxPluginV3Base(plugin.NsxPluginBase,
         Should be implemented by the plugin if necessary
         """
         pass
+
+    def _is_ens_tz_net(self, context, network_id):
+        """Should be implemented by each plugin"""
+        pass
+
+    def _is_ens_tz_port(self, context, port_data):
+        # Check the host-switch-mode of the TZ connected to the ports network
+        return self._is_ens_tz_net(context, port_data['network_id'])
 
     def _generate_segment_id(self, context, physical_network, net_data):
         bindings = nsx_db.get_network_bindings_by_phy_uuid(
@@ -572,7 +659,7 @@ class NsxPluginV3Base(plugin.NsxPluginBase,
         - net_type: provider network type or None
         - physical_net: the uuid of the relevant transport zone or None
         - vlan_id: vlan tag, 0 or None
-        - switch_mode: standard ot ENS
+        - switch_mode: standard or ENS
         """
         is_provider_net = any(
             validators.is_attr_set(network_data.get(f))
@@ -750,6 +837,12 @@ class NsxPluginV3Base(plugin.NsxPluginBase,
             if port_data[pbin.VNIC_TYPE] != pbin.VNIC_NORMAL:
                 port_data[pbin.VIF_DETAILS]['segmentation-id'] = (
                     self._get_network_segmentation_id(context, net_id))
+
+    def _extend_qos_port_dict_binding(self, context, port):
+        # add the qos policy id from the DB
+        if 'id' in port:
+            port[qos_consts.QOS_POLICY_ID] = qos_com_utils.get_port_policy_id(
+                context, port['id'])
 
     def fix_direct_vnic_port_sec(self, direct_vnic_type, port_data):
         if direct_vnic_type:
