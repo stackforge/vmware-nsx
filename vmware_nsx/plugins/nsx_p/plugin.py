@@ -62,6 +62,7 @@ from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.plugins.common_v3 import plugin as nsx_plugin_common
 from vmware_nsx.plugins.nsx_p import availability_zones as nsxp_az
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
+from vmware_nsx.services.lbaas.nsx_p.v2 import lb_driver_v2
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
 from vmware_nsx.services.qos.nsx_v3 import pol_utils as qos_utils
@@ -176,6 +177,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         self._prepare_default_rules()
         self._init_segment_profiles()
         self._init_dhcp_metadata()
+        self.lbv2_driver = self._init_lbv2_driver()
 
         # Init QoS
         qos_driver.register(qos_utils.PolicyQosNotificationsHandler())
@@ -296,6 +298,13 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
     @staticmethod
     def plugin_type():
         return projectpluginmap.NsxPlugins.NSX_P
+
+    def _init_lbv2_driver(self):
+        # Get LBaaSv2 driver during plugin initialization. If the platform
+        # has a version that doesn't support native loadbalancing, the driver
+        # will return a NotImplementedManager class.
+        LOG.debug("Initializing LBaaSv2.0 nsxp driver")
+        return lb_driver_v2.EdgeLoadbalancerDriverV2()
 
     @staticmethod
     def is_tvd_plugin():
@@ -2004,3 +2013,6 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
                     'tz': tz_uuid,
                     'net': sub['network_id']})
                 raise n_exc.InvalidInput(error_message=msg)
+
+    def service_router_has_services(self, context, router_id):
+        pass
