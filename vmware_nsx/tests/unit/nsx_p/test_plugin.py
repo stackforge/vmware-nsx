@@ -35,8 +35,8 @@ from neutron_lib.callbacks import resources
 from neutron_lib import constants
 from neutron_lib import context
 from neutron_lib import exceptions as n_exc
-from neutron_lib.plugins import directory
 from neutron_lib.objects import registry as obj_reg
+from neutron_lib.plugins import directory
 
 from vmware_nsx.common import utils
 from vmware_nsx.tests.unit.common_plugin import common_v3

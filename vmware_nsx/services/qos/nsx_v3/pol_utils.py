@@ -17,14 +17,14 @@
 from oslo_config import cfg
 from oslo_log import log as logging
 
-from neutron_lib.api import validators
 from neutron_lib import constants as n_consts
 from neutron_lib import exceptions as n_exc
 from neutron_lib.plugins import directory
 from neutron_lib.services.qos import constants as qos_consts
 
 from vmware_nsx._i18n import _
-from vmware_nsx.common import exceptions as nsx_exc
+from vmware_nsx.common import utils
+from vmware_nsxlib.v3 import policy_defs
 
 LOG = logging.getLogger(__name__)
 
@@ -54,26 +54,44 @@ class PolicyQosNotificationsHandler(object):
     def _nsxpolicy(self):
         return self.core_plugin.nsxpolicy
 
-    def create_policy(self, context, policy):
+    def create_or_update_policy(self, context, policy):
         policy_id = policy.id
         tags = self.nsxpolicy.build_v3_api_version_project_tag(
-            context.tenant_name,
-            #project_id=policy.tenant_id  # TODO(asarfaty) wait for nsxlib fix
-            )
+            context.tenant_name)
+        pol_name = utils.get_name_and_uuid(policy.name or 'policy',
+                                           policy.id)
 
-        self._nsxlib_qos.create(profile_id=policy_id, tags=tags)
+        shapers = []
+        dscp = None
+        if (hasattr(policy, "rules")):
+            for rule in policy["rules"]:
+                if rule.rule_type == qos_consts.RULE_TYPE_BANDWIDTH_LIMIT:
+                    if rule.direction == n_consts.EGRESS_DIRECTION:
+                        # the NSX direction is opposite to the neutron one
+                        shapers.append(self._get_shaper_from_rule(
+                            rule, is_ingress=True))
+                    else:
+                        # the NSX direction is opposite to the neutron one
+                        shapers.append(self._get_shaper_from_rule(
+                            rule, is_ingress=False))
+                elif rule.rule_type == qos_consts.RULE_TYPE_DSCP_MARKING:
+                    dscp = self._get_dscp_from_rule(rule)
+                else:
+                    LOG.warning("The NSX-Policy plugin does not support QoS "
+                                "rule of type %s", rule.rule_type)
+
+        self._nsxlib_qos.create(pol_name, profile_id=policy_id,
+                                dscp=dscp, shaper_configurations=shapers,
+                                tags=tags)
+
+    def create_policy(self, context, policy):
+        return self.create_or_update_policy(context, policy)
 
     def delete_policy(self, context, policy_id):
         self._nsxlib_qos.delete(policy_id)
 
     def update_policy(self, context, policy_id, policy):
-        # tags = self._get_tags(context, policy)
-        # self._nsxlib_qos.update(
-        #     profile_id,
-        #     tags=tags,
-        #     name=policy.name,
-        #     description=policy.description)
-        pass
+        return self.create_or_update_policy(context, policy)
 
     def _validate_bw_values(self, bw_rule):
         """Validate that the configured values are allowed by the NSX backend.
@@ -98,88 +116,59 @@ class PolicyQosNotificationsHandler(object):
             LOG.error(msg)
             raise n_exc.InvalidInput(error_message=msg)
 
-    def _get_bw_values_from_rule(self, bw_rule):
-        """Translate the neutron bandwidth_limit_rule values, into the
-        values expected by the NSX-Policy QoS switch profile,
-        and validate that those are legal
+    def _get_shaper_from_rule(self, bw_rule, is_ingress):
+        """Translate the neutron bandwidth_limit_rule values into the
+        NSX-lib Policy QoS shaper
         """
+        if is_ingress:
+            shaper = policy_defs.QoSIngressRateLimiter
+            avg_field_name = 'average_bandwidth_kbps'
+            peak_field_name = 'peak_bandwidth_kbps'
+        else:
+            shaper = policy_defs.QoSEgressRateLimiter
+            avg_field_name = 'average_bandwidth_mbps'
+            peak_field_name = 'peak_bandwidth_mbps'
+
+        kwargs = {}
         if bw_rule:
-            shaping_enabled = True
+            kwargs['enabled'] = True
 
             # translate kbps -> bytes
-            burst_size = int(bw_rule.max_burst_kbps) * 128
+            kwargs['burst_size_bytes'] = int(bw_rule.max_burst_kbps) * 128
 
-            # translate kbps -> Mbps
-            average_bandwidth = int(round(float(bw_rule.max_kbps) / 1024))
+            if is_ingress:
+                kwargs[avg_field_name] = int(bw_rule.max_kbps)
+            else:
+                # translate kbps -> Mbps
+                kwargs[avg_field_name] = int(round(
+                    float(bw_rule.max_kbps) / 1024))
 
             # peakBandwidth: a Multiplying on the average BW
             # because the neutron qos configuration supports
             # only 1 value
-            peak_bandwidth = int(round(average_bandwidth *
-                                       cfg.CONF.NSX.qos_peak_bw_multiplier))
+            kwargs[peak_field_name] = int(round(kwargs[avg_field_name] *
+                                          cfg.CONF.NSX.qos_peak_bw_multiplier))
         else:
-            shaping_enabled = False
-            burst_size = None
-            peak_bandwidth = None
-            average_bandwidth = None
+            kwargs['enabled'] = False
 
-        return shaping_enabled, burst_size, peak_bandwidth, average_bandwidth
+        return shaper(kwargs)
 
-    def _get_dscp_values_from_rule(self, dscp_rule):
-        """Translate the neutron DSCP marking rule values, into the
-        values expected by the NSX-Policy QoS switch profile
+    def _get_dscp_from_rule(self, dscp_rule):
+        """Translate the neutron DSCP marking rule values into NSX-lib
+        Policy QoS Dscp object
         """
         if dscp_rule:
-            qos_marking = 'untrusted'
-            dscp = dscp_rule.dscp_mark
+            mode = policy_defs.QoSDscp.QOS_DSCP_UNTRUSTED
+            priority = dscp_rule.dscp_mark
         else:
-            qos_marking = 'trusted'
-            dscp = 0
+            mode = policy_defs.QoSDscp.QOS_DSCP_TRUSTED
+            mode = 0
 
-        return qos_marking, dscp
+        return policy_defs.QoSDscp(mode=mode, priority=priority)
 
     def update_policy_rules(self, context, policy_id, rules):
-        """Update the QoS switch profile with the BW limitations and
-        DSCP marking configuration
-        """
-        # profile_id = nsx_db.get_switch_profile_by_qos_policy(
-        #     context.session, policy_id)
-
-        # ingress_bw_rule = None
-        # egress_bw_rule = None
-        # dscp_rule = None
-        # for rule in rules:
-        #     if rule.rule_type == qos_consts.RULE_TYPE_BANDWIDTH_LIMIT:
-        #         if rule.direction == n_consts.EGRESS_DIRECTION:
-        #             egress_bw_rule = rule
-        #         else:
-        #             ingress_bw_rule = rule
-        #     elif rule.rule_type == qos_consts.RULE_TYPE_DSCP_MARKING:
-        #         dscp_rule = rule
-        #     else:
-        #         LOG.warning("The NSX-Policy plugin does not support QoS rule of "
-        #                     "type %s", rule.rule_type)
-
-        # # the NSX direction is opposite to the neutron direction
-        # (ingress_bw_enabled, ingress_burst_size, ingress_peak_bw,
-        #     ingress_average_bw) = self._get_bw_values_from_rule(egress_bw_rule)
-
-        # (egress_bw_enabled, egress_burst_size, egress_peak_bw,
-        #     egress_average_bw) = self._get_bw_values_from_rule(ingress_bw_rule)
-
-        # qos_marking, dscp = self._get_dscp_values_from_rule(dscp_rule)
-
-        # self._nsxlib_qos.set_profile_shaping(
-        #     profile_id,
-        #     ingress_bw_enabled=ingress_bw_enabled,
-        #     ingress_burst_size=ingress_burst_size,
-        #     ingress_peak_bandwidth=ingress_peak_bw,
-        #     ingress_average_bandwidth=ingress_average_bw,
-        #     egress_bw_enabled=egress_bw_enabled,
-        #     egress_burst_size=egress_burst_size,
-        #     egress_peak_bandwidth=egress_peak_bw,
-        #     egress_average_bandwidth=egress_average_bw,
-        #     qos_marking=qos_marking, dscp=dscp)
+        """This handler will do all the updates through the create_or_update"""
+        pass
 
     def validate_policy_rule(self, context, policy_id, rule):
         """Raise an exception if the rule values are not supported"""
