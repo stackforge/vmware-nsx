@@ -19,12 +19,17 @@ from oslo_config import cfg
 from oslo_utils import uuidutils
 from webob import exc
 
+from neutron.extensions import address_scope
+from neutron.extensions import l3
 from neutron.extensions import securitygroup as secgrp
 from neutron.tests.unit.db import test_db_base_plugin_v2
+from neutron.tests.unit.extensions import test_address_scope
 from neutron.tests.unit.extensions import test_l3 as test_l3_plugin
 from neutron.tests.unit.extensions import test_securitygroup
 
 from neutron_lib.api.definitions import external_net as extnet_apidef
+from neutron_lib.api.definitions import extraroute as xroute_apidef
+from neutron_lib.api.definitions import l3_ext_gw_mode as l3_egm_apidef
 from neutron_lib.api.definitions import port_security as psec
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.api.definitions import provider_net as pnet
@@ -561,16 +566,37 @@ class NsxPTestSecurityGroup(NsxPPluginTestCaseMixin,
             self.assertEqual(res.status_int, exc.HTTPBadRequest.code)
 
 
-class TestL3NatTestCase(common_v3.FixExternalNetBaseTest,
-                        NsxPPluginTestCaseMixin,
-                        test_l3_plugin.L3NatDBIntTestCase):
+class NsxPTestL3ExtensionManager(object):
+
+    def get_resources(self):
+        # Simulate extension of L3 attribute map
+        l3.L3().update_attributes_map(
+            l3_egm_apidef.RESOURCE_ATTRIBUTE_MAP)
+        l3.L3().update_attributes_map(
+            xroute_apidef.RESOURCE_ATTRIBUTE_MAP)
+        return (l3.L3.get_resources() +
+                address_scope.Address_scope.get_resources())
+
+    def get_actions(self):
+        return []
+
+    def get_request_extensions(self):
+        return []
+
+
+class NsxPTestL3NatTestCase(common_v3.FixExternalNetBaseTest,
+                            NsxPPluginTestCaseMixin,
+                            test_l3_plugin.L3NatDBIntTestCase,
+                            test_address_scope.AddressScopeTestCase):
 
     # TODO(asarfaty): also add the tests from:
     # test_l3_plugin.L3BaseForIntTests
-    # test_address_scope.AddressScopeTestCase
     # test_ext_route.ExtraRouteDBTestCaseBase
     def setUp(self, *args, **kwargs):
-        super(TestL3NatTestCase, self).setUp(*args, **kwargs)
+        kwargs['ext_mgr'] = (kwargs.get('ext_mgr') or
+                             NsxPTestL3ExtensionManager())
+
+        super(NsxPTestL3NatTestCase, self).setUp(*args, **kwargs)
         self.original_subnet = self.subnet
         self.original_network = self.network
 
@@ -700,209 +726,209 @@ class TestL3NatTestCase(common_v3.FixExternalNetBaseTest,
 
     @common_v3.with_external_subnet
     def test_router_update_gateway_with_external_ip_used_by_gw(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_update_gateway_with_external_ip_used_by_gw()
 
     @common_v3.with_external_subnet
     def test_router_update_gateway_with_invalid_external_ip(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_update_gateway_with_invalid_external_ip()
 
     @common_v3.with_external_subnet
     def test_router_update_gateway_with_invalid_external_subnet(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_update_gateway_with_invalid_external_subnet()
 
     @common_v3.with_external_network
     def test_router_update_gateway_with_different_external_subnet(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_update_gateway_with_different_external_subnet()
 
     @common_v3.with_external_subnet_once
     def test_router_update_gateway_with_existed_floatingip(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_update_gateway_with_existed_floatingip()
 
     @common_v3.with_external_network
     def test_router_update_gateway_add_multiple_prefixes_ipv6(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_update_gateway_add_multiple_prefixes_ipv6()
 
     @common_v3.with_external_network
     def test_router_concurrent_delete_upon_subnet_create(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_concurrent_delete_upon_subnet_create()
 
     @common_v3.with_external_network
     def test_router_update_gateway_upon_subnet_create_ipv6(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_update_gateway_upon_subnet_create_ipv6()
 
     @common_v3.with_external_network
     def test_router_update_gateway_upon_subnet_create_max_ips_ipv6(self):
         super(
-            TestL3NatTestCase,
+            NsxPTestL3NatTestCase,
             self).test_router_update_gateway_upon_subnet_create_max_ips_ipv6()
 
     @common_v3.with_external_subnet_second_time
     def test_router_add_interface_cidr_overlapped_with_gateway(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_add_interface_cidr_overlapped_with_gateway()
 
     @common_v3.with_external_subnet
     def test_router_add_gateway_dup_subnet2_returns_400(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_add_gateway_dup_subnet2_returns_400()
 
     @common_v3.with_external_subnet
     def test_router_update_gateway(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_update_gateway()
 
     @common_v3.with_external_subnet
     def test_router_create_with_gwinfo(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_create_with_gwinfo()
 
     @common_v3.with_external_subnet
     def test_router_clear_gateway_callback_failure_returns_409(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_clear_gateway_callback_failure_returns_409()
 
     @common_v3.with_external_subnet
     def test_router_create_with_gwinfo_ext_ip(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_create_with_gwinfo_ext_ip()
 
     @common_v3.with_external_network
     def test_router_create_with_gwinfo_ext_ip_subnet(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_create_with_gwinfo_ext_ip_subnet()
 
     @common_v3.with_external_subnet_second_time
     def test_router_delete_with_floatingip_existed_returns_409(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_delete_with_floatingip_existed_returns_409()
 
     @common_v3.with_external_subnet
     def test_router_add_and_remove_gateway_tenant_ctx(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_add_and_remove_gateway_tenant_ctx()
 
     @common_v3.with_external_subnet_second_time
     def test_router_add_interface_by_port_cidr_overlapped_with_gateway(self):
-        super(TestL3NatTestCase, self).\
+        super(NsxPTestL3NatTestCase, self).\
             test_router_add_interface_by_port_cidr_overlapped_with_gateway()
 
     @common_v3.with_external_network
     def test_router_add_gateway_multiple_subnets_ipv6(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_add_gateway_multiple_subnets_ipv6()
 
     @common_v3.with_external_subnet
     def test_router_add_and_remove_gateway(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_router_add_and_remove_gateway()
 
     @common_v3.with_external_subnet
     def test_floatingip_list_with_sort(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_floatingip_list_with_sort()
 
     @common_v3.with_external_subnet_once
     def test_floatingip_with_assoc_fails(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_floatingip_with_assoc_fails()
 
     @common_v3.with_external_subnet_second_time
     def test_floatingip_update_same_fixed_ip_same_port(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_floatingip_update_same_fixed_ip_same_port()
 
     @common_v3.with_external_subnet
     def test_floatingip_list_with_pagination_reverse(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_floatingip_list_with_pagination_reverse()
 
     @common_v3.with_external_subnet_once
     def test_floatingip_association_on_unowned_router(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_floatingip_association_on_unowned_router()
 
     @common_v3.with_external_network
     def test_delete_ext_net_with_disassociated_floating_ips(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_delete_ext_net_with_disassociated_floating_ips()
 
     @common_v3.with_external_network
     def test_create_floatingip_with_subnet_and_invalid_fip_address(self):
         super(
-            TestL3NatTestCase,
+            NsxPTestL3NatTestCase,
             self).test_create_floatingip_with_subnet_and_invalid_fip_address()
 
     @common_v3.with_external_subnet
     def test_create_floatingip_with_duplicated_specific_ip(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_create_floatingip_with_duplicated_specific_ip()
 
     @common_v3.with_external_subnet
     def test_create_floatingip_with_subnet_id_non_admin(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_create_floatingip_with_subnet_id_non_admin()
 
     @common_v3.with_external_subnet
     def test_floatingip_list_with_pagination(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_floatingip_list_with_pagination()
 
     @common_v3.with_external_subnet
     def test_create_floatingips_native_quotas(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_create_floatingips_native_quotas()
 
     @common_v3.with_external_network
     def test_create_floatingip_with_multisubnet_id(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_create_floatingip_with_multisubnet_id()
 
     @common_v3.with_external_network
     def test_create_floatingip_with_subnet_id_and_fip_address(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_create_floatingip_with_subnet_id_and_fip_address()
 
     @common_v3.with_external_subnet
     def test_create_floatingip_with_specific_ip(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_create_floatingip_with_specific_ip()
 
     @common_v3.with_external_network
     def test_create_floatingip_ipv6_and_ipv4_network_creates_ipv4(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_create_floatingip_ipv6_and_ipv4_network_creates_ipv4()
 
     @common_v3.with_external_subnet_once
     def test_create_floatingip_non_admin_context_agent_notification(self):
         super(
-            TestL3NatTestCase,
+            NsxPTestL3NatTestCase,
             self).test_create_floatingip_non_admin_context_agent_notification()
 
     @common_v3.with_external_subnet
     def test_create_floatingip_no_ext_gateway_return_404(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_create_floatingip_no_ext_gateway_return_404()
 
     @common_v3.with_external_subnet
     def test_create_floatingip_with_specific_ip_out_of_allocation(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_create_floatingip_with_specific_ip_out_of_allocation()
 
     @common_v3.with_external_subnet_third_time
     def test_floatingip_update_different_router(self):
-        super(TestL3NatTestCase,
+        super(NsxPTestL3NatTestCase,
               self).test_floatingip_update_different_router()
 
     def test_floatingip_update(self):
-        super(TestL3NatTestCase, self).test_floatingip_update(
+        super(NsxPTestL3NatTestCase, self).test_floatingip_update(
             expected_status=constants.FLOATINGIP_STATUS_DOWN)
 
     @common_v3.with_external_subnet_second_time
