@@ -368,9 +368,6 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             net_data, resource_type='os-neutron-net-id',
             project_name=context.tenant_name)
 
-        # TODO(annak): admin state config is missing on policy
-        # should we not create networks that are down?
-        # alternative - configure status on manager for time being
         admin_state = net_data.get('admin_state_up', True)
         LOG.debug('create_network: %(net_name)s, %(physical_net)s, '
                   '%(tags)s, %(admin_state)s, %(vlan_id)s',
@@ -394,6 +391,11 @@ class NsxPolicyPlugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             vlan_ids=vlan_ids,
             transport_zone_id=provider_data['physical_net'],
             tags=tags)
+
+        if not admin_state:
+            # This api uses the passthrough api
+            self.nsxpolicy.segment.set_admin_state(
+                net_data['id'], admin_state)
 
     def _tier0_validator(self, tier0_uuid):
         # Fail of the tier0 uuid was not found on the BSX
