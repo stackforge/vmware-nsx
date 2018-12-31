@@ -41,6 +41,7 @@ from neutron.extensions import securitygroup as ext_sg
 from neutron_lib.api.definitions import allowedaddresspairs as addr_apidef
 from neutron_lib.api.definitions import availability_zone as az_def
 from neutron_lib.api.definitions import external_net as extnet_apidef
+from neutron_lib.api.definitions import extra_dhcp_opt as ext_edo
 from neutron_lib.api.definitions import port_security as psec
 from neutron_lib.api.definitions import portbindings as pbin
 from neutron_lib.api.definitions import provider_net as pnet
@@ -112,20 +113,30 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         super(NsxPluginV3Base, self).__init__()
         self._network_vlans = plugin_utils.parse_network_vlan_ranges(
             self._get_conf_attr('network_vlan_ranges'))
+        self._native_dhcp_enabled = False
 
     def _init_native_dhcp(self):
         if not self.nsxlib:
             return
 
+        profile = self._get_conf_attr('dhcp_profile')
+        if not profile:
+            raise cfg.RequiredOptError("dhcp_profile",
+                                       group=self.cfg_group)
         try:
             for az in self.get_azs_list():
                 self.nsxlib.native_dhcp_profile.get(
                     az._native_dhcp_profile_uuid)
+
+            self.nsxlib.native_dhcp_profile.get(profile)
+
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error("Unable to retrieve DHCP Profile %s, "
                           "native DHCP service is not supported",
                           az._native_dhcp_profile_uuid)
+
+        self._native_dhcp_enabled = True
 
     def _get_conf_attr(self, attr):
         plugin_cfg = getattr(cfg.CONF, self.cfg_group)
@@ -1201,6 +1212,7 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # Disable native DHCP service on the backend for this network.
         # First delete the DHCP port in this network. Then delete the
         # corresponding LogicalDhcpServer for this network.
+        self._ensure_native_dhcp()
         dhcp_service = nsx_db.get_nsx_service_binding(
             context.session, network_id, nsxlib_consts.SERVICE_DHCP)
         if not dhcp_service:
@@ -1348,6 +1360,16 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # Validate against the configured AZs
         return self.validate_obj_azs(availability_zones)
 
+    def _ensure_nsxlib(self, feature):
+        if not self.nsxlib:
+            msg = (_("%s is not supported since passthough API is disabled") %
+                   feature)
+            LOG.error(msg)
+            raise n_exc.InvalidInput(error_message=msg)
+
+    def _ensure_native_dhcp(self):
+        self._ensure_nsxlib("Native DHCP")
+
     def _create_subnet(self, context, subnet):
         self._validate_host_routes_input(subnet)
 
@@ -1386,12 +1408,8 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                             context,
                             subnet['subnet']['network_id']).dhcp_relay_service
                         if not dhcp_relay:
-                            if self.nsxlib:
-                                self._enable_native_dhcp(context, network,
-                                                         created_subnet)
-                            else:
-                                msg = (_("Native DHCP is not supported since "
-                                         "passthough API is disabled"))
+                            self._enable_native_dhcp(context, network,
+                                                     created_subnet)
                         msg = None
                     else:
                         msg = (_("Can not create more than one DHCP-enabled "
@@ -1443,6 +1461,119 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                             context, subnet_id)
                         return
         super(NsxPluginV3Base, self).delete_subnet(context, subnet_id)
+
+    def _update_subnet(self, context, subnet_id, subnet):
+        updated_subnet = None
+        orig_subnet = self.get_subnet(context, subnet_id)
+        self._validate_host_routes_input(
+            subnet,
+            orig_enable_dhcp=orig_subnet['enable_dhcp'],
+            orig_host_routes=orig_subnet['host_routes'])
+        if self._has_native_dhcp_metadata():
+            enable_dhcp = subnet['subnet'].get('enable_dhcp')
+            if (enable_dhcp is not None and
+                enable_dhcp != orig_subnet['enable_dhcp']):
+                lock = 'nsxv3_network_' + orig_subnet['network_id']
+                with locking.LockManager.get_lock(lock):
+                    network = self._get_network(
+                        context, orig_subnet['network_id'])
+                    if enable_dhcp:
+                        (ddi_support,
+                         ddi_type) = self._is_ddi_supported_on_net_with_type(
+                            context, orig_subnet['network_id'])
+                        if ddi_support:
+                            if self._has_no_dhcp_enabled_subnet(
+                                context, network):
+                                updated_subnet = super(
+                                    NsxPluginV3Base, self).update_subnet(
+                                    context, subnet_id, subnet)
+                                self._extension_manager.process_update_subnet(
+                                    context, subnet['subnet'], updated_subnet)
+                                self._enable_native_dhcp(context, network,
+                                                         updated_subnet)
+                                msg = None
+                            else:
+                                msg = (_("Multiple DHCP-enabled subnets is "
+                                         "not allowed in network %s") %
+                                       orig_subnet['network_id'])
+                        else:
+                            msg = (_("Native DHCP is not supported for "
+                                     "%(type)s network %(id)s") %
+                                   {'id': orig_subnet['network_id'],
+                                    'type': ddi_type})
+                        if msg:
+                            LOG.error(msg)
+                            raise n_exc.InvalidInput(error_message=msg)
+                    elif self._has_single_dhcp_enabled_subnet(context,
+                                                              network):
+                        self._disable_native_dhcp(context, network['id'])
+                        updated_subnet = super(
+                            NsxPluginV3Base, self).update_subnet(
+                            context, subnet_id, subnet)
+                        self._extension_manager.process_update_subnet(
+                            context, subnet['subnet'], updated_subnet)
+
+        if not updated_subnet:
+            updated_subnet = super(NsxPluginV3Base, self).update_subnet(
+                context, subnet_id, subnet)
+            self._extension_manager.process_update_subnet(
+                context, subnet['subnet'], updated_subnet)
+
+        # Check if needs to update logical DHCP server for native DHCP.
+        if (self._has_native_dhcp_metadata() and
+            updated_subnet['enable_dhcp']):
+            self._ensure_native_dhcp()
+            kwargs = {}
+            for key in ('dns_nameservers', 'gateway_ip', 'host_routes'):
+                if key in subnet['subnet']:
+                    value = subnet['subnet'][key]
+                    if value != orig_subnet[key]:
+                        kwargs[key] = value
+                        if key != 'dns_nameservers':
+                            kwargs['options'] = None
+            if 'options' in kwargs:
+                sr, gw_ip = self.nsxlib.native_dhcp.build_static_routes(
+                    updated_subnet.get('gateway_ip'),
+                    updated_subnet.get('cidr'),
+                    updated_subnet.get('host_routes', []))
+                kwargs['options'] = {'option121': {'static_routes': sr}}
+                kwargs.pop('host_routes', None)
+                if (gw_ip is not None and 'gateway_ip' not in kwargs and
+                    gw_ip != updated_subnet['gateway_ip']):
+                    kwargs['gateway_ip'] = gw_ip
+            if kwargs:
+                dhcp_service = nsx_db.get_nsx_service_binding(
+                    context.session, orig_subnet['network_id'],
+                    nsxlib_consts.SERVICE_DHCP)
+                if dhcp_service:
+                    try:
+                        self.nsxlib.dhcp_server.update(
+                            dhcp_service['nsx_service_id'], **kwargs)
+                    except nsx_lib_exc.ManagerError:
+                        with excutils.save_and_reraise_exception():
+                            LOG.error(
+                                "Unable to update logical DHCP server "
+                                "%(server)s for network %(network)s",
+                                {'server': dhcp_service['nsx_service_id'],
+                                 'network': orig_subnet['network_id']})
+                    if 'options' in kwargs:
+                        # Need to update the static binding of every VM in
+                        # this logical DHCP server.
+                        bindings = nsx_db.get_nsx_dhcp_bindings_by_service(
+                            context.session, dhcp_service['nsx_service_id'])
+                        for binding in bindings:
+                            port = self._get_port(context, binding['port_id'])
+                            dhcp_opts = port.get(ext_edo.EXTRADHCPOPTS)
+                            self._update_dhcp_binding_on_server(
+                                context, binding, port['mac_address'],
+                                binding['ip_address'],
+                                port['network_id'],
+                                gateway_ip=kwargs.get('gateway_ip', False),
+                                dhcp_opts=dhcp_opts,
+                                options=kwargs.get('options'),
+                                subnet=updated_subnet)
+
+        return updated_subnet
 
     def _is_vlan_router_interface_supported(self):
         """Should be implemented by each plugin"""
