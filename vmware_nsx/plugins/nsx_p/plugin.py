@@ -939,6 +939,27 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             router_id,
             nat_rule_id=self._get_snat_rule_id(subnet))
 
+    def _get_edge_cluster_path(self, tier0_uuid, router):
+        # TODO(asarfaty): Add support for edge cluster from the AZ config
+        return self.nsxpolicy.tier0.get_edge_cluster_path(
+            tier0_uuid)
+
+    def create_service_router(self, context, router_id):
+        router = self._get_router(context, router_id)
+        tier0_uuid = self._get_tier0_uuid_by_router(context, router)
+        edge_cluster_path = self._get_edge_cluster_path(
+            tier0_uuid, router)
+        if edge_cluster_path:
+            self.nsxpolicy.tier1.set_edge_cluster_path(
+                router_id, edge_cluster_path)
+        else:
+            LOG.error("Tier0 %s does not have an edge cluster",
+                      new_tier0_uuid)
+
+    def delete_service_router(self, router_id):
+        # remove the edge cluster from the tier1 router
+        self.nsxpolicy.tier1.remove_edge_cluster(router_id)
+
     def _update_router_gw_info(self, context, router_id, info):
         # Get the original data of the router GW
         router = self._get_router(context, router_id)
@@ -968,14 +989,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             lb_exist=False)
 
         if actions['add_service_router']:
-            edge_cluster = self.nsxpolicy.tier0.get_edge_cluster_path(
-                new_tier0_uuid)
-            if edge_cluster:
-                self.nsxpolicy.tier1.set_edge_cluster_path(
-                    router_id, edge_cluster)
-            else:
-                LOG.error("Tier0 %s does not have an edge cluster",
-                          new_tier0_uuid)
+            self.create_service_router(context, router_id)
 
         if actions['remove_snat_rules']:
             for subnet in router_subnets:
@@ -1026,12 +1040,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             subnets=actions['advertise_route_connected_flag'])
 
         if actions['remove_service_router']:
-            # Disable edge firewall before removing the service router
-            #TODO(asarfaty) no api for this yet. Use passthrough api when
-            # adding fwaas support
-
-            # remove the edge cluster
-            self.nsxpolicy.tier1.remove_edge_cluster(router_id)
+            self.delete_service_router(router_id)
 
     def create_router(self, context, router):
         r = router['router']
