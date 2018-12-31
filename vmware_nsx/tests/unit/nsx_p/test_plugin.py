@@ -129,6 +129,11 @@ class NsxPPluginTestCaseMixin(
             return_value=NSX_DHCP_PROFILE_ID).start()
 
         mock.patch(
+            "vmware_nsxlib.v3.resources.LogicalDhcpServer."
+            "get_id_by_name_or_id",
+            return_value=_return_same).start()
+
+        mock.patch(
             "vmware_nsxlib.v3.core_resources.NsxLibMetadataProxy."
             "get_id_by_name_or_id",
             side_effect=_return_same).start()
@@ -139,6 +144,10 @@ class NsxPPluginTestCaseMixin(
 
         mock.patch(
             "vmware_nsxlib.v3.resources.LogicalDhcpServer.create",
+            side_effect=_return_id_key).start()
+
+        mock.patch(
+            "vmware_nsxlib.v3.resources.LogicalDhcpServer.update",
             side_effect=_return_id_key).start()
 
         mock.patch(

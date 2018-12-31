@@ -484,18 +484,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         super(NsxPolicyPlugin, self).delete_subnet(context, subnet_id)
 
     def update_subnet(self, context, subnet_id, subnet):
-        updated_subnet = None
-        orig = self._get_subnet(context, subnet_id)
-        self._validate_host_routes_input(subnet,
-                                         orig_enable_dhcp=orig['enable_dhcp'],
-                                         orig_host_routes=orig['routes'])
-        # TODO(asarfaty): Handle dhcp updates on the policy manager
-        updated_subnet = super(NsxPolicyPlugin, self).update_subnet(
-            context, subnet_id, subnet)
-        self._extension_manager.process_update_subnet(
-            context, subnet['subnet'], updated_subnet)
-
-        return updated_subnet
+        return self._update_subnet(context, subnet_id, subnet)
 
     def _build_port_address_bindings(self, context, port_data):
         psec_on, has_ip = self._determine_port_security_and_has_ip(context,
