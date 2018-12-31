@@ -772,6 +772,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                 LOG.error("Unable to retrieve DHCP Profile %s, "
                           "native DHCP service is not supported",
                           az._native_dhcp_profile_uuid)
+                self._native_dhcp_enabled = False
 
     def _init_native_metadata(self):
         try:
@@ -1446,187 +1447,18 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
             return self._create_bulk('subnet', context, subnets)
 
     def create_subnet(self, context, subnet):
-        self._validate_host_routes_input(subnet)
-        # TODO(berlin): public external subnet announcement
-        if (cfg.CONF.nsx_v3.native_dhcp_metadata and
-            subnet['subnet'].get('enable_dhcp', False)):
-            self._validate_external_subnet(context,
-                                           subnet['subnet']['network_id'])
-            lock = 'nsxv3_network_' + subnet['subnet']['network_id']
-            ddi_support, ddi_type = self._is_ddi_supported_on_net_with_type(
-                context, subnet['subnet']['network_id'])
-            with locking.LockManager.get_lock(lock):
-                # Check if it is on an overlay network and is the first
-                # DHCP-enabled subnet to create.
-                if ddi_support:
-                    network = self._get_network(
-                        context, subnet['subnet']['network_id'])
-                    if self._has_no_dhcp_enabled_subnet(context, network):
-                        created_subnet = super(
-                            NsxV3Plugin, self).create_subnet(context, subnet)
-                        try:
-                            # This can be called only after the super create
-                            # since we need the subnet pool to be translated
-                            # to allocation pools
-                            self._validate_address_space(
-                                context, created_subnet)
-                        except n_exc.InvalidInput:
-                            # revert the subnet creation
-                            with excutils.save_and_reraise_exception():
-                                super(NsxV3Plugin, self).delete_subnet(
-                                    context, created_subnet['id'])
-                        self._extension_manager.process_create_subnet(context,
-                            subnet['subnet'], created_subnet)
-                        dhcp_relay = self.get_network_az_by_net_id(
-                            context,
-                            subnet['subnet']['network_id']).dhcp_relay_service
-                        if not dhcp_relay:
-                            self._enable_native_dhcp(context, network,
-                                                     created_subnet)
-                        msg = None
-                    else:
-                        msg = (_("Can not create more than one DHCP-enabled "
-                                "subnet in network %s") %
-                               subnet['subnet']['network_id'])
-                else:
-                    msg = _("Native DHCP is not supported for %(type)s "
-                            "network %(id)s") % {
-                          'id': subnet['subnet']['network_id'],
-                          'type': ddi_type}
-                if msg:
-                    LOG.error(msg)
-                    raise n_exc.InvalidInput(error_message=msg)
-        else:
-            created_subnet = super(NsxV3Plugin, self).create_subnet(
-                context, subnet)
-            try:
-                # This can be called only after the super create
-                # since we need the subnet pool to be translated
-                # to allocation pools
-                self._validate_address_space(context, created_subnet)
-            except n_exc.InvalidInput:
-                # revert the subnet creation
-                with excutils.save_and_reraise_exception():
-                    super(NsxV3Plugin, self).delete_subnet(
-                        context, created_subnet['id'])
-        return created_subnet
+        return self._create_subnet(context, subnet)
 
     def delete_subnet(self, context, subnet_id):
         # Call common V3 code to delete the subnet
         super(NsxV3Plugin, self).delete_subnet(context, subnet_id)
 
     def update_subnet(self, context, subnet_id, subnet):
-        updated_subnet = None
-        orig_subnet = self.get_subnet(context, subnet_id)
-        self._validate_host_routes_input(
-            subnet,
-            orig_enable_dhcp=orig_subnet['enable_dhcp'],
-            orig_host_routes=orig_subnet['host_routes'])
-        if cfg.CONF.nsx_v3.native_dhcp_metadata:
-            enable_dhcp = subnet['subnet'].get('enable_dhcp')
-            if (enable_dhcp is not None and
-                enable_dhcp != orig_subnet['enable_dhcp']):
-                lock = 'nsxv3_network_' + orig_subnet['network_id']
-                with locking.LockManager.get_lock(lock):
-                    network = self._get_network(
-                        context, orig_subnet['network_id'])
-                    if enable_dhcp:
-                        (ddi_support,
-                         ddi_type) = self._is_ddi_supported_on_net_with_type(
-                            context, orig_subnet['network_id'])
-                        if ddi_support:
-                            if self._has_no_dhcp_enabled_subnet(
-                                context, network):
-                                updated_subnet = super(
-                                    NsxV3Plugin, self).update_subnet(
-                                    context, subnet_id, subnet)
-                                self._extension_manager.process_update_subnet(
-                                    context, subnet['subnet'], updated_subnet)
-                                self._enable_native_dhcp(context, network,
-                                                         updated_subnet)
-                                msg = None
-                            else:
-                                msg = (_("Multiple DHCP-enabled subnets is "
-                                         "not allowed in network %s") %
-                                       orig_subnet['network_id'])
-                        else:
-                            msg = (_("Native DHCP is not supported for "
-                                     "%(type)s network %(id)s") %
-                                   {'id': orig_subnet['network_id'],
-                                    'type': ddi_type})
-                        if msg:
-                            LOG.error(msg)
-                            raise n_exc.InvalidInput(error_message=msg)
-                    elif self._has_single_dhcp_enabled_subnet(context,
-                                                              network):
-                        self._disable_native_dhcp(context, network['id'])
-                        updated_subnet = super(
-                            NsxV3Plugin, self).update_subnet(
-                            context, subnet_id, subnet)
-                        self._extension_manager.process_update_subnet(
-                            context, subnet['subnet'], updated_subnet)
-
-        if not updated_subnet:
-            updated_subnet = super(NsxV3Plugin, self).update_subnet(
-                context, subnet_id, subnet)
-            self._extension_manager.process_update_subnet(
-                context, subnet['subnet'], updated_subnet)
-
-        # Check if needs to update logical DHCP server for native DHCP.
-        if (cfg.CONF.nsx_v3.native_dhcp_metadata and
-            updated_subnet['enable_dhcp']):
-            kwargs = {}
-            for key in ('dns_nameservers', 'gateway_ip', 'host_routes'):
-                if key in subnet['subnet']:
-                    value = subnet['subnet'][key]
-                    if value != orig_subnet[key]:
-                        kwargs[key] = value
-                        if key != 'dns_nameservers':
-                            kwargs['options'] = None
-            if 'options' in kwargs:
-                sr, gw_ip = self.nsxlib.native_dhcp.build_static_routes(
-                    updated_subnet.get('gateway_ip'),
-                    updated_subnet.get('cidr'),
-                    updated_subnet.get('host_routes', []))
-                kwargs['options'] = {'option121': {'static_routes': sr}}
-                kwargs.pop('host_routes', None)
-                if (gw_ip is not None and 'gateway_ip' not in kwargs and
-                    gw_ip != updated_subnet['gateway_ip']):
-                    kwargs['gateway_ip'] = gw_ip
-            if kwargs:
-                dhcp_service = nsx_db.get_nsx_service_binding(
-                    context.session, orig_subnet['network_id'],
-                    nsxlib_consts.SERVICE_DHCP)
-                if dhcp_service:
-                    try:
-                        self.nsxlib.dhcp_server.update(
-                            dhcp_service['nsx_service_id'], **kwargs)
-                    except nsx_lib_exc.ManagerError:
-                        with excutils.save_and_reraise_exception():
-                            LOG.error(
-                                "Unable to update logical DHCP server "
-                                "%(server)s for network %(network)s",
-                                {'server': dhcp_service['nsx_service_id'],
-                                 'network': orig_subnet['network_id']})
-                    if 'options' in kwargs:
-                        # Need to update the static binding of every VM in
-                        # this logical DHCP server.
-                        bindings = nsx_db.get_nsx_dhcp_bindings_by_service(
-                            context.session, dhcp_service['nsx_service_id'])
-                        for binding in bindings:
-                            port = self._get_port(context, binding['port_id'])
-                            dhcp_opts = port.get(ext_edo.EXTRADHCPOPTS)
-                            self._update_dhcp_binding_on_server(
-                                context, binding, port['mac_address'],
-                                binding['ip_address'],
-                                port['network_id'],
-                                gateway_ip=kwargs.get('gateway_ip', False),
-                                dhcp_opts=dhcp_opts,
-                                options=kwargs.get('options'),
-                                subnet=updated_subnet)
-
+        updated_subnet = self._update_subnet(context,
+                                             subnet_id,
+                                             subnet)
         if (cfg.CONF.nsx_v3.metadata_on_demand and
-            not cfg.CONF.nsx_v3.native_dhcp_metadata):
+            not self._has_native_dhcp_metadata()):
             # If enable_dhcp is changed on a subnet attached to a router,
             # update internal metadata network accordingly.
             if 'enable_dhcp' in subnet['subnet']:
@@ -1957,43 +1789,6 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                 msg = (_("DHCP option %s is not supported") % opt_name)
                 raise n_exc.InvalidInput(error_message=msg)
 
-    def _get_dhcp_options(self, context, ip, extra_dhcp_opts, net_id,
-                          subnet):
-        # Always add option121.
-        net_az = self.get_network_az_by_net_id(context, net_id)
-        options = {'option121': {'static_routes': [
-            {'network': '%s' % net_az.native_metadata_route,
-             'next_hop': '0.0.0.0'},
-            {'network': '%s' % net_az.native_metadata_route,
-             'next_hop': ip}]}}
-        if subnet:
-            sr, gateway_ip = self.nsxlib.native_dhcp.build_static_routes(
-                subnet.get('gateway_ip'), subnet.get('cidr'),
-                subnet.get('host_routes', []))
-            options['option121']['static_routes'].extend(sr)
-        # Adding extra options only if configured on port
-        if extra_dhcp_opts:
-            other_opts = []
-            for opt in extra_dhcp_opts:
-                opt_name = opt['opt_name']
-                if opt['opt_value'] is not None:
-                    # None value means - delete this option. Since we rebuild
-                    # the options from scratch, it can be ignored.
-                    opt_val = opt['opt_value']
-                    if opt_name == 'classless-static-route':
-                        # Add to the option121 static routes
-                        net, ip = opt_val.split(',')
-                        options['option121']['static_routes'].append({
-                            'network': net, 'next_hop': ip})
-                    else:
-                        other_opts.append({
-                            'code': self.nsxlib.dhcp_server.get_dhcp_opt_code(
-                                opt_name),
-                            'values': [opt_val]})
-            if other_opts:
-                options['others'] = other_opts
-        return options
-
     def _add_dhcp_binding_on_server(self, context, dhcp_service_id, subnet_id,
                                     ip, port):
         try:
@@ -2174,43 +1969,6 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                         context, binding, new_port['mac_address'],
                         binding['ip_address'], old_port['network_id'],
                         dhcp_opts=dhcp_opts, subnet=subnet)
-
-    def _update_dhcp_binding_on_server(self, context, binding, mac, ip,
-                                       net_id, gateway_ip=False,
-                                       dhcp_opts=None, options=None,
-                                       subnet=None):
-        try:
-            data = {'mac_address': mac, 'ip_address': ip}
-            if ip != binding['ip_address']:
-                data['host_name'] = 'host-%s' % ip.replace('.', '-')
-                data['options'] = self._get_dhcp_options(
-                    context, ip, dhcp_opts, net_id,
-                    subnet)
-            elif (dhcp_opts is not None or
-                  options is not None):
-                data['options'] = self._get_dhcp_options(
-                    context, ip, dhcp_opts, net_id,
-                    subnet)
-            if gateway_ip is not False:
-                # Note that None is valid for gateway_ip, means deleting it.
-                data['gateway_ip'] = gateway_ip
-
-            self.nsxlib.dhcp_server.update_binding(
-                binding['nsx_service_id'], binding['nsx_binding_id'], **data)
-            LOG.debug("Updated static binding (mac: %(mac)s, ip: %(ip)s, "
-                      "gateway: %(gateway)s) for port %(port)s on "
-                      "logical DHCP server %(server)s",
-                      {'mac': mac, 'ip': ip, 'gateway': gateway_ip,
-                       'port': binding['port_id'],
-                       'server': binding['nsx_service_id']})
-        except nsx_lib_exc.ManagerError:
-            with excutils.save_and_reraise_exception():
-                LOG.error("Unable to update static binding (mac: %(mac)s, "
-                          "ip: %(ip)s, gateway: %(gateway)s) for port "
-                          "%(port)s on logical DHCP server %(server)s",
-                          {'mac': mac, 'ip': ip, 'gateway': gateway_ip,
-                           'port': binding['port_id'],
-                           'server': binding['nsx_service_id']})
 
     def _update_lport_with_security_groups(self, context, lport_id,
                                            original, updated):
