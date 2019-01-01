@@ -98,8 +98,13 @@ class NsxV3AvailabilityZone(common_az.ConfiguredAvailabilityZone):
         # Default implementation assumes UUID is provided in config
         # TODO(annak): refine this when we have a better picture
         # what az config is relevant for policy
-        self._native_dhcp_profile_uuid = self.dhcp_profile
-        self._native_md_proxy_uuid = self.metadata_proxy
         self._default_overlay_tz_uuid = self.default_overlay_tz
         self._default_vlan_tz_uuid = self.default_vlan_tz
         self._default_tier0_router = self.default_tier0_router
+
+        # NSX objects used temporarily untils supported via Policy API
+        # TODO(asarfaty): support name/tags for the nsx passthrough objects,
+        # and add translations.
+        # Also validate no native_dhcp_metadata without metadata_proxy
+        self._native_dhcp_profile_uuid = self.dhcp_profile
+        self._native_md_proxy_uuid = self.metadata_proxy
