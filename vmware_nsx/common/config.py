@@ -391,6 +391,10 @@ nsx_v3_and_p = [
                 help=_("List of transit networks used by NSX tier0 routers. "
                        "Neutron subnets will not be allowed to use those "
                        "cidrs")),
+    cfg.BoolOpt('native_dhcp_metadata',
+                default=True,
+                help=_("If true, DHCP and metadata proxy services will be "
+                       "provided by NSX backend.")),
 ]
 
 nsx_v3_opts = nsx_v3_and_p + [
@@ -444,10 +448,6 @@ nsx_v3_opts = nsx_v3_and_p + [
                 help=_("If true, an internal metadata network will be created "
                        "for a router only when the router is attached to a "
                        "DHCP-disabled subnet.")),
-    cfg.BoolOpt('native_dhcp_metadata',
-                default=True,
-                help=_("If true, DHCP and metadata proxy services will be "
-                       "provided by NSX backend.")),
     cfg.IntOpt('dhcp_lease_time',
                default=86400,
                help=_("DHCP default lease time.")),

@@ -127,6 +127,19 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                           "native DHCP service is not supported",
                           az._native_dhcp_profile_uuid)
 
+    def _init_native_metadata(self):
+        if not self.nsxlib:
+            return
+
+        try:
+            for az in self.get_azs_list():
+                self.nsxlib.native_md_proxy.get(az._native_md_proxy_uuid)
+        except nsx_lib_exc.ManagerError:
+            with excutils.save_and_reraise_exception():
+                LOG.error("Unable to retrieve Metadata Proxy %s, "
+                          "native metadata service is not supported",
+                          az._native_md_proxy_uuid)
+
     def _get_conf_attr(self, attr):
         plugin_cfg = getattr(cfg.CONF, self.cfg_group)
         return getattr(plugin_cfg, attr)
@@ -1447,6 +1460,11 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def _is_vlan_router_interface_supported(self):
         """Should be implemented by each plugin"""
 
+    def _is_ddi_supported_on_network(self, context, network_id):
+        result, _ = self._is_ddi_supported_on_net_with_type(
+            context, network_id)
+        return result
+
     def _is_ddi_supported_on_net_with_type(self, context, network_id):
         net = self.get_network(context, network_id)
         # NSX current does not support transparent VLAN ports for
@@ -1529,3 +1547,39 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                 "router address %s") % ip_address
                         LOG.error(msg)
                         raise n_exc.InvalidInput(error_message=msg)
+
+    def _get_mdproxy_port_name(self, net_name, net_id):
+        return utils.get_name_and_uuid('%s-%s' % ('mdproxy',
+                                                  net_name or 'network'),
+                                       net_id)
+
+    def _create_net_mdproxy_port(self, context, network, az, nsx_net_id):
+        if (not self.nsxlib or
+            not self._get_conf_attr('native_dhcp_metadata')):
+            return
+        is_ddi_network = self._is_ddi_supported_on_network(
+            context, network['id'])
+        if is_ddi_network:
+            # Enable native metadata proxy for this network.
+            tags = self.nsxlib.build_v3_tags_payload(
+                network, resource_type='os-neutron-net-id',
+                project_name=context.tenant_name)
+            name = self._get_mdproxy_port_name(network['name'],
+                                               network['id'])
+            md_port = self.nsxlib.logical_port.create(
+                nsx_net_id, az._native_md_proxy_uuid,
+                tags=tags, name=name,
+                attachment_type=nsxlib_consts.ATTACHMENT_MDPROXY)
+            LOG.debug("Created MD-Proxy logical port %(port)s "
+                      "for network %(network)s",
+                      {'port': md_port['id'],
+                       'network': network['id']})
+
+    def _delete_nsx_port_by_network(self, network_id):
+        if not self.nsxlib:
+            return
+        port_id = self.nsxlib.get_id_by_resource_and_tag(
+            self.nsxlib.logical_port.resource_type,
+            'os-neutron-net-id', network_id)
+        if port_id:
+            self.nsxlib.logical_port.delete(port_id)
