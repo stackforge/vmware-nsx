@@ -3233,6 +3233,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 router['id'],
                 {'router': {az_def.AZ_HINTS: az_hints}})
         router_db = self._get_router(context, r['id'])
+        if self.nsxlib.feature_supported(
+                nsxlib_consts.FEATURE_ROUTER_ALLOCATION_PROFILE):
+            enable_standby_relocation = True
         with db_api.CONTEXT_WRITER.using(context):
             self._process_extra_attr_router_create(context, router_db, r)
         # Create backend entries here in case neutron DB exception
@@ -3243,7 +3246,7 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 display_name=utils.get_name_and_uuid(
                     router['name'] or 'router', router['id']),
                 description=router.get('description'),
-                tags=tags)
+                tags=tags, enable_standby_relocation=enable_standby_relocation)
         except nsx_lib_exc.ManagerError:
             with excutils.save_and_reraise_exception():
                 LOG.error("Unable to create logical router for "
