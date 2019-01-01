@@ -578,8 +578,11 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                                            group=cfg.OptGroup('nsx_v3'))
 
         # Translate all the uuids in each of the availability
+        search_scope = (cfg.CONF.nsx_v3.search_objects_scope
+                        if cfg.CONF.nsx_v3.init_objects_by_tags else None)
         for az in self.get_azs_list():
-            az.translate_configured_names_to_uuids(self.nsxlib)
+            az.translate_configured_names_to_uuids(
+                self.nsxlib, search_scope=search_scope)
 
     @nsxlib_utils.retry_upon_exception(
         Exception, max_attempts=cfg.CONF.nsx_v3.retries)
@@ -784,27 +787,6 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
             self._setup_dhcp()
             self._start_rpc_notifiers()
 
-    def _init_native_dhcp(self):
-        try:
-            for az in self.get_azs_list():
-                self.nsxlib.native_dhcp_profile.get(
-                    az._native_dhcp_profile_uuid)
-        except nsx_lib_exc.ManagerError:
-            with excutils.save_and_reraise_exception():
-                LOG.error("Unable to retrieve DHCP Profile %s, "
-                          "native DHCP service is not supported",
-                          az._native_dhcp_profile_uuid)
-
-    def _init_native_metadata(self):
-        try:
-            for az in self.get_azs_list():
-                self.nsxlib.native_md_proxy.get(az._native_md_proxy_uuid)
-        except nsx_lib_exc.ManagerError:
-            with excutils.save_and_reraise_exception():
-                LOG.error("Unable to retrieve Metadata Proxy %s, "
-                          "native metadata service is not supported",
-                          az._native_md_proxy_uuid)
-
     def _setup_rpc(self):
         self.endpoints = [dhcp_rpc.DhcpRpcCallback(),
                           agents_db.AgentExtRpcCallback(),
@@ -812,6 +794,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
 
     def _setup_dhcp(self):
         """Initialize components to support DHCP."""
+        #TODO(asarfaty): move to common code and use in policy plugin too
         self.network_scheduler = importutils.import_object(
             cfg.CONF.network_scheduler_driver
         )
@@ -904,11 +887,6 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                 provider_data['vlan_id'],
                 nsx_id)
 
-    def _is_ddi_supported_on_network(self, context, network_id):
-        result, _ = self._is_ddi_supported_on_net_with_type(
-            context, network_id)
-        return result
-
     def _is_vlan_router_interface_supported(self):
         return self.nsxlib.feature_supported(
             nsxlib_consts.FEATURE_VLAN_ROUTER_INTERFACE)
@@ -967,11 +945,6 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
             filters['network_id'] = network_ids
         return super(NsxV3Plugin, self).get_subnets(
             context, filters, fields, sorts, limit, marker, page_reverse)
-
-    def _get_mdproxy_port_name(self, net_name, net_id):
-        return utils.get_name_and_uuid('%s-%s' % ('mdproxy',
-                                                  net_name or 'network'),
-                                       net_id)
 
     def _tier0_validator(self, tier0_uuid):
         self.nsxlib.router.validate_tier0(self.tier0_groups_dict, tier0_uuid)
@@ -1048,26 +1021,10 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                         {'network': {'vlan_transparent': vlt}})
 
             rollback_network = True
+            if is_backend_network:
+                self._create_net_mdproxy_port(
+                    context, created_net, az, nsx_net_id)
 
-            is_ddi_network = self._is_ddi_supported_on_network(
-                context, created_net['id'])
-            if (is_backend_network and
-                cfg.CONF.nsx_v3.native_dhcp_metadata and
-                is_ddi_network):
-                # Enable native metadata proxy for this network.
-                tags = self.nsxlib.build_v3_tags_payload(
-                    created_net, resource_type='os-neutron-net-id',
-                    project_name=context.tenant_name)
-                name = self._get_mdproxy_port_name(created_net['name'],
-                                                   created_net['id'])
-                md_port = self.nsxlib.logical_port.create(
-                    nsx_net_id, az._native_md_proxy_uuid,
-                    tags=tags, name=name,
-                    attachment_type=nsxlib_consts.ATTACHMENT_MDPROXY)
-                LOG.debug("Created MD-Proxy logical port %(port)s "
-                          "for network %(network)s",
-                          {'port': md_port['id'],
-                           'network': created_net['id']})
         except Exception:
             with excutils.save_and_reraise_exception():
                 # Undo creation on the backend
@@ -1078,7 +1035,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                 if (cfg.CONF.nsx_v3.native_dhcp_metadata and
                     is_backend_network and is_ddi_network):
                     # Delete the mdproxy port manually
-                    self._delete_network_nsx_dhcp_port(created_net['id'])
+                    self._delete_nsx_port_by_network(created_net['id'])
 
                 if rollback_network:
                     super(NsxV3Plugin, self).delete_network(
@@ -1165,13 +1122,6 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                     # we have nothing else to do but raise the exception.
                     raise
 
-    def _delete_network_nsx_dhcp_port(self, network_id):
-        port_id = self.nsxlib.get_id_by_resource_and_tag(
-            self.nsxlib.logical_port.resource_type,
-            'os-neutron-net-id', network_id)
-        if port_id:
-            self.nsxlib.logical_port.delete(port_id)
-
     def delete_network(self, context, network_id):
         if cfg.CONF.nsx_v3.native_dhcp_metadata:
             lock = 'nsxv3_network_' + network_id
@@ -1197,7 +1147,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
             if (cfg.CONF.nsx_v3.native_dhcp_metadata and is_nsx_net and
                 is_ddi_network):
                 # Delete the mdproxy port manually
-                self._delete_network_nsx_dhcp_port(network_id)
+                self._delete_nsx_port_by_network(network_id)
             # TODO(berlin): delete subnets public announce on the network
 
     def _get_network_nsx_id(self, context, neutron_id):
@@ -1932,6 +1882,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
         return ips
 
     def _add_dhcp_binding(self, context, port):
+        #TODO(asarfaty): move to common code and use in policy plugin too
         if not utils.is_port_dhcp_configurable(port):
             return
         dhcp_service = nsx_db.get_nsx_service_binding(
@@ -1981,6 +1932,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
 
     def _get_dhcp_options(self, context, ip, extra_dhcp_opts, net_id,
                           subnet):
+        #TODO(asarfaty): move to common code and use in policy plugin too
         # Always add option121.
         net_az = self.get_network_az_by_net_id(context, net_id)
         options = {'option121': {'static_routes': [
@@ -2018,6 +1970,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
 
     def _add_dhcp_binding_on_server(self, context, dhcp_service_id, subnet_id,
                                     ip, port):
+        #TODO(asarfaty): move to common code and use in policy plugin too
         try:
             hostname = 'host-%s' % ip.replace('.', '-')
             subnet = self.get_subnet(context, subnet_id)

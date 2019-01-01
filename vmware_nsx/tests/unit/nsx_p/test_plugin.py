@@ -145,6 +145,9 @@ class NsxPPluginTestCaseMixin(
             "vmware_nsxlib.v3.resources.LogicalDhcpServer.create_binding",
             side_effect=_return_id_key).start()
 
+        mock.patch("vmware_nsxlib.v3.NsxLib."
+                   "get_id_by_resource_and_tag").start()
+
     def setup_conf_overrides(self):
         cfg.CONF.set_override('default_overlay_tz', NSX_OVERLAY_TZ_NAME,
                               'nsx_p')
