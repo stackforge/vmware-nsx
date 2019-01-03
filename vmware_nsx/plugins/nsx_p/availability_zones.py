@@ -42,6 +42,7 @@ class NsxPAvailabilityZone(v3_az.NsxV3AvailabilityZone):
         self.default_tier0_router = cfg.CONF.nsx_p.default_tier0_router
         self.dns_domain = cfg.CONF.nsx_p.dns_domain
         self.nameservers = cfg.CONF.nsx_p.nameservers
+        self.dhcp_relay_service = cfg.CONF.nsx_p.dhcp_relay_service
 
     def _init_default_resource(self, resource_api, config_name,
                                filter_list_results=None,
@@ -114,15 +115,16 @@ class NsxPAvailabilityZone(v3_az.NsxV3AvailabilityZone):
             nsxpolicy.tier0, 'default_tier0_router',
             auto_config=True, is_mandatory=True)
 
-        self.dhcp_relay_service = cfg.CONF.nsx_p.dhcp_relay_service
-
         # If passthrough api is supported, also initialize those NSX objects
         if nsxlib:
             self._translate_dhcp_profile(nsxlib)
             self._translate_metadata_proxy(nsxlib)
+            self._translate_dhcp_relay_service(nsxlib)
         else:
             self._native_dhcp_profile_uuid = None
             self._native_md_proxy_uuid = None
+            self.dhcp_relay_service = None
+            self.dhcp_relay_servers = None
 
 
 class NsxPAvailabilityZones(common_az.ConfiguredAvailabilityZones):
@@ -135,3 +137,9 @@ class NsxPAvailabilityZones(common_az.ConfiguredAvailabilityZones):
             cfg.CONF.nsx_p.availability_zones,
             NsxPAvailabilityZone,
             default_availability_zones=default_azs)
+
+    def dhcp_relay_configured(self):
+        for az in self.availability_zones.values():
+            if az.dhcp_relay_service:
+                return True
+        return False
