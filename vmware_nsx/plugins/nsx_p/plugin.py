@@ -657,6 +657,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         direct_vnic_type = self._validate_port_vnic_type(
             context, port_data, port_data['network_id'],
             projectpluginmap.NsxPlugins.NSX_T)
+        self._assert_on_dhcp_relay_without_router(context, port_data)
 
         is_external_net = self._network_is_external(
             context, port_data['network_id'])
@@ -760,6 +761,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             port_data = port['port']
             self._validate_update_port(context, port_id, original_port,
                                        port_data)
+            self._assert_on_dhcp_relay_without_router(context, port_data,
+                                                      original_port)
             validate_port_sec = self._should_validate_port_sec_on_update_port(
                 port_data)
             is_external_net = self._network_is_external(
@@ -1048,6 +1051,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
     def create_router(self, context, router):
         r = router['router']
+        self.validate_router_dhcp_relay(context)
         gw_info = self._extract_external_gw(context, router, is_extract=True)
 
         # validate the availability zone, and get the AZ object
@@ -1239,6 +1243,16 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
                           {'id': network_id, 'e': ex})
                 self.remove_router_interface(
                     context, router_id, interface_info)
+
+        # Add the dhcp relay service to the NSX logical router port
+        if cfg.CONF.nsx_p.allow_passthrough:
+            relay_service = None
+            if subnet['enable_dhcp']:
+                net_az = self.get_network_az_by_net_id(context, network_id)
+                relay_service = net_az.dhcp_relay_service
+            if relay_service:
+                self.nsxpolicy.tier1.set_dhcp_relay(
+                    router_id, segment_id, relay_service)
 
         return info
 

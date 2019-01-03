@@ -125,6 +125,28 @@ class NsxV3AvailabilityZone(common_az.ConfiguredAvailabilityZone):
         else:
             self._native_md_proxy_uuid = None
 
+    def _translate_dhcp_relay_service(self, nsxlib, search_scope=None):
+        if (self.dhcp_relay_service):
+            relay_id = None
+            if search_scope:
+                # Find the relay service by its tag
+                relay_id = nsxlib.get_id_by_resource_and_tag(
+                    nsxlib.relay_service.resource_type,
+                    search_scope,
+                    self.dhcp_relay_service)
+            if not relay_id:
+                # Find the service by its name or id
+                relay_id = nsxlib.relay_service.get_id_by_name_or_id(
+                    self.dhcp_relay_service)
+            self.dhcp_relay_service = relay_id
+            # if there is a relay service - also find the server ips
+            if self.dhcp_relay_service:
+                self.dhcp_relay_servers = nsxlib.relay_service.get_server_ips(
+                    self.dhcp_relay_service)
+        else:
+            self.dhcp_relay_service = None
+            self.dhcp_relay_servers = None
+
     def translate_configured_names_to_uuids(self, nsxlib):
         # May be overriden by children
         # Default implementation assumes UUID is provided in config
@@ -135,3 +157,9 @@ class NsxV3AvailabilityZone(common_az.ConfiguredAvailabilityZone):
         self._default_tier0_router = self.default_tier0_router
         self._native_dhcp_profile_uuid = self.dhcp_profile
         self._native_md_proxy_uuid = self.metadata_proxy
+
+    def dhcp_relay_configured(self):
+        for az in self.availability_zones.values():
+            if az.dhcp_relay_service:
+                return True
+        return False

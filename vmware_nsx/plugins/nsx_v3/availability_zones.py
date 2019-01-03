@@ -129,24 +129,8 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
                         nsx_profile.get('id')))
         self.switching_profiles_objs = profiles
 
-        if (self.dhcp_relay_service and
-            nsxlib.feature_supported(nsxlib_consts.FEATURE_DHCP_RELAY)):
-            relay_id = None
-            if search_scope:
-                # Find the relay service by its tag
-                relay_id = nsxlib.get_id_by_resource_and_tag(
-                    nsxlib.relay_service.resource_type,
-                    search_scope,
-                    self.dhcp_relay_service)
-            if not relay_id:
-                # Find the service by its name or id
-                relay_id = nsxlib.relay_service.get_id_by_name_or_id(
-                    self.dhcp_relay_service)
-            self.dhcp_relay_service = relay_id
-            # if there is a relay service - also find the server ips
-            if self.dhcp_relay_service:
-                self.dhcp_relay_servers = nsxlib.relay_service.get_server_ips(
-                    self.dhcp_relay_service)
+        if nsxlib.feature_supported(nsxlib_consts.FEATURE_DHCP_RELAY):
+            self._translate_dhcp_relay_service(nsxlib)
         else:
             self.dhcp_relay_service = None
             self.dhcp_relay_servers = None
@@ -183,9 +167,3 @@ class NsxV3AvailabilityZones(common_az.ConfiguredAvailabilityZones):
             cfg.CONF.nsx_v3.availability_zones,
             NsxV3AvailabilityZone,
             default_availability_zones=default_azs)
-
-    def dhcp_relay_configured(self):
-        for az in self.availability_zones.values():
-            if az.dhcp_relay_service:
-                return True
-        return False
