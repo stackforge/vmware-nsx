@@ -90,7 +90,7 @@ class NsxPPluginTestCaseMixin(
         resource_list_result = {'results': [{'id': 'test',
                                              'display_name': 'test'}]}
         mock.patch(
-            "vmware_nsxlib.v3.NsxPolicyLib.get_version",
+            "vmware_nsxlib.v3.policy.NsxPolicyLib.get_version",
             return_value=nsx_constants.NSX_VERSION_2_4_0).start()
         mock.patch(
             "vmware_nsxlib.v3.client.RESTClient.get").start()
@@ -101,20 +101,20 @@ class NsxPPluginTestCaseMixin(
             "vmware_nsxlib.v3.client.RESTClient.patch").start()
         mock.patch(
             "vmware_nsxlib.v3.client.RESTClient.delete").start()
-        mock.patch("vmware_nsxlib.v3.policy_resources."
+        mock.patch("vmware_nsxlib.v3.policy.core_resources."
                    "NsxPolicyCommunicationMapApi._get_last_seq_num",
                    return_value=-1).start()
-        mock.patch("vmware_nsxlib.v3.policy_resources."
+        mock.patch("vmware_nsxlib.v3.policy.core_resources."
                    "NsxPolicyResourceBase._wait_until_realized",
                    return_value={'state': policy_constants.STATE_REALIZED}
                    ).start()
-        mock.patch("vmware_nsxlib.v3.policy_resources."
+        mock.patch("vmware_nsxlib.v3.policy.core_resources."
                    "NsxPolicyTier1Api.update_transport_zone").start()
-        mock.patch("vmware_nsxlib.v3.policy_resources."
+        mock.patch("vmware_nsxlib.v3.policy.core_resources."
                    "NsxPolicySegmentApi.get_realized_logical_switch_id",
                    return_value=LOGICAL_SWITCH_ID
                    ).start()
-        mock.patch("vmware_nsxlib.v3.policy_resources."
+        mock.patch("vmware_nsxlib.v3.policy.core_resources."
                    "NsxPolicySegmentApi.get_realized_id",
                    return_value=LOGICAL_SWITCH_ID
                    ).start()
@@ -195,12 +195,12 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
 
     def test_create_provider_flat_network(self):
         providernet_args = {pnet.NETWORK_TYPE: 'flat'}
-        with mock.patch('vmware_nsxlib.v3.policy_resources.'
+        with mock.patch('vmware_nsxlib.v3.policy.core_resources.'
                         'NsxPolicySegmentApi.create_or_overwrite',
                         side_effect=_return_id_key) as nsx_create, \
-            mock.patch('vmware_nsxlib.v3.policy_resources.NsxPolicySegmentApi.'
-                       'delete') as nsx_delete, \
-            mock.patch('vmware_nsxlib.v3.policy_resources.'
+            mock.patch('vmware_nsxlib.v3.policy.core_resources.'
+                       'NsxPolicySegmentApi.delete') as nsx_delete, \
+            mock.patch('vmware_nsxlib.v3.policy.core_resources.'
                        'NsxPolicyTransportZoneApi.get_transport_type',
                        return_value=nsx_constants.TRANSPORT_TYPE_VLAN), \
             self.network(name='flat_net',
@@ -221,7 +221,7 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
         providernet_args = {pnet.NETWORK_TYPE: 'flat',
                             pnet.PHYSICAL_NETWORK: physical_network}
         with mock.patch(
-            'vmware_nsxlib.v3.policy_resources.NsxPolicyTransportZoneApi.'
+            'vmware_nsxlib.v3.policy.core_resources.NsxPolicyTransportZoneApi.'
             'get_transport_type',
             return_value=nsx_constants.TRANSPORT_TYPE_VLAN), \
             self.network(name='flat_net',
@@ -234,7 +234,7 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
         providernet_args = {pnet.NETWORK_TYPE: 'flat',
                             pnet.SEGMENTATION_ID: 11}
         with mock.patch(
-            'vmware_nsxlib.v3.policy_resources.NsxPolicyTransportZoneApi.'
+            'vmware_nsxlib.v3.policy.core_resources.NsxPolicyTransportZoneApi.'
             'get_transport_type',
             return_value=nsx_constants.TRANSPORT_TYPE_VLAN):
             result = self._create_network(fmt='json', name='bad_flat_net',
@@ -248,11 +248,11 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
 
     def test_create_provider_geneve_network(self):
         providernet_args = {pnet.NETWORK_TYPE: 'geneve'}
-        with mock.patch('vmware_nsxlib.v3.policy_resources.'
+        with mock.patch('vmware_nsxlib.v3.policy.core_resources.'
                         'NsxPolicySegmentApi.create_or_overwrite',
                         side_effect=_return_id_key) as nsx_create, \
-            mock.patch('vmware_nsxlib.v3.policy_resources.NsxPolicySegmentApi.'
-                       'delete') as nsx_delete, \
+            mock.patch('vmware_nsxlib.v3.policy.core_resources.'
+                       'NsxPolicySegmentApi.delete') as nsx_delete, \
             self.network(name='geneve_net',
                          providernet_args=providernet_args,
                          arg_list=(pnet.NETWORK_TYPE, )) as net:
@@ -271,7 +271,7 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
         providernet_args = {pnet.NETWORK_TYPE: 'geneve',
                             pnet.PHYSICAL_NETWORK: physical_network}
         with mock.patch(
-            'vmware_nsxlib.v3.policy_resources.NsxPolicyTransportZoneApi.'
+            'vmware_nsxlib.v3.policy.core_resources.NsxPolicyTransportZoneApi.'
             'get_transport_type',
             return_value=nsx_constants.TRANSPORT_TYPE_OVERLAY),\
             self.network(name='geneve_net',
@@ -283,7 +283,7 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
         providernet_args = {pnet.NETWORK_TYPE: 'geneve',
                             pnet.SEGMENTATION_ID: 11}
         with mock.patch(
-            'vmware_nsxlib.v3.policy_resources.NsxPolicyTransportZoneApi.'
+            'vmware_nsxlib.v3.policy.core_resources.NsxPolicyTransportZoneApi.'
             'get_transport_type',
             return_value=nsx_constants.TRANSPORT_TYPE_OVERLAY):
             result = self._create_network(fmt='json', name='bad_geneve_net',
@@ -298,12 +298,12 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
     def test_create_provider_vlan_network(self):
         providernet_args = {pnet.NETWORK_TYPE: 'vlan',
                             pnet.SEGMENTATION_ID: 11}
-        with mock.patch('vmware_nsxlib.v3.policy_resources.'
+        with mock.patch('vmware_nsxlib.v3.policy.core_resources.'
                         'NsxPolicySegmentApi.create_or_overwrite',
                         side_effect=_return_id_key) as nsx_create, \
-            mock.patch('vmware_nsxlib.v3.policy_resources.NsxPolicySegmentApi.'
-                       'delete') as nsx_delete, \
-            mock.patch('vmware_nsxlib.v3.policy_resources.'
+            mock.patch('vmware_nsxlib.v3.policy.core_resources.'
+                       'NsxPolicySegmentApi.delete') as nsx_delete, \
+            mock.patch('vmware_nsxlib.v3.policy.core_resources.'
                        'NsxPolicyTransportZoneApi.get_transport_type',
                        return_value=nsx_constants.TRANSPORT_TYPE_VLAN), \
             self.network(name='vlan_net',
@@ -326,11 +326,11 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
                             pnet.PHYSICAL_NETWORK: physical_network}
 
         with mock.patch(
-            'vmware_nsxlib.v3.policy_resources.NsxPolicySegmentApi.'
+            'vmware_nsxlib.v3.policy.core_resources.NsxPolicySegmentApi.'
             'create_or_overwrite',
             side_effect=nsxlib_exc.ResourceNotFound) as nsx_create, \
-            mock.patch('vmware_nsxlib.v3.policy_resources.NsxPolicySegmentApi.'
-                       'delete') as nsx_delete, \
+            mock.patch('vmware_nsxlib.v3.policy.core_resources.'
+                       'NsxPolicySegmentApi.delete') as nsx_delete, \
             self.network(name='nsx_net',
                          providernet_args=providernet_args,
                          arg_list=(pnet.NETWORK_TYPE,
@@ -352,7 +352,7 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
         providernet_args = {pnet.NETWORK_TYPE: 'nsx-net',
                             pnet.PHYSICAL_NETWORK: physical_network}
         with mock.patch(
-            "vmware_nsxlib.v3.policy_resources.NsxPolicySegmentApi.get",
+            "vmware_nsxlib.v3.policy.core_resources.NsxPolicySegmentApi.get",
             side_effect=nsxlib_exc.ResourceNotFound):
             result = self._create_network(fmt='json', name='bad_nsx_net',
                                           admin_state_up=True,
@@ -365,7 +365,7 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
 
     def test_create_transparent_vlan_network(self):
         providernet_args = {vlan_apidef.VLANTRANSPARENT: True}
-        with mock.patch('vmware_nsxlib.v3.policy_resources.'
+        with mock.patch('vmware_nsxlib.v3.policy.core_resources.'
                         'NsxPolicyTransportZoneApi.get_transport_type',
                         return_value=nsx_constants.TRANSPORT_TYPE_OVERLAY), \
             self.network(name='vt_net',
@@ -376,7 +376,7 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
     def test_create_provider_vlan_network_with_transparent(self):
         providernet_args = {pnet.NETWORK_TYPE: 'vlan',
                             vlan_apidef.VLANTRANSPARENT: True}
-        with mock.patch('vmware_nsxlib.v3.policy_resources.'
+        with mock.patch('vmware_nsxlib.v3.policy.core_resources.'
                         'NsxPolicyTransportZoneApi.get_transport_type',
                         return_value=nsx_constants.TRANSPORT_TYPE_VLAN):
             result = self._create_network(fmt='json', name='badvlan_net',
@@ -870,7 +870,7 @@ class NsxPTestSecurityGroup(common_v3.FixExternalNetBaseTest,
                                       pnet.SEGMENTATION_ID))
 
     def _test_create_port_vnic_direct(self, vlan_id):
-        with mock.patch('vmware_nsxlib.v3.policy_resources.'
+        with mock.patch('vmware_nsxlib.v3.policy.core_resources.'
                         'NsxPolicyTransportZoneApi.get_transport_type',
                         return_value=nsx_constants.TRANSPORT_TYPE_VLAN),\
             self._test_create_direct_network(vlan_id=vlan_id) as network:
