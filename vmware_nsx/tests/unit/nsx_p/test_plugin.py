@@ -60,6 +60,7 @@ NSX_VLAN_TZ_NAME = 'VLAN_TZ'
 DEFAULT_TIER0_ROUTER_UUID = "efad0078-9204-4b46-a2d8-d4dd31ed448f"
 NSX_DHCP_PROFILE_ID = 'DHCP_PROFILE'
 NSX_MD_PROXY_ID = 'MD_PROXY'
+NSX_DHCP_RELAY_SRV = 'dhcp relay srv'
 LOGICAL_SWITCH_ID = '00000000-1111-2222-3333-444444444444'
 
 
@@ -136,6 +137,11 @@ class NsxPPluginTestCaseMixin(
             side_effect=_return_same).start()
 
         mock.patch(
+            "vmware_nsxlib.v3.core_resources.NsxLibDhcpRelayService."
+            "get_id_by_name_or_id",
+            side_effect=_return_same).start()
+
+        mock.patch(
             "vmware_nsxlib.v3.resources.LogicalPort.create",
             side_effect=_return_id_key).start()
 
@@ -185,6 +191,18 @@ class NsxPPluginTestCaseMixin(
             network_req.environ['neutron.context'] = context.Context(
                 '', tenant_id)
         return network_req.get_response(self.api)
+
+    def _initialize_azs(self):
+        self.plugin.init_availability_zones()
+        for az in self.plugin.get_azs_list():
+            az.translate_configured_names_to_uuids(
+                self.plugin.nsxpolicy, nsxlib=self.plugin.nsxlib)
+
+    def _enable_dhcp_relay(self):
+        # Add the relay service to the config and availability zones
+        cfg.CONF.set_override('dhcp_relay_service', NSX_DHCP_RELAY_SRV,
+                              'nsx_p')
+        self._initialize_azs()
 
 
 class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
@@ -699,6 +717,30 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
                     self.assertEqual(exc.HTTPBadRequest.code,
                                      res.status_int)
 
+    def test_create_compute_port_with_relay_no_router(self):
+        """Compute port creation should fail
+
+        if a network with dhcp relay is not connected to a router
+        """
+        self._enable_dhcp_relay()
+        with self.network() as network, \
+            self.subnet(network=network, enable_dhcp=True) as s1:
+            device_owner = constants.DEVICE_OWNER_COMPUTE_PREFIX + 'X'
+            data = {'port': {
+                        'network_id': network['network']['id'],
+                        'tenant_id': self._tenant_id,
+                        'name': 'port',
+                        'admin_state_up': True,
+                        'device_id': 'fake_device',
+                        'device_owner': device_owner,
+                        'fixed_ips': [{'subnet_id': s1['subnet']['id']}],
+                        'mac_address': '00:00:00:00:00:01'}
+                    }
+            self.assertRaises(n_exc.InvalidInput,
+                              self.plugin.create_port,
+                              context.get_admin_context(),
+                              data)
+
 
 class NsxPTestSubnets(test_db_base_plugin_v2.TestSubnetsV2,
                       NsxPPluginTestCaseMixin):
@@ -815,6 +857,16 @@ class NsxPTestSubnets(test_db_base_plugin_v2.TestSubnetsV2,
 
     def test_subnet_update_ipv4_and_ipv6_pd_slaac_subnets(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_subnet_native_dhcp_with_relay(self):
+        """Verify that the relay service is added to the router interface"""
+        self._enable_dhcp_relay()
+        with self.network() as network:
+            with mock.patch.object(self.plugin,
+                                  '_enable_native_dhcp') as enable_dhcp,\
+                self.subnet(network=network, enable_dhcp=True):
+                # Native dhcp should not be set for this subnet
+                self.assertFalse(enable_dhcp.called)
 
 
 class NsxPTestSecurityGroup(common_v3.FixExternalNetBaseTest,
@@ -1491,3 +1543,43 @@ class NsxPTestL3NatTestCase(NsxPTestL3NatTest,
         with self.router(name=name, availability_zone_hints=zone) as rtr:
             az_hints = rtr['router']['availability_zone_hints']
             self.assertListEqual(zone, az_hints)
+
+    def test_router_dhcp_relay_dhcp_enabled(self):
+        """Verify that the relay service is added to the router interface"""
+        self._enable_dhcp_relay()
+        with self.network() as network,\
+            self.subnet(network=network, enable_dhcp=True) as s,\
+            self.router() as r,\
+            mock.patch.object(self.plugin.nsxpolicy.tier1,
+                              'set_dhcp_relay') as mock_set_relay:
+            self._router_interface_action('add', r['router']['id'],
+                                          s['subnet']['id'], None)
+            mock_set_relay.assert_called_once_with(
+                r['router']['id'],
+                network['network']['id'],
+                NSX_DHCP_RELAY_SRV)
+
+    def test_router_dhcp_relay_dhcp_disabled(self):
+        """Verify that the relay service is not added to the router interface
+
+        If the subnet do not have enabled dhcp
+        """
+        self._enable_dhcp_relay()
+        with self.network() as network,\
+            self.subnet(network=network, enable_dhcp=False) as s,\
+            self.router() as r,\
+            mock.patch.object(self.plugin.nsxpolicy.tier1,
+                              'set_dhcp_relay') as mock_set_relay:
+            self._router_interface_action('add', r['router']['id'],
+                                          s['subnet']['id'], None)
+            mock_set_relay.assert_not_called()
+
+    def test_router_dhcp_relay_no_ipam(self):
+        """Verify that a router cannot be created with relay and no ipam"""
+        # Add the relay service to the config and availability zones
+        self._enable_dhcp_relay()
+        cfg.CONF.set_override('ipam_driver', None)
+        self.assertRaises(n_exc.InvalidInput,
+                          self.plugin_instance.create_router,
+                          context.get_admin_context(),
+                          {'router': {'name': 'rtr'}})

@@ -2923,19 +2923,17 @@ class TestL3NatTestCase(L3NatTest,
     def test_router_dhcp_relay_dhcp_enabled(self):
         """Verify that the relay service is added to the router interface"""
         self._enable_dhcp_relay()
-        with self.network() as network:
-            with mock.patch.object(self.plugin,
-                                  'validate_router_dhcp_relay'),\
-                self.subnet(network=network, enable_dhcp=True) as s1,\
-                self.router() as r1,\
-                mock.patch.object(self.plugin.nsxlib.logical_router_port,
-                                  'update') as mock_update_port:
-                self._router_interface_action('add', r1['router']['id'],
-                                              s1['subnet']['id'], None)
-                mock_update_port.assert_called_once_with(
-                    mock.ANY,
-                    relay_service_uuid=NSX_DHCP_RELAY_SRV,
-                    subnets=mock.ANY)
+        with self.network() as network,\
+            self.subnet(network=network, enable_dhcp=True) as s1,\
+            self.router() as r1,\
+            mock.patch.object(self.plugin.nsxlib.logical_router_port,
+                              'update') as mock_update_port:
+            self._router_interface_action('add', r1['router']['id'],
+                                          s1['subnet']['id'], None)
+            mock_update_port.assert_called_once_with(
+                mock.ANY,
+                relay_service_uuid=NSX_DHCP_RELAY_SRV,
+                subnets=mock.ANY)
 
     def test_router_dhcp_relay_dhcp_disabled(self):
         """Verify that the relay service is not added to the router interface
@@ -2943,24 +2941,23 @@ class TestL3NatTestCase(L3NatTest,
         If the subnet do not have enabled dhcp
         """
         self._enable_dhcp_relay()
-        with self.network() as network:
-            with mock.patch.object(self.plugin,
-                                  'validate_router_dhcp_relay'),\
-                self.subnet(network=network, enable_dhcp=False) as s1,\
-                self.router() as r1,\
-                mock.patch.object(self.plugin.nsxlib.logical_router_port,
-                                  'update') as mock_update_port:
-                self._router_interface_action('add', r1['router']['id'],
-                                              s1['subnet']['id'], None)
-                mock_update_port.assert_called_once_with(
-                    mock.ANY,
-                    relay_service_uuid=None,
-                    subnets=mock.ANY)
+        with self.network() as network,\
+            self.subnet(network=network, enable_dhcp=False) as s1,\
+            self.router() as r1,\
+            mock.patch.object(self.plugin.nsxlib.logical_router_port,
+                              'update') as mock_update_port:
+            self._router_interface_action('add', r1['router']['id'],
+                                          s1['subnet']['id'], None)
+            mock_update_port.assert_called_once_with(
+                mock.ANY,
+                relay_service_uuid=None,
+                subnets=mock.ANY)
 
     def test_router_dhcp_relay_no_ipam(self):
         """Verify that a router cannot be created with relay and no ipam"""
         # Add the relay service to the config and availability zones
         self._enable_dhcp_relay()
+        cfg.CONF.set_override('ipam_driver', None)
         self.assertRaises(n_exc.InvalidInput,
                           self.plugin_instance.create_router,
                           context.get_admin_context(),
