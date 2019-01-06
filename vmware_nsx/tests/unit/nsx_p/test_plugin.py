@@ -158,6 +158,7 @@ class NsxPPluginTestCaseMixin(
         cfg.CONF.set_override('default_vlan_tz', NSX_VLAN_TZ_NAME, 'nsx_p')
         cfg.CONF.set_override('dhcp_profile', NSX_DHCP_PROFILE_ID, 'nsx_p')
         cfg.CONF.set_override('metadata_proxy', NSX_MD_PROXY_ID, 'nsx_p')
+        cfg.CONF.set_override('dhcp_agent_notification', False)
 
     def _create_network(self, fmt, name, admin_state_up,
                         arg_list=None, providernet_args=None,
@@ -835,7 +836,6 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
 
 class NsxPTestSubnets(test_db_base_plugin_v2.TestSubnetsV2,
                       NsxPPluginTestCaseMixin):
-    # TODO(asarfaty) add NsxNativeDhcpTestCase tests here too
     def setUp(self, plugin=PLUGIN_NAME, ext_mgr=None):
         super(NsxPTestSubnets, self).setUp(plugin=plugin, ext_mgr=ext_mgr)
         self.disable_dhcp = False
