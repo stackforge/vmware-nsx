@@ -89,6 +89,10 @@ class NsxV3AvailabilityZone(common_az.ConfiguredAvailabilityZone):
         if dhcp_relay_service:
             self.dhcp_relay_service = dhcp_relay_service
 
+        edge_cluster = az_info.get('edge_cluster')
+        if edge_cluster:
+            self.edge_cluster = edge_cluster
+
     def init_defaults(self):
         # Should be implemented by children
         pass
