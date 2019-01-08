@@ -41,10 +41,6 @@ class NsxV3AvailabilityZone(v3_az.NsxV3AvailabilityZone):
         if switching_profiles:
             self.switching_profiles = switching_profiles
 
-        edge_cluster = az_info.get('edge_cluster')
-        if edge_cluster:
-            self.edge_cluster = edge_cluster
-
     def init_defaults(self):
         # use the default configuration
         self.metadata_proxy = cfg.CONF.nsx_v3.metadata_proxy
