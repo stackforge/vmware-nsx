@@ -39,6 +39,10 @@ r="$r|(?:tempest\.api\.network\.admin\.test_external_network_extension\.External
 # Some ICMP types are not supported by the NSX backend
 r="$r|(?:tempest\.api\.network\.test_security_groups\.SecGroupTest\.test_create_security_group_rule_with_icmp_type_code.*)"
 
+# Admin state down is not supported for ports and networks. Skip those tests
+r="$r|(?:tempest\.api\.network\.test_ports\.PortsTestJSON\.test_create_update_delete_port.*)"
+r="$r|(?:tempest\.api\.network\.test_networks\.BulkNetworkOpsTest\.test_bulk_create_delete_port.*)"
+
 # End list of exclusions.
 r="$r)"
 
