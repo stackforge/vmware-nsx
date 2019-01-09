@@ -30,10 +30,6 @@ LOG = logging.getLogger(__name__)
 
 class EdgeL7PolicyManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
     @log_helpers.log_method_call
-    def __init__(self):
-        super(EdgeL7PolicyManagerFromDict, self).__init__()
-
-    @log_helpers.log_method_call
     def _update_policy_position(self, vs_id, rule_id, position):
         vs_client = self.core_plugin.nsxlib.load_balancer.virtual_server
         vs = vs_client.get(vs_id)

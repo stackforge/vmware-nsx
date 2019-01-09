@@ -30,11 +30,6 @@ LOG = logging.getLogger(__name__)
 
 
 class EdgeHealthMonitorManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
-
-    @log_helpers.log_method_call
-    def __init__(self):
-        super(EdgeHealthMonitorManagerFromDict, self).__init__()
-
     @log_helpers.log_method_call
     def _build_monitor_args(self, hm):
         if hm['type'] in lb_const.NSXV3_MONITOR_MAP:

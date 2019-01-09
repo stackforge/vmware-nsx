@@ -34,9 +34,6 @@ LOG = logging.getLogger(__name__)
 
 class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
     @log_helpers.log_method_call
-    def __init__(self):
-        super(EdgeListenerManagerFromDict, self).__init__()
-
     def _get_virtual_server_kwargs(self, context, listener, vs_name, tags,
                                    app_profile_id, certificate=None):
         # If loadbalancer vip_port already has floating ip, use floating

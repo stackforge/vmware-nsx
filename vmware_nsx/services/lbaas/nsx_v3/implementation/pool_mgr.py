@@ -35,9 +35,6 @@ LOG = logging.getLogger(__name__)
 
 class EdgePoolManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
     @log_helpers.log_method_call
-    def __init__(self):
-        super(EdgePoolManagerFromDict, self).__init__()
-
     def _get_pool_kwargs(self, name=None, tags=None, algorithm=None,
                          description=None):
         kwargs = {}

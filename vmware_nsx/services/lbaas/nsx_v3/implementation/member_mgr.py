@@ -33,10 +33,6 @@ LOG = logging.getLogger(__name__)
 
 class EdgeMemberManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
     @log_helpers.log_method_call
-    def __init__(self):
-        super(EdgeMemberManagerFromDict, self).__init__()
-
-    @log_helpers.log_method_call
     def _get_info_from_fip(self, context, fip):
         filters = {'floating_ip_address': [fip]}
         floating_ips = self.core_plugin.get_floatingips(context,
