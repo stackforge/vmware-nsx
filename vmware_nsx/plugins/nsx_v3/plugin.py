@@ -2918,7 +2918,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
     def update_router(self, context, router_id, router):
         gw_info = self._extract_external_gw(context, router, is_extract=False)
         router_data = router['router']
-        self._assert_on_router_admin_state(router_data)
+        self._assert_on_router_admin_state_down(router_data)
 
         if validators.is_attr_set(gw_info):
             self._validate_update_router_gw(context, router_id, gw_info)

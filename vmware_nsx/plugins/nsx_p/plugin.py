@@ -328,16 +328,11 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         tags = self.nsxpolicy.build_v3_api_version_project_tag(
             context.tenant_name)
 
-        # TODO(annak): admin state config is missing on policy
-        # should we not create networks that are down?
-        # alternative - configure status on manager for time being
-        admin_state = net_data.get('admin_state_up', True)
         LOG.debug('create_network: %(net_name)s, %(physical_net)s, '
                   '%(tags)s, %(admin_state)s, %(vlan_id)s',
                   {'net_name': net_name,
                    'physical_net': provider_data['physical_net'],
                    'tags': tags,
-                   'admin_state': admin_state,
                    'vlan_id': provider_data['vlan_id']})
         if transparent_vlan:
             # all vlan tags are allowed for guest vlan
@@ -391,6 +386,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         vlt = vlan_apidef.get_vlan_transparent(net_data)
 
         self._validate_create_network(context, net_data)
+        # Admin state is currently not supported by the NSX policy
+        self._assert_on_network_admin_state_down(net_data)
 
         if is_external_net:
             is_provider_net, net_type, physical_net, vlan_id = (
@@ -507,6 +504,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         # Validate the updated parameters
         self._validate_update_network(context, network_id, original_net,
                                       net_data)
+        # Admin state is currently not supported by the NSX policy
+        self._assert_on_network_admin_state_down(net_data)
 
         # Neutron does not support changing provider network values
         providernet._raise_if_updates_provider_attributes(net_data)
@@ -543,7 +542,6 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         # Update the backend segment
         if (not extern_net and not is_nsx_net and
             ('name' in net_data or 'description' in net_data)):
-            # TODO(asarfaty): handle admin state changes as well
             net_name = utils.get_name_and_uuid(
                 updated_net['name'] or 'network', network_id)
             try:
@@ -647,7 +645,6 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
     def _create_port_on_backend(self, context, port_data, is_psec_on,
                                 qos_policy_id):
-        # TODO(annak): admin_state not supported by policy
         name = self._build_port_name(context, port_data)
         address_bindings = self._build_port_address_bindings(
             context, port_data)
@@ -720,6 +717,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         port_data = port['port']
         # validate the new port parameters
         self._validate_create_port(context, port_data)
+        # Admin state is currently not supported by the NSX policy
+        self._assert_on_port_admin_state_down(port_data)
 
         # Validate the vnic type (the same types as for the NSX-T plugin)
         direct_vnic_type = self._validate_port_vnic_type(
@@ -841,6 +840,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             port_data = port['port']
             self._validate_update_port(context, port_id, original_port,
                                        port_data)
+            # Admin state is currently not supported by the NSX policy
+            self._assert_on_port_admin_state_down(port_data)
             validate_port_sec = self._should_validate_port_sec_on_update_port(
                 port_data)
             is_external_net = self._network_is_external(
@@ -1211,7 +1212,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
     def update_router(self, context, router_id, router):
         gw_info = self._extract_external_gw(context, router, is_extract=False)
         router_data = router['router']
-        self._assert_on_router_admin_state(router_data)
+        self._assert_on_router_admin_state_down(router_data)
 
         if validators.is_attr_set(gw_info):
             self._validate_update_router_gw(context, router_id, gw_info)

@@ -544,6 +544,27 @@ class NsxPTestNetworks(test_db_base_plugin_v2.TestNetworksV2,
                               context.get_admin_context(),
                               network['id'], data)
 
+    def test_list_networks_with_parameters_invalid_values(self):
+        self.skipTest('Admin state down on a network is not supported')
+
+    def test_list_networks_with_sort_extended_attr_native_returns_400(self):
+        self.skipTest('Admin state down on a network is not supported')
+
+    def test_list_networks_with_sort_remote_key_native_returns_400(self):
+        self.skipTest('Admin state down on a network is not supported')
+
+    def test_list_networks_with_sort_native(self):
+        self.skipTest('Admin state down on a network is not supported')
+
+    def test_list_networks_with_parameters(self):
+        self.skipTest('Admin state down on a network is not supported')
+
+    def test_invalid_admin_status(self):
+        self.skipTest('Admin state down on a network is not supported')
+
+    def test_list_networks_with_sort_emulated(self):
+        self.skipTest('Admin state down on a network is not supported')
+
 
 class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
                     NsxPPluginTestCaseMixin):
@@ -602,6 +623,27 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
     def test_update_port_add_additional_ip(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
 
+    def test_update_port_not_admin(self):
+        self.skipTest('Admin state down on a port is not supported')
+
+    def test_list_ports_with_sort_native(self):
+        self.skipTest('Admin state down on a port is not supported')
+
+    def test_update_port_update_ips(self):
+        self.skipTest('Admin state down on a port is not supported')
+
+    def test_list_ports_with_sort_emulated(self):
+        self.skipTest('Admin state down on a port is not supported')
+
+    def test_update_port(self):
+        new_desc = '123'
+        with self.port() as port:
+            data = {'port': {'description': new_desc}}
+            req = self.new_update_request('ports', data, port['port']['id'])
+            res = self.deserialize(self.fmt, req.get_response(self.api))
+            self.assertEqual(res['port']['description'],
+                             data['port']['description'])
+
     @with_disable_dhcp
     def test_duplicate_mac_generation(self):
         return super(NsxPTestPorts, self).test_duplicate_mac_generation()
@@ -630,11 +672,6 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
         return super(NsxPTestPorts, self).test_requested_ips_only()
 
     @with_disable_dhcp
-    def test_list_ports_with_sort_emulated(self):
-        return super(NsxPTestPorts,
-                     self).test_list_ports_with_sort_emulated()
-
-    @with_disable_dhcp
     def test_list_ports_with_pagination_native(self):
         return super(NsxPTestPorts,
                      self).test_list_ports_with_pagination_native()
@@ -656,10 +693,6 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
         return super(NsxPTestPorts, self).test_get_ports_count()
 
     @with_disable_dhcp
-    def test_list_ports_with_sort_native(self):
-        return super(NsxPTestPorts, self).test_list_ports_with_sort_native()
-
-    @with_disable_dhcp
     def test_list_ports_with_pagination_emulated(self):
         return super(NsxPTestPorts,
                      self).test_list_ports_with_pagination_emulated()
@@ -671,7 +704,7 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
         # is first removed.
         with self.subnet() as subnet:
             with self.port(subnet=subnet) as port:
-                data = {'port': {'admin_state_up': False,
+                data = {'port': {'admin_state_up': True,
                                  'fixed_ips': [],
                                  secgrp.SECURITYGROUPS: []}}
                 req = self.new_update_request('ports',
