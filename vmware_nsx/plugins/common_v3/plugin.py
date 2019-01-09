@@ -1191,11 +1191,21 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             old_routes, new_routes)
         return routes_added, routes_removed
 
-    def _assert_on_router_admin_state(self, router_data):
-        if router_data.get("admin_state_up") is False:
-            err_msg = _("admin_state_up=False routers are not supported")
+    def _assert_on_resource_admin_state(self, resource_data, resource_name):
+        if resource_data.get("admin_state_up") is False:
+            err_msg = (_("admin_state_up=False %ss are not supported") %
+                       resource_name)
             LOG.warning(err_msg)
             raise n_exc.InvalidInput(error_message=err_msg)
+
+    def _assert_on_router_admin_state_down(self, router_data):
+        self._assert_on_resource_admin_state(router_data, 'router')
+
+    def _assert_on_network_admin_state_down(self, net_data):
+        self._assert_on_resource_admin_state(net_data, 'network')
+
+    def _assert_on_port_admin_state_down(self, router_data):
+        self._assert_on_resource_admin_state(router_data, 'port')
 
     def _build_dhcp_server_config(self, context, network, subnet, port, az):
 
