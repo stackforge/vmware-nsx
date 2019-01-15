@@ -87,7 +87,7 @@ class NSXOctaviaListenerEndpoint(object):
         self.l7policy = l7policy
         self.l7rule = l7rule
 
-    def get_completor_func(self, obj_type, obj, delete=False):
+    def get_completor_func(self, obj_type, obj, delete=False, cascade=False):
         # return a method that will be called on success/failure completion
         def completor_func(success=True):
             LOG.debug("Octavia transaction completed. status %s",
@@ -151,6 +151,45 @@ class NSXOctaviaListenerEndpoint(object):
                         'id': policy_id,
                         constants.PROVISIONING_STATUS: parent_prov_status,
                         constants.OPERATING_STATUS: op_status}]
+            elif delete and cascade:
+                # add deleted status to all other objects
+                status_dict[constants.LISTENERS] = []
+                status_dict[constants.POOLS] = []
+                status_dict[constants.MEMBERS] = []
+                status_dict[constants.L7POLICIES] = []
+                status_dict[constants.L7RULES] = []
+                status_dict[constants.HEALTHMONITORS] = []
+                for pool in obj.get('pools', []):
+                    for member in pool.get('members', []):
+                        status_dict[constants.MEMBERS].append(
+                            {'id': member['id'],
+                             constants.PROVISIONING_STATUS: constants.DELETED,
+                             constants.OPERATING_STATUS: op_status})
+                    if pool.get('healthmonitor'):
+                        status_dict[constants.HEALTHMONITORS].append(
+                            {'id': pool['healthmonitor']['id'],
+                             constants.PROVISIONING_STATUS: constants.DELETED,
+                             constants.OPERATING_STATUS: op_status})
+                    status_dict[constants.POOLS].append(
+                        {'id': pool['id'],
+                         constants.PROVISIONING_STATUS: constants.DELETED,
+                         constants.OPERATING_STATUS: op_status})
+                for listener in obj.get('listeners', []):
+                    status_dict[constants.LISTENERS].append(
+                        {'id': listener['id'],
+                         constants.PROVISIONING_STATUS: constants.DELETED,
+                         constants.OPERATING_STATUS: op_status})
+                    for policy in listener.get('l7policies', []):
+                        status_dict[constants.L7POLICIES].append(
+                            {'id': policy['id'],
+                             constants.PROVISIONING_STATUS: constants.DELETED,
+                             constants.OPERATING_STATUS: op_status})
+                        for rule in policy.get('rules', []):
+                            status_dict[constants.L7RULES].append(
+                                {'id': rule['id'],
+                                 constants.PROVISIONING_STATUS:
+                                 constants.DELETED,
+                                 constants.OPERATING_STATUS: op_status})
 
             kw = {'status': status_dict}
             self.client.cast({}, 'update_loadbalancer_status', **kw)
@@ -170,14 +209,46 @@ class NSXOctaviaListenerEndpoint(object):
                                     loadbalancer))
 
     @log_helpers.log_method_call
-    def loadbalancer_delete(self, ctxt, loadbalancer, cascade=False):
+    def loadbalancer_delete_cascade(self, ctxt, loadbalancer):
         ctx = neutron_context.Context(None, loadbalancer['project_id'])
-        # TODO(asarfaty): No support for cascade. It is blocked by the driver
+
+        def dummy_completor(success=True):
+            pass
+
+        # Go over the LB tree and delete one by one using the cascade
+        # api implemented for each resource
+        for listener in loadbalancer.get('listeners', []):
+            for policy in listener.get('l7policies', []):
+                for rule in policy.get('rules', []):
+                    self.l7rule.delete_cascade(ctx, rule, dummy_completor)
+                self.l7policy.delete_cascade(ctx, policy, dummy_completor)
+            self.listener.delete_cascade(ctx, listener, dummy_completor)
+        for pool in loadbalancer.get('pools', []):
+            for member in pool.get('members', []):
+                self.member.delete_cascade(ctx, member, dummy_completor)
+            if pool.get('healthmonitor'):
+                self.healthmonitor.delete_cascade(
+                    ctx, pool['healthmonitor'], dummy_completor)
+            self.pool.delete_cascade(ctx, pool, dummy_completor)
+
+        # Delete the loadbalancer itself with the completor that marks all
+        # as deleted
+        self.loadbalancer.delete_cascade(
+            ctx, loadbalancer, self.get_completor_func(
+                constants.LOADBALANCERS,
+                loadbalancer,
+                delete=True, cascade=True))
+
+    @log_helpers.log_method_call
+    def loadbalancer_delete(self, ctxt, loadbalancer, cascade=False):
+        if cascade:
+            return self.loadbalancer_delete_cascade(ctxt, loadbalancer)
+
+        ctx = neutron_context.Context(None, loadbalancer['project_id'])
         self.loadbalancer.delete(
-            ctx, loadbalancer,
-            self.get_completor_func(constants.LOADBALANCERS,
-                                    loadbalancer,
-                                    delete=True))
+            ctx, loadbalancer, self.get_completor_func(
+                constants.LOADBALANCERS,
+                loadbalancer, delete=True))
 
     @log_helpers.log_method_call
     def loadbalancer_update(self, ctxt, old_loadbalancer, new_loadbalancer):
