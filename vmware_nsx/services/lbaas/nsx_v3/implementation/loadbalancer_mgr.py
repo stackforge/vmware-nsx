@@ -121,6 +121,31 @@ class EdgeLoadBalancerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
         completor(success=True)
 
     @log_helpers.log_method_call
+    def delete_cascade(self, context, lb, completor, lb_implementors):
+        """Delete all backend and DB resources of this loadbalancer"""
+
+        def dummy_completer(success=True):
+            pass
+
+        # Go over the LB tree and delete one by one
+        for listener in lb.get('listeners', []):
+            # L7 policies need to be deleted from the db only
+            for policy in listener.get('l7policies', []):
+                nsx_db.delete_nsx_lbaas_l7policy_binding(
+                    context.session, policy['id'])
+            lb_implementors.listener.delete(context, listener, dummy_completer)
+        for pool in lb.get('pools', []):
+            # No need to delete pool member from DB mapping or backend
+            if pool.get('healthmonitor'):
+                lb_implementors.healthmonitor.delete(
+                    context, pool['healthmonitor'], dummy_completer)
+            lb_implementors.pool.delete(context, pool, dummy_completer)
+
+        # delete LB itself
+        self.delete(context, lb, dummy_completer)
+        completor(success=True)
+
+    @log_helpers.log_method_call
     def refresh(self, context, lb):
         # TODO(tongl): implement
         pass
