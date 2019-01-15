@@ -159,6 +159,11 @@ class EdgeLoadBalancerManagerFromDict(base_mgr.EdgeLoadbalancerBaseManager):
                 context.session, lb['id'])
         completor(success=True)
 
+    @log_helpers.log_method_call
+    def delete_cascade(self, context, lb, completor):
+        #TODO(asarfaty): implement
+        pass
+
     def refresh(self, context, lb):
         # TODO(kobis): implement
         pass

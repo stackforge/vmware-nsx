@@ -121,6 +121,30 @@ class EdgeLoadBalancerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
         completor(success=True)
 
     @log_helpers.log_method_call
+    def delete_cascade(self, context, lb, completor, lb_implementors):
+        """Delete all backend and DB resources of this loadbalancer"""
+
+        def dummy_completer(success=True):
+            pass
+
+        # Go over the LB tree and delete one by one
+        for listener in lb.get('listeners', []):
+            lb_implementors.listener.delete(context, listener, dummy_completer)
+        for pool in lb.get('pools', []):
+            # No need to delete pool member from DB mapping or backend
+            if pool.get('healthmonitor'):
+                # DEBUG ADIT need to get the full hm obj from the driver to be able to delete it with regular delete
+            # DEBUG ADIT delete internal stuff
+            LOG.error("DEBUG ADIT delete pool %s", pool)
+            lb_implementors.pool.delete(context, pool, dummy_completer)
+
+        # l7 policy needs to be deleted from the db only (?)
+
+        # delete LB itself
+        self.delete(context, lb, dummy_completer)
+        completor(success=True)
+
+    @log_helpers.log_method_call
     def refresh(self, context, lb):
         # TODO(tongl): implement
         pass

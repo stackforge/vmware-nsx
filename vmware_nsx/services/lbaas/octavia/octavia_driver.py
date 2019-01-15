@@ -313,11 +313,6 @@ class NSXOctaviaDriver(driver_base.ProviderDriver):
 
     @log_helpers.log_method_call
     def loadbalancer_delete(self, loadbalancer, cascade=False):
-        if cascade:
-            # TODO(asarfaty) add support for cascade
-            LOG.warning("The NSX Octavia driver does not support loadbalancer "
-                        "delete cascade")
-            raise exceptions.NotImplementedError()
         kw = {'loadbalancer': self.obj_to_dict(loadbalancer),
               'cascade': cascade}
         self.client.cast({}, 'loadbalancer_delete', **kw)
