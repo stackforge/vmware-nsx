@@ -1858,16 +1858,20 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         return net_res
 
     def _validate_address_pairs(self, attrs, db_port):
-        for ap in attrs[addr_apidef.ADDRESS_PAIRS]:
-            # Check that the IP address is a subnet
-            if len(ap['ip_address'].split('/')) > 1:
-                msg = _('NSXv does not support CIDR as address pairs')
-                raise n_exc.BadRequest(resource='address_pairs', msg=msg)
-            # Check that the MAC address is the same as the port
-            if ('mac_address' in ap and
-                ap['mac_address'] != db_port['mac_address']):
-                msg = _('Address pairs should have same MAC as the port')
-                raise n_exc.BadRequest(resource='address_pairs', msg=msg)
+        if not cfg.CONF.nsxv.enable_multiple_ips_per_vm:
+            for ap in attrs[addr_apidef.ADDRESS_PAIRS]:
+                # Check that the IP address is a subnet
+                    if len(ap['ip_address'].split('/')) > 1:
+                        msg = _('NSXv does not support CIDR as address pairs')
+                        raise n_exc.BadRequest(resource='address_pairs',
+                                               msg=msg)
+                    # Check that the MAC address is the same as the port
+                    if ('mac_address' in ap and
+                        ap['mac_address'] != db_port['mac_address']):
+                        msg = _('Address pairs should have same MAC as the '
+                                'port')
+                        raise n_exc.BadRequest(resource='address_pairs',
+                                               msg=msg)
 
     def _is_mac_in_use(self, context, network_id, mac_address):
         # Override this method as the backed doesn't support using the same
@@ -1927,6 +1931,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                 LOG.warning(err_msg)
                 raise n_exc.InvalidInput(error_message=err_msg)
 
+    def _allow_address_pairs_disable_spoofguard(self, context, port):
+        if (cfg.CONF.nsxv.enable_multiple_ips_per_vm and
+                cfg.CONF.nsxv.spoofguard_enabled):
+            sg_policy_id = nsxv_db.get_spoofguard_policy_id(context,
+                                                            port['network_id'])
+            if sg_policy_id:
+                self.nsx_v.vcns.delete_spoofguard_policy(sg_policy_id)
+
     def create_port(self, context, port):
         port_data = port['port']
         dhcp_opts = port_data.get(ext_edo.EXTRADHCPOPTS)
@@ -1984,7 +1996,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             # allowed address pair checks
             attrs = port[port_def.RESOURCE_NAME]
             if self._check_update_has_allowed_address_pairs(port):
-                if not port_security:
+                self._allow_address_pairs_disable_spoofguard(context, port)
+                if (not port_security and not
+                        cfg.CONF.nsxv.enable_multiple_ips_per_vm):
                     raise addr_exc.AddressPairAndPortSecurityRequired()
                 self._validate_address_pairs(attrs, neutron_db)
             else:
