@@ -43,6 +43,16 @@ class NsxPAvailabilityZone(v3_az.NsxV3AvailabilityZone):
         self.dns_domain = cfg.CONF.nsx_p.dns_domain
         self.nameservers = cfg.CONF.nsx_p.nameservers
         self.edge_cluster = cfg.CONF.nsx_p.edge_cluster
+        self.dhcp_relay_service = cfg.CONF.nsx_p.dhcp_relay_config
+
+    def init_from_config_section(self, az_name):
+        super(NsxPAvailabilityZone, self).init_from_config_section(az_name)
+
+        az_info = self.get_az_opts()
+
+        dhcp_relay_service = az_info.get('dhcp_relay_config')
+        if dhcp_relay_service:
+            self.dhcp_relay_service = dhcp_relay_service
 
     def _init_default_resource(self, nsxpolicy, resource_api, config_name,
                                filter_list_results=None,
@@ -135,6 +145,11 @@ class NsxPAvailabilityZone(v3_az.NsxV3AvailabilityZone):
             auto_config=True, is_mandatory=False,
             search_scope=search_scope)
 
+        self.dhcp_relay_service = self._init_default_resource(
+            nsxpolicy, nsxpolicy.dhcp_relay_config, 'dhcp_relay_service',
+            auto_config=False, is_mandatory=False,
+            search_scope=search_scope)
+
         # If passthrough api is supported, also initialize those NSX objects
         if nsxlib:
             self._translate_dhcp_profile(nsxlib, search_scope=search_scope)
@@ -154,3 +169,9 @@ class NsxPAvailabilityZones(common_az.ConfiguredAvailabilityZones):
             cfg.CONF.nsx_p.availability_zones,
             NsxPAvailabilityZone,
             default_availability_zones=default_azs)
+
+    def dhcp_relay_configured(self):
+        for az in self.availability_zones.values():
+            if az.dhcp_relay_service:
+                return True
+        return False

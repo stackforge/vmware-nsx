@@ -462,6 +462,7 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
 
         self._assert_on_port_admin_state(port_data, device_owner)
         self._validate_extra_dhcp_options(port_data.get(ext_edo.EXTRADHCPOPTS))
+        self._assert_on_dhcp_relay_without_router(context, port_data)
 
     def _assert_on_vpn_port_change(self, port_data):
         if port_data['device_owner'] == ipsec_utils.VPN_PORT_OWNER:
@@ -559,6 +560,8 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._assert_on_vpn_port_change(original_port)
         self._assert_on_lb_port_fixed_ip_change(port_data, orig_dev_owner)
         self._validate_extra_dhcp_options(port_data.get(ext_edo.EXTRADHCPOPTS))
+        self._assert_on_dhcp_relay_without_router(context, port_data,
+                                                  original_port)
 
     def _get_dhcp_port_name(self, net_name, net_id):
         return utils.get_name_and_uuid('%s-%s' % ('dhcp',
@@ -1761,6 +1764,8 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                                     context, created_subnet['id'])
                         self._extension_manager.process_create_subnet(context,
                             subnet['subnet'], created_subnet)
+                        # TODO(asarfaty): For nsxt if router az has relay
+                        # do not add dhcp here
                         dhcp_relay = self._get_net_dhcp_relay(
                             context, subnet['subnet']['network_id'])
                         if not dhcp_relay:
@@ -2348,3 +2353,61 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             'os-neutron-net-id', network_id)
         if port_id:
             self.nsxlib.logical_port.delete(port_id)
+
+    def _assert_on_dhcp_relay_without_router(self, context, port_data,
+                                             original_port=None):
+        # Prevent creating/updating port with device owner prefix 'compute'
+        # on a subnet with dhcp relay but no router.
+        if not original_port:
+            original_port = port_data
+        device_owner = port_data.get('device_owner')
+        if (device_owner is None or
+            not device_owner.startswith(
+                constants.DEVICE_OWNER_COMPUTE_PREFIX)):
+            # not a compute port
+            return
+
+        if not self.get_network_az_by_net_id(
+            context,
+            original_port['network_id']).dhcp_relay_service:
+            # No dhcp relay for the net of this port
+            return
+
+        # get the subnet id from the fixed ips of the port
+        if 'fixed_ips' in port_data and port_data['fixed_ips']:
+            subnet_id = port_data['fixed_ips'][0]['subnet_id']
+        elif 'fixed_ips' in original_port and original_port['fixed_ips']:
+            subnet_id = original_port['fixed_ips'][0]['subnet_id']
+        else:
+            return
+
+        # check only dhcp enabled subnets
+        subnet = self.get_subnet(context.elevated(), subnet_id)
+        if not subnet['enable_dhcp']:
+            return
+
+        # check if the subnet is attached to a router
+        port_filters = {'device_owner': [l3_db.DEVICE_OWNER_ROUTER_INTF],
+                        'network_id': [original_port['network_id']]}
+        interfaces = self.get_ports(context.elevated(), filters=port_filters)
+        router_found = False
+        for interface in interfaces:
+            if interface['fixed_ips'][0]['subnet_id'] == subnet_id:
+                router_found = True
+                break
+        if not router_found:
+            err_msg = _("Neutron is configured with DHCP_Relay but no router "
+                        "connected to the subnet")
+            LOG.warning(err_msg)
+            raise n_exc.InvalidInput(error_message=err_msg)
+
+    def validate_router_dhcp_relay(self, context):
+        """Fail router creation if dhcp relay is configured without IPAM"""
+        pass
+        # DEBUG ADIT
+        # if (self._availability_zones_data.dhcp_relay_configured() and
+        #     cfg.CONF.ipam_driver == 'internal'):
+        #     err_msg = _("Neutron is configured with DHCP_Relay but no IPAM "
+        #                 "plugin configured")
+        #     LOG.warning(err_msg)
+        #     raise n_exc.InvalidInput(error_message=err_msg)

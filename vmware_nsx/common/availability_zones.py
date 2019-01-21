@@ -130,6 +130,9 @@ class ConfiguredAvailabilityZones(object):
         """
         return self.availability_zones.values()
 
+    def dhcp_relay_configured(self):
+        return False
+
 
 class NSXAvailabilityZonesPluginCommon(object):
 

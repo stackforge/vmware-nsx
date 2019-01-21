@@ -517,6 +517,10 @@ nsx_p_opts = nsx_v3_and_p + [
                 default=True,
                 help=_("If True, use nsx manager api for cases which are not "
                        "supported by the policy manager api")),
+    cfg.StrOpt('dhcp_relay_config',
+               help=_("(Optional) This is the name or UUID of the NSX Policy "
+                      "DHCP relay config that will be used to enable DHCP "
+                      "relay on Tier1 routers.")),
 ]
 
 
@@ -937,7 +941,12 @@ nsxv3_az_opts = nsx_v3_and_p_az_opts + [
                       "configuring external networks")),
 ]
 
-nsxp_az_opts = nsx_v3_and_p_az_opts
+nsxp_az_opts = nsx_v3_and_p_az_opts + [
+    cfg.StrOpt('dhcp_relay_config',
+               help=_("(Optional) This is the name or UUID of the NSX Policy "
+                      "DHCP relay config that will be used to enable DHCP "
+                      "relay on Tier1 routers.")),
+]
 
 nsx_tvd_opts = [
     cfg.ListOpt('nsx_v_extension_drivers',

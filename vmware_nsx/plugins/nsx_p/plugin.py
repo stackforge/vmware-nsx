@@ -1212,10 +1212,11 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
     def create_router(self, context, router):
         r = router['router']
+        self.validate_router_dhcp_relay(context)
         gw_info = self._extract_external_gw(context, router, is_extract=True)
 
         # validate the availability zone, and get the AZ object
-        self._validate_obj_az_on_creation(context, r, 'router')
+        az = self._validate_obj_az_on_creation(context, r, 'router')
 
         with db_api.CONTEXT_WRITER.using(context):
             router = super(NsxPolicyPlugin, self).create_router(
@@ -1228,9 +1229,12 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         tags = self.nsxpolicy.build_v3_api_version_project_tag(
             context.tenant_name, project_id=r.get('tenant_id'))
         try:
+            # TODO(asarfaty): adding the dhcp relay here means it will also
+            # affect DHCP-disabled subnets attached to this router
             self.nsxpolicy.tier1.create_or_overwrite(
                 router_name, router['id'],
                 tier0=None,
+                dhcp_config=az.dhcp_relay_service,
                 tags=tags)
         #TODO(annak): narrow down the exception
         except Exception as ex:
@@ -2088,5 +2092,5 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
                 raise n_exc.InvalidInput(error_message=msg)
 
     def _get_net_dhcp_relay(self, context, net_id):
-        # No dhcp relay support yet
+        # No dhcp relay support yet (relay support is via the router)
         return None
