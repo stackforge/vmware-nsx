@@ -1749,6 +1749,16 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         if psec_update:
             self._update_network_validate_port_sec(context, id, net_attrs)
 
+        # Relaxing spoofguard and allowing multiple addresses defined per VM
+        if (cfg.CONF.nsxv.spoofguard_enabled and
+                cfg.CONF.nsxv.enable_multiple_ips_per_vm and not
+                network[psec.PORTSECURITY]):
+            sg_policy = nsxv_db.get_spoofguard_policy_id(context.session,
+                                                         network
+                                                         ['network_id'])
+            if sg_policy:
+                self.nsx_v.vcns.delete_spoofguard_policy(sg_policy)
+
         # Check if the physical network of a vlan provider network was updated
         updated_morefs = False
         if (net_attrs.get(pnet.PHYSICAL_NETWORK) and
@@ -1858,16 +1868,20 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         return net_res
 
     def _validate_address_pairs(self, attrs, db_port):
-        for ap in attrs[addr_apidef.ADDRESS_PAIRS]:
-            # Check that the IP address is a subnet
-            if len(ap['ip_address'].split('/')) > 1:
-                msg = _('NSXv does not support CIDR as address pairs')
-                raise n_exc.BadRequest(resource='address_pairs', msg=msg)
-            # Check that the MAC address is the same as the port
-            if ('mac_address' in ap and
-                ap['mac_address'] != db_port['mac_address']):
-                msg = _('Address pairs should have same MAC as the port')
-                raise n_exc.BadRequest(resource='address_pairs', msg=msg)
+        if not cfg.CONF.nsxv.enable_multiple_ips_per_vm:
+            for ap in attrs[addr_apidef.ADDRESS_PAIRS]:
+                # Check that the IP address is a subnet
+                    if len(ap['ip_address'].split('/')) > 1:
+                        msg = _('NSXv does not support CIDR as address pairs')
+                        raise n_exc.BadRequest(resource='address_pairs',
+                                               msg=msg)
+                    # Check that the MAC address is the same as the port
+                    if ('mac_address' in ap and
+                        ap['mac_address'] != db_port['mac_address']):
+                        msg = _('Address pairs should have same MAC as the '
+                                'port')
+                        raise n_exc.BadRequest(resource='address_pairs',
+                                               msg=msg)
 
     def _is_mac_in_use(self, context, network_id, mac_address):
         # Override this method as the backed doesn't support using the same
@@ -1984,7 +1998,8 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             # allowed address pair checks
             attrs = port[port_def.RESOURCE_NAME]
             if self._check_update_has_allowed_address_pairs(port):
-                if not port_security:
+                if (not port_security and not
+                        cfg.CONF.nsxv.enable_multiple_ips_per_vm):
                     raise addr_exc.AddressPairAndPortSecurityRequired()
                 self._validate_address_pairs(attrs, neutron_db)
             else:
