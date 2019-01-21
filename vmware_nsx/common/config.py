@@ -808,6 +808,10 @@ nsxv_opts = [
                 default=False,
                 help=_("Use subnet's exclusive router as a platform for "
                        "LBaaS")),
+    cfg.BoolOpt('enable_multiple_ips_per_vm',
+                default=False,
+                help=_("Enable the option of associating IPs to the VM "
+                       "without spoofguard limitations")),
 ]
 
 # define the configuration of each NSX-V availability zone.
@@ -875,6 +879,10 @@ nsxv_az_opts = [
                        "connectivity between hosts on same network via "
                        "their floating ips. If True, floating ip will "
                        "be associated with all router interfaces.")),
+    cfg.BoolOpt('enable_multiple_ips_per_vm',
+                default=False,
+                help=_("Enable the option of associating IPs to the VM "
+                       "without spoofguard limitations")),
 ]
 
 # define the configuration of each NSX-V3 availability zone.
