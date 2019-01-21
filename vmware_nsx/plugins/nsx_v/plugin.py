@@ -1355,8 +1355,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                          net_data['id'])
                 net_data[psec.PORTSECURITY] = False
             # Create SpoofGuard policy for network anti-spoofing
+            # allow_multiple_addresses will be overridden in case the user
+            # requires allowing multiple or cidr-based allowed address pairs
+            # defined per port but doesn't want to disable spoofguard globally
             sg_policy_id = None
-            if cfg.CONF.nsxv.spoofguard_enabled and backend_network:
+            allow_multiple_addresses = (not net_data[psec.PORTSECURITY]
+                                        and cfg.CONF.nsxv.
+                                        allow_multiple_ip_addresses)
+            if (cfg.CONF.nsxv.spoofguard_enabled and backend_network and not
+                    allow_multiple_addresses):
                 # This variable is set as the method below may result in a
                 # exception and we may need to rollback
                 predefined = False
@@ -1742,6 +1749,69 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                             "installed in order for security-groups to "
                             "function properly.", net_id)
 
+    def allow_multiple_addresses_configure_spoofguard(self, context, id,
+                                                      net_attrs,
+                                                      psec_update=False,
+                                                      net_morefs=None):
+        orig_net = self.get_network(context, id)
+        if not net_attrs[psec.PORTSECURITY]:
+            sg_policy = nsxv_db.get_spoofguard_policy_id(context.session,
+                                                         orig_net['id'])
+            if sg_policy:
+                try:
+                    self.nsx_v.vcns.delete_spoofguard_policy(sg_policy)
+                except Exception as e:
+                    LOG.error('Unable to delete spoofguard policy '
+                              '%(sg_policy)s. Error: %(e)s',
+                              {'sg_policy': sg_policy, 'e': e})
+            else:
+                LOG.warning("Could not locate spoofguard policy for "
+                            "network %s", id)
+        # User requires port-security-enabled set to True and thus requires
+        # spoofguard installed for this network
+        if (cfg.CONF.nsxv.spoofguard_enabled and
+                cfg.CONF.nsxv.allow_multiple_ip_addresses and psec_update and
+                net_attrs[psec.PORTSECURITY]):
+            try:
+                sg_policy_id, predefined = self._prepare_spoofguard_policy(
+                    orig_net.get(pnet.NETWORK_TYPE), orig_net, net_morefs)
+                if sg_policy_id:
+                    nsxv_db.map_spoofguard_policy_for_network(
+                        context.session, orig_net['id'], sg_policy_id)
+            except Exception as e:
+                msg = 'Unable to create spoofguard policy, error: %s, ' \
+                      'net_morefs= %s, network_id= %s', e, net_morefs, orig_net
+                raise n_exc.BadRequest(resource='spoofguard policy',
+                                       msg=msg)
+
+            # Adding the compute ports to the list
+            filters = {'network_id': [id]}
+            ports = self.get_ports(context, filters=filters)
+            if ports:
+                for port in ports:
+                    if self._is_compute_port(port):
+                        try:
+                            # CIDR/subnet is not supported at backend
+                            for ap in port[addr_apidef.ADDRESS_PAIRS]:
+                                if len(ap['ip_address'].split('/')) > 1:
+                                    LOG.error(
+                                        'Cannot enale port-security on '
+                                        'network %s since port_id %s '
+                                        'specifies CIDRS in the allowed '
+                                        'address pairs', orig_net, port)
+                                    self.nsx_v.vcns. \
+                                        delete_spoofguard_policy(
+                                            sg_policy_id)
+                            vnic_idx = port.get(ext_vnic_idx.VNIC_INDEX)
+                            device_id = port['device_id']
+                            vnic_id = self._get_port_vnic_id(vnic_idx,
+                                                             device_id)
+                            self._update_vnic_assigned_addresses(
+                                context.session, port, vnic_id)
+                        except Exception as e:
+                            LOG.error('Unable to add port to spoofguard '
+                                      'policy Error: %(e)s', {'e': e})
+
     def update_network(self, context, id, network):
         net_attrs = network['network']
         orig_net = self.get_network(context, id)
@@ -1766,6 +1836,14 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                        net_attrs[psec.PORTSECURITY])
         if psec_update:
             self._update_network_validate_port_sec(context, id, net_attrs)
+
+        # Relaxing spoofguard and allowing multiple addresses defined per VM
+        if (cfg.CONF.nsxv.spoofguard_enabled and
+                cfg.CONF.nsxv.allow_multiple_ip_addresses and psec_update):
+            self.allow_multiple_addresses_configure_spoofguard(context, id,
+                                                               net_attrs,
+                                                               psec_update,
+                                                               net_morefs)
 
         # Check if the physical network of a vlan provider network was updated
         updated_morefs = False
@@ -1875,17 +1953,24 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         return net_res
 
-    def _validate_address_pairs(self, attrs, db_port):
+    def _validate_address_pairs(self, attrs, db_port, context):
+        network_port_security = self._get_network_security_binding(
+            context, db_port['network_id'])
+        if (not cfg.CONF.nsxv.allow_multiple_ip_addresses and
+                not network_port_security):
+            for ap in attrs[addr_apidef.ADDRESS_PAIRS]:
+                # Check that the IP address is a subnet
+                    if len(ap['ip_address'].split('/')) > 1:
+                        msg = _('NSXv does not support CIDR as address pairs')
+                        raise n_exc.BadRequest(resource='address_pairs',
+                                               msg=msg)
+        # Check that the MAC address is the same as the port
         for ap in attrs[addr_apidef.ADDRESS_PAIRS]:
-            # Check that the IP address is a subnet
-            if len(ap['ip_address'].split('/')) > 1:
-                msg = _('NSXv does not support CIDR as address pairs')
-                raise n_exc.BadRequest(resource='address_pairs', msg=msg)
-            # Check that the MAC address is the same as the port
             if ('mac_address' in ap and
-                ap['mac_address'] != db_port['mac_address']):
-                msg = _('Address pairs should have same MAC as the port')
-                raise n_exc.BadRequest(resource='address_pairs', msg=msg)
+                    ap['mac_address'] != db_port['mac_address']):
+                    msg = _('Address pairs should have same MAC as the '
+                            'port')
+                    raise n_exc.BadRequest(resource='address_pairs', msg=msg)
 
     def _is_mac_in_use(self, context, network_id, mac_address):
         # Override this method as the backed doesn't support using the same
@@ -2004,7 +2089,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             if self._check_update_has_allowed_address_pairs(port):
                 if not port_security:
                     raise addr_exc.AddressPairAndPortSecurityRequired()
-                self._validate_address_pairs(attrs, neutron_db)
+                self._validate_address_pairs(attrs, neutron_db, context)
             else:
                 # remove ATTR_NOT_SPECIFIED
                 attrs[addr_apidef.ADDRESS_PAIRS] = []
@@ -2216,7 +2301,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         self._validate_extra_dhcp_options(dhcp_opts)
         self._validate_port_qos(port_data)
         if addr_apidef.ADDRESS_PAIRS in attrs:
-            self._validate_address_pairs(attrs, original_port)
+            self._validate_address_pairs(attrs, original_port, context)
         self._validate_max_ips_per_port(
             port_data.get('fixed_ips', []),
             port_data.get('device_owner', original_port['device_owner']))
