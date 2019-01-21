@@ -4441,7 +4441,6 @@ class TestNSXvAllowedAddressPairs(NsxVPluginV2TestCase,
                             arg_list=(addrp_apidef.ADDRESS_PAIRS,),
                             allowed_address_pairs=address_pairs)
 
-
 class TestNSXPortSecurity(test_psec.TestPortSecurity,
                           NsxVPluginV2TestCase):
     def setUp(self, plugin=PLUGIN_NAME):
