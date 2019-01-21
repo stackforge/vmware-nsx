@@ -808,6 +808,10 @@ nsxv_opts = [
                 default=False,
                 help=_("Use subnet's exclusive router as a platform for "
                        "LBaaS")),
+    cfg.BoolOpt('enable_multiple_ips_per_vm',
+                default=False,
+                help=_("Enable the option of associating IPs to the VM "
+                       "without spoofguard limitations")),
 ]
 
 # define the configuration of each NSX-V availability zone.
