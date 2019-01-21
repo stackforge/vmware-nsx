@@ -4441,6 +4441,16 @@ class TestNSXvAllowedAddressPairs(NsxVPluginV2TestCase,
                             arg_list=(addrp_apidef.ADDRESS_PAIRS,),
                             allowed_address_pairs=address_pairs)
 
+    def test_create_port_with_cidr_address_pair_allowed(self):
+        cfg.CONF.set_override('enable_multiple_ips_per_vm', True, group="nsxv")
+        with self.network() as net:
+            address_pairs = [{'mac_address': '00:00:00:00:00:01',
+                              'ip_address': '192.168.1.0/24'}]
+            self._create_port(self.fmt, net['network']['id'],
+                              expected_res_status=webob.exc.HTTPCreated.code,
+                              arg_list=(addrp_apidef.ADDRESS_PAIRS,),
+                              allowed_address_pairs=address_pairs)
+
 
 class TestNSXPortSecurity(test_psec.TestPortSecurity,
                           NsxVPluginV2TestCase):
