@@ -788,7 +788,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         qos_policy_id = self._get_port_qos_policy_id(
             context, None, port_data)
 
-        if not is_external_net:
+        if not is_external_net and self._is_backend_port(port_data):
             try:
                 self._create_or_update_port_on_backend(
                     context, port_data, is_psec_on, qos_policy_id)
@@ -847,7 +847,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             msg = (_('Can not delete DHCP port %s') % port_id)
             raise n_exc.BadRequest(resource='port', msg=msg)
 
-        if not self._network_is_external(context, net_id):
+        if (not self._network_is_external(context, net_id) and
+            self._is_backend_port(port_data)):
             try:
                 segment_id = self._get_network_nsx_segment_id(context, net_id)
                 self.nsxpolicy.segment_port_security_profiles.delete(
@@ -955,7 +956,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         # update the port in the backend, only if it exists in the DB
         # (i.e not external net)
-        if not is_external_net:
+        if not is_external_net and self._is_backend_port(original_port):
             try:
                 self._update_port_on_backend(context, port_id,
                                              original_port, updated_port,
@@ -2091,3 +2092,9 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
     def _get_net_dhcp_relay(self, context, net_id):
         # No dhcp relay support yet
         return None
+
+    def _is_backend_port(self, port_data):
+        if port_data.get('device_owner') == l3_db.DEVICE_OWNER_ROUTER_INTF:
+            # router interface ports are not configured on the nsx backend
+            return False
+        return True
