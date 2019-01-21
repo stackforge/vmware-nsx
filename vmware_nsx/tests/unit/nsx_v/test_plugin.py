@@ -615,6 +615,21 @@ class TestNetworksV2(test_plugin.TestNetworksV2, NsxVPluginV2TestCase):
             # Assert neutron name is not truncated
             self.assertEqual(net['network']['name'], name)
 
+    def test_create_network_allow_multiple_addresses_no_spoofguard_created(
+            self):
+        q_context = context.Context('', 'tenant_1')
+        providernet_args = {psec.PORTSECURITY: False}
+        cfg.CONF.set_default('allow_multiple_ip_addresses', True, 'nsxv')
+        res = self._create_network(fmt='json', name='net-1',
+                                   admin_state_up=True,
+                                   providernet_args=providernet_args,
+                                   arg_list=(psec.PORTSECURITY,))
+        network1 = self.deserialize(self.fmt, res)
+        net1_id = network1['network']['id']
+        self.assertIsNone(nsxv_db.get_spoofguard_policy_id(q_context.session,
+                                                           net1_id))
+
+
     def test_update_network_with_admin_false(self):
         data = {'network': {'admin_state_up': False}}
         with self.network() as net:
