@@ -737,6 +737,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
     def create_port(self, context, port, l2gw_port_check=False):
         port_data = port['port']
+        LOG.error("DEBUG ADIT create_port start with %s", port_data)
         # validate the new port parameters
         self._validate_create_port(context, port_data)
         self._assert_on_resource_admin_state_down(port_data)
@@ -788,7 +789,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         qos_policy_id = self._get_port_qos_policy_id(
             context, None, port_data)
 
-        if not is_external_net:
+        if not is_external_net and self._is_backend_port(port_data):
             try:
                 self._create_or_update_port_on_backend(
                     context, port_data, is_psec_on, qos_policy_id)
@@ -847,7 +848,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             msg = (_('Can not delete DHCP port %s') % port_id)
             raise n_exc.BadRequest(resource='port', msg=msg)
 
-        if not self._network_is_external(context, net_id):
+        if (not self._network_is_external(context, net_id) and
+            self._is_backend_port(port_data)):
             try:
                 segment_id = self._get_network_nsx_segment_id(context, net_id)
                 self.nsxpolicy.segment_port_security_profiles.delete(
@@ -887,6 +889,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             original_port = super(NsxPolicyPlugin, self).get_port(
                 context, port_id)
             port_data = port['port']
+            LOG.error("DEBUG ADIT update_port start with %s", port_data)
             self._validate_update_port(context, port_id, original_port,
                                        port_data)
             self._assert_on_resource_admin_state_down(port_data)
@@ -955,7 +958,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         # update the port in the backend, only if it exists in the DB
         # (i.e not external net)
-        if not is_external_net:
+        if not is_external_net and self._is_backend_port(original_port):
             try:
                 self._update_port_on_backend(context, port_id,
                                              original_port, updated_port,
@@ -1348,6 +1351,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         return updated_router
 
     def add_router_interface(self, context, router_id, interface_info):
+        LOG.error("DEBUG ADIT add_router_interface start")
         network_id = self._get_interface_network(context, interface_info)
         extern_net = self._network_is_external(context, network_id)
         router_db = self._get_router(context, router_id)
@@ -1411,6 +1415,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
                 self.remove_router_interface(
                     context, router_id, interface_info)
 
+        LOG.error("DEBUG ADIT add_router_interface end with %s", info)
         return info
 
     def remove_router_interface(self, context, router_id, interface_info):
@@ -2091,3 +2096,9 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
     def _get_net_dhcp_relay(self, context, net_id):
         # No dhcp relay support yet
         return None
+
+    def _is_backend_port(self, port_data):
+        if port_data.get('device_owner') == l3_db.DEVICE_OWNER_ROUTER_INTF:
+            # router interface ports are not configured on the nsx backend
+            return False
+        return True
