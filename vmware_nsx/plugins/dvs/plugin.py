@@ -398,15 +398,19 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
         # ATTR_NOT_SPECIFIED is for the case where a port is created on a
         # shared network that is not owned by the tenant.
         port_data = port['port']
-
+        network_type = self._dvs_get_network(context, port['port'][
+            'network_id'])['provider:network_type']
         with db_api.CONTEXT_WRITER.using(context):
             # First we allocate port in neutron database
             neutron_db = super(NsxDvsV2, self).create_port(context, port)
             self._extension_manager.process_create_port(
                 context, port_data, neutron_db)
-            port_security = self._get_network_security_binding(
-                context, neutron_db['network_id'])
-            port_data[psec.PORTSECURITY] = port_security
+            if network_type and "vlan" in network_type:
+                port_data[psec.PORTSECURITY] = False
+            else:
+                port_security = self._get_network_security_binding(
+                    context, neutron_db['network_id'])
+                port_data[psec.PORTSECURITY] = port_security
             self._process_port_port_security_create(
                 context, port_data, neutron_db)
             # Update fields obtained from neutron db (eg: MAC address)
@@ -414,17 +418,19 @@ class NsxDvsV2(addr_pair_db.AllowedAddressPairsMixin,
             has_ip = self._ip_on_port(neutron_db)
 
             # security group extension checks
-            if has_ip:
-                self._ensure_default_security_group_on_port(context, port)
-            elif validators.is_attr_set(port_data.get(ext_sg.SECURITYGROUPS)):
-                raise psec_exc.PortSecurityAndIPRequiredForSecurityGroups()
-            port_data[ext_sg.SECURITYGROUPS] = (
-                self._get_security_groups_on_port(context, port))
-            self._process_port_create_security_group(
-                context, port_data, port_data[ext_sg.SECURITYGROUPS])
-            self._process_portbindings_create_and_update(context,
-                                                         port['port'],
-                                                         port_data)
+            if "vlan" not in network_type:
+                if has_ip:
+                    self._ensure_default_security_group_on_port(context, port)
+                elif validators.is_attr_set(port_data.get(
+                        ext_sg.SECURITYGROUPS)):
+                    raise psec_exc.PortSecurityAndIPRequiredForSecurityGroups()
+                port_data[ext_sg.SECURITYGROUPS] = (
+                    self._get_security_groups_on_port(context, port))
+                self._process_port_create_security_group(
+                    context, port_data, port_data[ext_sg.SECURITYGROUPS])
+                self._process_portbindings_create_and_update(context,
+                                                             port['port'],
+                                                             port_data)
 
             # allowed address pair checks
             if validators.is_attr_set(port_data.get(
