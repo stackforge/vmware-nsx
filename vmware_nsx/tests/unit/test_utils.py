@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# 1st test it without depends on
+# 2nd test it with Depends-On: https://review.openstack.org/#/c/633049
+
 from oslo_config import cfg
 
 
