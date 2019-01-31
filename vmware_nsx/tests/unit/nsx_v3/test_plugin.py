@@ -2688,7 +2688,7 @@ class TestL3NatTestCase(L3NatTest,
                     ext_subnet['network_id'])
                 with mock.patch("vmware_nsxlib.v3.router.RouterLib."
                                 "has_service_router", return_value=True),\
-                self._mock_add_remove_service_router() as change_sr:
+                    self._mock_add_remove_service_router() as change_sr:
                     self._update_router_enable_snat(
                         r['router']['id'],
                         ext_subnet['network_id'],
