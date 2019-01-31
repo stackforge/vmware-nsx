@@ -2352,3 +2352,8 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             'os-neutron-net-id', network_id)
         if port_id:
             self.nsxlib.logical_port.delete(port_id)
+
+    def state_firewall_rules(self, context, router_id):
+        if self.fwaas_callbacks and self.fwaas_callbacks.fwaas_enabled:
+            ports = self._get_router_interfaces(context, router_id)
+            return self.fwaas_callbacks.router_with_fwg(context, ports)

@@ -2081,11 +2081,6 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                     'net': sub['network_id']})
                 raise n_exc.InvalidInput(error_message=msg)
 
-    def state_firewall_rules(self, context, router_id):
-        if self.fwaas_callbacks and self.fwaas_callbacks.fwaas_enabled:
-            ports = self._get_router_interfaces(context, router_id)
-            return self.fwaas_callbacks.router_with_fwg(context, ports)
-
     def verify_sr_at_backend(self, context, router_id):
         nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                  router_id)
