@@ -1127,6 +1127,41 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         # remove the edge cluster from the tier1 router
         self.nsxpolicy.tier1.remove_edge_cluster(router_id)
 
+    def _add_edge_firewall_rules(self, context, router_id, router):
+        # DEBUG ADIT - temp test
+
+        # Create a gateway policy for this project (Domain) & router
+        # DEBUG ADIT - if not created yet
+        domain_id = router['project_id']
+        try:
+            policy_name = 'Gateway policy for Tier1 %s' % router_id
+            self.nsxpolicy.gateway_policy.create_or_overwrite_map_only(
+                policy_name, domain_id, map_id=router_id,
+                description=policy_name,
+                #tags=tags,
+                category='LocalGatewayRules') # this is the only one where you can later select
+        except Exception as e:
+            msg = (_("Failed to create gateway policy router %(rtr)s: "
+                     "%(e)s") % {'rtr': router_id, 'e': e})
+
+        # Add rule
+        rule_name = 'dummy rule 1'
+        rule_id = 'dummy_id'
+        sg_rule = {}
+        self.nsxpolicy.gateway_policy.create_entry(
+            rule_name, domain_id, router_id,
+            entry_id=rule_id,
+            description=sg_rule.get('description'),
+            #service_ids=[service] if service else None,
+            action=policy_constants.ACTION_ALLOW,
+            #source_groups=[source] if source else None,
+            #dest_groups=[destination] if destination else None,
+            direction=nsxlib_consts.IN,
+            scope=['/infra/tier-1s/%s' % router_id], # DEBUG ADIT - add api for this
+            #logged=logging
+            )
+
+
     def _update_router_gw_info(self, context, router_id, info):
         # Get the original data of the router GW
         router = self._get_router(context, router_id)
@@ -1198,6 +1233,9 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             for subnet in router_subnets:
                 self._add_subnet_snat_rule(context, router_id,
                                            subnet, gw_address_scope, newaddr)
+            # DEBUG ADIT
+            self._add_edge_firewall_rules(context, router_id, router)
+
         if actions['add_no_dnat_rules']:
             for subnet in router_subnets:
                 self._add_subnet_no_dnat_rule(context, router_id, subnet)
