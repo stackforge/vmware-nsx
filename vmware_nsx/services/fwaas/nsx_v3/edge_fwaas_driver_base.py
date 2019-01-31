@@ -15,7 +15,6 @@
 
 import netaddr
 
-from neutron_lib.api.definitions import constants as fwaas_consts
 from neutron_lib.callbacks import events
 from neutron_lib.callbacks import registry
 from neutron_lib.callbacks import resources
@@ -24,6 +23,7 @@ from oslo_log import log as logging
 
 from vmware_nsx.extensions import projectpluginmap
 from vmware_nsx.services.fwaas.common import fwaas_driver_base
+from vmware_nsx.services.fwaas.common import v3_utils
 from vmware_nsxlib.v3 import nsx_constants as consts
 
 LOG = logging.getLogger(__name__)
@@ -91,25 +91,6 @@ class CommonEdgeFwaasV3Driver(fwaas_driver_base.EdgeFwaasDriverBaseV2):
 
         return True
 
-    def _translate_action(self, fwaas_action, fwaas_rule_id):
-        """Translate FWaaS action to NSX action"""
-        if fwaas_action == fwaas_consts.FWAAS_ALLOW:
-            return consts.FW_ACTION_ALLOW
-        if fwaas_action == fwaas_consts.FWAAS_DENY:
-            return consts.FW_ACTION_DROP
-        if fwaas_action == fwaas_consts.FWAAS_REJECT:
-            # reject is not supported by the nsx router firewall
-            LOG.warning("Reject action is not supported by the NSX backend "
-                        "for router firewall. Using %(action)s instead for "
-                        "rule %(id)s",
-                  {'action': consts.FW_ACTION_DROP,
-                   'id': fwaas_rule_id})
-            return consts.FW_ACTION_DROP
-        # Unexpected action
-        LOG.error("Unsupported FWAAS action %(action)s for rule %(id)s", {
-            'action': fwaas_action, 'id': fwaas_rule_id})
-        raise self.driver_exception(driver=self.driver_name)
-
     def _translate_cidr(self, cidr, fwaas_rule_id):
         # Validate that this is a legal & supported ipv4 / ipv6 cidr
         error_msg = (_("Unsupported FWAAS cidr %(cidr)s for rule %(id)s") % {
@@ -144,31 +125,17 @@ class CommonEdgeFwaasV3Driver(fwaas_driver_base.EdgeFwaasDriverBaseV2):
                 translated_cidrs.append(res)
         return translated_cidrs
 
-    @staticmethod
-    def _translate_protocol(fwaas_protocol):
-        """Translate FWaaS L4 protocol to NSX protocol"""
-        if fwaas_protocol.lower() == 'tcp':
-            return consts.TCP
-        if fwaas_protocol.lower() == 'udp':
-            return consts.UDP
-        if fwaas_protocol.lower() == 'icmp':
-            # This will cover icmpv6 too, when adding  the rule.
-            return consts.ICMPV4
-
-    @staticmethod
-    def _translate_ports(ports):
-        return [ports.replace(':', '-')]
-
     def _translate_services(self, fwaas_rule):
-        l4_protocol = self._translate_protocol(fwaas_rule['protocol'])
+        l4_protocol = v3_utils.translate_fw_rule_protocol(
+            fwaas_rule['protocol'])
         if l4_protocol in [consts.TCP, consts.UDP]:
             source_ports = []
             destination_ports = []
             if fwaas_rule.get('source_port'):
-                source_ports = self._translate_ports(
+                source_ports = v3_utils.translate_fw_rule_ports(
                     fwaas_rule['source_port'])
             if fwaas_rule.get('destination_port'):
-                destination_ports = self._translate_ports(
+                destination_ports = v3_utils.translate_fw_rule_ports(
                     fwaas_rule['destination_port'])
 
             return [self.nsx_firewall.get_nsservice(
@@ -204,8 +171,11 @@ class CommonEdgeFwaasV3Driver(fwaas_driver_base.EdgeFwaasDriverBaseV2):
             nsx_rule['display_name'] = name[:255]
             if rule.get('description'):
                 nsx_rule['notes'] = rule['description']
-            nsx_rule['action'] = self._translate_action(
+            nsx_rule['action'] = v3_utils.translate_fw_rule_action(
                 rule['action'], rule['id'])
+            if not nsx_rule['action']:
+                raise self.driver_exception(driver=self.driver_name)
+
             if (rule.get('destination_ip_address') and
                 not rule['destination_ip_address'].startswith('0.0.0.0/')):
                 nsx_rule['destinations'] = self.translate_addresses_to_target(
