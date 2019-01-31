@@ -21,6 +21,7 @@ from oslo_log import log
 from oslo_utils import excutils
 from oslo_utils import uuidutils
 
+from neutron.db import agents_db
 from neutron.db import l3_db
 from neutron.db.models import l3 as l3_db_models
 from neutron.db.models import securitygroup as securitygroup_model  # noqa
@@ -63,6 +64,8 @@ from vmware_nsx.extensions import securitygrouplogging as sg_logging
 from vmware_nsx.plugins.common_v3 import plugin as nsx_plugin_common
 from vmware_nsx.plugins.nsx_p import availability_zones as nsxp_az
 from vmware_nsx.plugins.nsx_v3 import utils as v3_utils
+from vmware_nsx.services.fwaas.common import utils as fwaas_utils
+from vmware_nsx.services.fwaas.nsx_p import fwaas_callbacks_v2
 from vmware_nsx.services.qos.common import utils as qos_com_utils
 from vmware_nsx.services.qos.nsx_v3 import driver as qos_driver
 from vmware_nsx.services.qos.nsx_v3 import pol_utils as qos_utils
@@ -180,6 +183,10 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         # Init QoS
         qos_driver.register(qos_utils.PolicyQosNotificationsHandler())
+
+        registry.subscribe(self.spawn_complete,
+                           resources.PROCESS,
+                           events.AFTER_SPAWN)
 
         # subscribe the init complete method last, so it will be called only
         # if init was successful
@@ -302,6 +309,19 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
     def is_tvd_plugin():
         return False
 
+    def _init_fwaas(self):
+        if fwaas_utils.is_fwaas_v2_plugin_enabled():
+            LOG.info("NSXp FWaaS v2 plugin enabled")
+            self.fwaas_callbacks = fwaas_callbacks_v2.NsxpFwaasCallbacksV2()
+
+    def spawn_complete(self, resource, event, trigger, payload=None):
+        # This method should run only once, but after init_complete
+        if not self.init_is_complete:
+            self.init_complete(None, None, None)
+
+        # Init the FWaaS support
+        self._init_fwaas()
+
     def init_complete(self, resource, event, trigger, payload=None):
         with locking.LockManager.get_lock('plugin-init-complete'):
             if self.init_is_complete:
@@ -317,6 +337,9 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
                 self.nsxlib.reinitialize_cluster(resource, event, trigger,
                                                  payload=payload)
             self.init_is_complete = True
+
+    def _setup_rpc(self):
+        self.endpoints = [agents_db.AgentExtRpcCallback()]
 
     def _create_network_on_backend(self, context, net_data,
                                    transparent_vlan,
@@ -1100,6 +1123,25 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         return self.nsxpolicy.tier0.get_edge_cluster_path(
             tier0_uuid)
 
+    def service_router_has_services(self, context, router_id):
+        """Check if the neutron router has any services
+        which require a backend service router
+        currently those are: SNAT, Loadbalancer, Edge firewall
+        """
+        router = self._get_router(context, router_id)
+        snat_exist = router.enable_snat
+        # TODO(asarfaty) - add lbaas/octavia support here
+        lb_exist = False
+        fw_exist = self.state_firewall_rules(context, router_id)
+        if snat_exist or lb_exist or fw_exist:
+            return True
+        return snat_exist or lb_exist or fw_exist
+
+    def verify_sr_at_backend(self, router_id):
+        """Check if the backend Tier1 has a service router or not"""
+        if self.nsxpolicy.tier1.get_edge_cluster_path(router_id):
+            return True
+
     def create_service_router(self, context, router_id):
         """Create a service router and enable standby relocation"""
         router = self._get_router(context, router_id)
@@ -1206,6 +1248,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             for subnet in router_subnets:
                 self._add_subnet_snat_rule(context, router_id,
                                            subnet, gw_address_scope, newaddr)
+
         if actions['add_no_dnat_rules']:
             for subnet in router_subnets:
                 self._add_subnet_no_dnat_rule(context, router_id, subnet)
@@ -1428,6 +1471,9 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
                         subnet, gw_address_scope, gw_ip)
                 self._add_subnet_no_dnat_rule(context, router_id, subnet)
 
+            # update firewall rules
+            self.update_router_firewall(context, router_id, router_db)
+
         except Exception as ex:
             with excutils.save_and_reraise_exception():
                 LOG.error('Failed to create router interface for network '
@@ -1473,6 +1519,10 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             LOG.error('Failed to remove router interface for network '
                       '%(id)s on NSX backend. Exception: %(e)s',
                       {'id': network_id, 'e': ex})
+
+        # update firewall rules
+        self.update_router_firewall(context, router_id, router_db)
+
         return info
 
     def _get_fip_snat_rule_id(self, fip_id):
@@ -2121,3 +2171,26 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
     def _support_vlan_router_interfaces(self):
         return True
+
+    def update_router_firewall(self, context, router_id, router_db=None,
+                               from_fw=False):
+        """Rewrite all the rules in the router edge firewall
+
+        This method should be called on FWaaS v2 updates, and on router
+        interfaces changes.
+        When FWaaS is disabled, there is no need to update the NSX router FW,
+        as the default rule is allow-all.
+        """
+        if not router_db:
+            router_db = self._get_router(context, router_id)
+
+        if (self.fwaas_callbacks and
+            self.fwaas_callbacks.fwaas_enabled):
+            # find all the relevant ports of the router for FWaaS v2
+            # TODO(asarfaty): Add vm ports as well
+            ports = self._get_router_interfaces(context, router_id)
+
+            # let the fwaas callbacks update the router FW
+            return self.fwaas_callbacks.update_router_firewall(
+                context, self.nsxlib, router_id, router_db, ports,
+                from_fw=from_fw)
