@@ -1658,8 +1658,9 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
 
         if not cfg.CONF.nsx_v3.native_dhcp_metadata:
             nsx_rpc.handle_port_metadata_access(self, context, neutron_db)
-        kwargs = {'context': context, 'port': neutron_db}
-        registry.notify(resources.PORT, events.AFTER_CREATE, self, **kwargs)
+        registry.publish(resources.PORT, events.AFTER_CREATE, self,
+                         payload=events.DBEventPayload(
+                             context, states=(neutron_db,)))
         return port_data
 
     def _pre_delete_port_check(self, context, port_id, l2gw_port_check):
