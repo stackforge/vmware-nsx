@@ -2065,8 +2065,9 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
         self._remove_provider_security_groups_from_list(port_data)
         self._extend_nsx_port_dict_binding(context, port_data)
 
-        kwargs = {'context': context, 'port': neutron_db}
-        registry.notify(resources.PORT, events.AFTER_CREATE, self, **kwargs)
+        registry.publish(resources.PORT, events.AFTER_CREATE, self,
+                         payload=events.DBEventPayload(
+                             context, states=(neutron_db,)))
         return port_data
 
     def _make_port_dict(self, port, fields=None,

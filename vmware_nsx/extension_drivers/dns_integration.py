@@ -443,12 +443,13 @@ def _remove_data_from_external_dns_service(context, dns_driver, dns_domain,
                        "ips": ', '.join(records)})
 
 
-def _create_port_in_external_dns_service(resource, event, trigger, **kwargs):
+def _create_port_in_external_dns_service(resource, event,
+                                         trigger, payload=None):
     dns_driver = _get_dns_driver()
     if not dns_driver:
         return
-    context = kwargs['context']
-    port = kwargs['port']
+    context = payload.context
+    port = payload.latest_state
     dns_data_db = obj_reg.load_class('PortDNS').get_object(
         context, port_id=port['id'])
     if not (dns_data_db and dns_data_db['current_dns_name']):
