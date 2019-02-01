@@ -824,8 +824,9 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
                 LOG.exception(msg)
                 raise nsx_exc.NsxPluginException(err_msg=msg)
 
-        kwargs = {'context': context, 'port': neutron_db}
-        registry.notify(resources.PORT, events.AFTER_CREATE, self, **kwargs)
+        registry.publish(resources.PORT, events.AFTER_CREATE, self,
+                         payload=events.DBEventPayload(
+                             context, states=(neutron_db,)))
         return port_data
 
     def delete_port(self, context, port_id,
