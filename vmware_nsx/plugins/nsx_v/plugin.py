@@ -175,6 +175,7 @@ PROTOCOLS_SUPPORTING_PORTS = [constants.PROTO_NUM_TCP,
                               constants.PROTO_NUM_ICMP,
                               constants.PROTO_NUM_IPV6_ICMP]
 
+# DEBUG - test
 
 @resource_extend.has_resource_extenders
 class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
