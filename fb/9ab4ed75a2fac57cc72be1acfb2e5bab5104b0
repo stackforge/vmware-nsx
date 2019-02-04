@@ -1,0 +1,10 @@
+Code-Review+2: Salvatore Orlando <salv.orlando@gmail.com>
+Verified+1: VMware NSX CI
+Code-Review+2: Anna Khmelnitsky <akhmelnitsky@vmware.com>
+Workflow+1: Anna Khmelnitsky <akhmelnitsky@vmware.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Mon, 04 Feb 2019 23:28:05 +0000
+Reviewed-on: https://review.openstack.org/634642
+Project: openstack/vmware-nsx
+Branch: refs/heads/master
