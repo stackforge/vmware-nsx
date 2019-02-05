@@ -170,8 +170,10 @@ class NsxV3TrunkHandler(object):
     def trunk_event(self, resource, event, trunk_plugin, payload):
         if event == events.AFTER_CREATE:
             self.trunk_created(payload.context, payload.current_trunk)
-        elif event == events.AFTER_DELETE:
-            self.trunk_deleted(payload.context, payload.original_trunk)
+
+    def trunk_payload_event(self, resource, event, trunk_plugin, payload=None):
+        # TODO(boden): refactor back into 1 method once all use payloads
+        self.trunk_deleted(payload.context, payload.states[0])
 
     def subport_event(self, resource, event, trunk_plugin, payload):
         if event == events.AFTER_CREATE:
@@ -205,9 +207,14 @@ class NsxV3TrunkDriver(base.DriverBase):
             resource, event, trigger, payload=payload)
         self._handler = NsxV3TrunkHandler(self.plugin_driver)
         for event in (events.AFTER_CREATE, events.AFTER_DELETE):
-            registry.subscribe(self._handler.trunk_event,
-                               trunk_consts.TRUNK,
-                               event)
+            if event == events.AFTER_DELETE:
+                registry.subscribe(self._handler.trunk_payload_event,
+                                   trunk_consts.TRUNK,
+                                   event)
+            else:
+                registry.subscribe(self._handler.trunk_event,
+                                   trunk_consts.TRUNK,
+                                   event)
             registry.subscribe(self._handler.subport_event,
                                trunk_consts.SUBPORTS,
                                event)
