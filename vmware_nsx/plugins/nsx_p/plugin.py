@@ -1951,11 +1951,11 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         domain_id = sg['tenant_id']
         try:
-            self.nsxpolicy.comm_map.delete(domain_id, sg_id)
-            self.nsxpolicy.group.delete(domain_id, sg_id)
             for rule in sg['security_group_rules']:
                 self._delete_security_group_rule_backend_resources(
                     context, domain_id, rule)
+            self.nsxpolicy.comm_map.delete(domain_id, sg_id)
+            self.nsxpolicy.group.delete(domain_id, sg_id)
         except Exception as e:
             LOG.warning("Failed to delete SG %s NSX resources: %s",
                         sg_id, e)
