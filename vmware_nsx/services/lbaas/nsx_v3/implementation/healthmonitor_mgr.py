@@ -146,6 +146,7 @@ class EdgeHealthMonitorManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                 pool_client.remove_monitor_from_pool(lb_pool_id,
                                                      lb_monitor_id)
             except nsxlib_exc.ManagerError as exc:
+                completor(success=False)
                 LOG.error('Failed to remove monitor %(monitor)s from pool '
                           '%(pool)s with exception from nsx %(exc)s)',
                           {'monitor': lb_monitor_id,
@@ -154,6 +155,7 @@ class EdgeHealthMonitorManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
             try:
                 monitor_client.delete(lb_monitor_id)
             except nsxlib_exc.ManagerError as exc:
+                completor(success=False)
                 LOG.error('Failed to delete monitor %(monitor)s from '
                           'backend with exception %(exc)s',
                           {'monitor': lb_monitor_id,
