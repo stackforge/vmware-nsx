@@ -75,6 +75,7 @@ from vmware_nsxlib.v3 import utils as nsxlib_utils
 
 from vmware_nsxlib.v3.policy import constants as policy_constants
 from vmware_nsxlib.v3.policy import core_defs as policy_defs
+from vmware_nsxlib.v3.policy import transaction as trans
 
 LOG = log.getLogger(__name__)
 NSX_P_SECURITY_GROUP_TAG = 'os-security-group'
@@ -1709,30 +1710,19 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             cond_key=policy_constants.CONDITION_KEY_TAG,
             cond_member_type=policy_constants.CONDITION_MEMBER_PORT)
         # Create the group
-        try:
-            self.nsxpolicy.group.create_or_overwrite_with_conditions(
-                nsx_name, domain_id, group_id=sg_id,
-                description=secgroup.get('description'),
-                conditions=[condition], tags=tags)
-        except Exception as e:
-            msg = (_("Failed to create NSX group for SG %(sg)s: "
-                     "%(e)s") % {'sg': sg_id, 'e': e})
-            raise nsx_exc.NsxPluginException(err_msg=msg)
+        self.nsxpolicy.group.create_or_overwrite_with_conditions(
+            nsx_name, domain_id, group_id=sg_id,
+            description=secgroup.get('description'),
+            conditions=[condition], tags=tags)
 
         category = NSX_P_REGULAR_SECTION_CATEGORY
         if secgroup.get(provider_sg.PROVIDER) is True:
             category = NSX_P_PROVIDER_SECTION_CATEGORY
         # create the communication map (=section) without and entries (=rules)
-        try:
-            self.nsxpolicy.comm_map.create_or_overwrite_map_only(
-                nsx_name, domain_id, map_id=sg_id,
-                description=secgroup.get('description'),
-                tags=tags, category=category)
-        except Exception as e:
-            msg = (_("Failed to create NSX communication map for SG %(sg)s: "
-                     "%(e)s") % {'sg': sg_id, 'e': e})
-            self.nsxpolicy.group.delete(domain_id, sg_id)
-            raise nsx_exc.NsxPluginException(err_msg=msg)
+        self.nsxpolicy.comm_map.create_or_overwrite_map_only(
+            nsx_name, domain_id, map_id=sg_id,
+            description=secgroup.get('description'),
+            tags=tags, category=category)
 
     def _get_rule_service_id(self, context, sg_rule, tags):
         """Return the NSX Policy service id matching the SG rule"""
@@ -1898,28 +1888,29 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         try:
             # Create Group & communication map on the NSX
-            self._create_security_group_backend_resources(
-                context, secgroup, project_id)
+            with trans.NsxPolicyTransaction():
+                self._create_security_group_backend_resources(
+                    context, secgroup, project_id)
 
-            # Add the security-group rules
-            sg_rules = secgroup_db['security_group_rules']
-            secgroup_logging = secgroup.get(sg_logging.LOGGING, False)
-            for sg_rule in sg_rules:
-                self._create_security_group_backend_rule(
-                    context, project_id, secgroup_db['id'], sg_rule,
-                    secgroup_logging)
+                # Add the security-group rules
+                sg_rules = secgroup_db['security_group_rules']
+                secgroup_logging = secgroup.get(sg_logging.LOGGING, False)
+                for sg_rule in sg_rules:
+                    self._create_security_group_backend_rule(
+                        context, project_id, secgroup_db['id'], sg_rule,
+                        secgroup_logging)
+
         except Exception as e:
-            with excutils.save_and_reraise_exception():
-                LOG.exception("Failed to create backend SG rules "
-                              "for security-group %(name)s (%(id)s), "
-                              "rolling back changes. Error: %(e)s",
-                              {'name': secgroup_db['name'],
-                               'id': secgroup_db['id'],
-                               'e': e})
-                # rollback SG creation (which will also delete the backend
-                # objects)
-                super(NsxPolicyPlugin, self).delete_security_group(
-                    context, secgroup['id'])
+            msg = ("Failed to create backend SG rules "
+                   "for security-group %(name)s (%(id)s), "
+                   "rolling back changes. Error: %(e)s",
+                   {'name': secgroup_db['name'],
+                    'id': secgroup_db['id'],
+                    'e': e})
+            LOG.exception(msg)
+            super(NsxPolicyPlugin, self).delete_security_group(
+                context, secgroup['id'])
+            raise nsx_exc.NsxPluginException(err_msg=msg)
 
         return secgroup_db
 
@@ -2004,10 +1995,11 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         domain_id = example_rule['tenant_id']
         secgroup_logging = self._is_security_group_logged(context, sg_id)
-        for rule_data in rules_db:
-            # create the NSX backend rule
-            self._create_security_group_backend_rule(
-                context, domain_id, sg_id, rule_data, secgroup_logging)
+        with trans.NsxPolicyTransaction():
+            for rule_data in rules_db:
+                # create the NSX backend rule
+                self._create_security_group_backend_rule(
+                    context, domain_id, sg_id, rule_data, secgroup_logging)
 
         return rules_db
 
