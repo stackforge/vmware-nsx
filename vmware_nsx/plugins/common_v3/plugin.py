@@ -25,6 +25,7 @@ import webob.exc
 from six import moves
 from six import string_types
 
+from neutron.db import agents_db
 from neutron.db import agentschedulers_db
 from neutron.db import allowedaddresspairs_db as addr_pair_db
 from neutron.db.availability_zone import router as router_az_db
@@ -42,6 +43,7 @@ from neutron.db import portsecurity_db
 from neutron.db import securitygroups_db
 from neutron.db import vlantransparent_db
 from neutron.extensions import securitygroup as ext_sg
+from neutron_lib.agent import topics
 from neutron_lib.api.definitions import allowedaddresspairs as addr_apidef
 from neutron_lib.api.definitions import availability_zone as az_def
 from neutron_lib.api.definitions import external_net as extnet_apidef
@@ -60,6 +62,7 @@ from neutron_lib.exceptions import allowedaddresspairs as addr_exc
 from neutron_lib.exceptions import l3 as l3_exc
 from neutron_lib.exceptions import port_security as psec_exc
 from neutron_lib.plugins import utils as plugin_utils
+from neutron_lib import rpc as n_rpc
 from neutron_lib.services.qos import constants as qos_consts
 from neutron_lib.utils import helpers
 from neutron_lib.utils import net as nl_net_utils
@@ -122,6 +125,7 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._network_vlans = plugin_utils.parse_network_vlan_ranges(
             self._get_conf_attr('network_vlan_ranges'))
         self._native_dhcp_enabled = False
+        self.start_rpc_listeners_called = False
 
     def _init_native_dhcp(self):
         if not self.nsxlib:
@@ -171,6 +175,26 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def _get_conf_attr(self, attr):
         plugin_cfg = getattr(cfg.CONF, self.cfg_group)
         return getattr(plugin_cfg, attr)
+
+    def _setup_rpc(self):
+        """Should be implemented by each plugin"""
+        pass
+
+    def start_rpc_listeners(self):
+        if self.start_rpc_listeners_called:
+            # If called more than once - we should not create it again
+            return self.conn.consume_in_threads()
+
+        self._setup_rpc()
+        self.topic = topics.PLUGIN
+        self.conn = n_rpc.Connection()
+        self.conn.create_consumer(self.topic, self.endpoints, fanout=False)
+        self.conn.create_consumer(topics.REPORTS,
+                                  [agents_db.AgentExtRpcCallback()],
+                                  fanout=False)
+        self.start_rpc_listeners_called = True
+
+        return self.conn.consume_in_threads()
 
     def _get_interface_network(self, context, interface_info):
         is_port, is_sub = self._validate_interface_info(interface_info)
@@ -1067,7 +1091,8 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
     def _get_update_router_gw_actions(
         self,
         org_tier0_uuid, orgaddr, org_enable_snat,
-        new_tier0_uuid, newaddr, new_enable_snat, lb_exist, fw_exist):
+        new_tier0_uuid, newaddr, new_enable_snat,
+        lb_exist, fw_exist, sr_currently_exists):
         """Return a dictionary of flags indicating which actions should be
            performed on this router GW update.
         """
@@ -1126,21 +1151,34 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         actions['advertise_route_connected_flag'] = (
             True if not new_enable_snat else False)
 
-        # the purpose of the two vars is to be able to differ between
+        # the purpose of this var is to be able to differ between
         # adding a gateway w/o snat and adding snat (when adding/removing gw
-        # the snat option is on by default.
+        # the snat option is on by default).
+        new_with_snat = True if (new_enable_snat and newaddr) else False
+        has_gw = True if newaddr else False
 
-        real_new_enable_snat = new_enable_snat and newaddr
-        real_org_enable_snat = org_enable_snat and orgaddr
-
-        actions['add_service_router'] = ((real_new_enable_snat and
-                                          not real_org_enable_snat) or
-                                         (real_new_enable_snat and not
-                                         orgaddr and newaddr)
-                                         ) and not (fw_exist or lb_exist)
-        actions['remove_service_router'] = ((not real_new_enable_snat and
-                                             real_org_enable_snat) or (
-                orgaddr and not newaddr)) and not (fw_exist or lb_exist)
+        if sr_currently_exists:
+            # currently there is a service router on the backend
+            actions['add_service_router'] = False
+            # Should remove the service router if the GW was removed,
+            # or no service needs it: SNAT, LBaaS or FWaaS
+            actions['remove_service_router'] = (
+                not has_gw or not (fw_exist or lb_exist or new_with_snat))
+            if actions['remove_service_router']:
+                LOG.info("Removing service router [GW: %s, FW %s, LB %s, "
+                         "SNAT %s]",
+                         has_gw, fw_exist, lb_exist, new_with_snat)
+        else:
+            # currently there is no service router on the backend
+            actions['remove_service_router'] = False
+            # Should add service router if there is a GW
+            # and there is a service that needs it: SNAT, LB or FWaaS
+            actions['add_service_router'] = (
+                has_gw is not None and (new_with_snat or fw_exist or lb_exist))
+            if actions['add_service_router']:
+                LOG.info("Adding service router [GW: %s, FW %s, LB %s, "
+                         "SNAT %s]",
+                         has_gw, fw_exist, lb_exist, new_with_snat)
 
         return actions
 
@@ -2403,3 +2441,12 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             else:
                 # attach to multiple routers
                 raise l3_exc.RouterInterfaceAttachmentConflict(reason=err_msg)
+
+    def _router_has_edge_fw_rules(self, context, router):
+        if not router.gw_port_id:
+            # No GW -> No rule on the edge firewall
+            return False
+
+        if self.fwaas_callbacks and self.fwaas_callbacks.fwaas_enabled:
+            ports = self._get_router_interfaces(context, router.id)
+            return self.fwaas_callbacks.router_with_fwg(context, ports)

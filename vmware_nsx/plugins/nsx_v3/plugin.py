@@ -17,7 +17,7 @@ import time
 
 import mock
 import netaddr
-from neutron_lib.agent import topics
+
 from neutron_lib.api.definitions import address_scope
 from neutron_lib.api.definitions import agent as agent_apidef
 from neutron_lib.api.definitions import allowedaddresspairs as addr_apidef
@@ -48,7 +48,6 @@ from neutron_lib import exceptions as n_exc
 from neutron_lib.exceptions import l3 as l3_exc
 from neutron_lib.plugins import constants as plugin_const
 from neutron_lib.plugins import directory
-from neutron_lib import rpc as n_rpc
 from neutron_lib.services.qos import constants as qos_consts
 
 from neutron.api.rpc.agentnotifiers import dhcp_rpc_agent_api
@@ -240,8 +239,6 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
             raise nsx_exc.NsxPluginException(err_msg=msg)
 
         qos_driver.register(qos_utils.QosNotificationsHandler())
-
-        self.start_rpc_listeners_called = False
 
         self._unsubscribe_callback_events()
         if cfg.CONF.api_replay_mode:
@@ -796,22 +793,6 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
         self.agent_notifiers[const.AGENT_TYPE_DHCP] = (
             dhcp_rpc_agent_api.DhcpAgentNotifyAPI()
         )
-
-    def start_rpc_listeners(self):
-        if self.start_rpc_listeners_called:
-            # If called more than once - we should not create it again
-            return self.conn.consume_in_threads()
-
-        self._setup_rpc()
-        self.topic = topics.PLUGIN
-        self.conn = n_rpc.Connection()
-        self.conn.create_consumer(self.topic, self.endpoints, fanout=False)
-        self.conn.create_consumer(topics.REPORTS,
-                                  [agents_db.AgentExtRpcCallback()],
-                                  fanout=False)
-        self.start_rpc_listeners_called = True
-
-        return self.conn.consume_in_threads()
 
     def _get_edge_cluster(self, tier0_uuid, router):
         az = self._get_router_az_obj(router)
@@ -2101,11 +2082,6 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                     'net': sub['network_id']})
                 raise n_exc.InvalidInput(error_message=msg)
 
-    def state_firewall_rules(self, context, router_id):
-        if self.fwaas_callbacks and self.fwaas_callbacks.fwaas_enabled:
-            ports = self._get_router_interfaces(context, router_id)
-            return self.fwaas_callbacks.router_with_fwg(context, ports)
-
     def verify_sr_at_backend(self, context, router_id):
         nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                  router_id)
@@ -2118,15 +2094,22 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
         snat_exist = router.enable_snat
         lb_exist = nsx_db.has_nsx_lbaas_loadbalancer_binding_by_router(
             context.session, nsx_router_id)
-        fw_exist = self.state_firewall_rules(context, router_id)
+        fw_exist = self._router_has_edge_fw_rules(context, router)
         if snat_exist or lb_exist or fw_exist:
             return True
         return snat_exist or lb_exist or fw_exist
 
-    def create_service_router(self, context, router_id):
+    def create_service_router(self, context, router_id, router=None,
+                              update_firewall=True):
         """Create a service router and enable standby relocation"""
-        router = self._get_router(context, router_id)
+        if not router:
+            router = self._get_router(context, router_id)
         tier0_uuid = self._get_tier0_uuid_by_router(context, router)
+        if not tier0_uuid:
+            err_msg = (_("Cannot create service router for %s without a "
+                         "gateway") % router_id)
+            raise n_exc.InvalidInput(error_message=err_msg)
+
         edge_cluster_uuid = self._get_edge_cluster(tier0_uuid, router)
         nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                  router_id)
@@ -2140,6 +2123,14 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
             edge_cluster_id=edge_cluster_uuid,
             enable_standby_relocation=enable_standby_relocation)
 
+        LOG.info("Created service router for %s (NSX logical router %s)",
+                 router_id, nsx_router_id)
+
+        # update firewall rules (there might be FW group waiting for a
+        # service router)
+        if update_firewall:
+            self.update_router_firewall(context, router_id)
+
     def delete_service_router(self, context, router_id):
         nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                  router_id)
@@ -2149,6 +2140,8 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
             nsx_router_id,
             edge_cluster_id=None,
             enable_standby_relocation=False)
+        LOG.info("Deleted service router for %s (NSX logical router %s)",
+                 router_id, nsx_router_id)
 
     def _update_router_gw_info(self, context, router_id, info):
         router = self._get_router(context, router_id)
@@ -2178,17 +2171,18 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
 
         lb_exist = nsx_db.has_nsx_lbaas_loadbalancer_binding_by_router(
             context.session, nsx_router_id)
-        fw_exist = self.state_firewall_rules(context, router_id)
+        fw_exist = self._router_has_edge_fw_rules(context, router)
+        sr_currently_exists = self.verify_sr_at_backend(context, router_id)
 
         actions = self._get_update_router_gw_actions(
             org_tier0_uuid, orgaddr, org_enable_snat,
-            new_tier0_uuid, newaddr, new_enable_snat, lb_exist, fw_exist)
+            new_tier0_uuid, newaddr, new_enable_snat,
+            lb_exist, fw_exist, sr_currently_exists)
 
         if actions['add_service_router']:
-            self.create_service_router(context, router_id)
+            self.create_service_router(context, router_id, router=router)
 
         if actions['revocate_bgp_announce']:
-
             # TODO(berlin): revocate bgp announce on org tier0 router
             pass
         if actions['remove_snat_rules']:
