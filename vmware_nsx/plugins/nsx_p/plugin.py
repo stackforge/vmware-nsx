@@ -75,6 +75,7 @@ from vmware_nsxlib.v3 import utils as nsxlib_utils
 
 from vmware_nsxlib.v3.policy import constants as policy_constants
 from vmware_nsxlib.v3.policy import core_defs as policy_defs
+from vmware_nsxlib.v3.policy import transaction as trans
 
 LOG = log.getLogger(__name__)
 NSX_P_SECURITY_GROUP_TAG = 'os-security-group'
@@ -1835,17 +1836,18 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             # Swap source and destination
             source, destination = destination, source
 
-        service = self._get_rule_service_id(context, sg_rule, tags)
-        logging = (cfg.CONF.nsx_p.log_security_groups_allowed_traffic or
-                   secgroup_logging)
-        self.nsxpolicy.comm_map.create_entry(
-            nsx_name, domain_id, map_id, entry_id=sg_rule['id'],
-            description=sg_rule.get('description'),
-            service_ids=[service] if service else None,
-            action=policy_constants.ACTION_ALLOW,
-            source_groups=[source] if source else None,
-            dest_groups=[destination] if destination else None,
-            direction=direction, logged=logging)
+        with trans.NsxPolicyTransaction():
+            service = self._get_rule_service_id(context, sg_rule, tags)
+            logging = (cfg.CONF.nsx_p.log_security_groups_allowed_traffic or
+                       secgroup_logging)
+            self.nsxpolicy.comm_map.create_entry(
+                nsx_name, domain_id, map_id, entry_id=sg_rule['id'],
+                description=sg_rule.get('description'),
+                service_ids=[service] if service else None,
+                action=policy_constants.ACTION_ALLOW,
+                source_groups=[source] if source else None,
+                dest_groups=[destination] if destination else None,
+                direction=direction, logged=logging)
 
     def _create_project_domain(self, context, project_id):
         """Return the NSX domain id of a neutron project
