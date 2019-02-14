@@ -1125,6 +1125,10 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         """Create a service router and enable standby relocation"""
         router = self._get_router(context, router_id)
         tier0_uuid = self._get_tier0_uuid_by_router(context, router)
+        if not tier0_uuid:
+            err_msg = (_("Cannot create service router for %s without a "
+                         "gateway") % router_id)
+            raise n_exc.InvalidInput(error_message=err_msg)
         edge_cluster_path = self._get_edge_cluster_path(
             tier0_uuid, router)
         if edge_cluster_path:

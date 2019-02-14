@@ -2080,9 +2080,13 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                     'net': sub['network_id']})
                 raise n_exc.InvalidInput(error_message=msg)
 
-    def state_firewall_rules(self, context, router_id):
+    def _router_has_edge_fw_rules(self, context, router):
+        if not router.gw_port_id:
+            # No GW -> No rule on the edge firewall
+            return False
+
         if self.fwaas_callbacks and self.fwaas_callbacks.fwaas_enabled:
-            ports = self._get_router_interfaces(context, router_id)
+            ports = self._get_router_interfaces(context, router.id)
             return self.fwaas_callbacks.router_with_fwg(context, ports)
 
     def verify_sr_at_backend(self, context, router_id):
@@ -2097,15 +2101,21 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
         snat_exist = router.enable_snat
         lb_exist = nsx_db.has_nsx_lbaas_loadbalancer_binding_by_router(
             context.session, nsx_router_id)
-        fw_exist = self.state_firewall_rules(context, router_id)
+        fw_exist = self._router_has_edge_fw_rules(context, router)
         if snat_exist or lb_exist or fw_exist:
             return True
         return snat_exist or lb_exist or fw_exist
 
-    def create_service_router(self, context, router_id):
+    def create_service_router(self, context, router_id,
+                              update_firewall=True):
         """Create a service router and enable standby relocation"""
         router = self._get_router(context, router_id)
         tier0_uuid = self._get_tier0_uuid_by_router(context, router)
+        if not tier0_uuid:
+            err_msg = (_("Cannot create service router for %s without a "
+                         "gateway") % router_id)
+            raise n_exc.InvalidInput(error_message=err_msg)
+
         edge_cluster_uuid = self._get_edge_cluster(tier0_uuid, router)
         nsx_router_id = nsx_db.get_nsx_router_id(context.session,
                                                  router_id)
@@ -2118,6 +2128,11 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
             nsx_router_id,
             edge_cluster_id=edge_cluster_uuid,
             enable_standby_relocation=enable_standby_relocation)
+
+        # update firewall rules (there might be FW group waiting for a
+        # service router)
+        if update_firewall:
+            self.update_router_firewall(context, router_id)
 
     def delete_service_router(self, context, router_id):
         nsx_router_id = nsx_db.get_nsx_router_id(context.session,
@@ -2157,7 +2172,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
 
         lb_exist = nsx_db.has_nsx_lbaas_loadbalancer_binding_by_router(
             context.session, nsx_router_id)
-        fw_exist = self.state_firewall_rules(context, router_id)
+        fw_exist = self._router_has_edge_fw_rules(context, router)
 
         actions = self._get_update_router_gw_actions(
             org_tier0_uuid, orgaddr, org_enable_snat,
@@ -2167,7 +2182,6 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
             self.create_service_router(context, router_id)
 
         if actions['revocate_bgp_announce']:
-
             # TODO(berlin): revocate bgp announce on org tier0 router
             pass
         if actions['remove_snat_rules']:
