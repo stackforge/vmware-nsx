@@ -1125,10 +1125,15 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         return self.nsxpolicy.tier0.get_edge_cluster_path(
             tier0_uuid)
 
-    def create_service_router(self, context, router_id):
+    def create_service_router(self, context, router_id, router=None):
         """Create a service router and enable standby relocation"""
-        router = self._get_router(context, router_id)
+        if not router:
+            router = self._get_router(context, router_id)
         tier0_uuid = self._get_tier0_uuid_by_router(context, router)
+        if not tier0_uuid:
+            err_msg = (_("Cannot create service router for %s without a "
+                         "gateway") % router_id)
+            raise n_exc.InvalidInput(error_message=err_msg)
         edge_cluster_path = self._get_edge_cluster_path(
             tier0_uuid, router)
         if edge_cluster_path:
@@ -1195,7 +1200,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             lb_exist=False)
 
         if actions['add_service_router']:
-            self.create_service_router(context, router_id)
+            self.create_service_router(context, router_id, router=router)
 
         if actions['remove_snat_rules']:
             for subnet in router_subnets:
