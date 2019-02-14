@@ -75,6 +75,7 @@ from vmware_nsxlib.v3 import utils as nsxlib_utils
 
 from vmware_nsxlib.v3.policy import constants as policy_constants
 from vmware_nsxlib.v3.policy import core_defs as policy_defs
+from vmware_nsxlib.v3.policy import transaction as trans
 
 LOG = log.getLogger(__name__)
 NSX_P_SECURITY_GROUP_TAG = 'os-security-group'
@@ -1898,16 +1899,18 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         try:
             # Create Group & communication map on the NSX
-            self._create_security_group_backend_resources(
-                context, secgroup, project_id)
+            with trans.NsxPolicyTransaction():
+                self._create_security_group_backend_resources(
+                    context, secgroup, project_id)
 
-            # Add the security-group rules
-            sg_rules = secgroup_db['security_group_rules']
-            secgroup_logging = secgroup.get(sg_logging.LOGGING, False)
-            for sg_rule in sg_rules:
-                self._create_security_group_backend_rule(
-                    context, project_id, secgroup_db['id'], sg_rule,
-                    secgroup_logging)
+                # Add the security-group rules
+                sg_rules = secgroup_db['security_group_rules']
+                secgroup_logging = secgroup.get(sg_logging.LOGGING, False)
+                for sg_rule in sg_rules:
+                    self._create_security_group_backend_rule(
+                        context, project_id, secgroup_db['id'], sg_rule,
+                        secgroup_logging)
+
         except Exception as e:
             with excutils.save_and_reraise_exception():
                 LOG.exception("Failed to create backend SG rules "
@@ -2004,10 +2007,11 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         domain_id = example_rule['tenant_id']
         secgroup_logging = self._is_security_group_logged(context, sg_id)
-        for rule_data in rules_db:
-            # create the NSX backend rule
-            self._create_security_group_backend_rule(
-                context, domain_id, sg_id, rule_data, secgroup_logging)
+        with trans.NsxPolicyTransaction():
+            for rule_data in rules_db:
+                # create the NSX backend rule
+                self._create_security_group_backend_rule(
+                    context, domain_id, sg_id, rule_data, secgroup_logging)
 
         return rules_db
 
