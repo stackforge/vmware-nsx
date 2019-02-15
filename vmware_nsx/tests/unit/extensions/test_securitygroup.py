@@ -17,6 +17,7 @@ import mock
 from neutron.extensions import securitygroup as ext_sg
 from neutron.tests.unit.extensions import test_securitygroup as test_ext_sg
 
+from vmware_nsx.common import exceptions as nsx_exc
 from vmware_nsx.tests.unit.nsx_v3 import test_plugin as test_nsxv3
 from vmware_nsxlib import v3 as nsxlib
 from vmware_nsxlib.v3 import exceptions as nsxlib_exc
@@ -227,3 +228,12 @@ class TestSecurityGroupsNoDynamicCriteria(test_nsxv3.NsxV3PluginTestCaseMixin,
 
     def test_create_security_group_rule_icmpv6_legacy_protocol_name(self):
         self.skipTest('not supported')
+
+    def test_create_security_group_with_manager_error(self):
+        name = 'webservers'
+        description = 'my webservers'
+        with mock.patch("vmware_nsxlib.v3.security.NsxLibFirewallSection."
+                        "create",
+                        side_effect=nsxlib_exc.ManagerError):
+            self.assertRaises(nsx_exc.NsxPluginException,
+                              self.security_group(name, description))
