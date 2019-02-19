@@ -1212,7 +1212,13 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             network, resource_type='os-neutron-net-id',
             project_name=context.tenant_name)
 
-        dns_domain = network.get('dns_domain')
+        dns_domain = None
+        if network.get('dns_domain'):
+            net_dns = network['dns_domain']
+            if isinstance(net_dns, str):
+                dns_domain = net_dns
+            elif hasattr(net_dns, "dns_domain"):
+                dns_domain = net_dns.dns_domain
         if not dns_domain or not validators.is_attr_set(dns_domain):
             dns_domain = az.dns_domain
 
