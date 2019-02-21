@@ -300,11 +300,11 @@ class NSXBgpPlugin(service_base.ServicePluginBase, bgp_db.BgpDbMixin):
                     driver.withdraw_subnet(context, speaker_id,
                                            router_id, subnet_id)
 
-    def router_gateway_callback(self, resource, event, trigger, **kwargs):
-        context = kwargs.get('context') or n_context.get_admin_context()
+    def router_gateway_callback(self, resource, event, trigger, payload=None):
+        context = payload.context or n_context.get_admin_context()
         context = context.elevated()
-        router_id = kwargs['router_id']
-        network_id = kwargs['network_id']
+        router_id = payload.resource_id
+        network_id = payload.metadata.get('network_id')
         speakers = self._bgp_speakers_for_gateway_network(context, network_id)
 
         for speaker in speakers:
@@ -316,14 +316,14 @@ class NSXBgpPlugin(service_base.ServicePluginBase, bgp_db.BgpDbMixin):
                 if network_id not in speaker['networks']:
                     continue
                 if event == events.AFTER_DELETE:
-                    gw_ips = kwargs['gateway_ips']
+                    gw_ips = payload.metadata.get('gateway_ips')
                     driver.disable_bgp_on_router(context,
                                                  speaker,
                                                  router_id,
                                                  gw_ips[0])
                 if event == events.AFTER_UPDATE:
-                    updated_port = kwargs['updated_port']
-                    router = kwargs['router']
+                    updated_port = payload.metadata.get('updated_port')
+                    router = payload.latest_state
                     driver.process_router_gw_port_update(
                         context, speaker, router, updated_port)
 

@@ -425,9 +425,9 @@ class NsxPluginBase(db_base_plugin_v2.NeutronDbPluginV2,
 
 
 # Register the callback
-def _validate_network_has_subnet(resource, event, trigger, **kwargs):
-    network_id = kwargs.get('network_id')
-    subnets = kwargs.get('subnets')
+def _validate_network_has_subnet(resource, event, trigger, payload=None):
+    network_id = payload.metadata.get('network_id')
+    subnets = payload.metadata.get('subnets')
     if not subnets:
         msg = _('No subnet defined on network %s') % network_id
         raise n_exc.InvalidInput(error_message=msg)
