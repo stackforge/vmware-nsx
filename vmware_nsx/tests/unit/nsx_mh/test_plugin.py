@@ -520,6 +520,12 @@ class TestL3NatTestCase(L3NatTest,
                         NsxPluginV2TestCase,
                         test_metadata.MetaDataTestCase):
 
+    def test_router_add_gateway_no_subnet_forbidden(self):
+        self.skipTest("Not maintained")
+
+    def test_router_add_gateway_notifications(self):
+        self.skipTest("Not maintained")
+
     def _test_create_l3_ext_network(self, vlan_id=0):
         name = 'l3_ext_net'
         net_type = utils.NetworkTypes.L3_EXT
