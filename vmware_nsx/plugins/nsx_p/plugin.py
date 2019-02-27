@@ -1917,7 +1917,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         if not default_sg:
             self._ensure_default_security_group(context, project_id)
         else:
-            # create the NSX policy domain for this new project
+            # create the NSX policy domain for this new project,
             self._create_project_domain(context, project_id)
 
         # create the Neutron SG
