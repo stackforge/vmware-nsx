@@ -414,10 +414,10 @@ class NSXv3IPsecVpnDriver(service_drivers.VpnDriver):
 
         return True
 
-    def _verify_overlap_subnet(self, resource, event, trigger, **kwargs):
+    def _verify_overlap_subnet(self, resource, event, trigger, payload=None):
         """Upon router interface creation validation overlapping with vpn"""
-        router_db = kwargs.get('router_db')
-        port = kwargs.get('port')
+        router_db = payload.latest_state
+        port = payload.metadata.get('port')
         if not port or not router_db:
             LOG.warning("NSX V3 VPNaaS ROUTER_INTERFACE BEFORE_CRAETE "
                         "callback didn't get all the relevant information")
@@ -434,7 +434,7 @@ class NSXv3IPsecVpnDriver(service_drivers.VpnDriver):
             # find all vpn services with connections
             if not self._check_subnets_overlap_with_all_conns(
                 admin_con, [subnet['cidr']]):
-                raise RouterOverlapping(router_id=kwargs.get('router_id'))
+                raise RouterOverlapping(router_id=payload.resource_id)
 
     def validate_router_gw_info(self, context, router_id, gw_info):
         """Upon router gw update - verify no-snat"""

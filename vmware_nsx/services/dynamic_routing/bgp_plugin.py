@@ -271,16 +271,17 @@ class NSXBgpPlugin(service_base.ServicePluginBase, bgp_db.BgpDbMixin):
         driver = self._get_driver_by_speaker(context, bgp_speaker_id)
         return driver.get_advertised_routes(context, bgp_speaker_id)
 
-    def router_interface_callback(self, resource, event, trigger, **kwargs):
-        if not kwargs['network_id']:
+    def router_interface_callback(self, resource, event, trigger,
+                                  payload=None):
+        if not payload.metadata.get('network_id'):
             # No GW network, hence no BGP speaker associated
             return
 
-        context = kwargs['context'].elevated()
-        router_id = kwargs['router_id']
-        subnets = kwargs.get('subnets')
-        network_id = kwargs['network_id']
-        port = kwargs['port']
+        context = payload.context.elevated()
+        router_id = payload.resource_id
+        subnets = payload.metadata.get('subnets')
+        network_id = payload.metadata.get('network_id')
+        port = payload.metadata.get('port')
 
         speakers = self._bgp_speakers_for_gateway_network(context,
                                                           network_id)
