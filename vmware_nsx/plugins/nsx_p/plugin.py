@@ -15,8 +15,6 @@
 
 import time
 
-import netaddr
-
 from oslo_config import cfg
 from oslo_db import exception as db_exc
 from oslo_log import log
@@ -630,9 +628,6 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         address_bindings = []
         for fixed_ip in port_data['fixed_ips']:
-            if netaddr.IPNetwork(fixed_ip['ip_address']).version != 4:
-                #TODO(annak): enable when IPv6 is supported
-                continue
             binding = self.nsxpolicy.segment_port.build_address_binding(
                 fixed_ip['ip_address'], port_data['mac_address'])
             address_bindings.append(binding)
@@ -1444,15 +1439,20 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             net_name = utils.get_name_and_uuid(
                 net['name'] or 'network', network_id)
             segment_id = self._get_network_nsx_segment_id(context, network_id)
-            subnet = self.get_subnet(context, info['subnet_ids'][0])
-            cidr_prefix = int(subnet['cidr'].split('/')[1])
-            gw_addr = "%s/%s" % (subnet['gateway_ip'], cidr_prefix)
-            pol_subnet = policy_defs.Subnet(
-                gateway_address=gw_addr)
+            subnets = [self.get_subnet(context, subnet_id)
+                       for subnet_id in info['subnet_ids']]
+
+            pol_subnets = []
+            for subnet in subnets:
+                cidr_prefix = int(subnet['cidr'].split('/')[1])
+                gw_addr = "%s/%s" % (subnet['gateway_ip'], cidr_prefix)
+                pol_subnets.append(policy_defs.Subnet(
+                    gateway_address=gw_addr))
+
             self.nsxpolicy.segment.update(segment_id,
                                           name=net_name,
                                           tier1_id=router_id,
-                                          subnets=[pol_subnet])
+                                          subnets=pol_subnets)
 
             # add the SNAT/NO_DNAT rules for this interface
             if router_db.enable_snat and gw_network_id:
@@ -1460,10 +1460,13 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
                     gw_ip = router_db.gw_port['fixed_ips'][0]['ip_address']
                     gw_address_scope = self._get_network_address_scope(
                         context, gw_network_id)
-                    self._add_subnet_snat_rule(
-                        context, router_id,
-                        subnet, gw_address_scope, gw_ip)
-                self._add_subnet_no_dnat_rule(context, router_id, subnet)
+                    for subnet in subnets:
+                        self._add_subnet_snat_rule(
+                            context, router_id,
+                            subnet, gw_address_scope, gw_ip)
+
+                for subnet in subnets:
+                    self._add_subnet_no_dnat_rule(context, router_id, subnet)
 
         except Exception as ex:
             with excutils.save_and_reraise_exception():
@@ -1477,17 +1480,17 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
     def remove_router_interface(self, context, router_id, interface_info):
         LOG.info("Removing router %s interface %s", router_id, interface_info)
-        # find the subnet - it is need for removing the SNAT rule
-        subnet = subnet_id = None
+        # find subnets - it is need for removing the SNAT rule
+        subnets = []
         if 'port_id' in interface_info:
             port_id = interface_info['port_id']
             port = self._get_port(context, port_id)
             if port.get('fixed_ips'):
-                subnet_id = port['fixed_ips'][0]['subnet_id']
+                subnets = self._get_subnets_for_fixed_ips_on_port(context,
+                                                                  port)
         elif 'subnet_id' in interface_info:
             subnet_id = interface_info['subnet_id']
-        if subnet_id:
-            subnet = self.get_subnet(context, subnet_id)
+            subnets = [self.get_subnet(context, subnet_id)]
 
         # Update the neutron router first
         info = super(NsxPolicyPlugin, self).remove_router_interface(
@@ -1501,9 +1504,10 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
             # try to delete the SNAT/NO_DNAT rules of this subnet
             router_db = self._get_router(context, router_id)
-            if subnet and router_db.gw_port and router_db.enable_snat:
-                self._del_subnet_snat_rule(router_id, subnet)
-                self._del_subnet_no_dnat_rule(router_id, subnet)
+            if router_db.gw_port and router_db.enable_snat:
+                for subnet in subnets:
+                    self._del_subnet_snat_rule(router_id, subnet)
+                    self._del_subnet_no_dnat_rule(router_id, subnet)
 
         except Exception as ex:
             # do not fail the neutron action
