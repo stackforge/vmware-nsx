@@ -1705,9 +1705,6 @@ class TestPortsV2(test_plugin.TestPortsV2, NsxV3PluginTestCaseMixin,
     def test_update_port_mac_v6_slaac(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
 
-    def test_requested_subnet_id_v4_and_v6(self):
-        self.skipTest('Multiple fixed ips on a port are not supported')
-
     def test_requested_invalid_fixed_ips(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
 
