@@ -436,6 +436,26 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 LOG.warning(err_msg)
                 raise n_exc.InvalidInput(error_message=err_msg)
 
+    def _validate_max_ips_per_port(self, fixed_ip_list, device_owner):
+        """Validate the number of fixed ips on a port
+
+        Do not allow multiple ip addresses on a port since the nsx backend
+        cannot add multiple static dhcp bindings with the same port
+        """
+        if (device_owner and
+            nl_net_utils.is_port_trusted({'device_owner': device_owner})):
+            return
+        msg = _('Exceeded maximum amount of fixed ips per port and ip version')
+        if validators.is_attr_set(fixed_ip_list) and len(fixed_ip_list) > 2:
+            raise n_exc.InvalidInput(error_message=msg)
+
+        def get_fixed_ip_version(i):
+            return netaddr.IPAddress(fixed_ip_list[i]['ip_address']).version
+
+        if get_fixed_ip_version(0) == get_fixed_ip_version(1):
+            # Only one fixed IP is allowed for each IP version
+            raise n_exc.InvalidInput(error_message=msg)
+
     def _validate_create_port(self, context, port_data):
         self._validate_max_ips_per_port(port_data.get('fixed_ips', []),
                                         port_data.get('device_owner'))
