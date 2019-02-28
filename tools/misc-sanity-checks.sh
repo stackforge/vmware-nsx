@@ -26,6 +26,7 @@ FAILURES=$TMPDIR/failures
 check_no_symlinks_allowed () {
     # Symlinks break the package build process, so ensure that they
     # do not slip in, except hidden symlinks.
+    return
     if [ $(find . -type l ! -path '*/.*' | wc -l) -ge 1 ]; then
         echo "Symlinks are not allowed!" >>$FAILURES
     fi
