@@ -438,6 +438,49 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 LOG.warning(err_msg)
                 raise n_exc.InvalidInput(error_message=err_msg)
 
+    def _validate_max_ips_per_port(self, fixed_ip_list, device_owner):
+        """Validate the number of fixed ips on a port
+
+        Do not allow multiple ip addresses on a port since the nsx backend
+        cannot add multiple static dhcp bindings with the same port
+        """
+        if (device_owner and
+            nl_net_utils.is_port_trusted({'device_owner': device_owner})):
+            return
+
+        if not validators.is_attr_set(fixed_ip_list):
+            return
+
+        msg = _('Exceeded maximum amount of fixed ips per port and ip version')
+        if len(fixed_ip_list) > 2:
+            raise n_exc.InvalidInput(error_message=msg)
+
+        if len(fixed_ip_list) < 2:
+            return
+
+        def get_fixed_ip_version(i):
+            if 'ip_address' in fixed_ip_list[i]:
+                return netaddr.IPAddress(
+                    fixed_ip_list[i]['ip_address']).version
+
+        ipver1 = get_fixed_ip_version(0)
+        ipver2 = get_fixed_ip_version(1)
+        if ipver1 and ipver2 and ipver1 != ipver2:
+            # One fixed IP is allowed for each IP version
+            return
+
+        raise n_exc.InvalidInput(error_message=msg)
+
+    def _get_subnets_for_fixed_ips_on_port(self, context, port_data):
+        # get the subnet id from the fixed ips of the port
+        if 'fixed_ips' in port_data and port_data['fixed_ips']:
+            subnet_ids = (fixed_ip['subnet_id']
+                          for fixed_ip in port_data['fixed_ips'])
+
+        # check only dhcp enabled subnets
+        return (self.get_subnet(context.elevated(), subnet_id)
+                for subnet_id in subnet_ids)
+
     def _validate_create_port(self, context, port_data):
         self._validate_max_ips_per_port(port_data.get('fixed_ips', []),
                                         port_data.get('device_owner'))
