@@ -631,8 +631,9 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
     def test_update_port_mac_v6_slaac(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
 
+    @with_disable_dhcp
     def test_requested_subnet_id_v4_and_v6(self):
-        self.skipTest('Multiple fixed ips on a port are not supported')
+        return super(NsxPTestPorts, self).test_requested_subnet_id_v4_and_v6()
 
     def test_requested_invalid_fixed_ips(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
@@ -670,8 +671,9 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
     def test_create_router_port_ipv4_and_ipv6_slaac_no_fixed_ips(self):
         self.skipTest('No DHCP v6 Support yet')
 
+    @with_disable_dhcp
     def test_create_port_with_multiple_ipv4_and_ipv6_subnets(self):
-        self.skipTest('No DHCP v6 Support yet')
+        return super(NsxPTestPorts, self).test_create_port_with_multiple_ipv4_and_ipv6_subnets
 
     def test_ip_allocation_for_ipv6_2_subnet_slaac_mode(self):
         self.skipTest('No DHCP v6 Support yet')
