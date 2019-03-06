@@ -210,6 +210,9 @@ class NsxV3Plugin(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         registry.subscribe(
             self.nsxlib.reinitialize_cluster,
             resources.PROCESS, events.AFTER_INIT)
+        registry.subscribe(
+            self.nsxlib.reinitialize_cluster,
+            resources.PROCESS, events.AFTER_SPAWN)
 
         self._nsx_version = self.nsxlib.get_version()
         LOG.info(_LI("NSX Version: %s"), self._nsx_version)
