@@ -187,9 +187,22 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
             context.session, old_listener['loadbalancer_id'],
             old_listener['id'])
         if not binding:
+            completor(success=False)
             msg = (_('Cannot find listener %(listener)s binding on NSX '
                      'backend'), {'listener': old_listener['id']})
             raise n_exc.BadRequest(resource='lbaas-listener', msg=msg)
+
+        update_pool = False
+        default_pool = None
+        if (new_listener.get('default_pool_id') !=
+            old_listener.get('default_pool_id')):
+            default_pool = new_listener.get('default_pool')
+            # If new pool was set - validate its session persistence
+            if default_pool:
+                lb_utils.validate_session_persistence(
+                    default_pool, new_listener, completor)
+            update_pool = True
+
         try:
             vs_id = binding['lb_vs_id']
             app_profile_id = binding['app_profile_id']
@@ -200,6 +213,29 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
             if vs_name:
                 app_client.update(app_profile_id, display_name=vs_name,
                                   tags=tags)
+
+            if update_pool:
+                lb_id = old_listener['loadbalancer_id']
+                if default_pool:
+                    pool_binding = nsx_db.get_nsx_lbaas_pool_binding(
+                        context.session, lb_id, default_pool['id'])
+                    if not pool_binding:
+                        msg = (_('Failed to find default pool %s bindings on NSX '
+                                 'backend'), default_pool['id'])
+                        raise n_exc.BadRequest(resource='lbaas-listener', msg=msg)
+
+                    nsx_pool_id = pool_binding.get('lb_pool_id')
+                    # DEBUG ADIT !! 
+                    self._process_vs_update(context, default_pool, new_listener,
+                                            nsx_pool_id, vs_id, completor)
+                    nsx_db.update_nsx_lbaas_pool_binding(
+                        context.session, lb_id, default_pool['id'], vs_id)
+                else:
+                    # delete current pool
+                    self._remove_default_pool(
+                        context, lb_id, old_listener['default_pool_id'], vs_id)
+
+
             completor(success=True)
         except Exception as e:
             with excutils.save_and_reraise_exception():
@@ -207,6 +243,18 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                 LOG.error('Failed to update listener %(listener)s with '
                           'error %(error)s',
                           {'listener': old_listener['id'], 'error': e})
+
+    def _remove_default_pool(self, context, lb_id, pool_id, vs_id)
+        # update the NSX virtual server
+        nsxlib_lb = self.core_plugin.nsxlib.load_balancer
+        vs_client = nsxlib_lb.virtual_server
+        vs_client.update(vs_id, pool_id='')
+        # Update pool binding to disassociate virtual server
+        pool_binding = nsx_db.get_nsx_lbaas_pool_binding(
+            context.session, lb_id, pool_id)
+        if pool_binding:
+            nsx_db.update_nsx_lbaas_pool_binding(
+                context.session, lb_id, pool_id, None)
 
     @log_helpers.log_method_call
     def delete(self, context, listener, completor):
@@ -243,14 +291,8 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                 raise n_exc.BadRequest(resource='lbaas-listener', msg=msg)
             try:
                 if listener.get('default_pool_id'):
-                    vs_client.update(vs_id, pool_id='')
-                    # Update pool binding to disassociate virtual server
-                    pool_binding = nsx_db.get_nsx_lbaas_pool_binding(
-                        context.session, lb_id, listener['default_pool_id'])
-                    if pool_binding:
-                        nsx_db.update_nsx_lbaas_pool_binding(
-                            context.session, lb_id,
-                            listener['default_pool_id'], None)
+                    self._remove_default_pool(
+                        context, lb_id, listener['default_pool_id'], vs_id)
                 vs_client.delete(vs_id)
             except nsx_exc.NsxResourceNotFound:
                 msg = (_("virtual server not found on nsx: %(vs)s") %
