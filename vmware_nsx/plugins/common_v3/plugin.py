@@ -211,6 +211,18 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             if not utils.is_ipv4_ip_address(ip):
                 raise nsx_exc.InvalidIPAddress(ip_address=ip)
 
+    def _validate_number_of_address_pairs(self, port):
+        address_pairs = port.get(addr_apidef.ADDRESS_PAIRS)
+        num_allowed_on_backend = nsxlib_consts.NUM_ALLOWED_IP_ADDRESSES
+        if address_pairs:
+            if len(address_pairs) >= (num_allowed_on_backend - 2):
+                err_msg = (_(
+                    "Number of Address pairs is limited at the backend to %("
+                    "backend)s. Requested %(requested)s") %
+                           {'backend': nsxlib_consts.NUM_ALLOWED_IP_ADDRESSES,
+                            'requested': len(address_pairs)})
+                raise n_exc.InvalidInput(error_message=err_msg)
+
     def _create_port_address_pairs(self, context, port_data):
         (port_security, has_ip) = self._determine_port_security_and_has_ip(
             context, port_data)
@@ -221,6 +233,7 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 raise addr_exc.AddressPairAndPortSecurityRequired()
             else:
                 self._validate_ipv4_address_pairs(address_pairs)
+                self._validate_number_of_address_pairs(port_data)
                 self._process_create_allowed_address_pairs(context, port_data,
                                                            address_pairs)
         else:
@@ -560,6 +573,7 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         self._assert_on_port_sec_change(port_data, device_owner)
         self._validate_max_ips_per_port(
             port_data.get('fixed_ips', []), device_owner)
+        self._validate_number_of_address_pairs(port_data)
         self._assert_on_vpn_port_change(original_port)
         self._assert_on_lb_port_fixed_ip_change(port_data, orig_dev_owner)
         self._validate_extra_dhcp_options(port_data.get(ext_edo.EXTRADHCPOPTS))
