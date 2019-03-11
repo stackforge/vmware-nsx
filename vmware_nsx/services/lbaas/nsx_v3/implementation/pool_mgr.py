@@ -230,6 +230,11 @@ class EdgePoolManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
         tags = self._get_pool_tags(context, pool)
         description = pool.get('description')
         lb_algorithm = lb_const.LB_POOL_ALGORITHM_MAP.get(pool['lb_algorithm'])
+        if pool.get('listeners') and len(pool['listeners']) > 1:
+            msg = (_('Failed to create pool: Multiple listeners are not '
+                     'supported.'))
+            raise n_exc.BadRequest(resource='lbaas-pool', msg=msg)
+
         # NOTE(salv-orlando): Guard against accidental compat breakages
         try:
             listener = pool['listener'] or pool['listeners'][0]
@@ -294,6 +299,10 @@ class EdgePoolManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
         if not binding:
             msg = (_('Cannot find pool %(pool)s binding on NSX db '
                      'mapping') % {'pool': old_pool['id']})
+            raise n_exc.BadRequest(resource='lbaas-pool', msg=msg)
+        if new_pool.get('listeners') and len(new_pool['listeners']) > 1:
+            msg = (_('Failed to update pool %s: Multiple listeners are not '
+                     'supported.') % new_pool['id'])
             raise n_exc.BadRequest(resource='lbaas-pool', msg=msg)
         # NOTE(salv-orlando): Guard against accidental compat breakages
         try:
