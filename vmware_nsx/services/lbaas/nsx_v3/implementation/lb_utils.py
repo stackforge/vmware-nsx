@@ -241,3 +241,41 @@ def update_router_lb_vip_advertisement(context, core_plugin, router,
                             'match_route_types': ['T1_LB_VIP']}}
         core_plugin.nsxlib.logical_router.update_advertisement_rules(
             nsx_router_id, [adv_rule], name_prefix=ADV_RULE_NAME)
+
+
+@log_helpers.log_method_call
+def validate_session_persistence(pool, listener, completor, old_pool=None):
+    sp = pool.get('session_persistence')
+    if not listener or not sp:
+        # safety first!
+        return
+    # L4 listeners only allow source IP persistence
+    if (listener['protocol'] == lb_const.LB_PROTOCOL_TCP and
+        sp['type'] != lb_const.LB_SESSION_PERSISTENCE_SOURCE_IP):
+        completor(success=False)
+        msg = (_("Invalid session persistence type %(sp_type)s for "
+                 "pool on listener %(lst_id)s with %(proto)s protocol") %
+               {'sp_type': sp['type'],
+                'lst_id': listener['id'],
+                'proto': listener['protocol']})
+        raise n_exc.BadRequest(resource='lbaas-pool', msg=msg)
+    # Cannot switch (yet) on update from source IP to cookie based, and
+    # vice versa
+    cookie_pers_types = (lb_const.LB_SESSION_PERSISTENCE_HTTP_COOKIE,
+                         lb_const.LB_SESSION_PERSISTENCE_APP_COOKIE)
+    if old_pool:
+        oldsp = old_pool.get('session_persistence')
+        if not oldsp:
+            return
+        if ((sp['type'] == lb_const.LB_SESSION_PERSISTENCE_SOURCE_IP and
+             oldsp['type'] in cookie_pers_types) or
+            (sp['type'] in cookie_pers_types and
+             oldsp['type'] == lb_const.LB_SESSION_PERSISTENCE_SOURCE_IP)):
+            completor(success=False)
+            msg = (_("Cannot update session persistence type to "
+                     "%(sp_type)s for pool on listener %(lst_id)s "
+                     "from %(old_sp_type)s") %
+                   {'sp_type': sp['type'],
+                    'lst_id': listener['id'],
+                    'old_sp_type': oldsp['type']})
+            raise n_exc.BadRequest(resource='lbaas-pool', msg=msg)
