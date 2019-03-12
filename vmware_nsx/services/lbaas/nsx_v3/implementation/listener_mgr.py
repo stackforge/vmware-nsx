@@ -109,7 +109,8 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
             'tag': listener['loadbalancer_id']})
         return tags
 
-    def _validate_default_pool(self, context, listener, vs_id, completor):
+    def _validate_default_pool(self, context, listener, vs_id, completor,
+                               old_listener=None):
         if listener.get('default_pool_id'):
             pool_binding = nsx_db.get_nsx_lbaas_pool_binding(
                 context.session, listener['loadbalancer']['id'],
@@ -120,6 +121,15 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
                 msg = (_('Default pool %s is already used by another '
                          'listener') % listener['default_pool_id'])
                 raise n_exc.BadRequest(resource='lbaas-pool', msg=msg)
+
+            # Perform additional validation for session persistence before
+            # creating resources in the backend
+            old_pool = None
+            if old_listener:
+                old_pool = old_listener.get('default_pool')
+            lb_utils.validate_session_persistence(
+                listener.get('default_pool'), listener, completor,
+                old_pool=old_pool)
 
     def _update_default_pool_binding(self, context, listener, vs_id):
         if listener.get('default_pool_id'):
@@ -230,7 +240,8 @@ class EdgeListenerManagerFromDict(base_mgr.Nsxv3LoadbalancerBaseManager):
 
         # Validate default pool
         self._validate_default_pool(
-            context, new_listener, binding['lb_vs_id'], completor)
+            context, new_listener, binding['lb_vs_id'], completor,
+            old_listener=old_listener)
 
         try:
             vs_id = binding['lb_vs_id']
