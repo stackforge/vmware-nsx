@@ -67,7 +67,7 @@ oslo.log==3.36.0
 oslo.messaging==5.29.0
 oslo.middleware==3.31.0
 oslo.policy==1.30.0
-oslo.privsep==1.29.0
+oslo.privsep==1.32.0
 oslo.reports==1.18.0
 oslo.rootwrap==5.8.0
 oslo.serialization==2.18.0
@@ -140,8 +140,7 @@ tooz==1.58.0
 unittest2==1.1.0
 urllib3==1.21.1
 vine==1.1.4
-vmware-nsxlib==13.0.0
+vmware-nsxlib==13.1.0
 waitress==1.1.0
-WebOb==1.7.1
 WebTest==2.0.27
 wrapt==1.7.0
