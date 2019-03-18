@@ -1963,7 +1963,29 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
 
         return net_res
 
+    def _validate_unique_address_pair_across_network(self, context,
+                                                     port, address_pairs):
+        network_id = port['network_id']
+        filters = {'network_id': [network_id]}
+        existing_ports = self.get_ports(context, filters=filters)
+        existing_fixed_ips = []
+        existing_address_pairs = []
+        for port in existing_ports:
+            for fixed in port.get('fixed_ips', []):
+                existing_fixed_ips.append(fixed['ip_address'])
+            for addr_pair in port.get('allowed_address_pairs', []):
+                existing_address_pairs.append(addr_pair['ip_address'])
+        for pair in address_pairs:
+            ip = pair.get('ip_address')
+            if ip in existing_fixed_ips or ip in existing_address_pairs:
+                msg = _('IP address %s entered as address pair already '
+                        'exists in the network. Duplicate IP addresses is not '
+                        'supported at backend') % ip
+                raise n_exc.InvalidInput(error_message=msg)
+
     def _validate_address_pairs(self, context, attrs, db_port):
+        self._validate_unique_address_pair_across_network(
+            context, db_port, attrs[addr_apidef.ADDRESS_PAIRS])
         network_port_security = self._get_network_security_binding(
             context, db_port['network_id'])
         if (not cfg.CONF.nsxv.allow_multiple_ip_addresses and
