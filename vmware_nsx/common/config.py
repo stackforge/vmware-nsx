@@ -513,6 +513,9 @@ nsx_p_opts = nsx_v3_and_p + [
                       "specified. If only one VLAN transport zone is present "
                       "on backend, it will be assumed as default unless this "
                       "value is provided")),
+    cfg.StrOpt('waf_profile',
+               help=_("(Optional) Name or UUID of the default WAF profile to "
+                      "be attached to L7 loadbalancer listeners")),
     cfg.BoolOpt('allow_passthrough',
                 default=True,
                 help=_("If True, use nsx manager api for cases which are not "
