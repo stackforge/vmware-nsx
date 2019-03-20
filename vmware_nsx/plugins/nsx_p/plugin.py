@@ -253,8 +253,9 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
     def _validate_nsx_policy_version(self):
         self._nsx_version = self.nsxpolicy.get_version()
         LOG.info("NSX Version: %s", self._nsx_version)
-        if not self.nsxpolicy.feature_supported(
-            nsxlib_consts.FEATURE_NSX_POLICY_NETWORKING):
+        if (not self.nsxpolicy.feature_supported(
+                nsxlib_consts.FEATURE_NSX_POLICY_NETWORKING) or
+            not nsx_utils.is_nsx_version_2_5_0(self._nsx_version)):
             msg = (_("The NSX Policy plugin cannot be used with NSX version "
                      "%(ver)s") % {'ver': self._nsx_version})
             raise nsx_exc.NsxPluginException(err_msg=msg)
