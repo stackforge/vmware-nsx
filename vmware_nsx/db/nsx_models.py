@@ -400,7 +400,7 @@ class NsxLbaasLoadbalancer(model_base.BASEV2, models.TimestampMixin):
     """
     __tablename__ = 'nsxv3_lbaas_loadbalancers'
     loadbalancer_id = sa.Column(sa.String(36), primary_key=True)
-    lb_router_id = sa.Column(sa.String(36), nullable=False)
+    lb_router_id = sa.Column(sa.String(36), nullable=True)
     lb_service_id = sa.Column(sa.String(36), nullable=False)
     vip_address = sa.Column(sa.String(36), nullable=False)
 
