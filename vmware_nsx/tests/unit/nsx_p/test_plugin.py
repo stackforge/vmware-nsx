@@ -1584,6 +1584,15 @@ class NsxPTestL3NatTestCase(NsxPTestL3NatTest,
     def test_router_add_interface_ipv6_subnet(self):
         self.skipTest('slaac not supported')
 
+    def test_router_add_ipv4_and_ipv6_subnets(self):
+        with self.router() as r, self.network() as n:
+             with self.subnet(network=n, cidr='fd00::1/64',
+                gateway_ip='fd00::1', ip_version=6) as s6:
+                    self._test_router_add_interface_subnet(r, s6)
+             with self.subnet(network=n, cidr='2.0.0.0/24',
+                gateway_ip='2.0.0.1') as s4:
+                    self._test_router_add_interface_subnet(r, s4)
+
     def test_router_add_interface_ipv6_single_subnet(self):
         with self.router() as r, self.network() as n:
             with self.subnet(network=n, cidr='fd00::1/64',
