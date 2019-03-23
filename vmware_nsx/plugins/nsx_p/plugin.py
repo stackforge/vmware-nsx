@@ -852,7 +852,11 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         qos_policy_id = self._get_port_qos_policy_id(
             context, None, port_data)
 
-        if not is_external_net:
+        device_owner = port_data.get('device_owner')
+        is_router_interface = (device_owner == l3_db.DEVICE_OWNER_ROUTER_INTF)
+
+        if not is_external_net and not is_router_interface:
+            # router interface port is created automatically by policy
             try:
                 self._create_or_update_port_on_backend(
                     context, port_data, is_psec_on, qos_policy_id)
