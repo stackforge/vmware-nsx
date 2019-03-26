@@ -11,7 +11,6 @@ cliff==2.8.0
 cmd2==0.8.0
 contextlib2==0.4.0
 coverage==4.0
-debtcollector==1.2.0
 decorator==4.3.0
 deprecation==1.0
 docutils==0.11
@@ -52,6 +51,7 @@ netaddr==0.7.18
 netifaces==0.10.4
 neutron-lib==1.25.0
 octavia-lib==1.1.1 # Apache-2.0
+octavia==4.0.0.0rc1
 openstackdocstheme==1.18.1
 os-client-config==1.28.0
 os-service-types==1.2.0
@@ -73,7 +73,6 @@ oslo.rootwrap==5.8.0
 oslo.serialization==2.28.1
 oslo.service==1.31.0
 oslo.utils==3.33.0
-oslo.versionedobjects==1.31.2
 oslo.vmware==2.17.0
 oslotest==3.2.0
 osprofiler==1.4.0
@@ -129,7 +128,7 @@ stestr==1.0.0
 stevedore==1.20.0
 tempest==17.1.0
 Tempita==0.5.2
-tenacity==4.4.0
+tenacity==4.9.0
 testrepository==0.0.18
 testresources==2.0.0
 testscenarios==0.4
