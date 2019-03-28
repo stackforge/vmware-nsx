@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import decorator
-
 import mock
 import netaddr
 from neutron.db import models_v2
@@ -3067,17 +3065,6 @@ class ExtGwModeTestCase(test_ext_gw_mode.ExtGwModeIntTestCase,
                         L3NatTest):
     def test_router_gateway_set_fail_after_port_create(self):
         self.skipTest("TBD")
-
-    # Override subnet/network creation in some tests to create external
-    # networks immediately instead of updating it post creation, which the
-    # v3 plugin does not support
-    @decorator.decorator
-    def with_external_subnet(f, *args, **kwargs):
-        obj = args[0]
-        obj.subnet = obj.external_subnet
-        result = f(*args, **kwargs)
-        obj.subnet = obj.original_subnet
-        return result
 
     @common_v3.with_external_subnet
     def _test_router_update_ext_gwinfo(self, snat_input_value,
