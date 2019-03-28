@@ -383,7 +383,7 @@ nsx_v3_and_p = [
                       "routers to connect other that the one connected to"
                       " the Tier0 router")),
     cfg.ListOpt('transit_networks',
-                default=['100.64.0.0/16'],
+                default=['100.64.0.0/16', 'fcaa:afe3:d48::/48'],
                 help=_("List of transit networks used by NSX tier0 routers. "
                        "Neutron subnets will not be allowed to use those "
                        "cidrs")),
