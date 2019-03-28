@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mock
-
 import decorator
+
+import mock
 
 from oslo_config import cfg
 from oslo_utils import uuidutils
@@ -90,6 +90,29 @@ class NsxPPluginTestCaseMixin(
         super(NsxPPluginTestCaseMixin, self).setUp(plugin=plugin,
                                                    ext_mgr=ext_mgr)
         self.ctx = context.get_admin_context()
+        self.force_disable_dhcp = False
+        print("END OF SETUP")
+
+    def _make_subnet(self, *args, **kwargs):
+        """Override the original make_subnet to control the DHCP status"""
+        if self.force_disable_dhcp:
+            if 'enable_dhcp' in kwargs:
+                kwargs['enable_dhcp'] = False
+            else:
+                if len(args) > 7:
+                    arg_list = list(args)
+                    arg_list[7] = False
+                    args = tuple(arg_list)
+        return super(NsxPPluginTestCaseMixin,
+                     self)._make_subnet(*args, **kwargs)
+
+    def _create_subnet(self, fmt, net_id, cidr,
+                       expected_res_status=None, **kwargs):
+        if self.force_disable_dhcp:
+            kwargs['enable_dhcp'] = False
+
+        return super(NsxPPluginTestCaseMixin, self)._create_subnet(
+            fmt, net_id, cidr, expected_res_status, **kwargs)
 
     def _mock_nsx_policy_backend_calls(self):
         resource_list_result = {'results': [{'id': 'test',
@@ -596,31 +619,6 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
                     NsxPPluginTestCaseMixin):
     def setUp(self, **kwargs):
         super(NsxPTestPorts, self).setUp(**kwargs)
-        self.disable_dhcp = False
-
-    def _make_subnet(self, *args, **kwargs):
-        """Override the original make_subnet to control the DHCP status"""
-        if self.disable_dhcp:
-            if 'enable_dhcp' in kwargs:
-                kwargs['enable_dhcp'] = False
-            else:
-                if len(args) > 7:
-                    arg_list = list(args)
-                    arg_list[7] = False
-                    args = tuple(arg_list)
-        return super(NsxPTestPorts, self)._make_subnet(*args, **kwargs)
-
-    @decorator.decorator
-    def with_disable_dhcp(f, *args, **kwargs):
-        """Change the default subnet DHCP status to disable.
-
-        This is used to allow tests with 2 subnets on the same net
-        """
-        obj = args[0]
-        obj.disable_dhcp = True
-        result = f(*args, **kwargs)
-        obj.disable_dhcp = False
-        return result
 
     def test_update_port_update_ip_address_only(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
@@ -631,7 +629,7 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
     def test_update_port_mac_v6_slaac(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_requested_subnet_id_v4_and_v6(self):
         return super(NsxPTestPorts, self).test_requested_subnet_id_v4_and_v6()
 
@@ -647,6 +645,9 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
     def test_create_port_anticipating_allocation(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
 
+    def test_create_port_with_ipv6_dhcp_stateful_subnet_in_fixed_ips(self):
+        self.skipTest('Stateful DHCPv6 not supported')
+
     def test_update_port_add_additional_ip(self):
         self.skipTest('Multiple fixed ips on a port are not supported')
 
@@ -659,19 +660,19 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
     def test_delete_network_port_exists_owned_by_network(self):
         self.skipTest('Skip need to address in future')
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_duplicate_mac_generation(self):
         self.skipTest('No DHCP v6 Support yet')
         return super(NsxPTestPorts, self).test_duplicate_mac_generation()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_update_port_update_ip(self):
         return super(NsxPTestPorts, self).test_update_port_update_ip()
 
     def test_create_router_port_ipv4_and_ipv6_slaac_no_fixed_ips(self):
         self.skipTest('No DHCP v6 Support yet')
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_create_port_with_multiple_ipv4_and_ipv6_subnets(self):
         return super(
             NsxPTestPorts,
@@ -686,41 +687,41 @@ class NsxPTestPorts(test_db_base_plugin_v2.TestPortsV2,
     def test_update_port_excluding_ipv6_slaac_subnet_from_fixed_ips(self):
         self.skipTest('No DHCP v6 Support yet')
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_requested_ips_only(self):
         return super(NsxPTestPorts, self).test_requested_ips_only()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_list_ports_with_sort_emulated(self):
         return super(NsxPTestPorts,
                      self).test_list_ports_with_sort_emulated()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_list_ports_with_pagination_native(self):
         return super(NsxPTestPorts,
                      self).test_list_ports_with_pagination_native()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_list_ports_for_network_owner(self):
         return super(NsxPTestPorts, self).test_list_ports_for_network_owner()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_list_ports_public_network(self):
         return super(NsxPTestPorts, self).test_list_ports_public_network()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_list_ports(self):
         return super(NsxPTestPorts, self).test_list_ports()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_get_ports_count(self):
         return super(NsxPTestPorts, self).test_get_ports_count()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_list_ports_with_sort_native(self):
         return super(NsxPTestPorts, self).test_list_ports_with_sort_native()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_list_ports_with_pagination_emulated(self):
         return super(NsxPTestPorts,
                      self).test_list_ports_with_pagination_emulated()
@@ -1117,7 +1118,7 @@ class NsxPTestSubnets(test_db_base_plugin_v2.TestSubnetsV2,
                       NsxPPluginTestCaseMixin):
     def setUp(self, plugin=PLUGIN_NAME, ext_mgr=None):
         super(NsxPTestSubnets, self).setUp(plugin=plugin, ext_mgr=ext_mgr)
-        self.disable_dhcp = False
+        self.force_slaac = False
 
     def _create_subnet_bulk(self, fmt, number, net_id, name,
                             ip_version=4, **kwargs):
@@ -1133,85 +1134,92 @@ class NsxPTestSubnets(test_db_base_plugin_v2.TestSubnetsV2,
         kwargs.update({'override': overrides})
         return self._create_bulk(fmt, number, 'subnet', base_data, **kwargs)
 
-    def _make_subnet(self, *args, **kwargs):
-        """Override the original make_subnet to control the DHCP status"""
-        if self.disable_dhcp:
-            if 'enable_dhcp' in kwargs:
-                kwargs['enable_dhcp'] = False
-            else:
-                if len(args) > 7:
-                    arg_list = list(args)
-                    arg_list[7] = False
-                    args = tuple(arg_list)
-        return super(NsxPTestSubnets, self)._make_subnet(*args, **kwargs)
-
+    # TODO(annak): remove this when DHCPv6 is supported
     @decorator.decorator
-    def with_disable_dhcp(f, *args, **kwargs):
-        """Change the default subnet DHCP status to disable.
-
-        This is used to allow tests with 2 subnets on the same net
-        """
+    def with_force_slaac(f, *args, **kwargs):
         obj = args[0]
-        obj.disable_dhcp = True
+        obj.force_slaac = True
         result = f(*args, **kwargs)
-        obj.disable_dhcp = False
+        obj.force_slaac = False
         return result
 
-    @with_disable_dhcp
+    def _test_create_subnet(self, network=None, expected=None, **kwargs):
+        # Until DHCPv6 is supported, switch all test to slaac-only
+        if not self.force_slaac:
+            return
+
+        if 'ipv6_ra_mode' in kwargs and 'ipv6_address_mode' in kwargs:
+            kwargs['ipv6_ra_mode'] = constants.IPV6_SLAAC
+            kwargs['ipv6_address_mode'] = constants.IPV6_SLAAC
+
+        return super(NsxPTestSubnets,
+                     self)._test_create_subnet(network, expected, **kwargs)
+
+    @common_v3.with_disable_dhcp
     def test_list_subnets_filtering_by_project_id(self):
         super(NsxPTestSubnets,
               self).test_list_subnets_filtering_by_project_id()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_list_subnets(self):
         super(NsxPTestSubnets, self).test_list_subnets()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_list_subnets_with_parameter(self):
         super(NsxPTestSubnets, self).test_list_subnets_with_parameter()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_create_two_subnets(self):
         super(NsxPTestSubnets, self).test_create_two_subnets()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_create_subnets_bulk_emulated(self):
         super(NsxPTestSubnets, self).test_create_subnets_bulk_emulated()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_create_subnets_bulk_native(self):
         super(NsxPTestSubnets, self).test_create_subnets_bulk_native()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_get_subnets_count(self):
         super(NsxPTestSubnets, self).test_get_subnets_count()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_get_subnets_count_filter_by_project_id(self):
         super(NsxPTestSubnets,
               self).test_get_subnets_count_filter_by_project_id()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_get_subnets_count_filter_by_unknown_filter(self):
         super(NsxPTestSubnets,
               self).test_get_subnets_count_filter_by_unknown_filter()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_delete_subnet_dhcp_port_associated_with_other_subnets(self):
         super(NsxPTestSubnets,
               self).test_get_subnets_count_filter_by_unknown_filter()
 
-    @with_disable_dhcp
-    def _test_create_subnet_ipv6_auto_addr_with_port_on_network(
-        self, *args, **kwargs):
-        super(NsxPTestSubnets,
-              self)._test_create_subnet_ipv6_auto_addr_with_port_on_network(
-              *args, **kwargs)
-
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_delete_subnet_with_other_subnet_on_network_still_in_use(self):
         super(NsxPTestSubnets, self).\
             test_delete_subnet_with_other_subnet_on_network_still_in_use()
+
+    @with_force_slaac
+    def test_create_subnet_ipv6_gw_values(self):
+        super(NsxPTestSubnets, self).test_create_subnet_ipv6_gw_values()
+
+    @with_force_slaac
+    def test_create_subnet_ipv6_out_of_cidr_global(self):
+        super(NsxPTestSubnets,
+              self).test_create_subnet_ipv6_out_of_cidr_global()
+
+    @common_v3.with_disable_dhcp
+    def test_update_subnet_inconsistent_ipv6_gatewayv4(self):
+        super(NsxPTestSubnets,
+              self).test_update_subnet_inconsistent_ipv6_gatewayv4()
+
+    def test_create_subnet_dhcpv6_stateless_with_port_on_network(self):
+        self.skipTest('No DHCP v6 Support yet')
 
     def test_delete_subnet_port_exists_owned_by_network(self):
         self.skipTest('No support for multiple ips')
@@ -1463,31 +1471,6 @@ class NsxPTestL3NatTestCase(NsxPTestL3NatTest,
 
     def setUp(self, *args, **kwargs):
         super(NsxPTestL3NatTestCase, self).setUp(*args, **kwargs)
-        self.disable_dhcp = False
-
-    def _make_subnet(self, *args, **kwargs):
-        """Override the original make_subnet to control the DHCP status"""
-        if self.disable_dhcp:
-            if 'enable_dhcp' in kwargs:
-                kwargs['enable_dhcp'] = False
-            else:
-                if len(args) > 7:
-                    arg_list = list(args)
-                    arg_list[7] = False
-                    args = tuple(arg_list)
-        return super(NsxPTestL3NatTestCase, self)._make_subnet(*args, **kwargs)
-
-    @decorator.decorator
-    def with_disable_dhcp(f, *args, **kwargs):
-        """Change the default subnet DHCP status to disable.
-
-        This is used to allow tests with 2 subnets on the same net
-        """
-        obj = args[0]
-        obj.disable_dhcp = True
-        result = f(*args, **kwargs)
-        obj.disable_dhcp = False
-        return result
 
     def test__notify_gateway_port_ip_changed(self):
         self.skipTest('not supported')
@@ -1570,7 +1553,7 @@ class NsxPTestL3NatTestCase(NsxPTestL3NatTest,
     def test_router_delete_dhcpv6_stateless_subnet_inuse_returns_409(self):
         self.skipTest('not supported')
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     @common_v3.with_external_network
     def test_router_update_gateway_upon_subnet_create_ipv6(self):
         super(NsxPTestL3NatTestCase,
@@ -1583,7 +1566,7 @@ class NsxPTestL3NatTestCase(NsxPTestL3NatTest,
         self.skipTest('not supported')
 
     def test_router_add_interface_ipv6_subnet(self):
-        self.skipTest('slaac not supported')
+        self.skipTest('DHCPv6 not supported')
 
     def test_router_add_dual_stack_subnets(self):
         """Add dual stack subnets to router interface"""
@@ -1625,32 +1608,32 @@ class NsxPTestL3NatTestCase(NsxPTestL3NatTest,
                              gateway_ip='fd00::1', ip_version=6) as s:
                 self._test_router_add_interface_subnet(r, s)
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_route_clear_routes_with_None(self):
         super(NsxPTestL3NatTestCase,
               self).test_route_clear_routes_with_None()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_route_update_with_multi_routes(self):
         super(NsxPTestL3NatTestCase,
               self).test_route_update_with_multi_routes()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_route_update_with_one_route(self):
         super(NsxPTestL3NatTestCase,
               self).test_route_update_with_one_route()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_router_update_delete_routes(self):
         super(NsxPTestL3NatTestCase,
               self).test_router_update_delete_routes()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_router_interface_in_use_by_route(self):
         super(NsxPTestL3NatTestCase,
               self).test_router_interface_in_use_by_route()
 
-    @with_disable_dhcp
+    @common_v3.with_disable_dhcp
     def test_create_floatingip_with_assoc_to_ipv4_and_ipv6_port(self):
         super(NsxPTestL3NatTestCase,
               self).test_create_floatingip_with_assoc_to_ipv4_and_ipv6_port()
@@ -1948,3 +1931,26 @@ class NsxPTestL3NatTestCase(NsxPTestL3NatTest,
                     s['subnet']['network_id'])
                 add_srv_router.assert_called_once_with(
                     mock.ANY, '%s%s' % (path_prefix, edge_cluster))
+
+    @common_v3.with_disable_dhcp
+    def test_create_floatingip_with_assoc_to_ipv6_subnet(self):
+        super(NsxPTestL3NatTestCase,
+              self).test_create_floatingip_with_assoc_to_ipv6_subnet()
+
+    @common_v3.with_disable_dhcp
+    def test_router_add_interface_ipv6_subnet_without_gateway_ip(self):
+        super(NsxPTestL3NatTestCase,
+              self).test_router_add_interface_ipv6_subnet_without_gateway_ip()
+
+    @common_v3.with_disable_dhcp
+    def test_router_add_interface_multiple_ipv6_subnets_different_net(self):
+        super(NsxPTestL3NatTestCase, self).\
+            test_router_add_interface_multiple_ipv6_subnets_different_net()
+
+    @common_v3.with_disable_dhcp
+    def test_create_floatingip_ipv6_only_network_returns_400(self):
+        super(NsxPTestL3NatTestCase,
+              self).test_create_floatingip_ipv6_only_network_returns_400()
+
+    def test_router_add_iface_ipv6_ext_ra_subnet_returns_400(self):
+        self.skipTest('DHCPv6 not supported')

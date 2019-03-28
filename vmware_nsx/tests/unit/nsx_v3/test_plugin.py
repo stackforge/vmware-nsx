@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import decorator
-
 import mock
 import netaddr
 from neutron.db import models_v2
@@ -2133,6 +2131,29 @@ class TestL3NatTestCase(L3NatTest,
     def test_floatingip_via_router_interface_returns_404(self):
         self.skipTest('not supported')
 
+    @common_v3.with_disable_dhcp
+    def test_create_floatingip_with_assoc_to_ipv6_subnet(self):
+        super(TestL3NatTestCase,
+              self).test_create_floatingip_with_assoc_to_ipv6_subnet()
+
+    @common_v3.with_disable_dhcp
+    def test_router_add_interface_ipv6_subnet_without_gateway_ip(self):
+        super(TestL3NatTestCase,
+              self).test_router_add_interface_ipv6_subnet_without_gateway_ip()
+
+    @common_v3.with_disable_dhcp
+    def test_router_add_interface_multiple_ipv6_subnets_different_net(self):
+        super(TestL3NatTestCase, self).\
+            test_router_add_interface_multiple_ipv6_subnets_different_net()
+
+    @common_v3.with_disable_dhcp
+    def test_create_floatingip_ipv6_only_network_returns_400(self):
+        super(TestL3NatTestCase,
+              self).test_create_floatingip_ipv6_only_network_returns_400()
+
+    def test_router_add_iface_ipv6_ext_ra_subnet_returns_400(self):
+        self.skipTest('DHCPv6 not supported')
+
     @common_v3.with_external_subnet
     def test_floatingip_list_with_sort(self):
         super(TestL3NatTestCase,
@@ -3067,17 +3088,6 @@ class ExtGwModeTestCase(test_ext_gw_mode.ExtGwModeIntTestCase,
                         L3NatTest):
     def test_router_gateway_set_fail_after_port_create(self):
         self.skipTest("TBD")
-
-    # Override subnet/network creation in some tests to create external
-    # networks immediately instead of updating it post creation, which the
-    # v3 plugin does not support
-    @decorator.decorator
-    def with_external_subnet(f, *args, **kwargs):
-        obj = args[0]
-        obj.subnet = obj.external_subnet
-        result = f(*args, **kwargs)
-        obj.subnet = obj.original_subnet
-        return result
 
     @common_v3.with_external_subnet
     def _test_router_update_ext_gwinfo(self, snat_input_value,
