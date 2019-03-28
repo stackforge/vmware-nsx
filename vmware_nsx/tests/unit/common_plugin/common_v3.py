@@ -143,6 +143,15 @@ def with_external_subnet(f, *args, **kwargs):
     return result
 
 
+@decorator.decorator
+def with_disable_dhcp(f, *args, **kwargs):
+    obj = args[0]
+    obj.force_disable_dhcp = True
+    result = f(*args, **kwargs)
+    obj.force_disable_dhcp = False
+    return result
+
+
 def init_subnet_calls(self, n):
     self.subnet_calls = []
     for i in range(0, n - 1):
