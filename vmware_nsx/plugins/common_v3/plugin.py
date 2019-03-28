@@ -1849,13 +1849,31 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         """Should be implemented by each plugin"""
         pass
 
+    def _subnet_with_native_dhcp(self, subnet):
+        native_metadata = self._has_native_dhcp_metadata()
+        # DHCPv6 is not yet supported, but slaac is
+        return (native_metadata and
+                subnet.get('enable_dhcp', False) and
+                subnet.get('ipv6_address_mode') != 'slaac')
+
+    def _validate_subnet_ip_version(self, subnet):
+        if subnet['ip_version'] == 4:
+            return
+
+        if self._subnet_with_native_dhcp(subnet):
+            # No DHCPv6 support yet
+            msg = _("DHCPv6 is not supported")
+            LOG.error(msg)
+            raise n_exc.InvalidInput(error_message=msg)
+
     def _create_subnet(self, context, subnet):
         self._validate_number_of_subnet_static_routes(subnet)
         self._validate_host_routes_input(subnet)
+        self._validate_subnet_ip_version(subnet['subnet'])
 
         # TODO(berlin): public external subnet announcement
-        native_metadata = self._has_native_dhcp_metadata()
-        if (native_metadata and subnet['subnet'].get('enable_dhcp', False)):
+        if self._subnet_with_native_dhcp(subnet['subnet']):
+
             self._validate_external_subnet(context,
                                            subnet['subnet']['network_id'])
             self._ensure_native_dhcp()
@@ -2066,7 +2084,7 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             self._subnet_check_ip_allocations_internal_router_ports(
                 context, subnet_id)
             subnet = self.get_subnet(context, subnet_id)
-            if subnet['enable_dhcp']:
+            if self._subnet_with_native_dhcp(subnet):
                 lock = 'nsxv3_network_' + subnet['network_id']
                 with locking.LockManager.get_lock(lock):
                     # Check if it is the last DHCP-enabled subnet to delete.
@@ -2091,10 +2109,12 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
             subnet,
             orig_enable_dhcp=orig_subnet['enable_dhcp'],
             orig_host_routes=orig_subnet['host_routes'])
+        self._validate_subnet_ip_version(subnet['subnet'])
         if self._has_native_dhcp_metadata():
-            enable_dhcp = subnet['subnet'].get('enable_dhcp')
+            enable_dhcp = self._subnet_with_native_dhcp(subnet['subnet'])
+            orig_enable_dhcp = self._subnet_with_native_dhcp(orig_subnet)
             if (enable_dhcp is not None and
-                enable_dhcp != orig_subnet['enable_dhcp']):
+                enable_dhcp != orig_enable_dhcp):
                 self._ensure_native_dhcp()
                 lock = 'nsxv3_network_' + orig_subnet['network_id']
                 with locking.LockManager.get_lock(lock):
@@ -2143,8 +2163,7 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
                 context, subnet['subnet'], updated_subnet)
 
         # Check if needs to update logical DHCP server for native DHCP.
-        if (self._has_native_dhcp_metadata() and
-            updated_subnet['enable_dhcp']):
+        if self._subnet_with_native_dhcp(subnet['subnet']):
             self._ensure_native_dhcp()
             kwargs = {}
             for key in ('dns_nameservers', 'gateway_ip', 'host_routes'):
@@ -2391,9 +2410,6 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         return cidr0.first <= cidr1.last and cidr1.first <= cidr0.last
 
     def _validate_address_space(self, context, subnet):
-        # Only working for IPv4 at the moment
-        if (subnet['ip_version'] != 4):
-            return
 
         # get the subnet IPs
         if ('allocation_pools' in subnet and
@@ -2411,13 +2427,15 @@ class NsxPluginV3Base(agentschedulers_db.AZDhcpAgentSchedulerDbMixin,
         # Check if subnet overlaps with shared address space.
         # This is checked on the backend when attaching subnet to a router.
         shared_ips_cidrs = self._get_conf_attr('transit_networks')
-        for subnet_net in subnet_networks:
-            for shared_ips in shared_ips_cidrs:
-                if netaddr.IPSet(subnet_net) & netaddr.IPSet([shared_ips]):
-                    msg = _("Subnet overlaps with shared address space "
-                            "%s") % shared_ips
-                    LOG.error(msg)
-                    raise n_exc.InvalidInput(error_message=msg)
+        if subnet['ip_version'] != 4:
+            # Translit networks are IPv4 only
+            for subnet_net in subnet_networks:
+                for shared_ips in shared_ips_cidrs:
+                    if netaddr.IPSet(subnet_net) & netaddr.IPSet([shared_ips]):
+                        msg = _("Subnet overlaps with shared address space "
+                                "%s") % shared_ips
+                        LOG.error(msg)
+                        raise n_exc.InvalidInput(error_message=msg)
 
         # Ensure that the NSX uplink cidr does not lie on the same subnet as
         # the external subnet
