@@ -673,8 +673,56 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         return updated_net
 
+    def _get_router_connected_to_network(self, context, network_id):
+        port_filters = {'device_owner': [l3_db.DEVICE_OWNER_ROUTER_INTF],
+                        'network_id': [network_id]}
+        ports = self.get_ports(context, filters=port_filters)
+        if ports:
+            return ports[0]['device_id']
+
+    def _update_slaac_on_connected_router(self, context, subnet):
+        # TODO(annak): for vlan networks it should be possible
+        # to enable slaac on interface basis
+
+        router_id = self._get_router_connected_to_network(
+            context, subnet['network_id'])
+
+        if not router_id:
+            return
+
+        rtr_subnets = self._find_router_subnets(context.elevated(),
+                                                router_id)
+        slaac_subnets = [s for s in rtr_subnets
+                         if s['id'] != subnet['id'] and
+                         s['ipv6_address_mode'] == 'slaac']
+
+        if not slaac_subnets:
+            if subnet['ipv6_address_mode'] == 'slaac':
+                # this is the first slaac subnet connected -
+                # need to enable slaac on router
+                profile_id = SLAAC_NDRA_PROFILE_ID
+            else:
+                # this is the last slaac subnet connected -
+                # need to disable slaac on router
+                profile_id = DEFAULT_NDRA_PROFILE_ID
+
+        self.nsxpolicy.tier1.update(router_id, ndra_profile_id=profile_id)
+
     def create_subnet(self, context, subnet):
-        return self._create_subnet(context, subnet)
+        created_subnet = self._create_subnet(context, subnet)
+
+        try:
+            # will update the router only if needed
+            self._update_slaac_on_connected_router(context,
+                                                   created_subnet)
+
+        except nsx_lib_exc.ManagerError:
+            with excutils.save_and_reraise_exception():
+                super(NsxPolicyPlugin,
+                      self).delete_subnet(
+                        context, created_subnet['id'])
+
+        return created_subnet
 
     def delete_subnet(self, context, subnet_id):
         # Call common V3 code to delete the subnet
