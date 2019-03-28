@@ -19,6 +19,8 @@ import decorator
 
 from neutron.tests.unit.db import test_db_base_plugin_v2 as test_plugin
 
+from neutron_lib import constants
+
 
 class FixExternalNetBaseTest(object):
     """Base class providing utilities for handling tests which require updating
@@ -143,6 +145,15 @@ def with_external_subnet(f, *args, **kwargs):
     return result
 
 
+@decorator.decorator
+def with_disable_dhcp(f, *args, **kwargs):
+    obj = args[0]
+    obj.force_disable_dhcp = True
+    result = f(*args, **kwargs)
+    obj.force_disable_dhcp = False
+    return result
+
+
 def init_subnet_calls(self, n):
     self.subnet_calls = []
     for i in range(0, n - 1):
@@ -200,3 +211,149 @@ def with_no_dhcp_subnet(f, *args, **kwargs):
     result = f(*args, **kwargs)
     obj.subnet = obj.original_subnet
     return result
+
+
+# TODO(annak): remove this when DHCPv6 is supported
+@decorator.decorator
+def with_force_slaac(f, *args, **kwargs):
+    obj = args[0]
+    obj.force_slaac = True
+    result = f(*args, **kwargs)
+    obj.force_slaac = False
+    return result
+
+
+class NsxV3TestSubnets(test_plugin.TestSubnetsV2):
+    def setUp(self, plugin, ext_mgr=None):
+        super(NsxV3TestSubnets, self).setUp(plugin=plugin, ext_mgr=ext_mgr)
+        self.force_slaac = False
+
+    def _test_create_subnet(self, network=None, expected=None, **kwargs):
+        # Until DHCPv6 is supported, switch all test to slaac-only
+        if (self.force_slaac and
+            'ipv6_ra_mode' in kwargs and 'ipv6_address_mode' in kwargs):
+            kwargs['ipv6_ra_mode'] = constants.IPV6_SLAAC
+            kwargs['ipv6_address_mode'] = constants.IPV6_SLAAC
+
+        return super(NsxV3TestSubnets,
+                     self)._test_create_subnet(network, expected, **kwargs)
+
+    @with_disable_dhcp
+    def test_list_subnets_filtering_by_project_id(self):
+        super(NsxV3TestSubnets,
+              self).test_list_subnets_filtering_by_project_id()
+
+    @with_disable_dhcp
+    def test_list_subnets(self):
+        super(NsxV3TestSubnets, self).test_list_subnets()
+
+    @with_disable_dhcp
+    def test_list_subnets_with_parameter(self):
+        super(NsxV3TestSubnets, self).test_list_subnets_with_parameter()
+
+    def test_create_subnet_ipv6_gw_is_nw_end_addr_returns_201(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_with_v6_pd_allocation_pool(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_with_v6_allocation_pool(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_ipv6_pd_gw_values(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_ipv6_slaac_with_dhcp_port_on_network(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_ipv6_slaac_with_port_not_found(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    @with_disable_dhcp
+    def test_update_subnet_inconsistent_ipv6_hostroute_dst_v4(self):
+        super(NsxV3TestSubnets,
+              self).test_update_subnet_inconsistent_ipv6_hostroute_dst_v4()
+
+    @with_disable_dhcp
+    def test_create_two_subnets(self):
+        super(NsxV3TestSubnets, self).test_create_two_subnets()
+
+    @with_disable_dhcp
+    def test_create_subnets_bulk_emulated(self):
+        super(NsxV3TestSubnets, self).test_create_subnets_bulk_emulated()
+
+    @with_disable_dhcp
+    def test_create_subnets_bulk_native(self):
+        super(NsxV3TestSubnets, self).test_create_subnets_bulk_native()
+
+    @with_disable_dhcp
+    def test_get_subnets_count(self):
+        super(NsxV3TestSubnets, self).test_get_subnets_count()
+
+    @with_disable_dhcp
+    def test_get_subnets_count_filter_by_project_id(self):
+        super(NsxV3TestSubnets,
+              self).test_get_subnets_count_filter_by_project_id()
+
+    @with_disable_dhcp
+    def test_get_subnets_count_filter_by_unknown_filter(self):
+        super(NsxV3TestSubnets,
+              self).test_get_subnets_count_filter_by_unknown_filter()
+
+    @with_disable_dhcp
+    def test_delete_subnet_dhcp_port_associated_with_other_subnets(self):
+        super(NsxV3TestSubnets,
+              self).test_get_subnets_count_filter_by_unknown_filter()
+
+    @with_disable_dhcp
+    def test_delete_subnet_with_other_subnet_on_network_still_in_use(self):
+        super(NsxV3TestSubnets, self).\
+            test_delete_subnet_with_other_subnet_on_network_still_in_use()
+
+    @with_force_slaac
+    def test_create_subnet_ipv6_gw_values(self):
+        super(NsxV3TestSubnets, self).test_create_subnet_ipv6_gw_values()
+
+    @with_force_slaac
+    def test_create_subnet_ipv6_out_of_cidr_global(self):
+        super(NsxV3TestSubnets,
+              self).test_create_subnet_ipv6_out_of_cidr_global()
+
+    @with_disable_dhcp
+    def test_update_subnet_inconsistent_ipv6_gatewayv4(self):
+        super(NsxV3TestSubnets,
+              self).test_update_subnet_inconsistent_ipv6_gatewayv4()
+
+    @with_disable_dhcp
+    def test_update_subnet_inconsistent_ipv6_hostroute_np_v4(self):
+        super(NsxV3TestSubnets,
+              self).test_update_subnet_inconsistent_ipv6_hostroute_np_v4()
+
+    @with_disable_dhcp
+    def test_create_subnet_with_v6_pd_allocation_pool(self):
+        super(NsxV3TestSubnets,
+              self).test_create_subnet_with_v6_pd_allocation_pool()
+
+    def test_update_subnet_ipv6_ra_mode_fails(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_dhcpv6_stateless_with_port_on_network(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_delete_subnet_port_exists_owned_by_network(self):
+        self.skipTest('No support for multiple ips')
+
+    def test_create_subnet_dhcpv6_stateless_with_ip_already_allocated(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_ipv6_slaac_with_db_reference_error(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_create_subnet_ipv6_slaac_with_ip_already_allocated(self):
+        self.skipTest('No DHCP v6 Support yet')
+
+    def test_subnet_update_ipv4_and_ipv6_pd_v6stateless_subnets(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
+
+    def test_subnet_update_ipv4_and_ipv6_pd_slaac_subnets(self):
+        self.skipTest('Multiple fixed ips on a port are not supported')
