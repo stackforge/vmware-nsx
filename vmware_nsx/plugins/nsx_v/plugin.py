@@ -307,6 +307,7 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
             self.nsx_v)
         self.init_availability_zones()
         self._validate_config()
+        cfg.CONF.register_mutate_hook(self._mutate_hook)
 
         self._use_nsx_policies = False
         if cfg.CONF.nsxv.use_nsx_policies:
@@ -673,6 +674,15 @@ class NsxVPluginV2(addr_pair_db.AllowedAddressPairsMixin,
                             LOG.error("Failed to create default section: %s",
                                       e)
         return section_id
+
+    # cluster_moid config option is set as 'mutable', i.e. can be reloaded (
+    # usually via SIGHUP) at runtime, without a service restart. this option
+    #  affects state. If the user adds a new cluster_moid, the plugin will
+    # pick it up.
+    def _mutate_hook(self, conf, fresh):
+        """Reconfigures dfw according to the mutated options."""
+        if ('nsxv_opts', 'cluster_moid') in fresh:
+            self._create_cluster_default_fw_section(update_section=True)
 
     def _create_dhcp_static_binding(self, context, neutron_port_db):
 

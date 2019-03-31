@@ -546,6 +546,7 @@ nsxv_opts = [
                        'set.')),
     cfg.ListOpt('cluster_moid',
                 default=[],
+                mutable=True,
                 help=_('(Required) Parameter listing the IDs of the clusters '
                        'which are used by OpenStack.')),
     cfg.StrOpt('datacenter_moid',
