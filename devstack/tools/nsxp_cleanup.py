@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import eventlet
 import optparse
 
 import sqlalchemy as sa
@@ -83,6 +84,7 @@ class NSXClient(object):
             username=self.username,
             password=self.password,
             nsx_api_managers=[self.host],
+            allow_passthrough=allow_passthrough,
             # allow admin user to delete entities created
             # under openstack principal identity
             allow_overwrite_header=True)
@@ -173,6 +175,9 @@ class NSXClient(object):
         for rtr in routers:
             # remove all nat rules from this router before deletion
             self.cleanup_tier1_nat_rules(rtr['id'])
+            self.nsxpolicy.tier1.update(rtr['id'], disable_firewall=True)
+            self.nsxpolicy.tier1.update_transport_zone(rtr['id'], None)
+
             try:
                 self.nsxpolicy.tier1.remove_edge_cluster(rtr['id'])
             except exceptions.ManagerError as e:
@@ -371,8 +376,10 @@ class NSXClient(object):
             - Security groups resources
 
         Global cleanup steps:
-            - Tier1 routers
             - Segments and ports
+            - Tier1 routers
+            - Services
+            - Domains
         """
         domains = self.get_nsx_os_domains()
         for domain_id in domains:
