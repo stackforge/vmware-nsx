@@ -621,6 +621,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         # MD Proxy is currently supported by the passthrough api only
         if is_backend_network and cfg.CONF.nsx_p.allow_passthrough:
             try:
+                # The new segment was not realized yet. Waiting for a bit.
+                eventlet.sleep(cfg.CONF.nsx_p.realization_wait_sec)
                 nsx_net_id = self._get_network_nsx_id(context, net_id)
                 self._create_net_mdproxy_port(
                     context, created_net, az, nsx_net_id)
