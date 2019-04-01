@@ -14,6 +14,7 @@
 #    under the License.
 
 import netaddr
+import time
 
 from oslo_config import cfg
 from oslo_db import exception as db_exc
@@ -552,7 +553,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         # MD Proxy is currently supported by the passthrough api only
         if is_backend_network and cfg.CONF.nsx_p.allow_passthrough:
             try:
-                nsx_net_id = self._get_network_nsx_id(context, net_id)
+                nsx_net_id = self._get_network_nsx_id(
+                    context, net_id, sleep_before=True)
                 self._create_net_mdproxy_port(
                     context, created_net, az, nsx_net_id)
             except Exception as e:
@@ -697,7 +699,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         return address_bindings
 
-    def _get_network_nsx_id(self, context, network_id):
+    def _get_network_nsx_id(self, context, network_id, sleep_before=False):
         """Return the id of this logical switch in the nsx manager
 
         This api waits for the segment to really be realized, and return the ID
@@ -709,7 +711,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             segment_id = self._get_network_nsx_segment_id(context, network_id)
             try:
                 return self.nsxpolicy.segment.get_realized_logical_switch_id(
-                    segment_id)
+                    segment_id, sleep_before=sleep_before)
             except nsx_lib_exc.ManagerError:
                 LOG.error("Network %s was not realized", network_id)
 
