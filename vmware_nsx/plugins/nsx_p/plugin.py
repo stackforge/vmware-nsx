@@ -89,6 +89,7 @@ from vmware_nsxlib.v3.policy import core_defs as policy_defs
 from vmware_nsxlib.v3 import security
 from vmware_nsxlib.v3 import utils as nsxlib_utils
 
+# TEST
 LOG = log.getLogger(__name__)
 NSX_P_SECURITY_GROUP_TAG = 'os-security-group'
 NSX_P_GLOBAL_DOMAIN_ID = policy_constants.DEFAULT_DOMAIN
