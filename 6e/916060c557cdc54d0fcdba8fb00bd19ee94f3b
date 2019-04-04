@@ -1,0 +1,9 @@
+Code-Review+2: Kobi Samoray <ksamoray@vmware.com>
+Verified-1: VMware NSX CI
+Workflow+1: Adit Sarfaty <asarfaty@vmware.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Thu, 04 Apr 2019 11:31:12 +0000
+Reviewed-on: https://review.openstack.org/649885
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/rocky
