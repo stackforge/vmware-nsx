@@ -86,8 +86,10 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
             l4_protocol = v3_utils.translate_fw_rule_protocol(
                 rule.get('protocol'))
             # The L4 protocol must be a part of the service ID to allow
-            # changing the protocol of a rule
-            srv_id = '%s-%s-%s' % (rule['protocol'], router_id, rule['id'])
+            # changing the protocol of a rule.
+            # Also adding random at the end to allow delete & recreate
+            srv_id = '%s-%s-%s' % (rule['protocol'], router_id,
+                                   self._get_random_rule_id(rule['id']))
             srv_name = 'FW_rule_%s_%s_service' % (rule['id'], rule['protocol'])
             description = '%s service for FW rule %s of Tier1 %s' % (
                 rule['protocol'], rule['id'], router_id)
