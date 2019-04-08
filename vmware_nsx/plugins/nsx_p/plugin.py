@@ -1466,10 +1466,13 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             for subnet in router_subnets:
                 self._add_subnet_no_dnat_rule(context, router_id, subnet)
 
+        # For sake of ipv6, we advertise connected segments regardless of SNAT
+        # TODO(annak): refine this with advertisement rules per ip version if
+        # need arises
         self.nsxpolicy.tier1.update_route_advertisement(
             router_id,
             nat=actions['advertise_route_nat_flag'],
-            subnets=actions['advertise_route_connected_flag'])
+            subnets=True if info else False)
 
         if actions['remove_service_router']:
             self.delete_service_router(router['project_id'], router_id)
