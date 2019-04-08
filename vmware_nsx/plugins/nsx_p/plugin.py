@@ -1325,14 +1325,13 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             LOG.error("Tier0 %s does not have an edge cluster",
                       tier0_uuid)
 
-        if cfg.CONF.nsx_p.allow_passthrough:
-            try:
-                # Enable standby relocation on this router
-                self.nsxpolicy.tier1.set_standby_relocation(
-                    router['id'], enable_standby_relocation=True)
-            except Exception as ex:
-                LOG.warning("Failed to enable standby relocation for router "
-                            "%s: %s", router['id'], ex)
+        try:
+            # Enable standby relocation on this router
+            self.nsxpolicy.tier1.set_standby_relocation(
+                router['id'], enable_standby_relocation=True)
+        except Exception as ex:
+            LOG.warning("Failed to enable standby relocation for router "
+                        "%s: %s", router['id'], ex)
 
         # update firewall rules (there might be FW group waiting for a
         # service router)
