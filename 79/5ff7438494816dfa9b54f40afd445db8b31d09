@@ -1,0 +1,10 @@
+Verified+1: VMware NSX CI
+Code-Review+2: Anna Khmelnitsky <akhmelnitsky@vmware.com>
+Code-Review+2: boden <bodenvmw@gmail.com>
+Workflow+1: boden <bodenvmw@gmail.com>
+Verified+2: Zuul
+Submitted-by: Zuul
+Submitted-at: Wed, 10 Apr 2019 19:34:59 +0000
+Reviewed-on: https://review.openstack.org/651503
+Project: openstack/vmware-nsx
+Branch: refs/heads/stable/stein
