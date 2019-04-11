@@ -211,6 +211,9 @@ nsxv_resources = {
                                            Operations.NSX_REORDER.value,
                                            Operations.LIST_UNUSED.value,
                                            Operations.NSX_CLEAN.value]),
+    constants.ORPHANED_RULES: Resource(constants.ORPHANED_RULES,
+                                       [Operations.LIST.value,
+                                        Operations.NSX_CLEAN.value]),
     constants.METADATA: Resource(
         constants.METADATA, [Operations.NSX_UPDATE.value,
                              Operations.NSX_UPDATE_SECRET.value,

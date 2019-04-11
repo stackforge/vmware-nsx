@@ -1038,6 +1038,9 @@ class FakeVcns(object):
         else:
             return self._get_section(section_id)
 
+    def get_section_rules(self, section_uri):
+        return []
+
     def _get_section(self, section_id):
         section_rules = (
             b''.join(self._sections[section_id]['rules'].values()))
