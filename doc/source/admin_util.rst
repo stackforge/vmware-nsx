@@ -429,11 +429,11 @@ Firewall Sections
 Orphaned Firewall Sections
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- List orphaned firewall sections (exist on NSXv3 backend but don't have a corresponding binding in Neutron DB)::
+- List orphaned firewall sections & rules (exist on NSXv3 backend but don't have a corresponding binding in Neutron DB)::
 
     nsxadmin -r orphaned-firewall-sections -o nsx-list
 
-- Delete orphaned firewall sections (exist on NSXv3 backend but don't have a corresponding binding in Neutron DB)::
+- Delete orphaned firewall sections & rules (exist on NSXv3 backend but don't have a corresponding binding in Neutron DB)::
 
     nsxadmin -r orphaned-firewall-sections -o nsx-clean
 

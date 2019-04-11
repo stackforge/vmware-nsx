@@ -298,11 +298,23 @@ def list_orphaned_sections(resource, event, trigger, **kwargs):
               attrs=['id', 'display_name'])
 
 
+def list_orphaned_section_rules(resource, event, trigger, **kwargs):
+    """List orphaned firewall section rules"""
+    nsxlib = v3_utils.get_connected_nsxlib()
+    orphaned_rules = plugin_utils.get_orphaned_firewall_section_rules(
+        neutron_sg.context, nsxlib)
+    _log_info("orphaned-firewall-section-rules", orphaned_rules,
+              attrs=['security-group-name', 'security-group-id',
+                     'section-id', 'rule-id'])
+
+
 def clean_orphaned_sections(resource, event, trigger, **kwargs):
     """Delete orphaned firewall sections from the NSX backend"""
     nsxlib = v3_utils.get_connected_nsxlib()
     orphaned_sections = plugin_utils.get_orphaned_firewall_sections(
         neutron_sg.context, nsxlib)
+    if not orphaned_sections:
+        LOG.info("No orphaned nsx sections were found.")
     for sec in orphaned_sections:
         try:
             nsxlib.firewall_section.delete(sec['id'])
@@ -311,6 +323,26 @@ def clean_orphaned_sections(resource, event, trigger, **kwargs):
                       "%(e)s.", {'id': sec['id'], 'e': e})
         else:
             LOG.info("Backend firewall section %s was deleted.", sec['id'])
+
+
+def clean_orphaned_section_rules(resource, event, trigger, **kwargs):
+    """Delete orphaned firewall section rules from the NSX backend"""
+    nsxlib = v3_utils.get_connected_nsxlib()
+    orphaned_rules = plugin_utils.get_orphaned_firewall_section_rules(
+        neutron_sg.context, nsxlib)
+    if not orphaned_rules:
+        LOG.info("No orphaned nsx rules were found.")
+    for rule in orphaned_rules:
+        try:
+            nsxlib.firewall_section.delete_rule(
+                rule['section-id'], rule['rule-id'])
+        except Exception as e:
+            LOG.error("Failed to delete backend firewall section %(sect)s "
+                      "rule %(rule)s: %(e)s.", {'sect': rule['section-id'],
+                                                'rule': rule['rule-id'],
+                                                'e': e})
+        else:
+            LOG.info("Backend firewall rule %s was deleted.", rule['rule-id'])
 
 
 def update_security_groups_logging(resource, event, trigger, **kwargs):
@@ -365,6 +397,14 @@ registry.subscribe(list_orphaned_sections,
                    constants.ORPHANED_FIREWALL_SECTIONS,
                    shell.Operations.NSX_LIST.value)
 
+registry.subscribe(list_orphaned_section_rules,
+                   constants.ORPHANED_FIREWALL_SECTIONS,
+                   shell.Operations.NSX_LIST.value)
+
 registry.subscribe(clean_orphaned_sections,
+                   constants.ORPHANED_FIREWALL_SECTIONS,
+                   shell.Operations.NSX_CLEAN.value)
+
+registry.subscribe(clean_orphaned_section_rules,
                    constants.ORPHANED_FIREWALL_SECTIONS,
                    shell.Operations.NSX_CLEAN.value)

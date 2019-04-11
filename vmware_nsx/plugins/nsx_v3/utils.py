@@ -50,6 +50,9 @@ PORT_ERROR_TYPE_MISSING = "Missing port"
 PORT_ERROR_TYPE_PROFILE = "Wrong switching profiles"
 PORT_ERROR_TYPE_BINDINGS = "Wrong address binding"
 
+# Default UUID for the global OS rule
+NSX_V3_OS_DFW_UUID = '00000000-def0-0000-0fed-000000000000'
+
 LOG = logging.getLogger(__name__)
 
 
@@ -360,6 +363,41 @@ def get_orphaned_firewall_sections(context, nsxlib):
             if neutron_obj:
                 orphaned_sections.append(fw_section)
     return orphaned_sections
+
+
+def get_security_group_rules_mappings(context):
+    q = context.session.query(
+        securitygroup.SecurityGroupRule.id,
+        nsx_models.NeutronNsxRuleMapping.nsx_id).join(
+            nsx_models.NeutronNsxRuleMapping).all()
+    sg_mappings = [{'rule_id': mapp[0],
+                    'nsx_rule_id': mapp[1]}
+                   for mapp in q]
+    return sg_mappings
+
+
+def get_orphaned_firewall_section_rules(context, nsxlib):
+    fw_sections = nsxlib.firewall_section.list()
+    sg_mappings = get_security_groups_mappings(context)
+    rules_mappings = get_security_group_rules_mappings(context)
+    orphaned_rules = []
+    nsx_rules_in_mappings = [r['nsx_rule_id'] for r in rules_mappings]
+    for fw_section in fw_sections:
+        for sg_db in sg_mappings:
+            if (fw_section['id'] == sg_db['section-id'] and
+                sg_db['id'] != NSX_V3_OS_DFW_UUID):
+                # found the right neutron SG
+                section_rules = nsxlib.firewall_section.get_rules(
+                    fw_section['id'])['results']
+                for nsx_rule in section_rules:
+                    if nsx_rule['id'] not in nsx_rules_in_mappings:
+                        # orphaned rule
+                        orphaned_rules.append(
+                            {'security-group-name': sg_db['name'],
+                             'security-group-id': sg_db['id'],
+                             'section-id': fw_section['id'],
+                             'rule-id': nsx_rule['id']})
+    return orphaned_rules
 
 
 def get_dhcp_profile_id(nsxlib):

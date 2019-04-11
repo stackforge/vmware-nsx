@@ -127,8 +127,6 @@ NSX_V3_NON_VIF_ENS_PROFILE = \
     'nsx-default-switch-security-non-vif-profile-for-ens'
 NSX_V3_SERVER_SSL_PROFILE = 'nsx-default-server-ssl-profile'
 NSX_V3_CLIENT_SSL_PROFILE = 'nsx-default-client-ssl-profile'
-# Default UUID for the global OS rule
-NSX_V3_OS_DFW_UUID = '00000000-def0-0000-0fed-000000000000'
 
 
 @resource_extend.has_resource_extenders
@@ -295,11 +293,11 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
         found_sg = False
         try:
             super(NsxV3Plugin, self).get_security_group(
-                context, NSX_V3_OS_DFW_UUID, fields=['id'])
+                context, v3_utils.NSX_V3_OS_DFW_UUID, fields=['id'])
         except ext_sg.SecurityGroupNotFound:
             LOG.warning('Creating a global security group')
             sec_group = {'security_group':
-                         {'id': NSX_V3_OS_DFW_UUID,
+                         {'id': v3_utils.NSX_V3_OS_DFW_UUID,
                           'tenant_id': nsx_constants.INTERNAL_V3_TENANT_ID,
                           'name': 'NSX Internal',
                           'description': ''}}
@@ -324,7 +322,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
             # check if the section and nsgroup are already in the DB. If not
             # it means another server is creating them right now.
             nsgroup_id, section_id = nsx_db.get_sg_mappings(
-                context.session, NSX_V3_OS_DFW_UUID)
+                context.session, v3_utils.NSX_V3_OS_DFW_UUID)
             if nsgroup_id is None or section_id is None:
                 LOG.info("Global security exists without NSX objects")
                 # Wait a bit to let the other server finish
@@ -352,7 +350,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
         self._ensure_default_rules()
         # Validate if there is a race between processes
         nsgroup_id, section_id = nsx_db.get_sg_mappings(
-            ctx.session, NSX_V3_OS_DFW_UUID)
+            ctx.session, v3_utils.NSX_V3_OS_DFW_UUID)
         LOG.debug("Default NSGroup - %s, Section %s", nsgroup_id, section_id)
         default_ns_group_id = self._default_section_nsgroup.get('id')
         duplicates = False
@@ -362,7 +360,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
                 LOG.debug("Updating NSGroup - %s, Section %s",
                           default_ns_group_id, self.default_section)
                 nsx_db.save_sg_mappings(ctx,
-                                        NSX_V3_OS_DFW_UUID,
+                                        v3_utils.NSX_V3_OS_DFW_UUID,
                                         default_ns_group_id,
                                         self.default_section)
             except Exception:
@@ -3262,7 +3260,7 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
         return secgroup_db
 
     def _prevent_nsx_internal_sg_modification(self, sg_id):
-        if sg_id == NSX_V3_OS_DFW_UUID:
+        if sg_id == v3_utils.NSX_V3_OS_DFW_UUID:
             msg = _("Cannot modify NSX internal security group")
             raise n_exc.InvalidInput(error_message=msg)
 
