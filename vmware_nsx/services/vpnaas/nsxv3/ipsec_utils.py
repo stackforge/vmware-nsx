@@ -15,18 +15,22 @@
 
 from vmware_nsxlib.v3 import vpn_ipsec
 
+# DEBUG ADIT common for p as well
 VPN_PORT_OWNER = 'vpnservice'
 
+#DEBUG ADIT - bigger list in 2.5?
 ENCRYPTION_ALGORITHM_MAP = {
     'aes-128': vpn_ipsec.EncryptionAlgorithmTypes.ENCRYPTION_ALGORITHM_128,
     'aes-256': vpn_ipsec.EncryptionAlgorithmTypes.ENCRYPTION_ALGORITHM_256,
 }
 
+#DEBUG ADIT - bigger list in 2.5?
 AUTH_ALGORITHM_MAP = {
     'sha1': vpn_ipsec.DigestAlgorithmTypes.DIGEST_ALGORITHM_SHA1,
     'sha256': vpn_ipsec.DigestAlgorithmTypes.DIGEST_ALGORITHM_SHA256,
 }
 
+#DEBUG ADIT - bigger list in 2.5? (DH_GROUP_2, DH_GROUP_5)
 PFS_MAP = {
     'group14': vpn_ipsec.DHGroupTypes.DH_GROUP_14
 }
