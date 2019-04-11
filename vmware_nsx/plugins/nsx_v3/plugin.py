@@ -141,7 +141,7 @@ NSX_V3_EXCLUDED_PORT_NSGROUP_NAME = 'neutron_excluded_port_nsgroup'
 NSX_V3_NON_VIF_PROFILE = 'nsx-default-switch-security-non-vif-profile'
 NSX_V3_SERVER_SSL_PROFILE = 'nsx-default-server-ssl-profile'
 NSX_V3_CLIENT_SSL_PROFILE = 'nsx-default-client-ssl-profile'
-# Default UUID for the global OS rule
+# Default UUID for the global OS rule.
 NSX_V3_OS_DFW_UUID = '00000000-def0-0000-0fed-000000000000'
 
 
