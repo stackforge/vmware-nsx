@@ -358,6 +358,20 @@ Add octavia and python-octaviaclient repos as external repositories and configur
     network_driver = network_noop_driver
 
 
+Neutron VPNaaS
+~~~~~~~~~~~~~~
+
+Add neutron-vpnaas repo as an external repository and configure following flags in ``local.conf``::
+
+    [[local|localrc]]
+    NEUTRON_VPNAAS_SERVICE_PROVIDER=VPN:vmware:vmware_nsx.services.vpnaas.nsxp.ipsec_driver.NSXpIPsecVpnDriver:default
+    Q_SERVICE_PLUGIN_CLASSES+=,vmware_nsx_vpnaas
+
+    [[post-config|$NEUTRON_CONF]]
+    [DEFAULT]
+    api_extensions_path = $DEST/neutron-vpnaas/neutron_vpnaas/extensions
+
+
 NSX-TVD
 -------
 
