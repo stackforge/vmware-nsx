@@ -70,6 +70,16 @@ class NeutronSecurityGroupDB(
                        for mapp in q]
         return sg_mappings
 
+    def get_security_group_rules_mappings(self):
+        q = self.context.session.query(
+            sg_models.SecurityGroupRule.id,
+            nsxv_models.NsxvRuleMapping.nsx_rule_id).join(
+                nsxv_models.NsxvRuleMapping).all()
+        sg_mappings = [{'rule_id': mapp[0],
+                        'nsx_rule_id': mapp[1]}
+                       for mapp in q]
+        return sg_mappings
+
     def get_security_group(self, sg_id):
         return super(NeutronSecurityGroupDB, self).get_security_group(
             self.context, sg_id)
@@ -164,6 +174,12 @@ class NsxFirewallAPI(object):
         section_uri = ("/api/4.0/firewall/globalroot-0/"
                        "config/layer3sections/%s" % section_id)
         self.vcns.delete_section(section_uri)
+
+    def list_fw_section_rules(self, section_uri):
+        return self.vcns.get_section_rules(section_uri)
+
+    def remove_rule_from_section(self, section_uri, rule_id):
+        return self.vcns.remove_rule_from_section(section_uri, rule_id)
 
     def reorder_fw_sections(self):
         # read all the sections
@@ -333,6 +349,55 @@ def clean_unused_firewall_sections(resource, event, trigger, **kwargs):
     return bool(unused_sections)
 
 
+def _find_orphaned_section_rules():
+    fw_sections = nsxv_firewall.list_fw_sections()
+    sg_mappings = neutron_sg.get_security_groups_mappings()
+    rules_mappings = neutron_sg.get_security_group_rules_mappings()
+    mapped_rules_ids = [rule['nsx_rule_id'] for rule in rules_mappings]
+    orphaned_rules = []
+
+    for sg_db in sg_mappings:
+        for fw_section in fw_sections:
+            if fw_section['id'] == sg_db.get('section-uri', '').split('/')[-1]:
+                # Neutron section.
+                nsx_rules = nsxv_firewall.list_fw_section_rules(
+                    sg_db.get('section-uri'))
+                for nsx_rule in nsx_rules:
+                    if str(nsx_rule['id']) not in mapped_rules_ids:
+                        orphaned_rules.append(
+                            {'nsx-rule-id': nsx_rule['id'],
+                             'section-uri': sg_db['section-uri'],
+                             'section-id': fw_section['id'],
+                             'security-group-id': sg_db['id'],
+                             'security-group-name': sg_db['name']})
+
+    return orphaned_rules
+
+
+@admin_utils.output_header
+def list_orphaned_firewall_section_rules(resource, event, trigger, **kwargs):
+    orphaned_rules = _find_orphaned_section_rules()
+    _log_info(constants.FIREWALL_SECTIONS, orphaned_rules,
+              attrs=['security-group-name', 'security-group-id', 'section-id',
+                     'nsx-rule-id'])
+    return bool(orphaned_rules)
+
+
+@admin_utils.output_header
+def clean_orphaned_firewall_section_rules(resource, event, trigger, **kwargs):
+    orphaned_rules = _find_orphaned_section_rules()
+    for rule in orphaned_rules:
+        try:
+            nsxv_firewall.remove_rule_from_section(
+                rule['section-uri'], rule['nsx-rule-id'])
+        except Exception as e:
+            LOG.error("Failed to delete rule %s from section %s: %s",
+                      rule['nsx-rule-id'], rule['section-id'], e)
+        else:
+            LOG.info("Backend rule %s was deleted from section %s",
+                     rule['nsx-rule-id'], rule['section-id'])
+
+
 @admin_utils.output_header
 def reorder_firewall_sections(resource, event, trigger, **kwargs):
     nsxv_firewall.reorder_fw_sections()
@@ -497,7 +562,7 @@ def update_security_groups_logging(resource, event, trigger, **kwargs):
 
     with utils.NsxVPluginWrapper() as plugin:
         vcns = plugin.nsx_v.vcns
-        sg_utils = plugin. nsx_sg_utils
+        sg_utils = plugin.nsx_sg_utils
         # If the section/sg is already logged, then no action is
         # required.
         security_groups = plugin.get_security_groups(context)
@@ -561,4 +626,12 @@ registry.subscribe(list_unused_firewall_sections,
 
 registry.subscribe(clean_unused_firewall_sections,
                    constants.FIREWALL_SECTIONS,
+                   shell.Operations.NSX_CLEAN.value)
+
+registry.subscribe(list_orphaned_firewall_section_rules,
+                   constants.ORPHANED_RULES,
+                   shell.Operations.LIST.value)
+
+registry.subscribe(clean_orphaned_firewall_section_rules,
+                   constants.ORPHANED_RULES,
                    shell.Operations.NSX_CLEAN.value)
