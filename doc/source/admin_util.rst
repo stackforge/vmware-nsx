@@ -284,6 +284,12 @@ Security Groups, Firewall and Spoofguard
     nsxadmin -r spoofguard-policy -o list-mismatches (--property network=<neutron net id>) - List spoofguard policies with mismatching ips or mac, globally or for a specific network
     nsxadmin -r spoofguard-policy -o fix-mismatch --property port=<neutron port id> - Fix the spoofgurad ips of a neutron port
 
+- Orphaned rules in NSX section::
+
+    nsxadmin -r orphaned-rules -o list
+    nsxadmin -r orphaned-rules -o nsx-clean
+
+
 Metadata
 ~~~~~~~~
 

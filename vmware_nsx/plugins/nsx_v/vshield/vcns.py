@@ -732,6 +732,12 @@ class Vcns(object):
         return self.do_request(HTTP_DELETE, uri, format='xml',
                                headers=headers)
 
+    def get_section_rules(self, section_uri):
+        headers = self._get_section_header(section_uri)
+        h, c = self.do_request(HTTP_GET, section_uri,
+                               headers=headers, decode=True)
+        return c['rules']
+
     @retry_upon_exception(exceptions.RequestBad)
     def add_member_to_security_group(self, security_group_id, member_id):
         """Adds a vnic member to nsx security group."""
