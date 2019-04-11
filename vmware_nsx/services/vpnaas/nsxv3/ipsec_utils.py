@@ -15,6 +15,7 @@
 
 from vmware_nsxlib.v3 import vpn_ipsec
 
+# DEBUG ADIT common for p as well
 VPN_PORT_OWNER = 'vpnservice'
 
 ENCRYPTION_ALGORITHM_MAP = {

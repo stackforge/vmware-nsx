@@ -1104,6 +1104,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             port['device_owner'] in [const.DEVICE_OWNER_DHCP]):
             msg = (_('Can not delete DHCP port %s') % port_id)
             raise n_exc.BadRequest(resource='port', msg=msg)
+        if not force_delete_vpn:
+            self._assert_on_vpn_port_change(port)
 
         if self._is_backend_port(context, port_data):
             self._delete_port_on_backend(context, net_id, port_id)
@@ -1596,6 +1598,13 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         if validators.is_attr_set(gw_info):
             self._validate_update_router_gw(context, router_id, gw_info)
+
+            # VPNaaS need to be notified on router GW changes (there is
+            # currently no matching upstream registration for this)
+            vpn_plugin = directory.get_plugin(plugin_const.VPN)
+            if vpn_plugin:
+                vpn_driver = vpn_plugin.drivers[vpn_plugin.default_provider]
+                vpn_driver.validate_router_gw_info(context, router_id, gw_info)
 
         routes_added = []
         routes_removed = []
@@ -2607,3 +2616,29 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             # let the fwaas callbacks update the router FW
             return self.fwaas_callbacks.update_router_firewall(
                 context, router_id, router_db, ports, called_from_fw=from_fw)
+
+    def get_extra_fw_rules(self, context, router_id, port_id):
+        """Return firewall rules that should be added to the router firewall
+
+        This method should return a list of allow firewall rules that are
+        required in order to enable different plugin features with north/south
+        traffic.
+        The returned rules will be added after the FWaaS rules, and before the
+        default drop rule.
+        Only rules relevant for port_id router interface port should be returned,
+        and the rules should be ingress/egress
+        (but not both) and include the source/dest nsx logical port.
+        """
+        extra_rules = []
+
+        # VPN rules:
+        vpn_plugin = directory.get_plugin(plugin_const.VPN)
+        if vpn_plugin:
+            vpn_driver = vpn_plugin.drivers[vpn_plugin.default_provider]
+            vpn_rules = (
+                vpn_driver._generate_ipsecvpn_firewall_rules(
+                    self.plugin_type(), context, router_id=router_id))
+            if vpn_rules:
+                extra_rules.extend(vpn_rules)
+
+        return extra_rules

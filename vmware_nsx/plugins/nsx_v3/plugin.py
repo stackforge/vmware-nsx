@@ -2555,6 +2555,8 @@ class NsxV3Plugin(nsx_plugin_common.NsxPluginV3Base,
         port should be returned, and the rules should be ingress/egress
         (but not both) and include the source/dest nsx logical port.
         """
+        # TODO(asarfaty) support only cases with port_id, as FWaaS v1 is no
+        # longer supported
         extra_rules = []
 
         # DHCP relay rules:
