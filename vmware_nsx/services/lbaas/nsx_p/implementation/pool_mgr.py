@@ -245,9 +245,9 @@ class EdgePoolManagerFromDict(base_mgr.NsxpLoadbalancerBaseManager):
                                                old_pool=old_pool)
 
         try:
-            kwargs = self._get_pool_kwargs(pool_name, tags, lb_algorithm,
-                                           description)
-            pool_client.update(new_pool['id'], **kwargs)
+            kwargs = self._get_pool_kwargs(new_pool['id'], pool_name, tags,
+                                           lb_algorithm, description)
+            pool_client.update(**kwargs)
             if (listener and new_pool['session_persistence'] !=
                 old_pool['session_persistence']):
                 self._process_vs_update(context, new_pool, new_pool['id'],
