@@ -1196,11 +1196,11 @@ class NsxPTestSecurityGroup(common_v3.FixExternalNetBaseTest,
             sg_id = sg['security_group']['id']
             nsx_name = utils.get_name_and_uuid(name, sg_id)
             group_create.assert_called_once_with(
-                nsx_name, self.project_id, group_id=sg_id,
+                nsx_name, policy_constants.DEFAULT_DOMAIN, group_id=sg_id,
                 description=description,
                 conditions=[mock.ANY], tags=mock.ANY)
             comm_map_create.assert_called_once_with(
-                nsx_name, self.project_id, map_id=sg_id,
+                nsx_name, policy_constants.DEFAULT_DOMAIN, map_id=sg_id,
                 description=description,
                 tags=mock.ANY,
                 category=policy_constants.CATEGORY_ENVIRONMENT)
@@ -1284,9 +1284,10 @@ class NsxPTestSecurityGroup(common_v3.FixExternalNetBaseTest,
                                          remote_ip_prefix) as rule:
                 rule_id = rule['security_group_rule']['id']
                 scope = [self.plugin.nsxpolicy.group.get_path(
-                    self.project_id, sg_id)]
+                    policy_constants.DEFAULT_DOMAIN, sg_id)]
                 entry_create.assert_called_once_with(
-                    rule_id, self.project_id, sg_id, entry_id=rule_id,
+                    rule_id, policy_constants.DEFAULT_DOMAIN,
+                    sg_id, entry_id=rule_id,
                     description='',
                     direction=nsx_constants.IN,
                     ip_protocol=nsx_constants.IPV4,
