@@ -411,9 +411,10 @@ class TestNSXpProviderSecurityGrp(test_nsxp_plugin.NsxPPluginTestCaseMixin,
                 rule_id = rule_data['id']
                 project_id = rule_data['project_id']
                 scope = [self.plugin.nsxpolicy.group.get_path(
-                    project_id, sg_id)]
+                    policy_constants.DEFAULT_DOMAIN, sg_id)]
                 entry_create.assert_called_once_with(
-                    rule_id, project_id, sg_id, entry_id=rule_id,
+                    rule_id, policy_constants.DEFAULT_DOMAIN,
+                    sg_id, entry_id=rule_id,
                     description='',
                     direction=nsx_constants.IN,
                     ip_protocol=nsx_constants.IPV4,
