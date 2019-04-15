@@ -1470,8 +1470,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         # remove the edge firewall
         if self.fwaas_callbacks and self.fwaas_callbacks.fwaas_enabled:
-            self.fwaas_callbacks.delete_router_gateway_policy(
-                project_id, router_id)
+            self.fwaas_callbacks.delete_router_gateway_policy(router_id)
         self.nsxpolicy.tier1.update(router_id, disable_firewall=True)
 
         # remove the edge cluster from the tier1 router
@@ -2203,8 +2202,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             self._prepare_exclude_list_group()
             self._add_exclude_list_group()
 
-    def _create_security_group_backend_resources(self, context, secgroup,
-                                                 domain_id):
+    def _create_security_group_backend_resources(self, context, secgroup):
         """Create communication map (=section) and group (=NS group)
 
         Both will have the security group id as their NSX id.
@@ -2224,7 +2222,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         # Create the group
         try:
             self.nsxpolicy.group.create_or_overwrite_with_conditions(
-                nsx_name, domain_id, group_id=sg_id,
+                nsx_name, NSX_P_GLOBAL_DOMAIN_ID, group_id=sg_id,
                 description=secgroup.get('description'),
                 conditions=[condition], tags=tags)
         except Exception as e:
@@ -2238,13 +2236,13 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         # create the communication map (=section) without and entries (=rules)
         try:
             self.nsxpolicy.comm_map.create_or_overwrite_map_only(
-                nsx_name, domain_id, map_id=sg_id,
+                nsx_name, NSX_P_GLOBAL_DOMAIN_ID, map_id=sg_id,
                 description=secgroup.get('description'),
                 tags=tags, category=category)
         except Exception as e:
             msg = (_("Failed to create NSX communication map for SG %(sg)s: "
                      "%(e)s") % {'sg': sg_id, 'e': e})
-            self.nsxpolicy.group.delete(domain_id, sg_id)
+            self.nsxpolicy.group.delete(NSX_P_GLOBAL_DOMAIN_ID, sg_id)
             raise nsx_exc.NsxPluginException(err_msg=msg)
 
     def _get_rule_ip_protocol(self, sg_rule):
@@ -2310,7 +2308,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
     def _get_sg_rule_local_ip_group_id(self, sg_rule):
         return '%s_local_group' % sg_rule['id']
 
-    def _create_security_group_backend_rule(self, context, domain_id, map_id,
+    def _create_security_group_backend_rule(self, context, map_id,
                                             sg_rule, secgroup_logging,
                                             is_provider_sg=False):
         # The id of the map and group is the same as the security group id
@@ -2338,7 +2336,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             expr = self.nsxpolicy.group.build_ip_address_expression(
                 [remote_ip])
             self.nsxpolicy.group.create_or_overwrite_with_conditions(
-                remote_group_id, domain_id, group_id=remote_group_id,
+                remote_group_id, NSX_P_GLOBAL_DOMAIN_ID,
+                group_id=remote_group_id,
                 description='%s for OS rule %s' % (remote_ip, sg_rule['id']),
                 conditions=[expr], tags=tags)
             source = remote_group_id
@@ -2349,7 +2348,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             expr = self.nsxpolicy.group.build_ip_address_expression(
                 [local_ip])
             self.nsxpolicy.group.create_or_overwrite_with_conditions(
-                local_group_id, domain_id, group_id=local_group_id,
+                local_group_id, NSX_P_GLOBAL_DOMAIN_ID,
+                group_id=local_group_id,
                 description='%s for OS rule %s' % (local_ip, sg_rule['id']),
                 conditions=[expr], tags=tags)
             destination = local_group_id
@@ -2362,11 +2362,13 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         ip_protocol = self._get_rule_ip_protocol(sg_rule)
         logging = (cfg.CONF.nsx_p.log_security_groups_allowed_traffic or
                    secgroup_logging)
-        scope = [self.nsxpolicy.group.get_path(domain_id, this_group_id)]
+        scope = [self.nsxpolicy.group.get_path(NSX_P_GLOBAL_DOMAIN_ID,
+                                               this_group_id)]
         action = (policy_constants.ACTION_DENY if is_provider_sg
                   else policy_constants.ACTION_ALLOW)
         self.nsxpolicy.comm_map.create_entry(
-            nsx_name, domain_id, map_id, entry_id=sg_rule['id'],
+            nsx_name, NSX_P_GLOBAL_DOMAIN_ID,
+            map_id, entry_id=sg_rule['id'],
             description=sg_rule.get('description'),
             service_ids=[service] if service else None,
             ip_protocol=ip_protocol,
@@ -2375,27 +2377,6 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             dest_groups=[destination] if destination else None,
             scope=scope,
             direction=direction, logged=logging)
-
-    def _create_project_domain(self, context, project_id):
-        """Return the NSX domain id of a neutron project
-
-        The ID of the created domain will be the same as the project ID
-        so there is no need to keep it in the neutron DB
-        """
-        tags = self.nsxpolicy.build_v3_api_version_project_tag(
-            context.tenant_name)
-        try:
-            domain_id = self.nsxpolicy.domain.create_or_overwrite(
-                name=project_id,
-                domain_id=project_id,
-                description="Domain for OS project %s" % project_id,
-                tags=tags)
-        except Exception as e:
-            msg = (_("Failed to create NSX domain for project %(proj)s: "
-                     "%(e)s") % {'proj': project_id, 'e': e})
-            raise nsx_exc.NsxPluginException(err_msg=msg)
-        LOG.info("NSX Domain was created for project %s", project_id)
-        return domain_id
 
     def create_security_group(self, context, security_group, default_sg=False):
         secgroup = security_group['security_group']
@@ -2406,9 +2387,6 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         project_id = secgroup['tenant_id']
         if not default_sg:
             self._ensure_default_security_group(context, project_id)
-        else:
-            # create the NSX policy domain for this new project
-            self._create_project_domain(context, project_id)
 
         # create the Neutron SG
         with db_api.CONTEXT_WRITER.using(context):
@@ -2428,14 +2406,14 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         try:
             # Create Group & communication map on the NSX
             self._create_security_group_backend_resources(
-                context, secgroup, project_id)
+                context, secgroup)
 
             # Add the security-group rules
             sg_rules = secgroup_db['security_group_rules']
             secgroup_logging = secgroup.get(sg_logging.LOGGING, False)
             for sg_rule in sg_rules:
                 self._create_security_group_backend_rule(
-                    context, project_id, secgroup_db['id'], sg_rule,
+                    context, secgroup_db['id'], sg_rule,
                     secgroup_logging)
         except Exception as e:
             with excutils.save_and_reraise_exception():
@@ -2463,11 +2441,11 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
             self._process_security_group_properties_update(
                 context, secgroup_res, sg_data)
 
+        domain_id = NSX_P_GLOBAL_DOMAIN_ID
         # Update the name and description on NSX backend
         if 'name' in sg_data or 'description' in sg_data:
             nsx_name = utils.get_name_and_uuid(
                 secgroup_res['name'] or 'securitygroup', sg_id)
-            domain_id = secgroup_res['tenant_id']
             try:
                 self.nsxpolicy.group.update(
                     domain_id, sg_id,
@@ -2497,13 +2475,13 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
 
         super(NsxPolicyPlugin, self).delete_security_group(context, sg_id)
 
-        domain_id = sg['tenant_id']
+        domain_id = NSX_P_GLOBAL_DOMAIN_ID
         try:
             self.nsxpolicy.comm_map.delete(domain_id, sg_id)
             self.nsxpolicy.group.delete(domain_id, sg_id)
             for rule in sg['security_group_rules']:
                 self._delete_security_group_rule_backend_resources(
-                    context, domain_id, rule)
+                    context, rule)
         except nsx_lib_exc.ResourceNotFound:
             # If the resource was not found on the backend do not worry about
             # it. The conditions has already been logged, so there is no need
@@ -2543,19 +2521,18 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
                 self._process_security_group_rule_properties(
                     context, rules_db[i], r['security_group_rule'])
 
-        domain_id = sg['tenant_id']
         is_provider_sg = sg.get(provider_sg.PROVIDER)
         secgroup_logging = self._is_security_group_logged(context, sg_id)
         for rule_data in rules_db:
             # create the NSX backend rule
             self._create_security_group_backend_rule(
-                context, domain_id, sg_id, rule_data, secgroup_logging,
+                context, sg_id, rule_data, secgroup_logging,
                 is_provider_sg=is_provider_sg)
 
         return rules_db
 
     def _delete_security_group_rule_backend_resources(
-        self, context, domain_id, rule_db):
+        self, context, rule_db):
         rule_id = rule_db['id']
         # try to delete the service of this rule, if exists
         if rule_db['protocol']:
@@ -2568,7 +2545,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         if rule_db['remote_ip_prefix']:
             try:
                 remote_group_id = self._get_sg_rule_remote_ip_group_id(rule_db)
-                self.nsxpolicy.group.delete(domain_id, remote_group_id)
+                self.nsxpolicy.group.delete(NSX_P_GLOBAL_DOMAIN_ID,
+                                            remote_group_id)
             except nsx_lib_exc.ResourceNotFound:
                 pass
 
@@ -2576,7 +2554,8 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         if self._get_security_group_rule_local_ip(context, rule_id):
             try:
                 local_group_id = self._get_sg_rule_local_ip_group_id(rule_db)
-                self.nsxpolicy.group.delete(domain_id, local_group_id)
+                self.nsxpolicy.group.delete(NSX_P_GLOBAL_DOMAIN_ID,
+                                            local_group_id)
             except nsx_lib_exc.ResourceNotFound:
                 pass
 
@@ -2590,7 +2569,7 @@ class NsxPolicyPlugin(nsx_plugin_common.NsxPluginV3Base):
         try:
             self.nsxpolicy.comm_map.delete_entry(domain_id, sg_id, rule_id)
             self._delete_security_group_rule_backend_resources(
-                context, domain_id, rule_db)
+                context, rule_db)
         except nsx_lib_exc.ResourceNotFound:
             # Go on with the deletion anyway
             pass

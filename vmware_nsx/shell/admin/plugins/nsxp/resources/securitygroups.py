@@ -19,6 +19,8 @@ from vmware_nsx.shell.admin.plugins.common import constants
 from vmware_nsx.shell.admin.plugins.common import utils as admin_utils
 from vmware_nsx.shell.admin.plugins.nsxp.resources import utils as p_utils
 
+from vmware_nsxlib.v3.policy import constants as policy_constants
+
 neutron_client = securitygroups_db.SecurityGroupDbMixin()
 
 
@@ -33,8 +35,8 @@ def list_security_groups(resource, event, trigger, **kwargs):
     nsxpolicy = p_utils.get_connected_nsxpolicy()
     ctx = context.get_admin_context()
     sgs = neutron_client.get_security_groups(ctx)
+    domain_id = policy_constants.DEFAULT_DOMAIN
     for sg in sgs:
-        domain_id = sg['tenant_id']
         map_status = p_utils.get_realization_info(
             nsxpolicy.comm_map, domain_id, sg['id'])
         group_status = p_utils.get_realization_info(
