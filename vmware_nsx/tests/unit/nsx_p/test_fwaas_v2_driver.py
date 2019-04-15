@@ -25,6 +25,7 @@ from vmware_nsx.services.fwaas.nsx_p import edge_fwaas_driver_v2
 from vmware_nsx.services.fwaas.nsx_p import fwaas_callbacks_v2
 from vmware_nsx.tests.unit.nsx_p import test_plugin as test_p_plugin
 from vmware_nsxlib.v3 import nsx_constants as consts
+from vmware_nsxlib.v3.policy import constants as policy_constants
 
 FAKE_FW_ID = 'fake_fw_uuid'
 FAKE_ROUTER_ID = 'fake_rtr_uuid'
@@ -60,7 +61,7 @@ class NsxpFwaasTestCase(test_p_plugin.NsxPPluginTestCaseMixin):
     def _default_rule(self, seq_num):
         return self.plugin.nsxpolicy.gateway_policy.build_entry(
                 fwaas_callbacks_v2.DEFAULT_RULE_NAME,
-                self.project_id, FAKE_ROUTER_ID,
+                policy_constants.DEFAULT_DOMAIN, FAKE_ROUTER_ID,
                 fwaas_callbacks_v2.DEFAULT_RULE_ID,
                 description=fwaas_callbacks_v2.DEFAULT_RULE_NAME,
                 action=consts.FW_ACTION_ALLOW,
@@ -72,7 +73,7 @@ class NsxpFwaasTestCase(test_p_plugin.NsxPPluginTestCaseMixin):
         net_group_id = '%s-%s' % (FAKE_ROUTER_ID, FAKE_NET_ID)
         ingress_rule = self.plugin.nsxpolicy.gateway_policy.build_entry(
                 "Block port ingress",
-                self.project_id, FAKE_ROUTER_ID,
+                policy_constants.DEFAULT_DOMAIN, FAKE_ROUTER_ID,
                 fwaas_callbacks_v2.DEFAULT_RULE_ID + FAKE_NET_ID + 'ingress',
                 action=consts.FW_ACTION_DROP,
                 dest_groups=[net_group_id],
@@ -82,7 +83,7 @@ class NsxpFwaasTestCase(test_p_plugin.NsxPPluginTestCaseMixin):
 
         egress_rule = self.plugin.nsxpolicy.gateway_policy.build_entry(
                 "Block port egress",
-                self.project_id, FAKE_ROUTER_ID,
+                policy_constants.DEFAULT_DOMAIN, FAKE_ROUTER_ID,
                 fwaas_callbacks_v2.DEFAULT_RULE_ID + FAKE_NET_ID + 'egress',
                 action=consts.FW_ACTION_DROP,
                 source_groups=[net_group_id],
@@ -172,21 +173,25 @@ class NsxpFwaasTestCase(test_p_plugin.NsxPPluginTestCaseMixin):
         if (fw_rule.get('source_ip_address') and
             not fw_rule['source_ip_address'].startswith('0.0.0.0')):
             self.assertEqual(['/infra/domains/%s/groups/source-%s' % (
-                                self.project_id, fw_rule['id'])],
+                                policy_constants.DEFAULT_DOMAIN,
+                                fw_rule['id'])],
                              nsx_rule['source_groups'])
         elif not is_ingress:
             self.assertEqual(['/infra/domains/%s/groups/%s-%s' % (
-                                self.project_id, FAKE_ROUTER_ID, FAKE_NET_ID)],
+                                policy_constants.DEFAULT_DOMAIN,
+                                FAKE_ROUTER_ID, FAKE_NET_ID)],
                              nsx_rule['source_groups'])
 
         if (fw_rule.get('destination_ip_address') and
             not fw_rule['destination_ip_address'].startswith('0.0.0.0')):
             self.assertEqual(['/infra/domains/%s/groups/destination-%s' % (
-                                self.project_id, fw_rule['id'])],
+                                policy_constants.DEFAULT_DOMAIN,
+                                fw_rule['id'])],
                              nsx_rule['destination_groups'])
         elif is_ingress:
             self.assertEqual(['/infra/domains/%s/groups/%s-%s' % (
-                                self.project_id, FAKE_ROUTER_ID, FAKE_NET_ID)],
+                                policy_constants.DEFAULT_DOMAIN,
+                                FAKE_ROUTER_ID, FAKE_NET_ID)],
                              nsx_rule['destination_groups'])
 
     def _fake_empty_firewall_group(self):
@@ -245,7 +250,7 @@ class NsxpFwaasTestCase(test_p_plugin.NsxPPluginTestCaseMixin):
             expected_rules = (self._block_interface_rules(0) +
                               [self._default_rule(2)])
             update_fw.assert_called_once_with(
-                self.project_id, FAKE_ROUTER_ID, mock.ANY)
+                policy_constants.DEFAULT_DOMAIN, FAKE_ROUTER_ID, mock.ANY)
             # compare rules one by one
             actual_rules = update_fw.call_args[0][2]
             self.assertEqual(len(expected_rules), len(actual_rules))
@@ -274,7 +279,7 @@ class NsxpFwaasTestCase(test_p_plugin.NsxPPluginTestCaseMixin):
             expected_default_rules = self._block_interface_rules(
                 len(rule_list)) + [self._default_rule(len(rule_list) + 2)]
             update_fw.assert_called_once_with(
-                self.project_id, FAKE_ROUTER_ID, mock.ANY)
+                policy_constants.DEFAULT_DOMAIN, FAKE_ROUTER_ID, mock.ANY)
 
             # compare rules one by one
             actual_rules = update_fw.call_args[0][2]
@@ -336,7 +341,7 @@ class NsxpFwaasTestCase(test_p_plugin.NsxPPluginTestCaseMixin):
             # expecting only the default allow-all rule
             expected_rules = [self._default_rule(0)]
             update_fw.assert_called_once_with(
-                self.project_id, FAKE_ROUTER_ID, mock.ANY)
+                policy_constants.DEFAULT_DOMAIN, FAKE_ROUTER_ID, mock.ANY)
             # compare rules one by one
             actual_rules = update_fw.call_args[0][2]
             self.assertEqual(len(expected_rules), len(actual_rules))
@@ -358,7 +363,7 @@ class NsxpFwaasTestCase(test_p_plugin.NsxPPluginTestCaseMixin):
             # expecting only the default allow-all rule
             expected_rules = [self._default_rule(0)]
             update_fw.assert_called_once_with(
-                self.project_id, FAKE_ROUTER_ID, mock.ANY)
+                policy_constants.DEFAULT_DOMAIN, FAKE_ROUTER_ID, mock.ANY)
             # compare rules one by one
             actual_rules = update_fw.call_args[0][2]
             self.assertEqual(len(expected_rules), len(actual_rules))
