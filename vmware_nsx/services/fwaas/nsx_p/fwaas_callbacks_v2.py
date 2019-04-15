@@ -54,13 +54,14 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
     def nsxpolicy(self):
         return self.core_plugin.nsxpolicy
 
-    def _get_default_backend_rule(self, domain_id, router_id):
+    def _get_default_backend_rule(self, router_id):
         """Return the default allow-all rule entry
 
         This rule enrty will be added to the end of the rules list
         """
         return self.nsxpolicy.gateway_policy.build_entry(
-            DEFAULT_RULE_NAME, domain_id, router_id,
+            DEFAULT_RULE_NAME,
+            policy_constants.DEFAULT_DOMAIN, router_id,
             self._get_random_rule_id(DEFAULT_RULE_ID),
             description=DEFAULT_RULE_NAME,
             sequence_number=None,
@@ -69,7 +70,7 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
             source_groups=None, dest_groups=None,
             direction=nsx_constants.IN_OUT)
 
-    def _translate_service(self, domain_id, router_id, rule):
+    def _translate_service(self, project_id, router_id, rule):
         """Return the NSX Policy service id matching the FW rule service.
 
         L4 protocol service will be created per router-id & rule-id
@@ -81,7 +82,7 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
         if rule.get('protocol'):
             tags = self.nsxpolicy.build_v3_tags_payload(
                 rule, resource_type='os-neutron-fwrule-id',
-                project_name=domain_id)
+                project_name=project_id)
             tags = nsxlib_utils.add_v3_tag(tags, ROUTER_FW_TAG, router_id)
             l4_protocol = v3_utils.translate_fw_rule_protocol(
                 rule.get('protocol'))
@@ -155,7 +156,7 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
             LOG.error(error_msg)
             raise self.driver_exception(driver=self.driver_name)
 
-    def _get_rule_cidr_group(self, domain_id, router_id, rule, is_source,
+    def _get_rule_cidr_group(self, project_id, router_id, rule, is_source,
                              is_ingress):
         field = 'source_ip_address' if is_source else 'destination_ip_address'
         direction_text = 'source' if is_source else 'destination'
@@ -169,16 +170,16 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
                 [group_ips])
             tags = self.nsxpolicy.build_v3_tags_payload(
                 rule, resource_type='os-neutron-fwrule-id',
-                project_name=domain_id)
+                project_name=project_id)
             tags = nsxlib_utils.add_v3_tag(tags, ROUTER_FW_TAG, router_id)
             self.nsxpolicy.group.create_or_overwrite_with_conditions(
                 "FW_rule_%s_%s" % (rule['id'], direction_text),
-                domain_id, group_id=group_id,
+                policy_constants.DEFAULT_DOMAIN, group_id=group_id,
                 description='%s: %s' % (direction_text, group_ips),
                 conditions=[expr], tags=tags)
             return group_id
 
-    def _create_network_group(self, domain_id, router_id, neutron_net_id):
+    def _create_network_group(self, router_id, neutron_net_id):
         scope_and_tag = "%s|%s" % ('os-neutron-net-id', neutron_net_id)
         tags = []
         tags = nsxlib_utils.add_v3_tag(tags, ROUTER_FW_TAG, router_id)
@@ -189,14 +190,14 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
         group_id = '%s-%s' % (router_id, neutron_net_id)
         self.nsxpolicy.group.create_or_overwrite_with_conditions(
             "Segment_%s" % neutron_net_id,
-            domain_id,
+            policy_constants.DEFAULT_DOMAIN,
             group_id=group_id,
             description='Group for segment %s' % neutron_net_id,
             conditions=[expr],
             tags=tags)
         return group_id
 
-    def _translate_rules(self, domain_id, router_id, segment_group,
+    def _translate_rules(self, project_id, router_id, segment_group,
                          fwaas_rules, is_ingress, logged=False):
         """Translate a list of FWaaS rules to NSX rule structure"""
         translated_rules = []
@@ -223,22 +224,24 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
                     driver=self.internal_driver.driver_name)
 
             src_group = self._get_rule_cidr_group(
-                domain_id, router_id, rule, is_source=True,
+                project_id, router_id, rule, is_source=True,
                 is_ingress=is_ingress)
             if not is_ingress and not src_group:
                 src_group = segment_group
             dest_group = self._get_rule_cidr_group(
-                domain_id, router_id, rule, is_source=False,
+                project_id, router_id, rule, is_source=False,
                 is_ingress=is_ingress)
             if is_ingress and not dest_group:
                 dest_group = segment_group
 
-            srv_id = self._translate_service(domain_id, router_id, rule)
+            srv_id = self._translate_service(project_id, router_id, rule)
             direction = nsx_constants.IN if is_ingress else nsx_constants.OUT
             ip_protocol = (nsx_constants.IPV4 if rule.get('ip_version', 4) == 4
                            else nsx_constants.IPV6)
             rule_entry = self.nsxpolicy.gateway_policy.build_entry(
-                rule_name, domain_id, router_id, rule_id,
+                rule_name,
+                policy_constants.DEFAULT_DOMAIN,
+                router_id, rule_id,
                 description=rule.get('description'),
                 action=action,
                 source_groups=[src_group] if src_group else None,
@@ -251,28 +254,29 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
             translated_rules.append(rule_entry)
         return translated_rules
 
-    def _get_port_translated_rules(self, domain_id, router_id, neutron_net_id,
+    def _get_port_translated_rules(self, project_id, router_id, neutron_net_id,
                                    firewall_group):
         """Return the list of translated FWaaS rules per port
         Add the egress/ingress rules of this port +
         default drop rules in each direction for this port.
         """
         net_group_id = self._create_network_group(
-            domain_id, router_id, neutron_net_id)
+            router_id, neutron_net_id)
         port_rules = []
         # Add the firewall group ingress/egress rules only if the fw is up
         if firewall_group['admin_state_up']:
             port_rules.extend(self._translate_rules(
-                domain_id, router_id, net_group_id,
+                project_id, router_id, net_group_id,
                 firewall_group['ingress_rule_list'], is_ingress=True))
             port_rules.extend(self._translate_rules(
-                domain_id, router_id, net_group_id,
+                project_id, router_id, net_group_id,
                 firewall_group['egress_rule_list'], is_ingress=False))
 
         # Add ingress/egress block rules for this port
         port_rules.extend([
             self.nsxpolicy.gateway_policy.build_entry(
-                "Block port ingress", domain_id, router_id,
+                "Block port ingress",
+                policy_constants.DEFAULT_DOMAIN, router_id,
                 self._get_random_rule_id(
                     DEFAULT_RULE_ID + neutron_net_id + 'ingress'),
                 action=nsx_constants.FW_ACTION_DROP,
@@ -280,7 +284,8 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
                 scope=[self.nsxpolicy.tier1.get_path(router_id)],
                 direction=nsx_constants.IN),
             self.nsxpolicy.gateway_policy.build_entry(
-                "Block port egress", domain_id, router_id,
+                "Block port egress",
+                policy_constants.DEFAULT_DOMAIN, router_id,
                 self._get_random_rule_id(
                     DEFAULT_RULE_ID + neutron_net_id + 'egress'),
                 action=nsx_constants.FW_ACTION_DROP,
@@ -308,7 +313,7 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
         router calls, and if it is True - add the service router accordingly.
         """
         plugin = self.core_plugin
-        domain_id = router['project_id']
+        project_id = router['project_id']
         fw_rules = []
         router_with_fw = False
         # Add firewall rules per port attached to a firewall group
@@ -321,10 +326,10 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
                 # Add the FWaaS rules for this port:ingress/egress firewall
                 # rules + default ingress/egress drop rule for this port
                 fw_rules.extend(self._get_port_translated_rules(
-                    domain_id, router_id, port['network_id'], fwg))
+                    project_id, router_id, port['network_id'], fwg))
 
         # Add a default allow-all rule to all other traffic & ports
-        fw_rules.append(self._get_default_backend_rule(domain_id, router_id))
+        fw_rules.append(self._get_default_backend_rule(router_id))
         self._set_rules_order(fw_rules)
 
         # Update the backend router firewall
@@ -345,31 +350,32 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
                     # No other services that require service router: delete it
                     # This also deleted the gateway policy.
                     self.core_plugin.delete_service_router(
-                        context, domain_id, router_id)
+                        context, policy_constants.DEFAULT_DOMAIN, router_id)
                     sr_exists_on_backend = False
 
         if sr_exists_on_backend:
             # update the edge firewall
-            self.create_router_gateway_policy(context, domain_id, router_id,
+            self.create_router_gateway_policy(context, router_id,
                                               router, fw_rules)
 
         if not router_with_fw:
             # Do all the cleanup once the router has no more FW rules
-            self.delete_router_gateway_policy(domain_id, router_id)
-            self.cleanup_router_fw_resources(domain_id, router_id)
+            self.delete_router_gateway_policy(router_id)
+            self.cleanup_router_fw_resources(router_id)
 
-    def create_router_gateway_policy(self, context, domain_id, router_id,
+    def create_router_gateway_policy(self, context, router_id,
                                      router, fw_rules):
         """Create/Overwrite gateway policy for a router with firewall rules"""
         # Check if the gateway policy already exists
         try:
-            self.nsxpolicy.gateway_policy.get(domain_id, map_id=router_id)
+            self.nsxpolicy.gateway_policy.get(policy_constants.DEFAULT_DOMAIN,
+                                              map_id=router_id)
         except nsx_lib_exc.ResourceNotFound:
             LOG.info("Going to create gateway policy for router %s", router_id)
         else:
             # only update the rules of this policy
             self.nsxpolicy.gateway_policy.update_entries(
-                domain_id, router_id, fw_rules)
+                policy_constants.DEFAULT_DOMAIN, router_id, fw_rules)
             return
 
         tags = self.nsxpolicy.build_v3_tags_payload(
@@ -377,33 +383,37 @@ class NsxpFwaasCallbacksV2(com_callbacks.NsxCommonv3FwaasCallbacksV2):
             project_name=context.tenant_name)
         policy_name = GATEWAY_POLICY_NAME % router_id
         self.nsxpolicy.gateway_policy.create_with_entries(
-            policy_name, domain_id, map_id=router_id,
+            policy_name, policy_constants.DEFAULT_DOMAIN,
+            map_id=router_id,
             description=policy_name,
             tags=tags,
             entries=fw_rules,
             category=policy_constants.CATEGORY_LOCAL_GW)
 
-    def delete_router_gateway_policy(self, domain_id, router_id):
+    def delete_router_gateway_policy(self, router_id):
         """Delete the gateway policy associated with a router, it it exists.
         Should be called when the router is deleted / FW removed from it
         """
         try:
-            self.nsxpolicy.gateway_policy.get(domain_id, map_id=router_id)
+            self.nsxpolicy.gateway_policy.get(policy_constants.DEFAULT_DOMAIN,
+                                              map_id=router_id)
         except nsx_lib_exc.ResourceNotFound:
             return
-        self.nsxpolicy.gateway_policy.delete(domain_id, map_id=router_id)
+        self.nsxpolicy.gateway_policy.delete(policy_constants.DEFAULT_DOMAIN,
+                                             map_id=router_id)
 
         # Also delete all groups & services
-        self.cleanup_router_fw_resources(domain_id, router_id)
+        self.cleanup_router_fw_resources(router_id)
 
-    def cleanup_router_fw_resources(self, domain_id, router_id):
+    def cleanup_router_fw_resources(self, router_id):
         tags_to_search = [{'scope': ROUTER_FW_TAG, 'tag': router_id}]
         # Delete per rule & per network groups
         groups = self.nsxpolicy.search_by_tags(
             tags_to_search,
             self.nsxpolicy.group.entry_def.resource_type())['results']
         for group in groups:
-            self.nsxpolicy.group.delete(domain_id, group['id'])
+            self.nsxpolicy.group.delete(policy_constants.DEFAULT_DOMAIN,
+                                        group['id'])
 
         services = self.nsxpolicy.search_by_tags(
             tags_to_search,
