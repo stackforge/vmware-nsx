@@ -59,7 +59,8 @@ DEFAULT_EDGE_FIREWALL_RULE = {
     'name': 'VSERule',
     'enabled': True,
     'action': 'allow',
-    'source_vnic_groups': ['vse']}
+    'source_vnic_groups': ['vse'],
+    'destination_vnic_groups': ['external']}
 
 
 def get_router_fw_rules():
@@ -85,6 +86,13 @@ def get_router_fw_rules():
             'destination_ip_address': [METADATA_IP_ADDR],
             'protocol': 'tcp',
             'destination_port': dest_ports
+        },
+        {
+            'name': 'VSEMDInterEdgeNet',
+            'enabled': True,
+            'action': 'allow',
+            'source_vnic_groups': ['vse'],
+            'destination_ip_address': [INTERNAL_SUBNET]
         },
         {
             'name': 'MDInterEdgeNet',
