@@ -3247,13 +3247,19 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
             vse_rule = {'action': 'allow',
                         'enabled': True,
                         'name': 'VSERule',
-                        'source_vnic_groups': ['vse']}
+                        'source_vnic_groups': ['vse'],
+                        'destination_vnic_groups': ['external']}
             dest_intern = [md_proxy.INTERNAL_SUBNET]
             md_inter = {'action': 'deny',
                         'destination_ip_address': dest_intern,
                         'enabled': True,
                         'name': 'MDInterEdgeNet'}
             dest_srvip = [md_proxy.METADATA_IP_ADDR]
+            vsmdienet = {'action': 'allow',
+             'destination_ip_address': [md_proxy.INTERNAL_SUBNET],
+             'enabled': True,
+             'name': 'VSEMDInterEdgeNet',
+             'source_vnic_groups': ['vse']}
             md_srvip = {'action': 'allow',
                         'destination_ip_address': dest_srvip,
                         'destination_port': '80,443,8775',
@@ -3261,6 +3267,7 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
                         'name': 'MDServiceIP',
                         'protocol': 'tcp'}
             expected_fw = [fw_rule,
+                           vsmdienet,
                            vse_rule,
                            md_inter,
                            md_srvip]
@@ -3717,7 +3724,7 @@ class TestExclusiveRouterTestCase(L3NatTest, L3NatTestCaseBase,
                     # check fw rules
                     fw_rules = update_fw.call_args[0][3][
                         'firewall_rule_list']
-                    exp_fw_len = 5 if self.with_md_proxy else 2
+                    exp_fw_len = 6 if self.with_md_proxy else 2
                     pool_rule_ind = 4 if self.with_md_proxy else 1
                     pool_rule = fw_rules[pool_rule_ind]
                     self.assertEqual(exp_fw_len, len(fw_rules))

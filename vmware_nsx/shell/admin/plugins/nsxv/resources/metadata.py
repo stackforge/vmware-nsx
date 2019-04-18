@@ -37,19 +37,38 @@ from vmware_nsx.shell.admin.plugins.nsxv.resources import utils as utils
 from vmware_nsx.shell import resources as shell
 
 
+INTERNAL_SUBNET = '169.254.128.0/17'
+
 NSXV_MD_RULES = [
-    {'name': 'MDServiceIP',
-     'destination': {'ipAddress': ['169.254.169.254']},
-     'enabled': True,
-     'application': {'service': [{'protocol': 'tcp',
-                                  'port': [80, 443, 8775]}]},
-     'action': 'accept',
-     'ruleTag': None},
-    {'name': 'MDInterEdgeNet',
-     'destination': {'ipAddress': ['169.254.128.0/17']},
-     'enabled': True,
-     'action': 'deny',
-     'ruleTag': None}]
+    {
+        'name': 'VSERule',
+        'enabled': True,
+        'action': 'allow',
+        'source_vnic_groups': ['vse'],
+        'destination_vnic_groups': ['external']}
+    ,
+    {
+        'name': 'MDServiceIP',
+        'destination': {'ipAddress': ['169.254.169.254']},
+         'enabled': True,
+         'application': {'service': [{'protocol': 'tcp',
+                                      'port': [80, 443, 8775]}]},
+        'action': 'accept',
+        'ruleTag': None},
+    {
+        'name': 'VSEMDInterEdgeNet',
+        'enabled': True,
+        'action': 'allow',
+        'source_vnic_groups': ['vse'],
+        'destination_ip_address': [INTERNAL_SUBNET]
+    },
+    {
+        'name': 'MDInterEdgeNet',
+        'destination': {'ipAddress': ['169.254.128.0/17']},
+        'enabled': True,
+        'action': 'deny',
+        'ruleTag': None
+    }]
 
 LOG = logging.getLogger(__name__)
 nsxv = utils.get_nsxv_client()
@@ -57,8 +76,8 @@ nsxv = utils.get_nsxv_client()
 
 def _append_md_fw_rules(fw_rules):
     # Set FW rules tags
-    NSXV_MD_RULES[0]['ruleTag'] = len(fw_rules) + 1
-    NSXV_MD_RULES[1]['ruleTag'] = len(fw_rules) + 2
+    for i in range(len(NSXV_MD_RULES)):
+        NSXV_MD_RULES[0]['ruleTag'] = len(fw_rules) + i + 1
     fw_rules += NSXV_MD_RULES
     return fw_rules
 
